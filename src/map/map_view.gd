@@ -1,9 +1,14 @@
 class_name MapView
 extends TextureRect
 
-## Renders Ultima IV 11×11 view by blitting u4graphics shapes.png into an ImageTexture.
+## Renders Ultima IV explore view by blitting u4graphics shapes.png into an ImageTexture.
+## Explore: fixed VIEW_W × VIEW_H grid; STRETCH_SCALE applies mild tall-tile aspect.
 
-const VIEW := 11
+const VIEW_H := 11
+const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
+const VIEW_W_MIN := VIEW_W
+## Implied tile width/height when VIEW_W×VIEW_H fills the map pane (~9:10).
+const TILE_ASPECT := 9.0 / 10.0
 const U4_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
 const TILE_SRC := 32
 ## Fallback Avatar tiles (when class unknown): 31 ↔ 30.
@@ -27,9 +32,12 @@ const SCROLL_STEPS := 3
 var world: WorldMapData
 var atlas_img: Image
 var center := Vector2i(83, 105)
+## Visible tile grid (odd so the party sits on a true center tile).
+var view_w: int = VIEW_W
+var view_h: int = VIEW_H
 
 var _buf: Image
-var _stage: Image ## VIEW+1 staging buffer for sub-tile scroll
+var _stage: Image ## (view+1) staging buffer for sub-tile scroll
 var _tex: ImageTexture
 var _avatar_a: Image
 var _avatar_b: Image
@@ -49,7 +57,8 @@ var _water_cd := WATER_SCROLL_PERIOD
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	## Non-uniform fill: square source tiles → VIEW_W×VIEW_H aspect on screen.
+	stretch_mode = TextureRect.STRETCH_SCALE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_ensure_buffers()
 	texture = _tex
@@ -79,6 +88,42 @@ func setup(p_world: WorldMapData, p_atlas: Texture2D) -> void:
 	_avatar_frame = 0
 	_roll_frame_cd()
 	_rebuild()
+
+
+func set_view_tiles(cols: int, rows: int = VIEW_H) -> void:
+	## Resize the visible tile grid (cols fill/clip map width; rows default 11).
+	var nw := maxi(cols, 1)
+	var nh := maxi(rows, 1)
+	# Prefer odd sizes so the party marker sits on a true center cell.
+	if nw % 2 == 0:
+		nw += 1
+	if nh % 2 == 0:
+		nh += 1
+	if nw == view_w and nh == view_h:
+		return
+	view_w = nw
+	view_h = nh
+	_buf = null
+	_stage = null
+	_rebuild()
+
+
+func displayed_tile_size() -> Vector2:
+	## On-screen tile size with STRETCH_SCALE filling the pane.
+	var psz := size
+	if psz.x < 1.0 or psz.y < 1.0 or view_w < 1 or view_h < 1:
+		return Vector2.ZERO
+	return Vector2(psz.x / float(view_w), psz.y / float(view_h))
+
+
+func displayed_tile_px() -> float:
+	## Horizontal on-screen tile size (for side-panel width).
+	return displayed_tile_size().x
+
+
+func cols_for_pane(_pane: Vector2) -> int:
+	## Explore width is fixed (VIEW_W); pane stretch sets the tile aspect.
+	return VIEW_W
 
 
 func is_scrolling() -> bool:
@@ -219,12 +264,14 @@ func _slice_keyed_tile(tile_id: int) -> Image:
 
 
 func _ensure_buffers() -> void:
-	var side := VIEW * TILE_SRC
-	var stage := (VIEW + 1) * TILE_SRC
-	if _buf == null or _buf.get_width() != side:
-		_buf = Image.create(side, side, false, Image.FORMAT_RGBA8)
-	if _stage == null or _stage.get_width() != stage:
-		_stage = Image.create(stage, stage, false, Image.FORMAT_RGBA8)
+	var bw := view_w * TILE_SRC
+	var bh := view_h * TILE_SRC
+	var sw := (view_w + 1) * TILE_SRC
+	var sh := (view_h + 1) * TILE_SRC
+	if _buf == null or _buf.get_width() != bw or _buf.get_height() != bh:
+		_buf = Image.create(bw, bh, false, Image.FORMAT_RGBA8)
+	if _stage == null or _stage.get_width() != sw or _stage.get_height() != sh:
+		_stage = Image.create(sw, sh, false, Image.FORMAT_RGBA8)
 	if _tex == null:
 		_tex = ImageTexture.new()
 
@@ -262,12 +309,13 @@ func _rebuild() -> void:
 	)
 
 	var max_tid := maxi(atlas_img.get_height() / TILE_SRC - 1, 0)
-	var half := VIEW / 2
-	# Stage VIEW+1 so fractional scroll has a strip to reveal.
-	for dy in VIEW + 1:
-		for dx in VIEW + 1:
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	# Stage (view+1) so fractional scroll has a strip to reveal.
+	for dy in view_h + 1:
+		for dx in view_w + 1:
 			var tid := clampi(
-				world.tile_at(base.x - half + dx, base.y - half + dy),
+				world.tile_at(base.x - half_x + dx, base.y - half_y + dy),
 				0,
 				mini(255, max_tid)
 			)
@@ -283,7 +331,7 @@ func _rebuild() -> void:
 
 	_buf.blit_rect(
 		_stage,
-		Rect2i(off.x, off.y, VIEW * TILE_SRC, VIEW * TILE_SRC),
+		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
 		Vector2i.ZERO
 	)
 	_paint_party_marker()
@@ -316,7 +364,7 @@ func _blit_water_tile(tid: int, dst: Vector2i) -> void:
 
 func _paint_party_marker() -> void:
 	## Center tile: class/Avatar 2-frame walk cycle. Stays fixed while terrain scrolls.
-	var dst := Vector2i((VIEW / 2) * TILE_SRC, (VIEW / 2) * TILE_SRC)
+	var dst := Vector2i((view_w / 2) * TILE_SRC, (view_h / 2) * TILE_SRC)
 	var img := _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
 	if img != null and not img.is_empty():
 		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)

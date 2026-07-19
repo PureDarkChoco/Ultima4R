@@ -1,7 +1,13 @@
 class_name StatusInfoBar
 extends PanelContainer
 
-## moons · wind · gold · food · keys · skull · torches · gems
+## SKY: moons + wind (top bar, centered)
+## INVENTORY: gold / food / keys / skull / torches / gems (bottom bar, centered)
+## FULL: classic left moons + right inventory (archive / side layouts)
+
+enum BarKind { FULL, SKY, INVENTORY }
+
+@export var bar_kind: BarKind = BarKind.FULL
 
 const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 const WIND_DIR_PATHS := [
@@ -22,10 +28,9 @@ enum Wind { N, NE, E, SE, S, SW, W, NW }
 
 const GOLD_FOOD_MAX := 9999
 const ITEM_MAX := 99 # keys / skull / torches / gems
-## Tight fixed slots — must fit all stats in the right pane width.
 const STAT_NUM_W := 34.0 # "9999"
 const ITEM_NUM_W := 20.0 # "99"
-const ICON_SZ := 16.0
+const ICON_SZ := 14.0
 
 ## Stub world state until savegame is wired.
 var trammel_phase: int = 2
@@ -54,10 +59,11 @@ var _gems_lab: Label
 func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	custom_minimum_size = Vector2(0, 36)
+	custom_minimum_size = Vector2(0, 0)
 	_apply_blue_frame()
-	_load_moons()
-	_load_wind_icons()
+	if bar_kind != BarKind.INVENTORY:
+		_load_moons()
+		_load_wind_icons()
 	_build()
 	refresh()
 
@@ -66,12 +72,27 @@ func _apply_blue_frame() -> void:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.02, 0.06, 0.28, 1)
 	sb.border_color = Color(0.35, 0.55, 0.95, 1)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(1)
-	sb.content_margin_left = 12
-	sb.content_margin_right = 12
-	sb.content_margin_top = 3
-	sb.content_margin_bottom = 3
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	match bar_kind:
+		BarKind.SKY:
+			sb.border_width_left = 0
+			sb.border_width_top = 0
+			sb.border_width_right = 0
+			sb.border_width_bottom = 2
+		BarKind.INVENTORY:
+			sb.border_width_left = 0
+			sb.border_width_top = 2
+			sb.border_width_right = 0
+			sb.border_width_bottom = 0
+		_:
+			sb.set_border_width_all(2)
+			sb.set_corner_radius_all(1)
+			sb.content_margin_top = 3
+			sb.content_margin_bottom = 3
 	add_theme_stylebox_override("panel", sb)
 
 
@@ -114,16 +135,61 @@ func _load_moons() -> void:
 
 
 func _build() -> void:
+	match bar_kind:
+		BarKind.SKY:
+			_build_sky_centered()
+		BarKind.INVENTORY:
+			_build_inventory_centered()
+		_:
+			_build_full()
+
+
+func _build_sky_centered() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(_h_spacer())
+	row.add_child(_make_sky_cluster())
+	row.add_child(_h_spacer())
+	add_child(row)
+
+
+func _build_inventory_centered() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(_h_spacer())
+	row.add_child(_make_inventory_cluster())
+	row.add_child(_h_spacer())
+	add_child(row)
+
+
+func _build_full() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_make_sky_cluster())
+	row.add_child(_h_spacer())
+	row.add_child(_make_inventory_cluster())
+	add_child(row)
 
-	# Fixed left cluster — moons tight, wind spaced away.
-	var left := HBoxContainer.new()
-	left.add_theme_constant_override("separation", 16)
-	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	left.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+func _h_spacer() -> Control:
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.custom_minimum_size = Vector2(8, 0)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return gap
+
+
+func _make_sky_cluster() -> HBoxContainer:
+	var cluster := HBoxContainer.new()
+	cluster.add_theme_constant_override("separation", 16)
+	cluster.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	cluster.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 	var moons := HBoxContainer.new()
 	moons.add_theme_constant_override("separation", 2)
@@ -132,37 +198,30 @@ func _build() -> void:
 	_fel = _moon_icon()
 	moons.add_child(_tram)
 	moons.add_child(_fel)
-	left.add_child(moons)
+	cluster.add_child(moons)
 
 	_wind = TextureRect.new()
-	_wind.custom_minimum_size = Vector2(18, 18)
+	_wind.custom_minimum_size = Vector2(16, 16)
 	_wind.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_wind.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_wind.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_wind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	left.add_child(_wind)
-	row.add_child(left)
+	cluster.add_child(_wind)
+	return cluster
 
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gap.custom_minimum_size = Vector2(8, 0)
-	row.add_child(gap)
 
-	# Inventory strip: tight icon+number pairs, wider gaps between items.
-	var right := HBoxContainer.new()
-	right.add_theme_constant_override("separation", 16)
-	right.size_flags_horizontal = Control.SIZE_SHRINK_END
-	right.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-
-	_gold_lab = _add_stat(right, _coin_icon(), STAT_NUM_W)
-	_food_lab = _add_stat(right, _food_icon(), STAT_NUM_W)
-	_keys_lab = _add_stat(right, _key_icon(), ITEM_NUM_W)
-	_skull_lab = _add_stat(right, _skull_icon(), ITEM_NUM_W)
-	_torches_lab = _add_stat(right, _torch_icon(), ITEM_NUM_W)
-	_gems_lab = _add_stat(right, _gem_icon(), ITEM_NUM_W)
-	row.add_child(right)
-
-	add_child(row)
+func _make_inventory_cluster() -> HBoxContainer:
+	var cluster := HBoxContainer.new()
+	cluster.add_theme_constant_override("separation", 16)
+	cluster.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	cluster.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_gold_lab = _add_stat(cluster, _coin_icon(), STAT_NUM_W)
+	_food_lab = _add_stat(cluster, _food_icon(), STAT_NUM_W)
+	_keys_lab = _add_stat(cluster, _key_icon(), ITEM_NUM_W)
+	_skull_lab = _add_stat(cluster, _skull_icon(), ITEM_NUM_W)
+	_torches_lab = _add_stat(cluster, _torch_icon(), ITEM_NUM_W)
+	_gems_lab = _add_stat(cluster, _gem_icon(), ITEM_NUM_W)
+	return cluster
 
 
 func _add_stat(parent: HBoxContainer, icon: Texture2D, num_w: float) -> Label:
@@ -178,7 +237,7 @@ func _add_stat(parent: HBoxContainer, icon: Texture2D, num_w: float) -> Label:
 
 func _moon_icon() -> TextureRect:
 	var t := TextureRect.new()
-	t.custom_minimum_size = Vector2(20, 20)
+	t.custom_minimum_size = Vector2(16, 16)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -199,7 +258,7 @@ func _make_icon(tex: Texture2D) -> TextureRect:
 func _stat_label(width: float) -> Label:
 	var lab := Label.new()
 	lab.custom_minimum_size = Vector2(width, 0)
-	lab.add_theme_font_size_override("font_size", 13)
+	lab.add_theme_font_size_override("font_size", 11)
 	lab.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55, 1))
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -217,20 +276,24 @@ func _phase_char_index(phase: int) -> int:
 
 
 func refresh() -> void:
-	if _tram == null:
-		return
-	if _moon_tex.size() >= 8:
+	if _tram != null and _moon_tex.size() >= 8:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
 	var wd := posmod(wind_dir, 8)
 	if _wind != null and _wind_tex.size() >= 8 and _wind_tex[wd] != null:
 		_wind.texture = _wind_tex[wd]
-	_gold_lab.text = "%d" % mini(gold, GOLD_FOOD_MAX)
-	_food_lab.text = "%d" % mini(food, GOLD_FOOD_MAX)
-	_keys_lab.text = "%d" % mini(keys, ITEM_MAX)
-	_skull_lab.text = "%d" % mini(skull, ITEM_MAX)
-	_torches_lab.text = "%d" % mini(torches, ITEM_MAX)
-	_gems_lab.text = "%d" % mini(gems, ITEM_MAX)
+	if _gold_lab:
+		_gold_lab.text = "%d" % mini(gold, GOLD_FOOD_MAX)
+	if _food_lab:
+		_food_lab.text = "%d" % mini(food, GOLD_FOOD_MAX)
+	if _keys_lab:
+		_keys_lab.text = "%d" % mini(keys, ITEM_MAX)
+	if _skull_lab:
+		_skull_lab.text = "%d" % mini(skull, ITEM_MAX)
+	if _torches_lab:
+		_torches_lab.text = "%d" % mini(torches, ITEM_MAX)
+	if _gems_lab:
+		_gems_lab.text = "%d" % mini(gems, ITEM_MAX)
 
 
 func _coin_icon() -> Texture2D:

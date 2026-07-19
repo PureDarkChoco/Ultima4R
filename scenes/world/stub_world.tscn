@@ -25,23 +25,34 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.04, 0.035, 0.03, 1)
 
-[node name="RootRow" type="HBoxContainer" parent="."]
+[node name="RootCol" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 0
 
-[node name="MapPane" type="Control" parent="RootRow"]
+[node name="TopBar" type="PanelContainer" parent="RootCol"]
+unique_name_in_owner = true
 clip_contents = true
 layout_mode = 2
-custom_minimum_size = Vector2(720, 720)
-size_flags_horizontal = 0
-size_flags_vertical = 3
+size_flags_horizontal = 3
+size_flags_vertical = 0
+custom_minimum_size = Vector2(0, 24)
+script = ExtResource("4")
+bar_kind = 1
 
-[node name="MapView" type="TextureRect" parent="RootRow/MapPane"]
+[node name="MapPane" type="Control" parent="RootCol"]
+clip_contents = true
+layout_mode = 2
+custom_minimum_size = Vector2(640, 400)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+
+[node name="MapView" type="TextureRect" parent="RootCol/MapPane"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -52,74 +63,79 @@ grow_vertical = 2
 mouse_filter = 2
 texture_filter = 1
 expand_mode = 1
-stretch_mode = 5
+stretch_mode = 1
 script = ExtResource("2")
 
-[node name="RightPane" type="VBoxContainer" parent="RootRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(360, 0)
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_constants/separation = 8
-
-[node name="StatusFrame" type="PanelContainer" parent="RootRow/RightPane"]
-layout_mode = 2
-size_flags_vertical = 0
-size_flags_horizontal = 3
-
-[node name="StatusMargin" type="MarginContainer" parent="RootRow/RightPane/StatusFrame"]
-layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
-
-[node name="PartyRoster" type="VBoxContainer" parent="RootRow/RightPane/StatusFrame/StatusMargin"]
+[node name="CompactPane" type="Panel" parent="RootCol/MapPane"]
 unique_name_in_owner = true
-layout_mode = 2
+visible = true
+clip_contents = true
+layout_mode = 0
+mouse_filter = 0
+
+[node name="CompactRoster" type="VBoxContainer" parent="RootCol/MapPane/CompactPane"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 1
+size_flags_vertical = 0
+theme_override_constants/separation = 2
 script = ExtResource("3")
 
-[node name="InfoBar" type="PanelContainer" parent="RootRow/RightPane"]
+[node name="LeftPane" type="PanelContainer" parent="RootCol/MapPane"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+mouse_filter = 0
+
+[node name="RightTopPane" type="PanelContainer" parent="RootCol/MapPane"]
+unique_name_in_owner = true
+visible = false
+clip_contents = true
+layout_mode = 0
+mouse_filter = 0
+
+[node name="RightTopMargin" type="MarginContainer" parent="RootCol/MapPane/RightTopPane"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="PartyRoster" type="VBoxContainer" parent="RootCol/MapPane/RightTopPane/RightTopMargin"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+script = ExtResource("3")
+
+[node name="RightBottomPane" type="Panel" parent="RootCol/MapPane"]
+unique_name_in_owner = true
+visible = true
+clip_contents = true
+layout_mode = 0
+mouse_filter = 0
+
+[node name="MsgBlock" type="Control" parent="RootCol/MapPane/RightBottomPane"]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+
+[node name="BottomBar" type="PanelContainer" parent="RootCol"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 0
+custom_minimum_size = Vector2(0, 24)
 script = ExtResource("4")
-
-[node name="MessageFrame" type="PanelContainer" parent="RootRow/RightPane"]
-layout_mode = 2
-size_flags_vertical = 3
-size_flags_stretch_ratio = 1.0
-
-[node name="MessageMargin" type="MarginContainer" parent="RootRow/RightPane/MessageFrame"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
-
-[node name="MessageVBox" type="VBoxContainer" parent="RootRow/RightPane/MessageFrame/MessageMargin"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="MessageTitle" type="Label" parent="RootRow/RightPane/MessageFrame/MessageMargin/MessageVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.85, 1.0, 1)
-text = "Message"
-
-[node name="CmdLine" type="Label" parent="RootRow/RightPane/MessageFrame/MessageMargin/MessageVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.91, 0.9, 0.82, 1)
-theme_override_font_sizes/font_size = 15
-autowrap_mode = 3
-
-[node name="Hint" type="Label" parent="RootRow/RightPane/MessageFrame/MessageMargin/MessageVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.65, 0.85, 1)
-theme_override_font_sizes/font_size = 13
-autowrap_mode = 3
+bar_kind = 2

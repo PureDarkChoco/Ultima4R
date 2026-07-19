@@ -76,18 +76,37 @@ func party_leader_class() -> int:
 	return party_order[0]
 
 
+func party_size() -> int:
+	if party_order.is_empty():
+		refresh_party_order()
+	return party_order.size()
+
+
 func party_member_at(slot: int) -> int:
-	## Class id standing in roster row `slot` (0 = party #1).
+	## Class id standing in roster row `slot` (0 = party #1). -1 if empty.
 	if party_order.is_empty():
 		refresh_party_order()
 	if slot < 0 or slot >= party_order.size():
-		return clampi(slot, 0, 7)
+		return -1
 	return party_order[slot]
+
+
+func add_party_member(klass: int) -> bool:
+	## Recruit a companion (class 0..7). No-op if already in the party.
+	if klass < 0 or klass > 7:
+		return false
+	if party_order.is_empty():
+		refresh_party_order()
+	if party_order.has(klass):
+		return false
+	if party_order.size() >= 8:
+		return false
+	party_order.append(klass)
+	return true
 
 
 func refresh_party_order() -> void:
 	## Player leads; remaining classes follow in virtue index order.
-	## Call after changing player_class or when reordering the party.
 	party_order.clear()
 	var lead := player_class if player_class >= 0 else 0
 	party_order.append(lead)

@@ -28,12 +28,8 @@ DisplaySettings="*res://src/core/display_settings.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/mode=0
 window/size/initial_position_type=2
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
-window/dpi/allow_hidpi=true
-window/handheld/orientation=0
 
 [input]
 

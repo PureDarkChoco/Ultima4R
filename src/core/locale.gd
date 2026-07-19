@@ -178,6 +178,31 @@ const _T := {
 		"en_us": "%s) %s → %s (stub)",
 		"ko": "%s) %s → %s (미구현)",
 	},
+	"cmd_locate": {
+		"en_u4": "%s) %s  %s %s",
+		"en_us": "%s) %s  %s %s",
+		"ko": "%s) %s  %s %s",
+	},
+	"dir_north": {
+		"en_u4": "North",
+		"en_us": "North",
+		"ko": "북쪽",
+	},
+	"dir_south": {
+		"en_u4": "South",
+		"en_us": "South",
+		"ko": "남쪽",
+	},
+	"dir_east": {
+		"en_u4": "East",
+		"en_us": "East",
+		"ko": "동쪽",
+	},
+	"dir_west": {
+		"en_u4": "West",
+		"en_us": "West",
+		"ko": "서쪽",
+	},
 }
 
 
