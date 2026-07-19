@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/ui/game_frame.gd" id="1"]
+
+[node name="GameFrame" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="StatusFrame" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+
+[node name="ScrollFrame" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+
+[node name="StatusPanel" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+color = Color(0.165, 0.149, 0.133, 1)
+
+[node name="StatusPlaceholder" type="Label" parent="StatusPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+text = "Status"
+
+[node name="ScrollPanel" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+mouse_filter = 2
+color = Color(0.102, 0.094, 0.078, 1)
+
+[node name="ScrollPlaceholder" type="Label" parent="ScrollPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+text = "Message"
