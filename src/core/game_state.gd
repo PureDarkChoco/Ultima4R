@@ -107,6 +107,34 @@ func add_party_member(klass: int) -> bool:
 	return true
 
 
+func swap_party_members(a: int, b: int) -> bool:
+	## xu4 Party::swapPlayers — exchange two roster slots (0-based).
+	if party_order.is_empty():
+		refresh_party_order()
+	var n := party_order.size()
+	if a < 0 or b < 0 or a >= n or b >= n or a == b:
+		return false
+	var tmp: int = party_order[a]
+	party_order[a] = party_order[b]
+	party_order[b] = tmp
+	return true
+
+
+func party_member_display_name(slot: int) -> String:
+	## Roster / New Order name for the member in `slot` (0 = party #1).
+	var mid := party_member_at(slot)
+	if mid < 0:
+		return ""
+	var player_cls := player_class
+	if player_cls < 0:
+		player_cls = party_leader_class()
+	if mid == player_cls:
+		return player_name if not player_name.is_empty() else "Avatar"
+	if mid >= 0 and mid < PartyRoster.COMPANION_NAMES.size():
+		return PartyRoster.COMPANION_NAMES[mid]
+	return Virtues.class_name_of(mid, lang_short())
+
+
 func refresh_party_order() -> void:
 	## Player leads; remaining classes follow in virtue index order.
 	party_order.clear()

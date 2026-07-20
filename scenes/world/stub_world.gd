@@ -55,10 +55,20 @@ var _pending_cmd: int = U4Commands.Id.NONE
 var _pending_cmd_name: String = ""
 ## After a directed command fires, ignore held direction until all dir keys up.
 var _block_dir_until_keyup := false
+## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
+var _order_stage := 0
+var _order_slot_a := -1
+## Arrow-key cursor while New Order is open (0-based).
+var _order_cursor := 0
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
 var _sides_open := false
+## N (New Order): temporarily show only the character roster panel.
+var _order_opened_roster := false
+## Bump to cancel a pending delayed roster slide-away.
+var _order_close_token := 0
+const ORDER_ROSTER_HOLD_SEC := 0.6
 var _side_tween: Tween
 ## Locked message panel geometry (visible size — grows on Tab).
 var _msg_h := 0.0
@@ -423,6 +433,10 @@ func _place_msg_block(panel_h: float) -> void:
 
 func _prompt_row_text() -> String:
 	## xu4: "Attack: Dir?" waits on the same line as the command (after ►).
+	if _order_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_exchange")
+	if _order_stage == 2:
+		return MSG_PROMPT + Locale.t("cmd_with")
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
 		return MSG_PROMPT + Locale.t("cmd_need_dir", [_pending_cmd_name])
 	return MSG_PROMPT
@@ -472,6 +486,9 @@ func _layout_side_panels(animate: bool) -> void:
 	if ph < 1.0 or rw < 1.0:
 		return
 
+	## Full Tab open, or New Order peek (character panel only).
+	var roster_open := _sides_open or _order_opened_roster
+
 	_left_pane.custom_minimum_size = Vector2(lw, ph)
 	_left_pane.size = Vector2(lw, ph)
 
@@ -498,6 +515,7 @@ func _layout_side_panels(animate: bool) -> void:
 		_side_tween.set_parallel(true)
 		var msg_from := clampf(floorf(_right_bottom.size.y), bot_closed_h, bot_open_h)
 		if _sides_open:
+			_order_opened_roster = false
 			_set_open_panels_visible(true)
 			if _compact_pane:
 				_compact_pane.visible = true
@@ -538,15 +556,16 @@ func _layout_side_panels(animate: bool) -> void:
 			_side_tween.kill()
 			_side_tween = null
 		_left_pane.position = Vector2(left_x, 0.0)
+		_left_pane.visible = _sides_open
 		_right_top.size = Vector2(rw, top_h)
 		_right_top.custom_minimum_size = Vector2(rw, top_h)
-		_right_top.position = Vector2(right_open_x if _sides_open else right_closed_x, 0.0)
+		_right_top.position = Vector2(right_open_x if roster_open else right_closed_x, 0.0)
+		_right_top.visible = roster_open
 		_msg_h = bot_open_h if _sides_open else bot_closed_h
 		_apply_msg_geometry()
 		_refresh_message_view()
-		_set_open_panels_visible(_sides_open)
 		if _compact_pane:
-			_compact_pane.visible = not _sides_open
+			_compact_pane.visible = not roster_open
 			_compact_pane.modulate.a = 1.0
 
 
@@ -565,7 +584,7 @@ func _set_open_panels_visible(on: bool) -> void:
 
 
 func _on_sides_closed() -> void:
-	if not _sides_open:
+	if not _sides_open and not _order_opened_roster:
 		if _left_pane:
 			_left_pane.visible = false
 		if _right_top:
@@ -587,10 +606,117 @@ func _on_sides_opened() -> void:
 
 
 func _toggle_side_panels() -> void:
+	_cancel_order_roster_close()
+	_order_opened_roster = false
 	_sides_open = not _sides_open
 	if _sides_open:
 		_refresh_party()
 	_layout_side_panels(true)
+
+
+func _open_order_roster() -> void:
+	## Slide out only the character panel for New Order (not left / message).
+	_cancel_order_roster_close()
+	if _sides_open or _order_opened_roster:
+		_refresh_party()
+		return
+	if _right_top == null:
+		return
+	_order_opened_roster = true
+	_refresh_party()
+	var g := _side_geom()
+	var rw: float = g["right_w"]
+	var top_h: float = g["top_h"]
+	var right_open_x: float = floorf(g["right_open_x"])
+	var right_closed_x: float = g["right_closed_x"]
+	_right_top.visible = true
+	_right_top.size = Vector2(rw, top_h)
+	_right_top.custom_minimum_size = Vector2(rw, top_h)
+	_right_top.position = Vector2(right_closed_x, 0.0)
+	if _compact_pane:
+		_compact_pane.visible = true
+		_compact_pane.modulate.a = 1.0
+	if not is_inside_tree():
+		_right_top.position = Vector2(right_open_x, 0.0)
+		if _compact_pane:
+			_compact_pane.visible = false
+		return
+	if _side_tween:
+		_side_tween.kill()
+	_side_tween = create_tween()
+	_side_tween.set_parallel(true)
+	_side_tween.tween_property(_right_top, "position", Vector2(right_open_x, 0.0), SIDE_TWEEN_SEC) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if _compact_pane:
+		_side_tween.tween_property(_compact_pane, "modulate:a", 0.0, SIDE_TWEEN_SEC * 0.35)
+	_side_tween.chain().tween_callback(_on_order_roster_opened)
+
+
+func _close_order_roster() -> void:
+	## Put the character panel away after New Order cancel/complete.
+	_cancel_order_roster_close()
+	if not _order_opened_roster:
+		return
+	_order_opened_roster = false
+	if _sides_open:
+		return
+	if _right_top == null:
+		return
+	var g := _side_geom()
+	var right_closed_x: float = g["right_closed_x"]
+	if _compact_pane:
+		_compact_pane.visible = true
+		_compact_pane.modulate.a = 0.0
+	if not is_inside_tree():
+		_right_top.visible = false
+		_right_top.position = Vector2(right_closed_x, 0.0)
+		if _compact_pane:
+			_compact_pane.modulate.a = 1.0
+		return
+	if _side_tween:
+		_side_tween.kill()
+	_side_tween = create_tween()
+	_side_tween.set_parallel(true)
+	_side_tween.tween_property(_right_top, "position", Vector2(right_closed_x, 0.0), SIDE_TWEEN_SEC) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if _compact_pane:
+		_side_tween.tween_property(_compact_pane, "modulate:a", 1.0, SIDE_TWEEN_SEC)
+	_side_tween.chain().tween_callback(_on_order_roster_closed)
+
+
+func _cancel_order_roster_close() -> void:
+	_order_close_token += 1
+
+
+func _schedule_order_roster_close(delay_sec: float = ORDER_ROSTER_HOLD_SEC) -> void:
+	## Keep panel open briefly so the new order is readable; gameplay stays unlocked.
+	if not _order_opened_roster or _sides_open:
+		return
+	_order_close_token += 1
+	var tok := _order_close_token
+	get_tree().create_timer(delay_sec).timeout.connect(
+		func() -> void:
+			if tok != _order_close_token:
+				return
+			if _order_stage != 0 or _sides_open:
+				return
+			_close_order_roster()
+	)
+
+
+func _on_order_roster_opened() -> void:
+	if _order_opened_roster and _compact_pane:
+		_compact_pane.visible = false
+
+
+func _on_order_roster_closed() -> void:
+	if _sides_open or _order_opened_roster:
+		return
+	if _right_top:
+		_right_top.visible = false
+	if _compact_pane:
+		_compact_pane.visible = true
+		_compact_pane.modulate.a = 1.0
 
 
 func _process(delta: float) -> void:
@@ -607,6 +733,8 @@ func _process(delta: float) -> void:
 	if not _load_error.is_empty():
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return
+	if _order_stage != 0:
 		return
 
 	var dir := _read_move_dir()
@@ -682,9 +810,24 @@ func _clear_pending_dir() -> void:
 	_layout_prompt_row()
 
 
+func _clear_pending_order(show_none: bool = false) -> void:
+	_order_stage = 0
+	_order_slot_a = -1
+	_order_cursor = 0
+	_clear_order_selection()
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+	_layout_prompt_row()
+	_close_order_roster()
+
+
 func _on_escape() -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
+		return
+	if _order_stage != 0:
+		## xu4 choosePlayer cancel → "None"; slide roster away.
+		_clear_pending_order(true)
 		return
 	if _sides_open:
 		_sides_open = false
@@ -712,6 +855,14 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	## New Order accepts keyboard + gamepad (A confirm, B cancel, D-pad/stick move).
+	if _order_stage != 0:
+		if _handle_order_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			## Swallow other pads/keys so explore move/commands don't leak through.
+			get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_peer_dismiss_key(event):
@@ -780,17 +931,22 @@ func _handle_command(cmd: int) -> void:
 	## xu4 fire(): not on a ship → "Fire What?" (no Dir?).
 	if cmd == U4Commands.Id.FIRE:
 		_clear_pending_dir()
+		_clear_pending_order()
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
 		## xu4: print "Attack: " then "Dir?" on the *same* line and wait.
+		_clear_pending_order()
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
 		return
 	_clear_pending_dir()
+	_clear_pending_order()
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
+	elif cmd == U4Commands.Id.NEW_ORDER:
+		_do_new_order()
 	elif cmd == U4Commands.Id.LOCATE:
 		_push_message(Locale.t("cmd_locate", [
 			letter,
@@ -834,6 +990,168 @@ func _do_peer() -> void:
 func _close_peer_overlay() -> void:
 	if _peer_overlay:
 		_peer_overlay.close_peer()
+
+
+func _do_new_order() -> void:
+	## xu4 newOrder(): "New Order!" → Exchange # → with # → swapPlayers.
+	## Ultima4R: digits still work; ↑↓ + Enter also pick slots.
+	_push_message(Locale.t("cmd_new_order"), false)
+	if GameState.party_size() <= 1:
+		## Nobody to exchange with.
+		_push_message(Locale.t("cmd_what"), false)
+		return
+	_open_order_roster()
+	_order_stage = 1
+	_order_slot_a = -1
+	_order_cursor = 0
+	_sync_order_selection()
+	_layout_prompt_row()
+
+
+func _handle_order_input(event: InputEvent) -> bool:
+	## Digits / ↑↓+Enter / gamepad D-pad+A. Space/B/Esc cancel.
+	## Returns true if the event was consumed.
+	if event.is_echo() or not event.is_pressed():
+		return false
+	## Esc → full cancel via _on_escape path.
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	## B / cancel action (not keyboard Space — handled below).
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_clear_pending_order(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_clear_pending_order(true)
+		return true
+	## Keyboard Space cancels (Enter / pad A confirms).
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_clear_pending_order(true)
+		return true
+	## Confirm: Enter or gamepad A (JOY_BUTTON_A = 0). Avoid `confirm` action — it includes Space.
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_order_slot(_order_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_order_slot(_order_cursor)
+		return true
+	## Move cursor: keys, D-pad, or stick via move_* actions.
+	if event.is_action_pressed("move_up"):
+		_nudge_order_cursor(-1)
+		return true
+	if event.is_action_pressed("move_down"):
+		_nudge_order_cursor(1)
+		return true
+	if event is InputEventKey:
+		var slot := _player_slot_from_key(event as InputEventKey)
+		if slot < 0:
+			if _is_digit_key(event as InputEventKey):
+				_clear_pending_order(true)
+				return true
+			return false
+		_order_cursor = slot
+		_accept_order_slot(slot)
+		return true
+	return false
+
+
+func _is_order_cancel_key(event: InputEventKey) -> bool:
+	## Space cancels (Enter confirms via cursor). Esc handled separately.
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return code == KEY_SPACE or phys == KEY_SPACE
+
+
+func _is_order_confirm_key(event: InputEventKey) -> bool:
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return (
+		code == KEY_ENTER or phys == KEY_ENTER
+		or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
+	)
+
+
+func _nudge_order_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	_order_cursor = clampi(_order_cursor + delta, 0, n - 1)
+	_sync_order_selection()
+
+
+func _sync_order_selection() -> void:
+	if _roster == null:
+		return
+	var locked := _order_slot_a if _order_stage == 2 else -1
+	_roster.set_order_selection(_order_cursor, locked)
+
+
+func _clear_order_selection() -> void:
+	if _roster:
+		_roster.clear_order_selection()
+
+
+func _is_digit_key(event: InputEventKey) -> bool:
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return (
+		(code >= KEY_0 and code <= KEY_9)
+		or (phys >= KEY_0 and phys <= KEY_9)
+		or (code >= KEY_KP_0 and code <= KEY_KP_9)
+		or (phys >= KEY_KP_0 and phys <= KEY_KP_9)
+	)
+
+
+func _player_slot_from_key(event: InputEventKey) -> int:
+	## 1..party_size → 0-based slot; else -1 (xu4 None).
+	var n := -1
+	var code := event.keycode
+	var phys := event.physical_keycode
+	if code >= KEY_1 and code <= KEY_8:
+		n = code - KEY_1
+	elif phys >= KEY_1 and phys <= KEY_8:
+		n = phys - KEY_1
+	elif code >= KEY_KP_1 and code <= KEY_KP_8:
+		n = code - KEY_KP_1
+	elif phys >= KEY_KP_1 and phys <= KEY_KP_8:
+		n = phys - KEY_KP_1
+	if n < 0 or n >= GameState.party_size():
+		return -1
+	return n
+
+
+func _accept_order_slot(slot: int) -> void:
+	var name := GameState.party_member_display_name(slot)
+	if _order_stage == 1:
+		_push_message(Locale.t("cmd_exchange_done", [name]), false)
+		_order_slot_a = slot
+		_order_stage = 2
+		_order_cursor = slot
+		_sync_order_selection()
+		_layout_prompt_row()
+		return
+	## Stage 2 — picking the second member.
+	if slot == _order_slot_a:
+		## Re-selecting the first pick clears it (stay in New Order).
+		_order_stage = 1
+		_order_slot_a = -1
+		_order_cursor = slot
+		_sync_order_selection()
+		_layout_prompt_row()
+		return
+	_push_message(Locale.t("cmd_with_done", [name]), false)
+	var a := _order_slot_a
+	_order_stage = 0
+	_order_slot_a = -1
+	_clear_order_selection()
+	_layout_prompt_row()
+	if not GameState.swap_party_members(a, slot):
+		_push_message(Locale.t("cmd_what"), false)
+		_close_order_roster()
+		return
+	_refresh_party()
+	## Hold the roster briefly so the new order is visible; input stays free.
+	_schedule_order_roster_close()
 
 
 func _refresh_inventory_bars() -> void:

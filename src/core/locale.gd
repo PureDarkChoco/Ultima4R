@@ -208,6 +208,42 @@ const _T := {
 		"en_us": "Peer at What?",
 		"ko": "Peer at What?",
 	},
+	## xu4 newOrder()
+	"cmd_new_order": {
+		"en_u4": "New Order!",
+		"en_us": "New Order!",
+		"ko": "New Order!",
+	},
+	"cmd_exchange": {
+		"en_u4": "Exchange # ",
+		"en_us": "Exchange # ",
+		"ko": "Exchange # ",
+	},
+	"cmd_exchange_done": {
+		"en_u4": "Exchange # %s",
+		"en_us": "Exchange # %s",
+		"ko": "Exchange # %s",
+	},
+	"cmd_with": {
+		"en_u4": "    with # ",
+		"en_us": "    with # ",
+		"ko": "    with # ",
+	},
+	"cmd_with_done": {
+		"en_u4": "    with # %s",
+		"en_us": "    with # %s",
+		"ko": "    with # %s",
+	},
+	"cmd_none": {
+		"en_u4": "None",
+		"en_us": "None",
+		"ko": "None",
+	},
+	"cmd_must_lead": {
+		"en_u4": "%s, You must lead!",
+		"en_us": "%s, You must lead!",
+		"ko": "%s, You must lead!",
+	},
 	"cmd_fired": {
 		"en_u4": "%s) %s",
 		"en_us": "%s) %s",

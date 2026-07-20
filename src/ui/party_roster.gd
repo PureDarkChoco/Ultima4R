@@ -72,6 +72,11 @@ const COL_POISON := Color(0.35, 0.78, 0.28, 1)
 const COL_SLEEP := Color(0.72, 0.4, 0.95, 1)
 const COL_DEAD := Color(0.55, 0.52, 0.48, 1)
 const COL_SLEEP_ZZ := Color(1.0, 0.92, 0.28, 1)
+## New Order cursor / first-pick highlight.
+const COL_ORDER_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
+const COL_ORDER_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
+const COL_ORDER_LOCKED := Color(0.72, 0.52, 0.12, 0.4)
+const COL_ORDER_LOCKED_EDGE := Color(0.95, 0.78, 0.3, 0.9)
 
 var _icons: Array[TextureRect] = []
 var _sleep_zz: Array[Label] = []
@@ -90,6 +95,7 @@ var _mp_lab: Array[Label] = []
 var _exp_track: Array[Control] = []
 var _exp_fill: Array[ColorRect] = []
 var _exp_lab: Array[Label] = []
+var _row_panels: Array[Panel] = []
 var _portraits_a: Array[Texture2D] = []
 var _portraits_b: Array[Texture2D] = []
 var _frame_bit: Array[int] = []
@@ -97,6 +103,9 @@ var _frame_cd: Array[float] = []
 var _corpse: Texture2D
 var _anim_t := 0.0
 var _compact := false
+## New Order: cursor slot (-1 = off), locked first pick (-1 = none).
+var _order_cursor := -1
+var _order_locked := -1
 ## Map tile aspect (w/h). Size stays ICON_SIZE-based; only ratio follows tiles.
 var _tile_aspect := 9.0 / 10.0
 ## Open Tab panel outer height — compact rows/gaps are derived from this.
@@ -391,18 +400,25 @@ func _build_slots() -> void:
 	_exp_track.clear()
 	_exp_fill.clear()
 	_exp_lab.clear()
+	_row_panels.clear()
 	_frame_bit.clear()
 	_frame_cd.clear()
 	custom_minimum_size = Vector2(0, 0)
 
 	for i in 8:
+		var panel := Panel.new()
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		panel.size_flags_stretch_ratio = 1.0
+		panel.custom_minimum_size = Vector2(0, 12)
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_theme_stylebox_override("panel", _order_row_style(-1, -1, i))
+
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 5)
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		row.size_flags_stretch_ratio = 1.0
-		row.custom_minimum_size = Vector2(0, 12)
+		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		row.alignment = BoxContainer.ALIGNMENT_BEGIN
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 		var portrait := Control.new()
 		portrait.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
@@ -484,8 +500,10 @@ func _build_slots() -> void:
 		row.add_child(name_gap)
 		row.add_child(vitals_row)
 		row.add_child(vitals_col)
-		add_child(row)
+		panel.add_child(row)
+		add_child(panel)
 
+		_row_panels.append(panel)
 		_icons.append(icon)
 		_sleep_zz.append(zz)
 		_portraits.append(portrait)
@@ -508,6 +526,52 @@ func _build_slots() -> void:
 
 	_apply_compact_visuals()
 	call_deferred("_distribute_rows")
+
+
+func set_order_selection(cursor: int, locked: int = -1) -> void:
+	## Highlight New Order cursor; `locked` = first pick already chosen.
+	_order_cursor = cursor
+	_order_locked = locked
+	_apply_order_selection()
+
+
+func clear_order_selection() -> void:
+	_order_cursor = -1
+	_order_locked = -1
+	_apply_order_selection()
+
+
+func _order_row_style(cursor: int, locked: int, index: int) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 2
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	sb.border_width_left = 0
+	sb.border_width_top = 0
+	sb.border_width_right = 0
+	sb.border_width_bottom = 0
+	sb.bg_color = Color(0, 0, 0, 0)
+	if index == cursor:
+		sb.bg_color = COL_ORDER_CURSOR
+		sb.border_color = COL_ORDER_CURSOR_EDGE
+		sb.border_width_left = 3
+	elif index == locked:
+		sb.bg_color = COL_ORDER_LOCKED
+		sb.border_color = COL_ORDER_LOCKED_EDGE
+		sb.border_width_left = 3
+	return sb
+
+
+func _apply_order_selection() -> void:
+	for i in _row_panels.size():
+		var panel := _row_panels[i]
+		if panel == null:
+			continue
+		panel.add_theme_stylebox_override(
+			"panel", _order_row_style(_order_cursor, _order_locked, i)
+		)
 
 
 func _load_portraits() -> void:
@@ -678,6 +742,7 @@ func refresh() -> void:
 	_apply_compact_visuals()
 	_distribute_rows()
 	_apply_portrait_anim()
+	_apply_order_selection()
 	call_deferred("_relayout_bars")
 
 
