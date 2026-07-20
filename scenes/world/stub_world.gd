@@ -18,6 +18,7 @@ extends Control
 @onready var _msg_block: Control = %MsgBlock
 
 var _peer_overlay: PeerGemOverlay
+var _ztats_panel: ZtatsPanel
 
 const MOVE_HOLD_DELAY := 0.5
 const MOVE_HOLD_INTERVAL := 0.1
@@ -60,6 +61,9 @@ var _order_stage := 0
 var _order_slot_a := -1
 ## Arrow-key cursor while New Order is open (0-based).
 var _order_cursor := 0
+## xu4 ztatsFor(): 0 = idle, 1 = pick member, 2 = viewing sheet.
+var _ztats_stage := 0
+var _ztats_cursor := 0
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -96,14 +100,14 @@ func _ready() -> void:
 	_sides_open = false
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
+	_ensure_ztats_panel()
 	if _compact_roster:
 		_compact_roster.set_compact(true)
 	if _roster:
 		_roster.set_compact(false)
 	## Stub: party of 4 for layout checks.
 	GameState.refresh_party_order()
-	if GameState.party_order.size() > 4:
-		GameState.party_order.resize(4)
+	## Full party of 8 for stub testing (all class companions).
 
 	var atlas := _load_atlas()
 	var path := _resolve_world_map_path()
@@ -217,7 +221,7 @@ func _make_edge_panel(
 	border_b: int
 ) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.02, 0.06, 0.28, 1)
+	sb.bg_color = Color(0.0, 0.0, 0.0, 1)
 	sb.border_color = Color(0.35, 0.55, 0.95, 1)
 	sb.border_width_left = border_l
 	sb.border_width_top = border_t
@@ -433,6 +437,8 @@ func _place_msg_block(panel_h: float) -> void:
 
 func _prompt_row_text() -> String:
 	## xu4: "Attack: Dir?" waits on the same line as the command (after ►).
+	if _ztats_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_ztats_for")
 	if _order_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_exchange")
 	if _order_stage == 2:
@@ -567,6 +573,16 @@ func _layout_side_panels(animate: bool) -> void:
 		if _compact_pane:
 			_compact_pane.visible = not roster_open
 			_compact_pane.modulate.a = 1.0
+	if _ztats_stage == 2:
+		if _right_top:
+			_right_top.visible = true
+		if _compact_pane:
+			_compact_pane.visible = false
+		if _roster:
+			_roster.visible = false
+		if _ztats_panel:
+			_ztats_panel.visible = true
+			_ztats_panel.move_to_front()
 
 
 func _tween_msg_height(h: float) -> void:
@@ -734,15 +750,17 @@ func _process(delta: float) -> void:
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
-	if _order_stage != 0:
+	## Z/N pick lists: same hold timing as world move; wrap at ends.
+	if _ztats_stage == 1 or _order_stage != 0:
+		_tick_select_cursor()
+		return
+	if _ztats_stage != 0:
 		return
 
 	var dir := _read_move_dir()
 	if dir == Vector2i.ZERO:
 		_block_dir_until_keyup = false
-		_move_repeating = false
-		_hold_arm = 0.0
-		_held_dir = Vector2i.ZERO
+		_reset_hold_state()
 		return
 	if _block_dir_until_keyup:
 		## Direction was used for A/F/G/J/O/T — wait for key-up before move/repeat.
@@ -775,12 +793,58 @@ func _process(delta: float) -> void:
 	)
 	_map.set_center(_tile_pos)
 	_push_move_message(dir)
+	_arm_hold_after_step()
+
+
+func _reset_hold_state() -> void:
+	_move_repeating = false
+	_hold_arm = 0.0
+	_move_cd = 0.0
+	_held_dir = Vector2i.ZERO
+
+
+func _arm_hold_after_step() -> void:
 	_move_cd = MOVE_HOLD_INTERVAL
 	if _move_repeating:
 		_hold_arm = 0.0
 	else:
 		_move_repeating = true
 		_hold_arm = MOVE_HOLD_DELAY
+
+
+func _tick_select_cursor() -> void:
+	## ↑↓ while picking a party member (Ztats / New Order).
+	var step := _read_select_step()
+	if step == 0:
+		_reset_hold_state()
+		return
+	var held := Vector2i(0, step)
+	if held != _held_dir:
+		_held_dir = held
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	if _ztats_stage == 1:
+		_nudge_ztats_cursor(step)
+	elif _order_stage != 0:
+		_nudge_order_cursor(step)
+	_arm_hold_after_step()
+
+
+func _read_select_step() -> int:
+	## -1 = up, +1 = down, 0 = none (vertical only).
+	if Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP):
+		return -1
+	if Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN):
+		return 1
+	if Input.is_action_pressed("move_up"):
+		return -1
+	if Input.is_action_pressed("move_down"):
+		return 1
+	return 0
 
 
 func _read_move_dir() -> Vector2i:
@@ -825,6 +889,9 @@ func _on_escape() -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
+	if _ztats_stage != 0:
+		_close_ztats(true)
+		return
 	if _order_stage != 0:
 		## xu4 choosePlayer cancel → "None"; slide roster away.
 		_clear_pending_order(true)
@@ -850,12 +917,22 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
+			## Ztats open: don't collapse/expand side panels.
+			if _ztats_stage != 0:
+				get_viewport().set_input_as_handled()
+				return
 			_toggle_side_panels()
 			get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## New Order accepts keyboard + gamepad (A confirm, B cancel, D-pad/stick move).
+	## Ztats / New Order accept keyboard + gamepad.
+	if _ztats_stage != 0:
+		if _handle_ztats_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _order_stage != 0:
 		if _handle_order_input(event):
 			get_viewport().set_input_as_handled()
@@ -932,21 +1009,26 @@ func _handle_command(cmd: int) -> void:
 	if cmd == U4Commands.Id.FIRE:
 		_clear_pending_dir()
 		_clear_pending_order()
+		_close_ztats(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
 		## xu4: print "Attack: " then "Dir?" on the *same* line and wait.
 		_clear_pending_order()
+		_close_ztats(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
 		return
 	_clear_pending_dir()
 	_clear_pending_order()
+	_close_ztats(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
 		_do_new_order()
+	elif cmd == U4Commands.Id.ZTATS:
+		_do_ztats()
 	elif cmd == U4Commands.Id.LOCATE:
 		_push_message(Locale.t("cmd_locate", [
 			letter,
@@ -995,6 +1077,7 @@ func _close_peer_overlay() -> void:
 func _do_new_order() -> void:
 	## xu4 newOrder(): "New Order!" → Exchange # → with # → swapPlayers.
 	## Ultima4R: digits still work; ↑↓ + Enter also pick slots.
+	_close_ztats(false)
 	_push_message(Locale.t("cmd_new_order"), false)
 	if GameState.party_size() <= 1:
 		## Nobody to exchange with.
@@ -1004,8 +1087,202 @@ func _do_new_order() -> void:
 	_order_stage = 1
 	_order_slot_a = -1
 	_order_cursor = 0
+	_reset_hold_state()
 	_sync_order_selection()
 	_layout_prompt_row()
+
+
+func _ensure_ztats_panel() -> void:
+	if _ztats_panel != null:
+		return
+	var host := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as Control
+	if host == null:
+		return
+	_ztats_panel = ZtatsPanel.new()
+	_ztats_panel.name = "ZtatsPanel"
+	_ztats_panel.visible = false
+	_ztats_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(_ztats_panel)
+
+
+func _do_ztats() -> void:
+	## xu4 ztatsFor(): "Ztats for: " → pick member → character sheet.
+	_clear_pending_order()
+	if GameState.party_size() <= 0:
+		_push_message(Locale.t("cmd_none"), false)
+		return
+	_open_order_roster()
+	_ztats_stage = 1
+	_ztats_cursor = 0
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	if _ztats_panel:
+		_ztats_panel.close_panel()
+	_sync_ztats_selection()
+	_layout_prompt_row()
+
+
+func _handle_ztats_input(event: InputEvent) -> bool:
+	if event.is_echo() or not event.is_pressed():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	## Viewing sheet: Esc / Space / Enter cancel; Z returns to pick list.
+	if _ztats_stage == 2:
+		if event is InputEventKey:
+			var kz := event as InputEventKey
+			if kz.keycode == KEY_Z or kz.physical_keycode == KEY_Z:
+				_return_ztats_to_pick()
+				return true
+		if _is_ztats_dismiss(event):
+			_close_ztats(false)
+			return true
+		## ← → cycle members; digits jump to a slot.
+		if event.is_action_pressed("move_left"):
+			_nudge_ztats_view(-1)
+			return true
+		if event.is_action_pressed("move_right"):
+			_nudge_ztats_view(1)
+			return true
+		if event is InputEventKey:
+			var kview := event as InputEventKey
+			if kview.keycode == KEY_LEFT or kview.physical_keycode == KEY_LEFT:
+				_nudge_ztats_view(-1)
+				return true
+			if kview.keycode == KEY_RIGHT or kview.physical_keycode == KEY_RIGHT:
+				_nudge_ztats_view(1)
+				return true
+			var slot := _player_slot_from_key(kview)
+			if slot >= 0:
+				_show_ztats_member(slot)
+				return true
+		return true
+	## Pick stage — same affordances as New Order cursor.
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_ztats(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_ztats(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_close_ztats(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_ztats_slot(_ztats_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_ztats_slot(_ztats_cursor)
+		return true
+	## ↑↓ are polled in _tick_select_cursor (hold-repeat like world move).
+	if event is InputEventKey:
+		var pick := _player_slot_from_key(event as InputEventKey)
+		if pick < 0:
+			if _is_digit_key(event as InputEventKey):
+				_close_ztats(true)
+				return true
+			return false
+		_ztats_cursor = pick
+		_accept_ztats_slot(pick)
+		return true
+	return false
+
+
+func _is_ztats_dismiss(event: InputEvent) -> bool:
+	## Only Esc / Space / Enter fully cancel Ztats.
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		var code := k.keycode
+		var phys := k.physical_keycode
+		return (
+			code == KEY_ESCAPE or phys == KEY_ESCAPE
+			or code == KEY_SPACE or phys == KEY_SPACE
+			or code == KEY_ENTER or phys == KEY_ENTER
+			or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
+		)
+	return false
+
+
+func _return_ztats_to_pick() -> void:
+	## Z while viewing → back to character select list.
+	_ztats_stage = 1
+	_reset_hold_state()
+	if _ztats_panel:
+		_ztats_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	_order_opened_roster = true
+	_sync_ztats_selection()
+	_layout_prompt_row()
+
+
+func _nudge_ztats_view(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	_ztats_cursor = posmod(_ztats_cursor + delta, n)
+	_show_ztats_member(_ztats_cursor)
+
+
+func _nudge_ztats_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	_ztats_cursor = posmod(_ztats_cursor + delta, n)
+	_sync_ztats_selection()
+
+
+func _sync_ztats_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_ztats_cursor, -1)
+
+
+func _accept_ztats_slot(slot: int) -> void:
+	if slot < 0 or slot >= GameState.party_size():
+		_close_ztats(true)
+		return
+	var name := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_ztats_for_done", [name]), false)
+	_show_ztats_member(slot)
+
+
+func _show_ztats_member(slot: int) -> void:
+	_ensure_ztats_panel()
+	_ztats_stage = 2
+	_ztats_cursor = slot
+	_clear_order_selection()
+	_layout_prompt_row()
+	## Reuse the open character panel chrome — swap roster for sheet content.
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	if _roster:
+		_roster.visible = false
+	_order_opened_roster = true
+	if _ztats_panel:
+		_ztats_panel.open_member(slot)
+
+
+func _close_ztats(show_none: bool) -> void:
+	var was := _ztats_stage
+	_ztats_stage = 0
+	_ztats_cursor = 0
+	_clear_order_selection()
+	if _ztats_panel:
+		_ztats_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	if was != 0:
+		_close_order_roster()
+	elif _order_opened_roster and _order_stage == 0:
+		_close_order_roster()
+	_layout_prompt_row()
+	if show_none and was == 1:
+		_push_message(Locale.t("cmd_none"), false)
 
 
 func _handle_order_input(event: InputEvent) -> bool:
@@ -1037,13 +1314,7 @@ func _handle_order_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
 		_accept_order_slot(_order_cursor)
 		return true
-	## Move cursor: keys, D-pad, or stick via move_* actions.
-	if event.is_action_pressed("move_up"):
-		_nudge_order_cursor(-1)
-		return true
-	if event.is_action_pressed("move_down"):
-		_nudge_order_cursor(1)
-		return true
+	## ↑↓ are polled in _tick_select_cursor (hold-repeat like world move).
 	if event is InputEventKey:
 		var slot := _player_slot_from_key(event as InputEventKey)
 		if slot < 0:
@@ -1075,7 +1346,7 @@ func _is_order_confirm_key(event: InputEventKey) -> bool:
 
 func _nudge_order_cursor(delta: int) -> void:
 	var n := maxi(GameState.party_size(), 1)
-	_order_cursor = clampi(_order_cursor + delta, 0, n - 1)
+	_order_cursor = posmod(_order_cursor + delta, n)
 	_sync_order_selection()
 
 

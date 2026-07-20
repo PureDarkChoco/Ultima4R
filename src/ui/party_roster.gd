@@ -21,6 +21,19 @@ const PORTRAIT_PATHS := [
 	"res://assets/portraits/classes/06_ranger.png",
 	"res://assets/portraits/classes/07_shepherd.png",
 ]
+## Painted companion / Avatar faces for Ztats sheet (class index 0..7).
+const ZTATS_COMPANION_PATHS := [
+	"res://assets/portraits/companions/00_mariah.png",
+	"res://assets/portraits/companions/01_iolo.png",
+	"res://assets/portraits/companions/02_geoffrey.png",
+	"res://assets/portraits/companions/03_jaana.png",
+	"res://assets/portraits/companions/04_julia.png",
+	"res://assets/portraits/companions/05_dupre.png",
+	"res://assets/portraits/companions/06_shamino.png",
+	"res://assets/portraits/companions/07_katrina.png",
+]
+const ZTATS_AVATAR_MALE := "res://assets/portraits/companions/avatar_male.png"
+const ZTATS_AVATAR_FEMALE := "res://assets/portraits/companions/avatar_female.png"
 const CORPSE_PATH := "res://assets/portraits/classes/corpse.png"
 
 const COMPANION_NAMES := [
@@ -39,6 +52,21 @@ const STUB_STATUS := [
 	Status.OK, Status.POISONED, Status.SLEEPING, Status.OK,
 	Status.POISONED, Status.DEAD, Status.OK, Status.SLEEPING,
 ]
+## Stub attributes / gear until savegame stats are wired (class-indexed).
+const STUB_STR := [22, 16, 28, 14, 18, 24, 18, 12]
+const STUB_DEX := [16, 22, 18, 16, 20, 16, 22, 14]
+const STUB_INT := [24, 16, 10, 22, 14, 14, 16, 12]
+const STUB_WEAPON := [
+	"Staff", "Sling", "Mystic sword", "Wand",
+	"Axe", "Sword", "Bow", "Sling",
+]
+const STUB_ARMOR := [
+	"Cloth", "Cloth", "Magic chain", "Cloth",
+	"Leather", "Plate", "Leather", "Cloth",
+]
+## Stub attack / defense from equipped gear (until savegame stats).
+const STUB_ATK := [4, 4, 10, 2, 8, 10, 8, 4]
+const STUB_DEF := [1, 1, 4, 1, 2, 8, 2, 1]
 
 const ICON_SIZE := 28
 const ROW_H := 32
@@ -95,7 +123,7 @@ var _mp_lab: Array[Label] = []
 var _exp_track: Array[Control] = []
 var _exp_fill: Array[ColorRect] = []
 var _exp_lab: Array[Label] = []
-var _row_panels: Array[Panel] = []
+var _row_panels: Array[PanelContainer] = []
 var _portraits_a: Array[Texture2D] = []
 var _portraits_b: Array[Texture2D] = []
 var _frame_bit: Array[int] = []
@@ -106,6 +134,8 @@ var _compact := false
 ## New Order: cursor slot (-1 = off), locked first pick (-1 = none).
 var _order_cursor := -1
 var _order_locked := -1
+## Guard against resize ↔ distribute feedback loops.
+var _relayouting := false
 ## Map tile aspect (w/h). Size stays ICON_SIZE-based; only ratio follows tiles.
 var _tile_aspect := 9.0 / 10.0
 ## Open Tab panel outer height — compact rows/gaps are derived from this.
@@ -260,8 +290,12 @@ func relayout() -> void:
 
 
 func _on_roster_resized() -> void:
+	if _relayouting:
+		return
+	_relayouting = true
 	_distribute_rows()
 	_relayout_bars()
+	_relayouting = false
 
 
 func _distribute_rows() -> void:
@@ -406,7 +440,7 @@ func _build_slots() -> void:
 	custom_minimum_size = Vector2(0, 0)
 
 	for i in 8:
-		var panel := Panel.new()
+		var panel := PanelContainer.new()
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		panel.size_flags_stretch_ratio = 1.0
@@ -416,7 +450,8 @@ func _build_slots() -> void:
 
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 5)
-		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.alignment = BoxContainer.ALIGNMENT_BEGIN
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -539,6 +574,116 @@ func clear_order_selection() -> void:
 	_order_cursor = -1
 	_order_locked = -1
 	_apply_order_selection()
+
+
+static func status_label(st: int) -> String:
+	match st:
+		Status.POISONED:
+			return "Poisoned"
+		Status.SLEEPING:
+			return "Sleeping"
+		Status.DEAD:
+			return "Dead"
+		_:
+			return "Good"
+
+
+static func member_ztats(slot: int) -> Dictionary:
+	## Snapshot for Ztats sheet. Keys match ZtatsPanel expectations.
+	var mid := GameState.party_member_at(slot)
+	if mid < 0 or mid > 7:
+		return {}
+	var player_cls := GameState.player_class
+	if player_cls < 0:
+		player_cls = GameState.party_leader_class()
+	var nm := ""
+	if mid == player_cls:
+		nm = GameState.player_name if not GameState.player_name.is_empty() else "Avatar"
+	else:
+		nm = COMPANION_NAMES[mid]
+	var sex := "M"
+	if mid == player_cls:
+		sex = "F" if GameState.player_sex == "female" else "M"
+	elif mid in [0, 3, 4, 7]:
+		## Classic companions: Mariah/Jaana/Julia/Katrina female.
+		sex = "F"
+	var st: int = STUB_STATUS[mid]
+	## Class tile: corpse when dead (same as roster). Face: always the painted portrait.
+	var tile: Texture2D = _ztats_class_tile(mid)
+	if st == Status.DEAD:
+		tile = _load_texture_file(CORPSE_PATH)
+	var face: Texture2D = _ztats_face_portrait(mid, mid == player_cls)
+	var lang := GameState.lang_short()
+	return {
+		"name": nm,
+		"sex": sex,
+		"class": Virtues.class_name_of(mid, lang),
+		"status": status_label(st),
+		"status_code": st,
+		"mp": 0 if st == Status.DEAD else STUB_MP[mid],
+		"max_mp": STUB_MAX_MP[mid],
+		"level": STUB_LEVELS[mid],
+		"str": STUB_STR[mid],
+		"dex": STUB_DEX[mid],
+		"int": STUB_INT[mid],
+		"hp": 0 if st == Status.DEAD else STUB_HP[mid],
+		"max_hp": STUB_MAX_HP[mid],
+		"exp": STUB_EXP[mid],
+		"exp_next": STUB_EXP_TO_NEXT[mid],
+		"weapon": STUB_WEAPON[mid],
+		"armor": STUB_ARMOR[mid],
+		"atk": STUB_ATK[mid],
+		"def": STUB_DEF[mid],
+		"tile": tile,
+		"portrait": face,
+	}
+
+
+static func _ztats_class_tile(klass: int) -> Texture2D:
+	## Same class tile used in the party roster strip.
+	if klass < 0 or klass >= PORTRAIT_PATHS.size():
+		return null
+	var atlas := Image.new()
+	if atlas.load(SHAPES_PATH) == OK:
+		if atlas.get_format() != Image.FORMAT_RGBA8:
+			atlas.convert(Image.FORMAT_RGBA8)
+		var even: int = CLASS_TILE_EVEN[klass]
+		var max_tid := atlas.get_height() / TILE_SRC - 1
+		if even >= 0 and even <= max_tid:
+			var slice := Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
+			slice.blit_rect(atlas, Rect2i(0, even * TILE_SRC, TILE_SRC, TILE_SRC), Vector2i.ZERO)
+			_key_black_static(slice)
+			return ImageTexture.create_from_image(slice)
+	return _load_texture_file(PORTRAIT_PATHS[klass])
+
+
+static func _ztats_face_portrait(klass: int, is_avatar: bool) -> Texture2D:
+	## Avatar → gender face; companions → painted class portrait.
+	var path := ""
+	if is_avatar:
+		path = ZTATS_AVATAR_FEMALE if GameState.player_sex == "female" else ZTATS_AVATAR_MALE
+	elif klass >= 0 and klass < ZTATS_COMPANION_PATHS.size():
+		path = ZTATS_COMPANION_PATHS[klass]
+	if path.is_empty():
+		return null
+	return _load_texture_file(path)
+
+
+static func _load_texture_file(path: String) -> Texture2D:
+	var img := Image.new()
+	if img.load(path) == OK:
+		return ImageTexture.create_from_image(img)
+	var loaded := load(path) as Texture2D
+	return loaded
+
+
+static func _key_black_static(img: Image) -> void:
+	## Match roster chroma-key so black tile bg is transparent.
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
 
 
 func _order_row_style(cursor: int, locked: int, index: int) -> StyleBoxFlat:

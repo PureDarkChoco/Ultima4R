@@ -244,6 +244,17 @@ const _T := {
 		"en_us": "%s, You must lead!",
 		"ko": "%s, You must lead!",
 	},
+	## xu4 ztatsFor()
+	"cmd_ztats_for": {
+		"en_u4": "Ztats for: ",
+		"en_us": "Ztats for: ",
+		"ko": "Ztats for: ",
+	},
+	"cmd_ztats_for_done": {
+		"en_u4": "Ztats for: %s",
+		"en_us": "Ztats for: %s",
+		"ko": "Ztats for: %s",
+	},
 	"cmd_fired": {
 		"en_u4": "%s) %s",
 		"en_us": "%s) %s",
