@@ -27,6 +27,7 @@ func _ready() -> void:
 	UiTheme.style_button(_back)
 
 	_name.add_theme_font_size_override("font_size", 20)
+	UiTheme.apply_font(_name)
 	_name.focus_mode = Control.FOCUS_ALL
 	_name.placeholder_text = "Avatar"
 	_name.text = GameState.player_name

@@ -17,6 +17,8 @@ extends Control
 @onready var _compact_roster: PartyRoster = %CompactRoster
 @onready var _msg_block: Control = %MsgBlock
 
+var _peer_overlay: PeerGemOverlay
+
 const MOVE_HOLD_DELAY := 0.5
 const MOVE_HOLD_INTERVAL := 0.1
 const MSG_PROMPT := "► "
@@ -49,6 +51,10 @@ var _hold_arm := 0.0
 var _move_repeating := false
 var _held_dir := Vector2i.ZERO
 var _pending_cmd: int = U4Commands.Id.NONE
+## Label shown while waiting on the same line: "Attack: Dir?" (xu4 style).
+var _pending_cmd_name: String = ""
+## After a directed command fires, ignore held direction until all dir keys up.
+var _block_dir_until_keyup := false
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -79,6 +85,7 @@ func _ready() -> void:
 	_style_side_panels()
 	_sides_open = false
 	_ensure_msg_terminal()
+	_ensure_peer_overlay()
 	if _compact_roster:
 		_compact_roster.set_compact(true)
 	if _roster:
@@ -363,6 +370,7 @@ func _make_msg_label() -> Label:
 	lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lb.add_theme_color_override("font_color", MSG_COLOR)
 	lb.add_theme_font_size_override("font_size", MSG_FONT_SIZE)
+	UiTheme.apply_font(lb)
 	lb.custom_minimum_size = Vector2.ZERO
 	return lb
 
@@ -410,29 +418,42 @@ func _place_msg_block(panel_h: float) -> void:
 		_msg_prompt_row.position = Vector2(0.0, float(MSG_OPEN_LINES - 1) * _msg_pitch)
 		_msg_prompt_row.size = Vector2(w, _msg_pitch)
 		_msg_prompt_row.custom_minimum_size = Vector2.ZERO
-	if _msg_prompt_label:
-		_msg_prompt_label.add_theme_font_size_override("font_size", font_sz)
-		_msg_prompt_label.text = MSG_PROMPT
-		var prompt_w := float(font_sz) * 1.6
-		var font := _msg_prompt_label.get_theme_font("font")
-		if font:
-			prompt_w = font.get_string_size(
-				MSG_PROMPT, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
-			).x
-		_msg_prompt_label.position = Vector2.ZERO
-		_msg_prompt_label.size = Vector2(maxf(prompt_w, 8.0), _msg_pitch)
-		_msg_prompt_label.custom_minimum_size = Vector2.ZERO
+	_layout_prompt_row(font_sz)
+
+
+func _prompt_row_text() -> String:
+	## xu4: "Attack: Dir?" waits on the same line as the command (after ►).
+	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
+		return MSG_PROMPT + Locale.t("cmd_need_dir", [_pending_cmd_name])
+	return MSG_PROMPT
+
+
+func _layout_prompt_row(font_sz: int = -1) -> void:
+	if _msg_prompt_label == null:
+		return
+	if font_sz < 0:
+		font_sz = clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE)
+	var text := _prompt_row_text()
+	_msg_prompt_label.add_theme_font_size_override("font_size", font_sz)
+	_msg_prompt_label.text = text
+	var prompt_w := float(font_sz) * float(maxi(text.length(), 2)) * 0.55
+	var font := _msg_prompt_label.get_theme_font("font")
+	if font:
+		prompt_w = font.get_string_size(
+			text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
+		).x
+	_msg_prompt_label.position = Vector2.ZERO
+	_msg_prompt_label.size = Vector2(maxf(prompt_w, 8.0), _msg_pitch)
+	_msg_prompt_label.custom_minimum_size = Vector2.ZERO
+	_msg_prompt_label.visible = true
 	if _msg_cursor:
 		## Charset @ sits inset in the 16×16 cell, so draw a bit larger than
 		## font_sz to match the perceived size of the ► prompt glyph.
 		var side := float(font_sz) * 1.2
 		side = minf(side, _msg_pitch)
-		var prompt_w2 := 0.0
-		if _msg_prompt_label:
-			prompt_w2 = _msg_prompt_label.size.x
 		_msg_cursor.size = Vector2(side, side)
 		_msg_cursor.custom_minimum_size = Vector2.ZERO
-		_msg_cursor.position = Vector2(prompt_w2, (_msg_pitch - side) * 0.5)
+		_msg_cursor.position = Vector2(prompt_w, (_msg_pitch - side) * 0.5)
 		_apply_cursor_frame()
 
 
@@ -579,18 +600,27 @@ func _process(delta: float) -> void:
 	_hold_arm = maxf(0.0, _hold_arm - delta)
 
 	var esc := Input.is_key_pressed(KEY_ESCAPE) or Input.is_physical_key_pressed(KEY_ESCAPE)
-	if esc and not _esc_held:
-		_on_escape()
+	## Esc→menu is handled in _unhandled_input only. Polling Esc here after
+	## Peer closes would open the menu on the same keypress.
 	_esc_held = esc
 
 	if not _load_error.is_empty():
 		return
+	if _peer_overlay != null and _peer_overlay.is_open():
+		return
 
 	var dir := _read_move_dir()
 	if dir == Vector2i.ZERO:
+		_block_dir_until_keyup = false
 		_move_repeating = false
 		_hold_arm = 0.0
 		_held_dir = Vector2i.ZERO
+		return
+	if _block_dir_until_keyup:
+		## Direction was used for A/F/G/J/O/T — wait for key-up before move/repeat.
+		_move_repeating = false
+		_hold_arm = 0.0
+		_held_dir = dir
 		return
 	if dir != _held_dir:
 		_held_dir = dir
@@ -605,7 +635,8 @@ func _process(delta: float) -> void:
 
 	if _pending_cmd != U4Commands.Id.NONE:
 		_finish_directed_command(dir)
-		_move_cd = MOVE_HOLD_INTERVAL
+		_block_dir_until_keyup = true
+		_move_cd = 0.0
 		_move_repeating = false
 		_hold_arm = 0.0
 		return
@@ -644,14 +675,24 @@ func _read_move_dir() -> Vector2i:
 	return Vector2i.ZERO
 
 
+func _clear_pending_dir() -> void:
+	_pending_cmd = U4Commands.Id.NONE
+	_pending_cmd_name = ""
+	_block_dir_until_keyup = false
+	_layout_prompt_row()
+
+
 func _on_escape() -> void:
+	if _peer_overlay != null and _peer_overlay.is_open():
+		_close_peer_overlay()
+		return
 	if _sides_open:
 		_sides_open = false
 		_layout_side_panels(true)
 		return
 	if _pending_cmd != U4Commands.Id.NONE:
-		_pending_cmd = U4Commands.Id.NONE
-		_push_message(Locale.t("cmd_cancelled"))
+		## xu4 ReadDir: Esc clears "Dir?" on the same line — no extra message.
+		_clear_pending_dir()
 	else:
 		SceneRouter.to_menu()
 
@@ -659,6 +700,12 @@ func _on_escape() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
+		## Peer gem: only Esc / Space / Enter dismiss; swallow everything else.
+		if _peer_overlay != null and _peer_overlay.is_open():
+			if _is_peer_dismiss_key(k):
+				_close_peer_overlay()
+			get_viewport().set_input_as_handled()
+			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
 			_toggle_side_panels()
 			get_viewport().set_input_as_handled()
@@ -666,8 +713,27 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if _peer_overlay != null and _peer_overlay.is_open():
+			if _is_peer_dismiss_key(event):
+				_close_peer_overlay()
+			get_viewport().set_input_as_handled()
+			return
 		if event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE:
 			_on_escape()
+			get_viewport().set_input_as_handled()
+			return
+		## Waiting for a direction (A/G/J/O/T) — same line as "Attack: Dir?".
+		if _pending_cmd != U4Commands.Id.NONE:
+			if _is_direction_key(event):
+				return
+			## xu4: Space / Enter cancel Dir? without a message.
+			if _is_dir_cancel_key(event):
+				_clear_pending_dir()
+				get_viewport().set_input_as_handled()
+				return
+			## Any other key → classic grey "What?" (no prompt), abort Dir?.
+			_clear_pending_dir()
+			_push_message(Locale.t("cmd_what"), false)
 			get_viewport().set_input_as_handled()
 			return
 		var cmd := U4Commands.from_event(event)
@@ -676,16 +742,56 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
+func _is_peer_dismiss_key(event: InputEventKey) -> bool:
+	## xu4 peer(): readChoice("\\015 \\033") — Enter, Space, Esc.
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return (
+		code == KEY_ESCAPE or phys == KEY_ESCAPE
+		or code == KEY_SPACE or phys == KEY_SPACE
+		or code == KEY_ENTER or phys == KEY_ENTER
+		or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
+	)
+
+
+func _is_direction_key(event: InputEventKey) -> bool:
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return (
+		code == KEY_LEFT or code == KEY_RIGHT or code == KEY_UP or code == KEY_DOWN
+		or phys == KEY_LEFT or phys == KEY_RIGHT or phys == KEY_UP or phys == KEY_DOWN
+	)
+
+
+func _is_dir_cancel_key(event: InputEventKey) -> bool:
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return (
+		code == KEY_SPACE or phys == KEY_SPACE
+		or code == KEY_ENTER or phys == KEY_ENTER
+		or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
+	)
+
+
 func _handle_command(cmd: int) -> void:
 	var lang := GameState.lang_short()
 	var letter := U4Commands.letter_for(cmd)
 	var name := U4Commands.label(cmd, lang)
-	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
-		_pending_cmd = cmd
-		_push_message(Locale.t("cmd_need_dir", [letter, name]))
+	## xu4 fire(): not on a ship → "Fire What?" (no Dir?).
+	if cmd == U4Commands.Id.FIRE:
+		_clear_pending_dir()
+		_push_message(Locale.t("cmd_fire_what"), false)
 		return
-	_pending_cmd = U4Commands.Id.NONE
-	if cmd == U4Commands.Id.LOCATE:
+	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
+		## xu4: print "Attack: " then "Dir?" on the *same* line and wait.
+		_pending_cmd = cmd
+		_pending_cmd_name = name
+		_layout_prompt_row()
+		return
+	_clear_pending_dir()
+	if cmd == U4Commands.Id.PEER:
+		_do_peer()
+	elif cmd == U4Commands.Id.LOCATE:
 		_push_message(Locale.t("cmd_locate", [
 			letter,
 			name,
@@ -698,15 +804,71 @@ func _handle_command(cmd: int) -> void:
 		_push_message(Locale.t("cmd_stub", [letter, name]))
 
 
+func _ensure_peer_overlay() -> void:
+	if _peer_overlay != null or _map_pane == null:
+		return
+	_peer_overlay = PeerGemOverlay.new()
+	_peer_overlay.name = "PeerGemOverlay"
+	_map_pane.add_child(_peer_overlay)
+
+
+func _do_peer() -> void:
+	## Peer: spend a gem, show ~16:9 gem map until Space/Enter/Esc.
+	if GameState.gems <= 0:
+		_push_message(Locale.t("cmd_peer_what"), false)
+		return
+	GameState.gems -= 1
+	_refresh_inventory_bars()
+	_push_message(Locale.t("cmd_peer_gem"), false)
+	_ensure_peer_overlay()
+	if _peer_overlay == null or _map == null:
+		return
+	var tile_sz := _map.displayed_tile_size()
+	var loc := "%s %s" % [
+		_format_u4_sextant(_tile_pos.x),
+		_format_u4_sextant(_tile_pos.y),
+	]
+	_peer_overlay.open_peer(_world, _tile_pos, tile_sz, loc)
+
+
+func _close_peer_overlay() -> void:
+	if _peer_overlay:
+		_peer_overlay.close_peer()
+
+
+func _refresh_inventory_bars() -> void:
+	if _bottom_bar and _bottom_bar.has_method("refresh"):
+		_bottom_bar.refresh()
+	if _top_bar and _top_bar.has_method("refresh"):
+		_top_bar.refresh()
+
+
 func _finish_directed_command(dir: Vector2i) -> void:
 	var cmd := _pending_cmd
-	_pending_cmd = U4Commands.Id.NONE
-	var lang := GameState.lang_short()
-	_push_message(Locale.t("cmd_directed_stub", [
-		U4Commands.letter_for(cmd),
-		U4Commands.label(cmd, lang),
-		_direction_label(dir),
-	]))
+	var cmd_name := _pending_cmd_name
+	_clear_pending_dir()
+	## xu4 erases "Dir?" on the same line and writes the direction name.
+	var dir_name := _direction_label(dir)
+	if not cmd_name.is_empty() and not dir_name.is_empty():
+		_push_message(Locale.t("cmd_dir_done", [cmd_name, dir_name]))
+	var result := _directed_result_message(cmd)
+	if not result.is_empty():
+		_push_message(result, false)
+
+
+func _directed_result_message(cmd: int) -> String:
+	## Stub outcomes match xu4 when the action finds nothing useful.
+	match cmd:
+		U4Commands.Id.ATTACK:
+			return Locale.t("cmd_nothing_to_attack")
+		U4Commands.Id.JIMMY:
+			return Locale.t("cmd_jimmy_what")
+		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+			return Locale.t("cmd_not_here")
+		U4Commands.Id.TALK:
+			return Locale.t("cmd_no_response")
+		_:
+			return ""
 
 
 func _refresh_party() -> void:
@@ -719,18 +881,18 @@ func _refresh_party() -> void:
 func _push_move_message(dir: Vector2i) -> void:
 	if not _load_error.is_empty():
 		return
-	_push_message(_direction_label(dir))
+	_push_message(_direction_label(dir, true))
 
 
-func _direction_label(dir: Vector2i) -> String:
+func _direction_label(dir: Vector2i, for_move: bool = false) -> String:
 	if dir.y < 0:
-		return Locale.t("dir_north")
+		return Locale.t("dir_move_north" if for_move else "dir_north")
 	if dir.y > 0:
-		return Locale.t("dir_south")
+		return Locale.t("dir_move_south" if for_move else "dir_south")
 	if dir.x > 0:
-		return Locale.t("dir_east")
+		return Locale.t("dir_move_east" if for_move else "dir_east")
 	if dir.x < 0:
-		return Locale.t("dir_west")
+		return Locale.t("dir_move_west" if for_move else "dir_west")
 	return ""
 
 
@@ -743,10 +905,10 @@ func _format_u4_sextant(n: int) -> String:
 	return "%s'%s\"" % [hi, lo]
 
 
-func _push_message(line: String) -> void:
+func _push_message(line: String, with_prompt: bool = true) -> void:
 	if line.is_empty():
 		return
-	if not line.begins_with(MSG_PROMPT):
+	if with_prompt and not line.begins_with(MSG_PROMPT):
 		line = MSG_PROMPT + line
 	_msg_lines.append(line)
 	while _msg_lines.size() > MSG_KEEP:
@@ -774,7 +936,7 @@ func _apply_cursor_frame() -> void:
 
 func _refresh_message_view() -> void:
 	## Bottom-aligned history in the 14 slots above the prompt row.
-	## Prompt + blue @ cursor always occupy the last of the 15 slots.
+	## Prompt row is either "► @" or "► Attack: Dir?" while waiting (xu4).
 	_ensure_msg_terminal()
 	if not _msg_ui_ready:
 		return
@@ -787,7 +949,4 @@ func _refresh_message_view() -> void:
 	var start := n - take
 	for j in range(take):
 		_msg_rows[first_row + j].text = _msg_lines[start + j]
-	if _msg_prompt_label:
-		_msg_prompt_label.text = MSG_PROMPT
-		_msg_prompt_label.visible = true
-	_apply_cursor_frame()
+	_layout_prompt_row()

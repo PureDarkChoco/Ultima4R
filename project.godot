@@ -24,6 +24,10 @@ Locale="*res://src/core/locale.gd"
 SceneRouter="*res://src/core/scene_router.gd"
 DisplaySettings="*res://src/core/display_settings.gd"
 
+[gui]
+
+theme/custom="res://assets/theme/u4r_theme.tres"
+
 [display]
 
 window/size/viewport_width=1280

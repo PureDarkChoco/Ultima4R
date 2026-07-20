@@ -12,6 +12,25 @@ const ACCENT := Color("d4a84b")
 const ACCENT_DIM := Color("8a6a2e")
 const DANGER := Color("c45c4a")
 
+const FONT_PATH := "res://assets/fonts/d2coding/D2Coding.ttf"
+const FONT_BOLD_PATH := "res://assets/fonts/d2coding/D2CodingBold.ttf"
+## D2Coding is monospace — good for command/message columns.
+
+static var _font: Font
+static var _font_bold: Font
+
+
+static func font() -> Font:
+	if _font == null:
+		_font = load(FONT_PATH) as Font
+	return _font
+
+
+static func font_bold() -> Font:
+	if _font_bold == null:
+		_font_bold = load(FONT_BOLD_PATH) as Font
+	return _font_bold
+
 
 static func apply_root(control: Control) -> void:
 	control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -80,6 +99,7 @@ static func style_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_focus_color", ACCENT)
 	btn.add_theme_color_override("font_pressed_color", ACCENT)
 	btn.add_theme_font_size_override("font_size", 18)
+	apply_font(btn)
 
 
 static func style_choice_button(btn: Button, selected: bool) -> void:
@@ -93,4 +113,12 @@ static func style_choice_button(btn: Button, selected: bool) -> void:
 static func style_label(label: Label, size: int = 18, color: Color = TEXT) -> void:
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_font_size_override("font_size", size)
+	apply_font(label)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+static func apply_font(control: Control, bold: bool = false) -> void:
+	var f := font_bold() if bold else font()
+	if f == null:
+		return
+	control.add_theme_font_override("font", f)

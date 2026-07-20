@@ -154,14 +154,59 @@ const _T := {
 		"ko": "방향키 이동 · A–Z 명령키 · Esc 메뉴 · F11 전체화면",
 	},
 	"cmd_need_dir": {
-		"en_u4": "%s) %s — which direction?",
-		"en_us": "%s) %s — press an arrow for direction",
-		"ko": "%s) %s — 방향키로 방향을 고르세요",
+		"en_u4": "%s: Dir?",
+		"en_us": "%s: Dir?",
+		"ko": "%s: Dir?",
+	},
+	"cmd_dir_done": {
+		"en_u4": "%s: %s",
+		"en_us": "%s: %s",
+		"ko": "%s: %s",
 	},
 	"cmd_cancelled": {
 		"en_u4": "Cancelled.",
 		"en_us": "Cancelled.",
 		"ko": "취소됨.",
+	},
+	"cmd_what": {
+		"en_u4": "What?",
+		"en_us": "What?",
+		"ko": "What?",
+	},
+	"cmd_nothing_to_attack": {
+		"en_u4": "Nothing to Attack!",
+		"en_us": "Nothing to Attack!",
+		"ko": "Nothing to Attack!",
+	},
+	"cmd_jimmy_what": {
+		"en_u4": "Jimmy what?",
+		"en_us": "Jimmy what?",
+		"ko": "Jimmy what?",
+	},
+	"cmd_not_here": {
+		"en_u4": "Not Here!",
+		"en_us": "Not Here!",
+		"ko": "Not Here!",
+	},
+	"cmd_no_response": {
+		"en_u4": "Funny, no response!",
+		"en_us": "Funny, no response!",
+		"ko": "Funny, no response!",
+	},
+	"cmd_fire_what": {
+		"en_u4": "Fire What?",
+		"en_us": "Fire What?",
+		"ko": "Fire What?",
+	},
+	"cmd_peer_gem": {
+		"en_u4": "Peer at a Gem!",
+		"en_us": "Peer at a Gem!",
+		"ko": "Peer at a Gem!",
+	},
+	"cmd_peer_what": {
+		"en_u4": "Peer at What?",
+		"en_us": "Peer at What?",
+		"ko": "Peer at What?",
 	},
 	"cmd_fired": {
 		"en_u4": "%s) %s",
@@ -172,11 +217,6 @@ const _T := {
 		"en_u4": "%s) %s — (not yet implemented)",
 		"en_us": "%s) %s — stub (coming soon)",
 		"ko": "%s) %s — 아직 미구현",
-	},
-	"cmd_directed_stub": {
-		"en_u4": "%s) %s — %s (not yet implemented)",
-		"en_us": "%s) %s → %s (stub)",
-		"ko": "%s) %s → %s (미구현)",
 	},
 	"cmd_locate": {
 		"en_u4": "%s) %s  %s %s",
@@ -202,6 +242,27 @@ const _T := {
 		"en_u4": "West",
 		"en_us": "West",
 		"ko": "서쪽",
+	},
+	## Move log only — Korean drops 쪽 (동서남북).
+	"dir_move_north": {
+		"en_u4": "North",
+		"en_us": "North",
+		"ko": "북",
+	},
+	"dir_move_south": {
+		"en_u4": "South",
+		"en_us": "South",
+		"ko": "남",
+	},
+	"dir_move_east": {
+		"en_u4": "East",
+		"en_us": "East",
+		"ko": "동",
+	},
+	"dir_move_west": {
+		"en_u4": "West",
+		"en_us": "West",
+		"ko": "서",
 	},
 }
 

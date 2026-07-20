@@ -59,6 +59,7 @@ func _style_menu_line(btn: Button) -> void:
 	btn.add_theme_color_override("font_focus_color", UiTheme.ACCENT)
 	btn.add_theme_color_override("font_pressed_color", UiTheme.ACCENT)
 	btn.add_theme_font_size_override("font_size", 18)
+	UiTheme.apply_font(btn)
 	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	btn.flat = true
 

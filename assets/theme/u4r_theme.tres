@@ -1,0 +1,13 @@
+[gd_resource type="Theme" load_steps=3 format=3]
+
+[ext_resource type="FontFile" uid="uid://chs8adgwl2akk" path="res://assets/fonts/d2coding/D2Coding.ttf" id="1_font"]
+[ext_resource type="FontFile" uid="uid://kxhg8rpbbdek" path="res://assets/fonts/d2coding/D2CodingBold.ttf" id="2_bold"]
+
+[resource]
+default_font = ExtResource("1_font")
+default_font_size = 16
+Button/fonts/font = ExtResource("1_font")
+Label/fonts/font = ExtResource("1_font")
+LineEdit/fonts/font = ExtResource("1_font")
+RichTextLabel/fonts/normal_font = ExtResource("1_font")
+RichTextLabel/fonts/bold_font = ExtResource("2_bold")

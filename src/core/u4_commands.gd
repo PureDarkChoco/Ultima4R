@@ -124,10 +124,13 @@ const LABEL_KO := {
 	Id.PASS: "대기",
 }
 
-## Commands that originally need a direction afterward.
+## Commands that need a direction afterward (A, G, J, O, T).
+## F asks Dir? only on ship; otherwise xu4 prints "Fire What?".
+## G is directional here (adjacent tile); classic U4 got the current tile.
 const NEEDS_DIRECTION := {
 	Id.ATTACK: true,
 	Id.FIRE: true,
+	Id.GET_CHEST: true,
 	Id.JIMMY: true,
 	Id.OPEN: true,
 	Id.TALK: true,

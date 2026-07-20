@@ -424,6 +424,7 @@ func _build_slots() -> void:
 		## ~2/3 of prior size; top-right of the glyph box stays put.
 		zz.add_theme_font_size_override("font_size", 5)
 		zz.add_theme_color_override("font_color", COL_SLEEP_ZZ)
+		UiTheme.apply_font(zz)
 		zz.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		zz.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 		zz.anchor_left = 1.0
@@ -442,6 +443,7 @@ func _build_slots() -> void:
 		level.size_flags_horizontal = Control.SIZE_SHRINK_END
 		level.add_theme_font_size_override("font_size", 12)
 		level.add_theme_color_override("font_color", COL_TEXT)
+		UiTheme.apply_font(level)
 		level.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		level.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
@@ -449,6 +451,7 @@ func _build_slots() -> void:
 		name.custom_minimum_size = Vector2(56, 0)
 		name.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		name.add_theme_font_size_override("font_size", 13)
+		UiTheme.apply_font(name)
 		name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
@@ -601,6 +604,7 @@ func _make_bar(min_w: float, stretch: float) -> Dictionary:
 	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lab.add_theme_font_size_override("font_size", 9)
 	lab.add_theme_color_override("font_color", COL_BAR_TEXT)
+	UiTheme.apply_font(lab)
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	track.add_child(lab)

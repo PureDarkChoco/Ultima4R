@@ -28,6 +28,8 @@ var player_class: int = -1
 var party_order: Array[int] = []
 var start_pos: Vector2i = Vector2i.ZERO
 var karma: Array[int] = []
+## Inventory stubs until savegame is wired.
+var gems: int = 99
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()

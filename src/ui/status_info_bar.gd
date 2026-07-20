@@ -41,7 +41,6 @@ var food: int = 567
 var keys: int = 3
 var skull: int = 1
 var torches: int = 12
-var gems: int = 5
 
 var _moon_tex: Array[Texture2D] = []
 var _wind_tex: Array[Texture2D] = []
@@ -260,6 +259,7 @@ func _stat_label(width: float) -> Label:
 	lab.custom_minimum_size = Vector2(width, 0)
 	lab.add_theme_font_size_override("font_size", 11)
 	lab.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55, 1))
+	UiTheme.apply_font(lab)
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lab.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -293,7 +293,7 @@ func refresh() -> void:
 	if _torches_lab:
 		_torches_lab.text = "%d" % mini(torches, ITEM_MAX)
 	if _gems_lab:
-		_gems_lab.text = "%d" % mini(gems, ITEM_MAX)
+		_gems_lab.text = "%d" % mini(GameState.gems, ITEM_MAX)
 
 
 func _coin_icon() -> Texture2D:
