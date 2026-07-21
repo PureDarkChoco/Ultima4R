@@ -4,13 +4,16 @@ extends Control
 ## Ztats sheet inside the character panel.
 ## Four zones with equal flex gaps; sized to fit RightTop without clipping bars.
 
+const _WeaponIcons := preload("res://src/core/weapon_icons.gd")
+const _ArmorIcons := preload("res://src/core/armor_icons.gd")
+
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_BAR_TEXT := Color(0.95, 0.95, 0.95, 1)
 const COL_TRACK := Color(0.22, 0.22, 0.22, 1)
 const COL_HP := Color(0.82, 0.22, 0.2, 1)
 const COL_MP := Color(0.3, 0.55, 0.95, 1)
-const COL_EXP := Color(0.92, 0.78, 0.22, 1)
+const COL_EXP := Color(0.86, 0.70, 0.16, 1)
 ## Match PartyRoster status colors.
 const COL_POISON := Color(0.35, 0.78, 0.28, 1)
 const COL_SLEEP := Color(0.72, 0.4, 0.95, 1)
@@ -34,9 +37,23 @@ const BAR_LABEL_W := 34
 const BAR_SEP := 4
 const FONT_SIZE := 13
 const BAR_VALUE_FONT_SIZE := 11
-## Longest gear labels (monospace): widths measured at build from these strings.
-const GEAR_WEAPON_SAMPLE := "Weapon: Mystic sword"
-const GEAR_ARMOR_SAMPLE := "Armor: Magic chain"
+## D2Coding includes these Unicode sex signs (drawn slightly larger to match Latin optically).
+const SEX_MALE := "♂"
+const SEX_FEMALE := "♀"
+const SEX_FONT_SIZE := FONT_SIZE + 2
+const GEAR_ICON_H := 16
+const GEAR_ICON_W := 26
+const GEAR_ICON_SEP := 3
+const GEAR_KIND_WEAPON := "Weapon: "
+const GEAR_KIND_ARMOR := "Armor: "
+## Longest item names used to size the name columns (EN + KO samples).
+const GEAR_WEAPON_NAME_SAMPLE := "Mystic Sword"
+const GEAR_ARMOR_NAME_SAMPLE := "Magic Chain"
+const GEAR_WEAPON_NAME_SAMPLE_KO := "신비의 검"
+const GEAR_ARMOR_NAME_SAMPLE_KO := "마법 판금"
+const ATTR_LABEL_SAMPLES := ["STR: ", "DEX: ", "INT: ", "힘: ", "민첩: ", "지능: "]
+const COMBAT_LABEL_SAMPLES := ["ATK: ", "DEF: ", "공격: ", "방어: "]
+const STAT_VALUE_SAMPLE := "99"
 
 
 var _title: Label
@@ -44,14 +61,24 @@ var _tile_host: Control
 var _tile: TextureRect
 var _sleep_zz: Label
 var _face: TextureRect
+var _sex: Label
 var _meta: Label
 var _status: Label
 var _level: Label
+var _attr_str_kind: Label
+var _attr_dex_kind: Label
+var _attr_int_kind: Label
 var _attr_str: Label
 var _attr_dex: Label
 var _attr_int: Label
+var _weapon_kind: Label
+var _armor_kind: Label
+var _weapon_icon: TextureRect
+var _armor_icon: TextureRect
 var _weapon: Label
 var _armor: Label
+var _atk_kind: Label
+var _def_kind: Label
 var _atk: Label
 var _def: Label
 var _hp_fill: ColorRect
@@ -255,12 +282,27 @@ func _build() -> void:
 	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ident.add_child(info)
 
+	var meta_row := HBoxContainer.new()
+	meta_row.add_theme_constant_override("separation", 4)
+	meta_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	meta_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	meta_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info.add_child(meta_row)
+
+	_sex = Label.new()
+	_sex.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_sex.add_theme_font_size_override("font_size", SEX_FONT_SIZE)
+	_sex.add_theme_color_override("font_color", COL_TEXT)
+	UiTheme.apply_font(_sex)
+	meta_row.add_child(_sex)
+
 	_meta = Label.new()
 	_meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_meta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_meta.add_theme_font_size_override("font_size", FONT_SIZE)
 	_meta.add_theme_color_override("font_color", COL_TEXT)
 	UiTheme.apply_font(_meta)
-	info.add_child(_meta)
+	meta_row.add_child(_meta)
 
 	_status = Label.new()
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -297,7 +339,7 @@ func _build() -> void:
 	## (1-2) + (2-3) + (3-4) leftover space split equally → only zones 2 & 3 move.
 	_add_section_spacer(root)
 
-	## Zone 2: STR / DEX / INT.
+	## Zone 2: STR / DEX / INT (label column + value column).
 	var attrs_align := HBoxContainer.new()
 	attrs_align.add_theme_constant_override("separation", IDENT_SEP)
 	attrs_align.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -317,17 +359,29 @@ func _build() -> void:
 	attrs_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	attrs_align.add_child(attrs_col)
 
-	_attr_str = _make_info_line_label()
-	_attr_dex = _make_info_line_label()
-	_attr_int = _make_info_line_label()
-	attrs_col.add_child(_attr_str)
-	attrs_col.add_child(_attr_dex)
-	attrs_col.add_child(_attr_int)
+	var attr_widths := _measure_stat_columns(ATTR_LABEL_SAMPLES)
+	var attr_label_w: float = attr_widths.label_w
+	var attr_value_w: float = attr_widths.value_w
+
+	var str_row := _make_stat_pair_row(attr_label_w, attr_value_w)
+	_attr_str_kind = str_row["kind"]
+	_attr_str = str_row["value"]
+	attrs_col.add_child(str_row["row"])
+
+	var dex_row := _make_stat_pair_row(attr_label_w, attr_value_w)
+	_attr_dex_kind = dex_row["kind"]
+	_attr_dex = dex_row["value"]
+	attrs_col.add_child(dex_row["row"])
+
+	var int_row := _make_stat_pair_row(attr_label_w, attr_value_w)
+	_attr_int_kind = int_row["kind"]
+	_attr_int = int_row["value"]
+	attrs_col.add_child(int_row["row"])
 
 	## Gap 2-3.
 	_add_section_spacer(root)
 
-	## Zone 3: Weapon / Armor / ATK / DEF.
+	## Zone 3: Weapon+ATK / Armor+DEF (one pair per row).
 	var gear_align := HBoxContainer.new()
 	gear_align.add_theme_constant_override("separation", IDENT_SEP)
 	gear_align.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -348,29 +402,34 @@ func _build() -> void:
 	gear_align.add_child(gear_col)
 
 	var gear_widths := _measure_gear_columns()
-	var weapon_w: float = gear_widths.x
-	var armor_w: float = gear_widths.y
-	var gear_sep: int = int(gear_widths.z)
+	var kind_w: float = gear_widths.kind_w
+	var name_w: float = gear_widths.name_w
+	var combat_label_w: float = gear_widths.combat_label_w
+	var combat_value_w: float = gear_widths.combat_value_w
+	var gear_sep: int = int(gear_widths.gap)
+	var right_pad: float = gear_widths.right_pad
 
-	var gear_row := HBoxContainer.new()
-	gear_row.add_theme_constant_override("separation", gear_sep)
-	gear_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gear_col.add_child(gear_row)
+	var weapon_row := _make_gear_stat_row(
+		Locale.t("ztats_weapon_kind"), kind_w, name_w,
+		combat_label_w, combat_value_w, gear_sep, right_pad
+	)
+	_weapon_kind = weapon_row["kind"]
+	_weapon_icon = weapon_row["icon"]
+	_weapon = weapon_row["name"]
+	_atk_kind = weapon_row["stat_kind"]
+	_atk = weapon_row["stat"]
+	gear_col.add_child(weapon_row["row"])
 
-	_weapon = _make_gear_label(weapon_w)
-	_armor = _make_gear_label(armor_w)
-	gear_row.add_child(_weapon)
-	gear_row.add_child(_armor)
-
-	var combat_row := HBoxContainer.new()
-	combat_row.add_theme_constant_override("separation", gear_sep)
-	combat_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gear_col.add_child(combat_row)
-
-	_atk = _make_gear_label(weapon_w)
-	_def = _make_gear_label(armor_w)
-	combat_row.add_child(_atk)
-	combat_row.add_child(_def)
+	var armor_row := _make_gear_stat_row(
+		Locale.t("ztats_armor_kind"), kind_w, name_w,
+		combat_label_w, combat_value_w, gear_sep, right_pad
+	)
+	_armor_kind = armor_row["kind"]
+	_armor_icon = armor_row["icon"]
+	_armor = armor_row["name"]
+	_def_kind = armor_row["stat_kind"]
+	_def = armor_row["stat"]
+	gear_col.add_child(armor_row["row"])
 
 	## Gap 3-4.
 	_add_section_spacer(root)
@@ -398,36 +457,247 @@ func _build() -> void:
 	vitals.add_child(exp_row["row"])
 
 
-func _measure_gear_columns() -> Vector3:
-	## x = weapon col, y = armor col, z = gap (~2 monospace chars) between columns.
+func _measure_stat_columns(label_samples: Array) -> Dictionary:
+	## Shared label width + value width so numbers line up across languages.
 	var probe := Label.new()
 	probe.add_theme_font_size_override("font_size", FONT_SIZE)
 	UiTheme.apply_font(probe)
 	var font: Font = probe.get_theme_font("font")
-	var weapon_w := 140.0
-	var armor_w := 126.0
-	var gap := float(FONT_SIZE)
+	var label_w := 48.0
+	var value_w := 24.0
 	if font != null:
-		weapon_w = font.get_string_size(
-			GEAR_WEAPON_SAMPLE, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+		label_w = 0.0
+		for sample in label_samples:
+			label_w = maxf(
+				label_w,
+				font.get_string_size(
+					str(sample), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+				).x
+			)
+		label_w += 2.0
+		value_w = font.get_string_size(
+			STAT_VALUE_SAMPLE, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
 		).x + 2.0
-		armor_w = font.get_string_size(
-			GEAR_ARMOR_SAMPLE, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
-		).x + 2.0
-		gap = font.get_string_size("MM", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 	probe.free()
-	return Vector3(weapon_w, armor_w, gap)
+	return {"label_w": label_w, "value_w": value_w}
 
 
-func _make_info_line_label() -> Label:
-	## Same spacing/style as meta / status / Lv. lines.
-	var lab := Label.new()
-	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	lab.add_theme_color_override("font_color", COL_TEXT)
-	UiTheme.apply_font(lab)
-	return lab
+func _measure_gear_columns() -> Dictionary:
+	## Shared kind width left-aligns item icons; right_pad pulls ATK/DEF in ~4 chars.
+	var probe := Label.new()
+	probe.add_theme_font_size_override("font_size", FONT_SIZE)
+	UiTheme.apply_font(probe)
+	var font: Font = probe.get_theme_font("font")
+	var kind_w := 72.0
+	var name_w := 120.0
+	var combat_label_w := 48.0
+	var combat_value_w := 24.0
+	var gap := float(FONT_SIZE)
+	var right_pad := float(FONT_SIZE) * 4.0
+	if font != null:
+		kind_w = maxf(
+			font.get_string_size(
+				Locale.t("ztats_weapon_kind"), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x,
+			font.get_string_size(
+				Locale.t("ztats_armor_kind"), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x
+		) + 2.0
+		name_w = maxf(
+			font.get_string_size(
+				GEAR_WEAPON_NAME_SAMPLE, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x,
+			font.get_string_size(
+				GEAR_ARMOR_NAME_SAMPLE, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x
+		)
+		name_w = maxf(
+			name_w,
+			font.get_string_size(
+				GEAR_WEAPON_NAME_SAMPLE_KO, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x
+		)
+		name_w = maxf(
+			name_w,
+			font.get_string_size(
+				GEAR_ARMOR_NAME_SAMPLE_KO, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x
+		) + 2.0
+		var combat_cols := _measure_stat_columns(COMBAT_LABEL_SAMPLES)
+		combat_label_w = combat_cols.label_w
+		combat_value_w = combat_cols.value_w
+		gap = font.get_string_size("MM", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
+		right_pad = font.get_string_size("MMMM", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
+	probe.free()
+	return {
+		"kind_w": kind_w,
+		"name_w": name_w,
+		"combat_label_w": combat_label_w,
+		"combat_value_w": combat_value_w,
+		"gap": gap,
+		"right_pad": right_pad,
+	}
+
+
+func _make_stat_pair_row(label_w: float, value_w: float) -> Dictionary:
+	## Fixed label column + fixed value column (numbers share the same x).
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var kind := Label.new()
+	kind.custom_minimum_size = Vector2(label_w, 0)
+	kind.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	kind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kind.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	kind.add_theme_font_size_override("font_size", FONT_SIZE)
+	kind.add_theme_color_override("font_color", COL_TEXT)
+	UiTheme.apply_font(kind)
+	row.add_child(kind)
+
+	var value := Label.new()
+	value.custom_minimum_size = Vector2(value_w, 0)
+	value.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	value.add_theme_font_size_override("font_size", FONT_SIZE)
+	value.add_theme_color_override("font_color", COL_TEXT)
+	UiTheme.apply_font(value)
+	row.add_child(value)
+
+	return {"row": row, "kind": kind, "value": value}
+
+
+func _make_gear_stat_row(
+	kind_text: String,
+	kind_w: float,
+	name_w: float,
+	combat_label_w: float,
+	combat_value_w: float,
+	gap: int,
+	right_pad: float
+) -> Dictionary:
+	## "Weapon: " [icon] name …… ATK:  n / "Armor: " [icon] name …… DEF:  n
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", GEAR_ICON_SEP)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var kind := Label.new()
+	kind.text = kind_text
+	kind.custom_minimum_size = Vector2(kind_w, 0)
+	kind.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	kind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kind.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	kind.add_theme_font_size_override("font_size", FONT_SIZE)
+	kind.add_theme_color_override("font_color", COL_TEXT)
+	UiTheme.apply_font(kind)
+	row.add_child(kind)
+
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(GEAR_ICON_W, GEAR_ICON_H)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+
+	var name_lab := _make_gear_label(name_w)
+	row.add_child(name_lab)
+
+	var mid_gap := Control.new()
+	mid_gap.custom_minimum_size = Vector2(gap, 0)
+	mid_gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mid_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(mid_gap)
+
+	var combat := _make_stat_pair_row(combat_label_w, combat_value_w)
+	combat["row"].size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	row.add_child(combat["row"])
+
+	## Pull ATK/DEF ~4 monospace chars in from the right edge.
+	var trail := Control.new()
+	trail.custom_minimum_size = Vector2(right_pad, 0)
+	trail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(trail)
+
+	return {
+		"row": row,
+		"kind": kind,
+		"icon": icon,
+		"name": name_lab,
+		"stat_kind": combat["kind"],
+		"stat": combat["value"],
+	}
+
+
+func _keyed_gear_texture(tex: Texture2D) -> Texture2D:
+	## White paper bg → transparent so icons sit on the dark panel.
+	if tex == null:
+		return null
+	var img := tex.get_image()
+	if img == null or img.is_empty():
+		return tex
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
+
+
+func _title_case_words(s: String) -> String:
+	## "Magic sword" / "magic chain" → "Magic Sword" / "Magic Chain".
+	var parts := s.strip_edges().split(" ", false)
+	for i in parts.size():
+		var w := parts[i]
+		if w.is_empty():
+			continue
+		parts[i] = w.substr(0, 1).to_upper() + w.substr(1).to_lower()
+	return " ".join(parts)
+
+
+func _localized_item_name(english_name: String) -> String:
+	## Look up Locale item_* keys; fall back to title-cased English.
+	var key := "item_%s" % english_name.strip_edges().to_lower().replace(" ", "_")
+	var translated := Locale.t(key)
+	if translated == key:
+		return _title_case_words(english_name)
+	return translated
+
+
+func _set_gear_icon(icon: TextureRect, item_name: String, kind: StringName) -> void:
+	if icon == null:
+		return
+	var path := ""
+	if kind == &"weapon":
+		path = _WeaponIcons.path_for_name(item_name)
+	elif kind == &"armor":
+		path = _ArmorIcons.path_for_name(item_name)
+	## Keep the slot sized even when missing art (ATK/DEF stay aligned).
+	icon.texture = _load_keyed_gear_path(path)
+	icon.visible = true
+
+
+func _load_keyed_gear_path(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	var img := Image.new()
+	if img.load(path) != OK:
+		var loaded := load(path) as Texture2D
+		return _keyed_gear_texture(loaded)
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
 
 
 func _make_gear_label(col_w: float) -> Label:
@@ -548,15 +818,31 @@ func _refresh() -> void:
 	if data.is_empty():
 		_title.text = "?"
 		_meta.text = ""
+		if _sex:
+			_sex.text = ""
 		_status.text = ""
 		_level.text = ""
 		_attr_str.text = ""
 		_attr_dex.text = ""
 		_attr_int.text = ""
+		if _attr_str_kind:
+			_attr_str_kind.text = ""
+		if _attr_dex_kind:
+			_attr_dex_kind.text = ""
+		if _attr_int_kind:
+			_attr_int_kind.text = ""
 		_weapon.text = ""
 		_armor.text = ""
+		if _weapon_icon:
+			_weapon_icon.texture = null
+		if _armor_icon:
+			_armor_icon.texture = null
 		_atk.text = ""
 		_def.text = ""
+		if _atk_kind:
+			_atk_kind.text = ""
+		if _def_kind:
+			_def_kind.text = ""
 		_tile.texture = null
 		_face.texture = null
 		_tile.modulate = Color.WHITE
@@ -570,12 +856,18 @@ func _refresh() -> void:
 		_set_bar(_exp_fill, _exp_lab, 0, 0, COL_EXP)
 		return
 	_title.text = str(data.get("name", "?"))
-	_meta.text = "%s  %s" % [str(data.get("sex", "?")), str(data.get("class", "?"))]
+	_meta.text = str(data.get("class", "?"))
+	var sex := str(data.get("sex", "M")).to_upper()
+	if _sex:
+		_sex.text = SEX_FEMALE if sex == "F" or sex == "FEMALE" else SEX_MALE
 	_status.text = str(data.get("status", "?"))
 	_level.text = "Lv.%d" % int(data.get("level", 1))
-	_attr_str.text = "STR: %d" % int(data.get("str", 0))
-	_attr_dex.text = "DEX: %d" % int(data.get("dex", 0))
-	_attr_int.text = "INT: %d" % int(data.get("int", 0))
+	_attr_str_kind.text = Locale.t("ztats_str")
+	_attr_dex_kind.text = Locale.t("ztats_dex")
+	_attr_int_kind.text = Locale.t("ztats_int")
+	_attr_str.text = str(int(data.get("str", 0)))
+	_attr_dex.text = str(int(data.get("dex", 0)))
+	_attr_int.text = str(int(data.get("int", 0)))
 	var st: int = int(data.get("status_code", PartyRoster.Status.OK))
 	var hp := int(data.get("hp", 0))
 	var max_hp := int(data.get("max_hp", 0))
@@ -595,10 +887,20 @@ func _refresh() -> void:
 		_exp_fill, _exp_lab,
 		int(data.get("exp", 0)), int(data.get("exp_next", 0)), COL_EXP
 	)
-	_weapon.text = "Weapon: %s" % str(data.get("weapon", "Hands"))
-	_armor.text = "Armor: %s" % str(data.get("armor", "No Armour"))
-	_atk.text = "ATK: %d" % int(data.get("atk", 0))
-	_def.text = "DEF: %d" % int(data.get("def", 0))
+	var weapon_key := _title_case_words(str(data.get("weapon", "Hands")))
+	var armor_key := _title_case_words(str(data.get("armor", "No Armour")))
+	if _weapon_kind:
+		_weapon_kind.text = Locale.t("ztats_weapon_kind")
+	if _armor_kind:
+		_armor_kind.text = Locale.t("ztats_armor_kind")
+	_weapon.text = _localized_item_name(weapon_key)
+	_armor.text = _localized_item_name(armor_key)
+	_set_gear_icon(_weapon_icon, weapon_key, &"weapon")
+	_set_gear_icon(_armor_icon, armor_key, &"armor")
+	_atk_kind.text = Locale.t("ztats_atk")
+	_def_kind.text = Locale.t("ztats_def")
+	_atk.text = str(int(data.get("atk", 0)))
+	_def.text = str(int(data.get("def", 0)))
 	_tile.texture = data.get("tile") as Texture2D
 	_face.texture = data.get("portrait") as Texture2D
 	_apply_status_visuals(st, hp_critical)

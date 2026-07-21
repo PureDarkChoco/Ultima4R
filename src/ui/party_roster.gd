@@ -57,16 +57,16 @@ const STUB_STR := [22, 16, 28, 14, 18, 24, 18, 12]
 const STUB_DEX := [16, 22, 18, 16, 20, 16, 22, 14]
 const STUB_INT := [24, 16, 10, 22, 14, 14, 16, 12]
 const STUB_WEAPON := [
-	"Staff", "Sling", "Mystic sword", "Wand",
-	"Axe", "Sword", "Bow", "Sling",
+	"Staff", "Sling", "Axe", "Dagger",
+	"Mace", "Magic Sword", "Bow", "Halberd",
 ]
 const STUB_ARMOR := [
-	"Cloth", "Cloth", "Magic chain", "Cloth",
-	"Leather", "Plate", "Leather", "Cloth",
+	"Cloth", "Leather", "Chain", "Magic Chain",
+	"Leather", "Plate", "Magic Plate", "Mystic Robe",
 ]
 ## Stub attack / defense from equipped gear (until savegame stats).
-const STUB_ATK := [4, 4, 10, 2, 8, 10, 8, 4]
-const STUB_DEF := [1, 1, 4, 1, 2, 8, 2, 1]
+const STUB_ATK := [4, 4, 8, 3, 6, 12, 8, 11]
+const STUB_DEF := [1, 2, 4, 4, 2, 8, 10, 6]
 
 const ICON_SIZE := 28
 const ROW_H := 32
@@ -95,7 +95,7 @@ const COL_BAR_TEXT := Color(0.95, 0.95, 0.95, 1)
 const COL_TRACK := Color(0.22, 0.22, 0.22, 1)
 const COL_HP_OK := Color(0.82, 0.22, 0.2, 1)
 const COL_MP_OK := Color(0.3, 0.55, 0.95, 1)
-const COL_EXP := Color(0.92, 0.78, 0.22, 1)
+const COL_EXP := Color(0.86, 0.70, 0.16, 1)
 const COL_POISON := Color(0.35, 0.78, 0.28, 1)
 const COL_SLEEP := Color(0.72, 0.4, 0.95, 1)
 const COL_DEAD := Color(0.55, 0.52, 0.48, 1)
@@ -579,13 +579,13 @@ func clear_order_selection() -> void:
 static func status_label(st: int) -> String:
 	match st:
 		Status.POISONED:
-			return "Poisoned"
+			return Locale.t("ztats_status_poisoned")
 		Status.SLEEPING:
-			return "Sleeping"
+			return Locale.t("ztats_status_sleeping")
 		Status.DEAD:
-			return "Dead"
+			return Locale.t("ztats_status_dead")
 		_:
-			return "Good"
+			return Locale.t("ztats_status_good")
 
 
 static func member_ztats(slot: int) -> Dictionary:

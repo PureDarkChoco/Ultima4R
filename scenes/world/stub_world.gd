@@ -97,7 +97,9 @@ func _ready() -> void:
 	resized.connect(_fit_explore_map)
 	_style_bars()
 	_style_side_panels()
-	_sides_open = false
+	## New character: start with side panels open (not full-tile).
+	## TODO: restore open/closed from save when savegame is wired.
+	_sides_open = GameState.is_new_game
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
 	_ensure_ztats_panel()

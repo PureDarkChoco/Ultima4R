@@ -311,6 +311,192 @@ const _T := {
 		"en_us": "West",
 		"ko": "서",
 	},
+	## Ztats sheet
+	"ztats_status_good": {
+		"en_u4": "Good",
+		"en_us": "Good",
+		"ko": "양호",
+	},
+	"ztats_status_poisoned": {
+		"en_u4": "Poisoned",
+		"en_us": "Poisoned",
+		"ko": "중독",
+	},
+	"ztats_status_sleeping": {
+		"en_u4": "Sleeping",
+		"en_us": "Sleeping",
+		"ko": "수면",
+	},
+	"ztats_status_dead": {
+		"en_u4": "Dead",
+		"en_us": "Dead",
+		"ko": "사망",
+	},
+	"ztats_str": {
+		"en_u4": "STR: ",
+		"en_us": "STR: ",
+		"ko": "힘: ",
+	},
+	"ztats_dex": {
+		"en_u4": "DEX: ",
+		"en_us": "DEX: ",
+		"ko": "민첩: ",
+	},
+	"ztats_int": {
+		"en_u4": "INT: ",
+		"en_us": "INT: ",
+		"ko": "지능: ",
+	},
+	"ztats_weapon_kind": {
+		"en_u4": "Weapon: ",
+		"en_us": "Weapon: ",
+		"ko": "무기: ",
+	},
+	"ztats_armor_kind": {
+		"en_u4": "Armor: ",
+		"en_us": "Armor: ",
+		"ko": "갑옷: ",
+	},
+	"ztats_atk": {
+		"en_u4": "ATK: ",
+		"en_us": "ATK: ",
+		"ko": "공격: ",
+	},
+	"ztats_def": {
+		"en_u4": "DEF: ",
+		"en_us": "DEF: ",
+		"ko": "방어: ",
+	},
+	"item_dagger": {
+		"en_u4": "Dagger",
+		"en_us": "Dagger",
+		"ko": "단검",
+	},
+	"item_sword": {
+		"en_u4": "Sword",
+		"en_us": "Sword",
+		"ko": "장검",
+	},
+	"item_axe": {
+		"en_u4": "Axe",
+		"en_us": "Axe",
+		"ko": "도끼",
+	},
+	"item_magic_sword": {
+		"en_u4": "Magic Sword",
+		"en_us": "Magic Sword",
+		"ko": "마법검",
+	},
+	"item_bow": {
+		"en_u4": "Bow",
+		"en_us": "Bow",
+		"ko": "활",
+	},
+	"item_magic_axe": {
+		"en_u4": "Magic Axe",
+		"en_us": "Magic Axe",
+		"ko": "마법도끼",
+	},
+	"item_mystic_sword": {
+		"en_u4": "Mystic Sword",
+		"en_us": "Mystic Sword",
+		"ko": "신비의 검",
+	},
+	"item_staff": {
+		"en_u4": "Staff",
+		"en_us": "Staff",
+		"ko": "지팡이",
+	},
+	"item_sling": {
+		"en_u4": "Sling",
+		"en_us": "Sling",
+		"ko": "새총",
+	},
+	"item_mace": {
+		"en_u4": "Mace",
+		"en_us": "Mace",
+		"ko": "철퇴",
+	},
+	"item_crossbow": {
+		"en_u4": "Crossbow",
+		"en_us": "Crossbow",
+		"ko": "석궁",
+	},
+	"item_flaming_oil": {
+		"en_u4": "Flaming Oil",
+		"en_us": "Flaming Oil",
+		"ko": "화염병",
+	},
+	"item_halberd": {
+		"en_u4": "Halberd",
+		"en_us": "Halberd",
+		"ko": "미늘창",
+	},
+	"item_magic_bow": {
+		"en_u4": "Magic Bow",
+		"en_us": "Magic Bow",
+		"ko": "마법 활",
+	},
+	"item_magic_wand": {
+		"en_u4": "Magic Wand",
+		"en_us": "Magic Wand",
+		"ko": "마법 지팡이",
+	},
+	"item_wand": {
+		"en_u4": "Wand",
+		"en_us": "Wand",
+		"ko": "마법 지팡이",
+	},
+	"item_hands": {
+		"en_u4": "Hands",
+		"en_us": "Hands",
+		"ko": "맨손",
+	},
+	"item_cloth": {
+		"en_u4": "Cloth",
+		"en_us": "Cloth",
+		"ko": "천",
+	},
+	"item_leather": {
+		"en_u4": "Leather",
+		"en_us": "Leather",
+		"ko": "가죽",
+	},
+	"item_chain": {
+		"en_u4": "Chain",
+		"en_us": "Chain",
+		"ko": "체인",
+	},
+	"item_plate": {
+		"en_u4": "Plate",
+		"en_us": "Plate",
+		"ko": "판금",
+	},
+	"item_magic_plate": {
+		"en_u4": "Magic Plate",
+		"en_us": "Magic Plate",
+		"ko": "마법 판금",
+	},
+	"item_magic_chain": {
+		"en_u4": "Magic Chain",
+		"en_us": "Magic Chain",
+		"ko": "마법 체인",
+	},
+	"item_mystic_robe": {
+		"en_u4": "Mystic Robe",
+		"en_us": "Mystic Robe",
+		"ko": "신비의 로브",
+	},
+	"item_no_armour": {
+		"en_u4": "No Armour",
+		"en_us": "No Armour",
+		"ko": "없음",
+	},
+	"item_no_armor": {
+		"en_u4": "No Armor",
+		"en_us": "No Armor",
+		"ko": "없음",
+	},
 }
 
 
