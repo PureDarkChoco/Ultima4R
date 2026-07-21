@@ -256,9 +256,9 @@ const _T := {
 		"ko": "Ztats for: %s",
 	},
 	"cmd_fired": {
-		"en_u4": "%s) %s",
-		"en_us": "%s) %s",
-		"ko": "%s) %s",
+		"en_u4": "%s",
+		"en_us": "%s",
+		"ko": "%s",
 	},
 	"cmd_stub": {
 		"en_u4": "%s) %s — (not yet implemented)",
@@ -266,9 +266,24 @@ const _T := {
 		"ko": "%s) %s — 아직 미구현",
 	},
 	"cmd_locate": {
-		"en_u4": "%s) %s  %s %s",
-		"en_us": "%s) %s  %s %s",
-		"ko": "%s) %s  %s %s",
+		"en_u4": "%s  %s %s",
+		"en_us": "%s  %s %s",
+		"ko": "%s  %s %s",
+	},
+	"cmd_locate_what": {
+		"en_u4": "Locate with What?",
+		"en_us": "Locate with What?",
+		"ko": "Locate with What?",
+	},
+	"locate_on": {
+		"en_u4": "Locate: On",
+		"en_us": "Locate: On",
+		"ko": "Locate: On",
+	},
+	"locate_off": {
+		"en_u4": "Locate: Off",
+		"en_us": "Locate: Off",
+		"ko": "Locate: Off",
 	},
 	"dir_north": {
 		"en_u4": "North",

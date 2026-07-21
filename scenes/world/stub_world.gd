@@ -19,6 +19,8 @@ extends Control
 
 var _peer_overlay: PeerGemOverlay
 var _ztats_panel: ZtatsPanel
+var _locate_label: Label
+var _locate_on := false
 
 const MOVE_HOLD_DELAY := 0.5
 const MOVE_HOLD_INTERVAL := 0.1
@@ -44,6 +46,10 @@ const BAR_UNITS := 0.5
 const SIDE_TWEEN_SEC := 0.18
 const RIGHT_TOP_TILES := 5
 const COMPACT_RIGHT_TILES := 2
+## Locate HUD (Ctrl+L) — X from open-map right edge; Y on top bar. Tweak inset.
+const LOCATE_HUD_INSET := Vector2(6, 0)
+const LOCATE_HUD_FONT_SIZE := 13
+const LOCATE_HUD_COLOR := Color(0.91, 0.9, 0.82, 1)
 
 var _world := WorldMapData.new()
 var _tile_pos := Vector2i(83, 105)
@@ -103,6 +109,7 @@ func _ready() -> void:
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
 	_ensure_ztats_panel()
+	_ensure_locate_hud()
 	if _compact_roster:
 		_compact_roster.set_compact(true)
 	if _roster:
@@ -182,6 +189,7 @@ func _fit_map_tiles_and_sides() -> void:
 		return
 	_map.set_view_tiles(MapView.VIEW_W, MapView.VIEW_H)
 	_layout_side_panels(false)
+	_layout_locate_hud()
 	_refresh_message_view()
 
 
@@ -585,6 +593,7 @@ func _layout_side_panels(animate: bool) -> void:
 		if _ztats_panel:
 			_ztats_panel.visible = true
 			_ztats_panel.move_to_front()
+	_layout_locate_hud()
 
 
 func _tween_msg_height(h: float) -> void:
@@ -794,6 +803,7 @@ func _process(delta: float) -> void:
 		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
 	)
 	_map.set_center(_tile_pos)
+	_refresh_locate_hud()
 	_push_move_message(dir)
 	_arm_hold_after_step()
 
@@ -952,6 +962,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_escape()
 			get_viewport().set_input_as_handled()
 			return
+		## Ctrl+L: toggle persistent Locate HUD (sextant required).
+		if event.ctrl_pressed and _is_locate_key(event):
+			_toggle_locate_hud()
+			get_viewport().set_input_as_handled()
+			return
 		## Waiting for a direction (A/G/J/O/T) — same line as "Attack: Dir?".
 		if _pending_cmd != U4Commands.Id.NONE:
 			if _is_direction_key(event):
@@ -1032,14 +1047,16 @@ func _handle_command(cmd: int) -> void:
 	elif cmd == U4Commands.Id.ZTATS:
 		_do_ztats()
 	elif cmd == U4Commands.Id.LOCATE:
-		_push_message(Locale.t("cmd_locate", [
-			letter,
-			name,
-			_format_u4_sextant(_tile_pos.x),
-			_format_u4_sextant(_tile_pos.y),
-		]))
+		if not GameState.has_sextant:
+			_push_message(Locale.t("cmd_locate_what"), false)
+		else:
+			_push_message(Locale.t("cmd_locate", [
+				name,
+				_format_u4_sextant(_tile_pos.x),
+				_format_u4_sextant(_tile_pos.y),
+			]))
 	elif cmd == U4Commands.Id.PASS:
-		_push_message(Locale.t("cmd_fired", [letter, name]))
+		_push_message(Locale.t("cmd_fired", [name]))
 	else:
 		_push_message(Locale.t("cmd_stub", [letter, name]))
 
@@ -1050,6 +1067,78 @@ func _ensure_peer_overlay() -> void:
 	_peer_overlay = PeerGemOverlay.new()
 	_peer_overlay.name = "PeerGemOverlay"
 	_map_pane.add_child(_peer_overlay)
+
+
+func _is_locate_key(event: InputEventKey) -> bool:
+	return event.keycode == KEY_L or event.physical_keycode == KEY_L
+
+
+func _ensure_locate_hud() -> void:
+	## Label only (no plate). Parent = StubWorld so Y can sit on the top bar
+	## without MapPane clip; X still uses open-map right edge.
+	if _locate_label != null:
+		return
+	_locate_label = Label.new()
+	_locate_label.name = "LocateHud"
+	_locate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_locate_label.visible = false
+	_locate_label.add_theme_font_size_override("font_size", LOCATE_HUD_FONT_SIZE)
+	_locate_label.add_theme_color_override("font_color", LOCATE_HUD_COLOR)
+	UiTheme.apply_font(_locate_label)
+	add_child(_locate_label)
+	_refresh_locate_hud()
+	_layout_locate_hud()
+
+
+func _toggle_locate_hud() -> void:
+	if not GameState.has_sextant:
+		_push_message(Locale.t("cmd_locate_what"), false)
+		return
+	_locate_on = not _locate_on
+	_ensure_locate_hud()
+	if _locate_label:
+		_locate_label.visible = _locate_on
+	if _locate_on:
+		_refresh_locate_hud()
+		_layout_locate_hud()
+		_push_message(Locale.t("locate_on"), false)
+	else:
+		_push_message(Locale.t("locate_off"), false)
+
+
+func _refresh_locate_hud() -> void:
+	if _locate_label == null:
+		return
+	_locate_label.text = "%s %s" % [
+		_format_u4_sextant(_tile_pos.x),
+		_format_u4_sextant(_tile_pos.y),
+	]
+	if _locate_on:
+		_layout_locate_hud()
+
+
+func _layout_locate_hud() -> void:
+	## Same X as before (open-map right). Y centered on the top bar.
+	if _locate_label == null or _map_pane == null or _top_bar == null:
+		return
+	if not _locate_on:
+		return
+	var g := _side_geom()
+	var map_right: float = floorf(g["right_open_x"])
+	_locate_label.reset_size()
+	var text_sz := _locate_label.get_minimum_size()
+	_locate_label.size = text_sz
+	## MapPane is full-width under RootCol — same X space as the first version.
+	var map_origin := _map_pane.global_position - global_position
+	var top_origin := _top_bar.global_position - global_position
+	var bar_h := _top_bar.size.y
+	if bar_h < 1.0:
+		bar_h = _top_bar.custom_minimum_size.y
+	_locate_label.position = Vector2(
+		map_origin.x + map_right - text_sz.x - LOCATE_HUD_INSET.x,
+		top_origin.y + floorf((bar_h - text_sz.y) * 0.5) + LOCATE_HUD_INSET.y
+	)
+	_locate_label.move_to_front()
 
 
 func _do_peer() -> void:
@@ -1064,10 +1153,12 @@ func _do_peer() -> void:
 	if _peer_overlay == null or _map == null:
 		return
 	var tile_sz := _map.displayed_tile_size()
-	var loc := "%s %s" % [
-		_format_u4_sextant(_tile_pos.x),
-		_format_u4_sextant(_tile_pos.y),
-	]
+	var loc := ""
+	if GameState.has_sextant:
+		loc = "%s %s" % [
+			_format_u4_sextant(_tile_pos.x),
+			_format_u4_sextant(_tile_pos.y),
+		]
 	_peer_overlay.open_peer(_world, _tile_pos, tile_sz, loc)
 
 

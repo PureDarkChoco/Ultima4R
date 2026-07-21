@@ -30,6 +30,8 @@ var start_pos: Vector2i = Vector2i.ZERO
 var karma: Array[int] = []
 ## Inventory stubs until savegame is wired.
 var gems: int = 99
+## Sextant required for Locate (L / Ctrl+L). Stub-owned for now.
+var has_sextant: bool = true
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()
