@@ -37,7 +37,11 @@ func _ready() -> void:
 	_btn_return.pressed.connect(_on_return_view)
 	_btn_journey.pressed.connect(_on_journey)
 	_btn_new.pressed.connect(_on_new)
-	_btn_lang.pressed.connect(_cycle_language)
+	_btn_lang.pressed.connect(func() -> void: _cycle_language(1))
+	_btn_lang.gui_input.connect(_on_lang_gui_input)
+	## Keep ←→ on Language for cycling (don't jump to other menu rows).
+	_btn_lang.focus_neighbor_left = _btn_lang.get_path()
+	_btn_lang.focus_neighbor_right = _btn_lang.get_path()
 	_btn_quit.pressed.connect(func() -> void: get_tree().quit())
 
 	resized.connect(_layout_u4)
@@ -107,11 +111,25 @@ func _unhandled_input(event: InputEvent) -> void:
 				_on_new()
 				accept_event()
 			KEY_L:
-				_cycle_language()
+				_cycle_language(1)
 				accept_event()
 			KEY_Q:
 				get_tree().quit()
 				accept_event()
+
+
+func _on_lang_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var k := event as InputEventKey
+	var code := k.keycode
+	var phys := k.physical_keycode
+	if code == KEY_LEFT or phys == KEY_LEFT or event.is_action_pressed("ui_left"):
+		_cycle_language(-1)
+		_btn_lang.accept_event()
+	elif code == KEY_RIGHT or phys == KEY_RIGHT or event.is_action_pressed("ui_right"):
+		_cycle_language(1)
+		_btn_lang.accept_event()
 
 
 func _refresh_text() -> void:
@@ -120,7 +138,7 @@ func _refresh_text() -> void:
 	_btn_return.text = Locale.t("menu_return")
 	_btn_journey.text = Locale.t("menu_journey")
 	_btn_new.text = Locale.t("menu_new")
-	_btn_lang.text = "%s: %s" % [Locale.t("menu_language"), GameState.language]
+	_btn_lang.text = "%s: ◂ %s ▸" % [Locale.t("menu_language"), Locale.lang_label()]
 	_btn_quit.text = Locale.t("menu_quit")
 	_copyright.text = Locale.t("menu_copyright")
 	_hint.text = Locale.t("input_hint_menu") + " · R/J/I · F11"
@@ -147,8 +165,10 @@ func _on_new() -> void:
 	SceneRouter.to_new_game()
 
 
-func _cycle_language() -> void:
+func _cycle_language(delta: int = 1) -> void:
 	var langs := GameState.LANG_IDS
 	var i := langs.find(GameState.language)
-	GameState.language = langs[(i + 1) % langs.size()]
+	if i < 0:
+		i = 0
+	GameState.language = langs[posmod(i + delta, langs.size())]
 	_btn_lang.grab_focus()

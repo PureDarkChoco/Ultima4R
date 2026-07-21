@@ -1,8 +1,15 @@
 extends Control
 
+## xu4 initiateNewGame: name + sex before story / virtue questions.
+
+const PORTRAIT_MALE := "res://assets/portraits/companions/avatar_male.png"
+const PORTRAIT_FEMALE := "res://assets/portraits/companions/avatar_female.png"
+const PORTRAIT_H := 160.0
+
 @onready var _prompt: Label = %Prompt
 @onready var _sex_prompt: Label = %SexPrompt
 @onready var _class_line: Label = %ClassLine
+@onready var _portrait: TextureRect = %Portrait
 @onready var _name: LineEdit = %NameEdit
 @onready var _male: Button = %Male
 @onready var _female: Button = %Female
@@ -12,6 +19,8 @@ extends Control
 
 var _sex_group := ButtonGroup.new()
 var _name_editing := false
+var _tex_male: Texture2D
+var _tex_female: Texture2D
 
 
 func _ready() -> void:
@@ -26,6 +35,13 @@ func _ready() -> void:
 	UiTheme.style_button(_continue)
 	UiTheme.style_button(_back)
 
+	_tex_male = load(PORTRAIT_MALE) as Texture2D
+	_tex_female = load(PORTRAIT_FEMALE) as Texture2D
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_portrait.custom_minimum_size = Vector2(PORTRAIT_H * 0.85, PORTRAIT_H)
+
 	_name.add_theme_font_size_override("font_size", 20)
 	UiTheme.apply_font(_name)
 	_name.focus_mode = Control.FOCUS_ALL
@@ -36,7 +52,6 @@ func _ready() -> void:
 	_name.focus_exited.connect(_end_name_edit)
 	_name.text_submitted.connect(_on_name_submitted)
 
-	# Toggle pair: mouse click / keyboard Enter / gamepad A all work via Button.
 	for btn in [_male, _female]:
 		btn.toggle_mode = true
 		btn.button_group = _sex_group
@@ -48,17 +63,15 @@ func _ready() -> void:
 	_male.pressed.connect(func() -> void: _set_sex("male"))
 	_female.pressed.connect(func() -> void: _set_sex("female"))
 	_continue.pressed.connect(_on_continue)
-	_back.pressed.connect(func() -> void: SceneRouter.to_new_game())
+	_back.pressed.connect(func() -> void: SceneRouter.to_menu())
 
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh())
 	_set_sex(GameState.player_sex if GameState.player_sex in ["male", "female"] else "male")
 	_refresh()
-	# Focus the name field, but do not start typing until confirm/click.
 	_name.grab_focus()
 
 
 func _wire_focus_neighbors() -> void:
-	# Explicit neighbors so keyboard arrows and gamepad D-pad navigate predictably.
 	_name.focus_neighbor_bottom = _name.get_path_to(_male)
 	_name.focus_neighbor_top = _name.get_path_to(_back)
 
@@ -84,7 +97,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_end_name_edit()
 			_name.grab_focus()
 		else:
-			SceneRouter.to_new_game()
+			SceneRouter.to_menu()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -98,11 +111,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 
-	# While typing a name, don't steal letter keys.
 	if _name_editing and _name.has_focus():
 		return
 
-	# Quick select sex without focusing first (keyboard A/B or pad X/Y).
 	if event.is_action_pressed("choice_a"):
 		_set_sex("male")
 		_male.grab_focus()
@@ -160,9 +171,15 @@ func _set_sex(sex: String) -> void:
 func _refresh() -> void:
 	_prompt.text = Locale.t("name_prompt")
 	_sex_prompt.text = Locale.t("sex_prompt")
-	var klass := Virtues.class_name_of(GameState.player_class, GameState.lang_short())
-	_class_line.text = Locale.t("you_are", [klass])
-	_continue.text = Locale.t("enter_britannia")
+	## Class is unknown until after virtue questions — hide here.
+	if GameState.player_class >= 0:
+		_class_line.visible = true
+		var klass := Virtues.class_name_of(GameState.player_class, GameState.lang_short())
+		_class_line.text = Locale.t("you_are", [klass])
+	else:
+		_class_line.visible = false
+		_class_line.text = ""
+	_continue.text = Locale.t("continue")
 	_back.text = Locale.t("back")
 	_hint.text = Locale.t("input_hint_form")
 	_apply_sex_visuals()
@@ -174,6 +191,8 @@ func _apply_sex_visuals() -> void:
 	_female.text = ("◀ %s ▶" if not male_on else "%s") % Locale.t("sex_female")
 	UiTheme.style_choice_button(_male, male_on)
 	UiTheme.style_choice_button(_female, not male_on)
+	if _portrait:
+		_portrait.texture = _tex_male if male_on else _tex_female
 
 
 func _on_continue() -> void:
@@ -181,4 +200,4 @@ func _on_continue() -> void:
 	if n.is_empty():
 		n = "Avatar"
 	GameState.player_name = n
-	SceneRouter.to_world()
+	SceneRouter.to_story()

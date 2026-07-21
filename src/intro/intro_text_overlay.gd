@@ -2,13 +2,14 @@ class_name IntroTextOverlay
 extends RefCounted
 
 ## Translation overlays for TITLE.EXE intro strings.
-## Original English (en_u4) stays in TITLE.EXE; en_us / ko live here.
+## Classic English (en_u4) stays in TITLE.EXE; Modern English / Korean live here.
 
 const PATH := "res://assets/locale/intro_text.json"
 
 var _questions: Dictionary = {} # lang -> Array
 var _gypsy: Dictionary = {} # lang -> Array
 var _cards_line: Dictionary = {} # lang -> String
+var _story: Dictionary = {} # lang -> Array (showStory 0..23)
 var loaded: bool = false
 
 
@@ -28,6 +29,7 @@ func load_overlays() -> bool:
 	_questions = root.get("questions", {})
 	_gypsy = root.get("gypsy", {})
 	_cards_line = root.get("cards_line", {})
+	_story = root.get("story", {})
 	loaded = true
 	return true
 
@@ -58,3 +60,15 @@ func gypsy(lang: String, idx: int) -> String:
 
 func cards_line_fmt(lang: String) -> String:
 	return str(_cards_line.get(lang, "%s · %s"))
+
+
+func has_story(lang: String, idx: int) -> bool:
+	var arr: Array = _story.get(lang, [])
+	return idx >= 0 and idx < arr.size() and str(arr[idx]).strip_edges() != ""
+
+
+func story(lang: String, idx: int) -> String:
+	var arr: Array = _story.get(lang, [])
+	if idx < 0 or idx >= arr.size():
+		return ""
+	return str(arr[idx])

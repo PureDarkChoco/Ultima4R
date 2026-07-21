@@ -95,7 +95,7 @@ func _choose(which: int) -> void:
 	_done = _tree.answer(which)
 	if _done:
 		GameState.apply_virtue_result(_tree.winning_class(), _tree.selected_virtues())
-		SceneRouter.to_name_gender()
+		SceneRouter.to_class_reveal()
 	else:
 		_refresh()
 		_btn_a.grab_focus()

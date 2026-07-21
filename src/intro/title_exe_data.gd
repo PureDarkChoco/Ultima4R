@@ -92,7 +92,7 @@ func gypsy_lead_for_round(round_i: int) -> String:
 		n = GYP_PLACES_LAST
 	elif round_i > 0:
 		n = GYP_PLACES_TWOMORE
-	return "%s\n%s" % [gypsy[n], gypsy[GYP_UPON_TABLE]]
+	return "%s %s" % [gypsy[n].strip_edges(), gypsy[GYP_UPON_TABLE].strip_edges()]
 
 
 func virtue_card_name(virtue: int) -> String:

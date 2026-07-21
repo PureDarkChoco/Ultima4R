@@ -53,6 +53,22 @@ const _T := {
 		"en_us": "Language",
 		"ko": "언어",
 	},
+	## Clear language option labels (not raw ids like en_u4).
+	"lang_en_us": {
+		"en_u4": "English",
+		"en_us": "English",
+		"ko": "영어",
+	},
+	"lang_en_u4": {
+		"en_u4": "Classic English",
+		"en_us": "Classic English",
+		"ko": "원작 영어",
+	},
+	"lang_ko": {
+		"en_u4": "Korean",
+		"en_us": "Korean",
+		"ko": "한국어",
+	},
 	"menu_quit": {
 		"en_u4": "Quit",
 		"en_us": "Quit",
@@ -117,6 +133,11 @@ const _T := {
 		"en_u4": "Thou art a %s.",
 		"en_us": "You're a %s.",
 		"ko": "당신은 %s입니다.",
+	},
+	"press_any_key": {
+		"en_u4": "Press any key to continue.",
+		"en_us": "Press any key to continue.",
+		"ko": "아무 키나 누르세요.",
 	},
 	"enter_britannia": {
 		"en_u4": "Enter Britannia",
@@ -523,6 +544,20 @@ func t(key: String, args: Array = []) -> String:
 	return s % args
 
 
+func lang_label(lang_id: String = "") -> String:
+	## Human-readable name for a language id (defaults to current).
+	var id := lang_id if not lang_id.is_empty() else GameState.language
+	match id:
+		"en_us":
+			return t("lang_en_us")
+		"en_u4":
+			return t("lang_en_u4")
+		"ko":
+			return t("lang_ko")
+		_:
+			return id
+
+
 ## Virtue dilemma.
 ## en_u4 → TITLE.EXE original · en_us/ko → overlay (fallback to TITLE.EXE / stub).
 func virtue_question(v_low: int, v_high: int) -> String:
@@ -548,6 +583,7 @@ func virtue_question(v_low: int, v_high: int) -> String:
 
 
 func gypsy_lead(round_i: int) -> String:
+	## One line: places + upon-table (story screen uses 3-line intro).
 	var lang := GameState.language
 	if lang != "en_u4" and GameState.intro_overlay.has_gypsy(lang):
 		var n := TitleExeData.GYP_PLACES_FIRST
@@ -555,9 +591,9 @@ func gypsy_lead(round_i: int) -> String:
 			n = TitleExeData.GYP_PLACES_LAST
 		elif round_i > 0:
 			n = TitleExeData.GYP_PLACES_TWOMORE
-		return "%s\n%s" % [
-			GameState.intro_overlay.gypsy(lang, n),
-			GameState.intro_overlay.gypsy(lang, TitleExeData.GYP_UPON_TABLE),
+		return "%s %s" % [
+			GameState.intro_overlay.gypsy(lang, n).strip_edges(),
+			GameState.intro_overlay.gypsy(lang, TitleExeData.GYP_UPON_TABLE).strip_edges(),
 		]
 	if GameState.intro_data.loaded:
 		return GameState.intro_data.gypsy_lead_for_round(round_i)
@@ -568,11 +604,28 @@ func gypsy_cards_line(v1: int, v2: int) -> String:
 	var lang := GameState.language
 	var n1 := virtue_card_name(v1)
 	var n2 := virtue_card_name(v2)
+	if lang == "ko":
+		## "%s%s %s — 그녀가 말합니다:" with 와/과 by batchim.
+		var fmt := GameState.intro_overlay.cards_line_fmt("ko") if GameState.intro_overlay.loaded else "%s%s %s — 그녀가 말합니다:"
+		return fmt % [n1, ko_wa_gwa(n1), n2]
 	if lang != "en_u4" and GameState.intro_overlay.loaded:
 		return GameState.intro_overlay.cards_line_fmt(lang) % [n1, n2]
 	if GameState.intro_data.loaded:
 		return GameState.intro_data.gypsy_cards_line(v1, v2)
 	return "%s · %s" % [n1, n2]
+
+
+## Korean particle 와/과 after a noun (batchim → 과, else 와).
+func ko_wa_gwa(word: String) -> String:
+	var s := word.strip_edges()
+	if s.is_empty():
+		return "와"
+	var ch := s.unicode_at(s.length() - 1)
+	## Hangul syllables AC00–D7A3; jongseong index 0 = no batchim.
+	if ch < 0xAC00 or ch > 0xD7A3:
+		return "와"
+	var jong := (ch - 0xAC00) % 28
+	return "과" if jong > 0 else "와"
 
 
 func virtue_card_name(virtue: int) -> String:

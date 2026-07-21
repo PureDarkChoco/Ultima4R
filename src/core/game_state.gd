@@ -6,7 +6,7 @@ signal language_changed(lang: String)
 
 enum Language { EN_U4, EN_US, KO }
 
-const LANG_IDS := ["en_u4", "en_us", "ko"]
+const LANG_IDS := ["en_us", "en_u4", "ko"]
 
 ## External Ultima IV DOS data (never committed).
 const U4_DATA_RES := "res://data/u4"
