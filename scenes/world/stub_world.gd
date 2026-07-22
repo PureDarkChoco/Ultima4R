@@ -1219,7 +1219,12 @@ func _do_ztats() -> void:
 
 
 func _handle_ztats_input(event: InputEvent) -> bool:
-	if event.is_echo() or not event.is_pressed():
+	if not event.is_pressed():
+		return false
+	## Key-repeat for inventory ↑↓ / PageUp/PageDown; ignore echo otherwise.
+	if event.is_echo():
+		if _ztats_stage == 2 and _ztats_panel and _ztats_panel.is_inventory_page():
+			return _try_ztats_inv_scroll(event)
 		return false
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -1238,20 +1243,8 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 			return true
 		## ↑↓ scroll inventory lists; ←→ cycle pages (chars → gear → reagents → mixtures).
 		if _ztats_panel and _ztats_panel.is_inventory_page():
-			if event.is_action_pressed("move_up"):
-				_ztats_panel.scroll_inventory(-1)
+			if _try_ztats_inv_scroll(event):
 				return true
-			if event.is_action_pressed("move_down"):
-				_ztats_panel.scroll_inventory(1)
-				return true
-			if event is InputEventKey:
-				var kscroll := event as InputEventKey
-				if kscroll.keycode == KEY_UP or kscroll.physical_keycode == KEY_UP:
-					_ztats_panel.scroll_inventory(-1)
-					return true
-				if kscroll.keycode == KEY_DOWN or kscroll.physical_keycode == KEY_DOWN:
-					_ztats_panel.scroll_inventory(1)
-					return true
 		if event.is_action_pressed("move_left"):
 			_nudge_ztats_view(-1)
 			return true
@@ -1407,6 +1400,43 @@ func _show_ztats_member(slot: int) -> void:
 	_order_opened_roster = true
 	if _ztats_panel:
 		_ztats_panel.open_member(slot)
+
+
+func _try_ztats_inv_scroll(event: InputEvent) -> bool:
+	## Keyboard scroll for gear/mixtures: ↑↓, PageUp/Down (×5), Home/End.
+	if _ztats_panel == null or not _ztats_panel.is_inventory_page():
+		return false
+	const PAGE_LINES := 5
+	## allow_echo=true so held keys keep scrolling.
+	if event.is_action_pressed("move_up", true):
+		_ztats_panel.scroll_inventory(-1)
+		return true
+	if event.is_action_pressed("move_down", true):
+		_ztats_panel.scroll_inventory(1)
+		return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		var code := k.keycode
+		var phys := k.physical_keycode
+		if code == KEY_UP or phys == KEY_UP:
+			_ztats_panel.scroll_inventory(-1)
+			return true
+		if code == KEY_DOWN or phys == KEY_DOWN:
+			_ztats_panel.scroll_inventory(1)
+			return true
+		if code == KEY_PAGEUP or phys == KEY_PAGEUP:
+			_ztats_panel.scroll_inventory(-PAGE_LINES)
+			return true
+		if code == KEY_PAGEDOWN or phys == KEY_PAGEDOWN:
+			_ztats_panel.scroll_inventory(PAGE_LINES)
+			return true
+		if code == KEY_HOME or phys == KEY_HOME:
+			_ztats_panel.scroll_inventory_home()
+			return true
+		if code == KEY_END or phys == KEY_END:
+			_ztats_panel.scroll_inventory_end()
+			return true
+	return false
 
 
 func _show_ztats_inventory(page: int) -> void:

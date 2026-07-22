@@ -69,8 +69,6 @@ const INV_QTY_W := 32
 const INV_PAD_H := 22
 const INV_PAD_V := 6
 const INV_SCROLLBAR_GAP := 10
-const INV_SCROLL_EDGE_PAD := 1
-const COL_INV_CURSOR := Color(0.28, 0.32, 0.22, 1)
 ## Spell A–Z index beside Korean names — brighter gold than body text.
 const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
 
@@ -82,15 +80,10 @@ var _inv_title: Label
 var _inv_scroll: ScrollContainer
 var _inv_list: VBoxContainer
 var _inv_page: int = InvPage.NONE
-var _inv_selectable: Array[Control] = []
-var _inv_cursor := 0
-## Per-page cursor / scroll while this Ztats session is open (cleared on close).
-var _inv_saved_cursor: Dictionary = {}
+## Per-page scroll while this Ztats session is open (cleared on close).
 var _inv_saved_scroll: Dictionary = {}
-## When true, next cursor apply restores saved scroll instead of recentering.
+## When true, next refresh restores saved scroll instead of starting at top.
 var _inv_keep_scroll := false
-## When true (↑↓ only), scroll to keep the cursor centered.
-var _inv_do_center := false
 var _tile_host: Control
 var _tile: TextureRect
 var _sleep_zz: Label
@@ -159,52 +152,89 @@ func open_member(slot: int) -> void:
 	set_process(_needs_status_pulse())
 
 
-func open_inventory(page: int, restore_cursor: bool = true) -> void:
+func open_inventory(page: int, restore_scroll: bool = true) -> void:
 	_remember_inv_view()
 	_slot = -1
 	_inv_page = page
-	var want := 0
-	_inv_keep_scroll = false
-	_inv_do_center = false
-	if restore_cursor and _inv_saved_cursor.has(page):
-		want = int(_inv_saved_cursor[page])
-		_inv_keep_scroll = _inv_saved_scroll.has(page)
+	_inv_keep_scroll = restore_scroll and _inv_saved_scroll.has(page)
 	_show_char(false)
-	_refresh_inventory(want)
+	_refresh_inventory()
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = true
 	move_to_front()
 	set_process(false)
 
 
-func scroll_inventory(delta: int) -> void:
-	## Compatibility alias — ↑↓ moves the item cursor (skips titles).
-	move_inventory_cursor(delta)
-
-
-func move_inventory_cursor(delta: int) -> void:
-	if not is_inventory_page() or _inv_selectable.is_empty():
+func scroll_inventory(lines: int) -> void:
+	## Scroll the list by whole rows (no cursor, no wrap). lines may be ±1 or ±5.
+	if not is_inventory_page() or _inv_scroll == null:
 		return
-	## Gear / mixtures wrap; reagents have no cursor.
-	var n := _inv_selectable.size()
-	if _inv_page == InvPage.GEAR or _inv_page == InvPage.MIXTURES:
-		_inv_cursor = posmod(_inv_cursor + delta, n)
+	if _inv_page == InvPage.REAGENTS:
+		return ## Fits the panel; no scrollbar.
+	if lines == 0:
+		return
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var max_step := _inv_scroll_max_step()
+	var cur := (_inv_scroll.scroll_vertical / stride) * stride
+	cur = clampi(cur, 0, max_step)
+	if cur != _inv_scroll.scroll_vertical:
+		_inv_scroll.scroll_vertical = cur
+	var next: int
+	if lines > 0:
+		if cur >= max_step:
+			return
+		next = mini(cur + lines * stride, max_step)
 	else:
-		_inv_cursor = clampi(_inv_cursor + delta, 0, n - 1)
-	_inv_keep_scroll = false
-	_inv_do_center = true
-	_inv_saved_cursor[_inv_page] = _inv_cursor
-	_apply_inv_cursor()
+		if cur <= 0:
+			return
+		next = maxi(cur + lines * stride, 0)
+	if next == cur:
+		return
+	_inv_scroll.scroll_vertical = next
+	_inv_saved_scroll[_inv_page] = next
+
+
+func scroll_inventory_home() -> void:
+	_scroll_inventory_to(0)
+
+
+func scroll_inventory_end() -> void:
+	_scroll_inventory_to(_inv_scroll_max_step())
+
+
+func _scroll_inventory_to(y: int) -> void:
+	if not is_inventory_page() or _inv_scroll == null:
+		return
+	if _inv_page == InvPage.REAGENTS:
+		return
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var max_step := _inv_scroll_max_step()
+	var next := clampi((y / stride) * stride, 0, max_step)
+	if next == _inv_scroll.scroll_vertical:
+		return
+	_inv_scroll.scroll_vertical = next
+	_inv_saved_scroll[_inv_page] = next
+
+
+func _inv_scroll_max() -> int:
+	if _inv_scroll == null:
+		return 0
+	var host := _inv_scroll.get_child(0) as Control
+	var content_h := host.size.y if host else 0.0
+	return maxi(0, int(content_h - _inv_scroll.size.y))
+
+
+func _inv_scroll_max_step() -> int:
+	## Largest scroll aligned to a full row — no leftover micro-step at the end.
+	var stride := INV_ROW_H + INV_LIST_SEP
+	return (_inv_scroll_max() / stride) * stride
 
 
 func close_panel() -> void:
 	_slot = -1
 	_inv_page = InvPage.NONE
-	_inv_cursor = 0
-	_inv_saved_cursor.clear()
 	_inv_saved_scroll.clear()
 	_inv_keep_scroll = false
-	_inv_do_center = false
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(false)
@@ -212,12 +242,9 @@ func close_panel() -> void:
 
 
 func _remember_inv_view() -> void:
-	if _inv_page == InvPage.NONE:
+	if _inv_page == InvPage.NONE or _inv_scroll == null:
 		return
-	if not _inv_selectable.is_empty():
-		_inv_saved_cursor[_inv_page] = _inv_cursor
-	if _inv_scroll:
-		_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
+	_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
 
 
 func _show_char(on: bool) -> void:
@@ -1060,13 +1087,11 @@ func _build_inv() -> void:
 	list_pad.add_child(_inv_list)
 
 
-func _refresh_inventory(want_cursor: int = 0) -> void:
+func _refresh_inventory() -> void:
 	if _inv_list == null:
 		return
 	for c in _inv_list.get_children():
 		c.queue_free()
-	_inv_selectable.clear()
-	_inv_cursor = maxi(0, want_cursor)
 	_inv_scroll.scroll_vertical = 0
 	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	_inv_list.add_theme_constant_override("separation", INV_LIST_SEP)
@@ -1082,25 +1107,25 @@ func _refresh_inventory(want_cursor: int = 0) -> void:
 			_fill_mixtures_page()
 		_:
 			_inv_title.text = "?"
-	if not _inv_selectable.is_empty():
-		_inv_cursor = clampi(_inv_cursor, 0, _inv_selectable.size() - 1)
-		_inv_saved_cursor[_inv_page] = _inv_cursor
-		call_deferred("_apply_inv_cursor")
-	elif _inv_keep_scroll and _inv_saved_scroll.has(_inv_page):
-		## Reagents (no cursor) — still restore last scroll if any.
+	if _inv_keep_scroll and _inv_saved_scroll.has(_inv_page):
 		call_deferred("_restore_inv_scroll")
+	else:
+		_inv_saved_scroll[_inv_page] = 0
+	_inv_keep_scroll = false
 
 
 func _fill_gear_page() -> void:
+	## Letters match xu4 Ready/Wear indices (A=Hands/No Armor even if not listed).
 	_add_inv_section(Locale.t("ztats_page_weapons"))
 	_add_gear_header(Locale.t("ztats_col_damage"))
 	for w in range(1, GameState.weapons.size()): ## skip Hands
 		var qty := int(GameState.weapons[w])
 		if qty <= 0:
 			continue
+		var wname := "%s. %s" % [String.chr(65 + w), Locale.weapon_name(w)]
 		_add_gear_item_row(
 			_load_keyed_gear_path(_WeaponIcons.path_for_id(w)),
-			Locale.weapon_name(w),
+			wname,
 			_WeaponIcons.damage_of(w),
 			qty
 		)
@@ -1110,9 +1135,10 @@ func _fill_gear_page() -> void:
 		var qty2 := int(GameState.armor[a])
 		if qty2 <= 0:
 			continue
+		var aname := "%s. %s" % [String.chr(65 + a), Locale.armor_name(a)]
 		_add_gear_item_row(
 			_load_keyed_gear_path(_ArmorIcons.path_for_id(a)),
-			Locale.armor_name(a),
+			aname,
 			_ArmorIcons.defense_of(a),
 			qty2
 		)
@@ -1127,8 +1153,7 @@ func _fill_reagents_page() -> void:
 		_add_icon_qty_row(
 			_load_keyed_gear_path(_ReagentIcons.path_for_id(r)),
 			letter,
-			int(GameState.reagents[r]),
-			false
+			int(GameState.reagents[r])
 		)
 	call_deferred("_fit_reagents_layout")
 
@@ -1272,22 +1297,19 @@ func _add_gear_item_row(tex: Texture2D, name: String, stat: int, qty: int) -> vo
 	_add_inv_name(inner, name)
 	_add_inv_num(inner, str(stat), INV_STAT_W)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
-	_register_inv_row(inner)
+	_add_inv_static_row(inner)
 
 
-func _add_icon_qty_row(tex: Texture2D, name: String, qty: int, selectable: bool = true) -> void:
+func _add_icon_qty_row(tex: Texture2D, name: String, qty: int) -> void:
 	var inner := _make_inv_inner_row()
 	_add_inv_icon(inner, tex)
 	_add_inv_name(inner, name)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
-	if selectable:
-		_register_inv_row(inner)
-	else:
-		_add_inv_static_row(inner)
+	_add_inv_static_row(inner)
 
 
 func _add_inv_static_row(inner: HBoxContainer) -> void:
-	## Non-selectable row (reagents — no cursor highlight).
+	## Inventory list row — no selection cursor (xu4 Ztats is read-only).
 	var wrap := Control.new()
 	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1362,7 +1384,7 @@ func _add_mix_item_row(
 	_add_inv_num(inner, str(mana), INV_MANA_W)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
 	_add_inv_num(inner, dmg, INV_DMG_W)
-	_register_inv_row(inner)
+	_add_inv_static_row(inner)
 
 
 func _add_mix_index(row: HBoxContainer, letter: String) -> void:
@@ -1465,57 +1487,6 @@ func _add_inv_num(row: HBoxContainer, text: String, width: float) -> void:
 	row.add_child(q)
 
 
-func _register_inv_row(inner: HBoxContainer) -> void:
-	## Wrapper so cursor highlight can sit behind the row without breaking HBox layout.
-	var wrap := Control.new()
-	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
-	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wrap.clip_contents = true
-	wrap.set_meta("inv_selectable", true)
-
-	var bg := ColorRect.new()
-	bg.name = "CursorBg"
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bg.color = COL_INV_CURSOR
-	bg.visible = false
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	wrap.add_child(bg)
-
-	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	wrap.add_child(inner)
-
-	_inv_list.add_child(wrap)
-	_inv_selectable.append(wrap)
-
-
-func _apply_inv_cursor() -> void:
-	if _inv_selectable.is_empty():
-		return
-	_inv_cursor = clampi(_inv_cursor, 0, _inv_selectable.size() - 1)
-	for i in _inv_selectable.size():
-		var row := _inv_selectable[i]
-		if row == null or not is_instance_valid(row):
-			continue
-		var bg := row.get_node_or_null("CursorBg") as ColorRect
-		if bg:
-			bg.visible = i == _inv_cursor
-	## ←→ return: restore scroll. ↑↓: center. First open: stay at top (titles visible).
-	if _inv_keep_scroll and _inv_saved_scroll.has(_inv_page):
-		_restore_inv_scroll()
-	elif _inv_do_center:
-		var row2 := _inv_selectable[_inv_cursor]
-		if row2 and is_instance_valid(row2):
-			call_deferred("_scroll_cursor_centered", row2)
-	else:
-		## First visit this session — show headers/titles at the top.
-		if _inv_scroll:
-			_inv_scroll.scroll_vertical = 0
-		_inv_saved_scroll[_inv_page] = 0
-	_inv_keep_scroll = false
-	_inv_do_center = false
-
-
 func _restore_inv_scroll() -> void:
 	if _inv_scroll == null or not _inv_saved_scroll.has(_inv_page):
 		return
@@ -1524,41 +1495,10 @@ func _restore_inv_scroll() -> void:
 	await get_tree().process_frame
 	if _inv_scroll == null or _inv_page == InvPage.NONE:
 		return
-	var host := _inv_scroll.get_child(0) as Control
-	var content_h := host.size.y if host else 0.0
-	var max_scroll := maxi(0, int(content_h - _inv_scroll.size.y))
-	_inv_scroll.scroll_vertical = clampi(y, 0, max_scroll)
-	_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
-
-
-func _scroll_cursor_centered(row: Control) -> void:
-	## Keep the selected row near the vertical middle until list ends.
-	## Always keep the full selected row (plus a small pad) inside the view
-	## so glyphs are never clipped by the ScrollContainer edge.
-	if _inv_scroll == null or row == null or not is_instance_valid(row):
-		return
-	if _inv_list == null:
-		return
-	var view_h := _inv_scroll.size.y
-	if view_h < 1.0:
-		return
-	## Scroll child is the padded list host — use its height for max scroll.
-	var host := _inv_scroll.get_child(0) as Control
-	var content_h := host.size.y if host else _inv_list.size.y
-	content_h = maxf(content_h, _inv_list.get_combined_minimum_size().y)
-	var row_top := row.position.y
-	var row_h := maxf(row.size.y, float(INV_ROW_H))
-	content_h = maxf(content_h, row_top + row_h)
-	var max_scroll := maxf(0.0, content_h - view_h)
-	var pad := float(INV_SCROLL_EDGE_PAD)
-	var ideal := row_top + row_h * 0.5 - view_h * 0.5
-	var scroll := clampf(ideal, 0.0, max_scroll)
-	## Nudge so the selected row is never cut at top/bottom.
-	var min_scroll := row_top + row_h + pad - view_h
-	var max_keep := row_top - pad
-	if min_scroll <= max_keep:
-		scroll = clampf(scroll, min_scroll, max_keep)
-	scroll = clampf(scroll, 0.0, max_scroll)
-	_inv_scroll.scroll_vertical = int(round(scroll))
-	if _inv_page != InvPage.NONE:
-		_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var max_step := _inv_scroll_max_step()
+	## Snap to row grid so restore never lands on a micro-offset past the last step.
+	y = clampi(y, 0, max_step)
+	y = (y / stride) * stride
+	_inv_scroll.scroll_vertical = y
+	_inv_saved_scroll[_inv_page] = y

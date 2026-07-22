@@ -69,28 +69,54 @@ func reset_party() -> void:
 
 
 func _reset_inventory_stubs() -> void:
-	## Full demo stock so Ztats pages can review every name translation.
+	## Partial demo stock (translation review done — not every item mixed).
 	weapons.clear()
 	weapons.resize(16)
-	weapons[0] = 0 ## Hands — not listed
-	for i in range(1, 16):
-		weapons[i] = 1
+	for i in 16:
+		weapons[i] = 0
+	weapons[2] = 3 ## Dagger (C)
+	weapons[4] = 1 ## Mace (E)
+	weapons[6] = 2 ## Sword (G)
+	weapons[7] = 1 ## Bow (H)
+	weapons[10] = 1 ## Halberd (K)
+	weapons[12] = 1 ## Magic Sword (M)
+	weapons[14] = 1 ## Magic Wand (O)
 
 	armor.clear()
 	armor.resize(8)
-	armor[0] = 0 ## No Armor — not listed
-	for i in range(1, 8):
-		armor[i] = 1
+	for i in 8:
+		armor[i] = 0
+	armor[1] = 2 ## Cloth (B)
+	armor[3] = 1 ## Chain (D)
+	armor[5] = 1 ## Magic Chain (F)
+	armor[7] = 1 ## Mystic Robe (H)
 
+	## Always show all eight reagents; some may be zero.
 	reagents.clear()
 	reagents.resize(8)
-	for i in 8:
-		reagents[i] = 8 - i
+	reagents[0] = 12
+	reagents[1] = 0
+	reagents[2] = 8
+	reagents[3] = 6
+	reagents[4] = 0
+	reagents[5] = 4
+	reagents[6] = 2
+	reagents[7] = 0
 
 	mixtures.clear()
 	mixtures.resize(26)
 	for i in 26:
-		mixtures[i] = 1
+		mixtures[i] = 0
+	mixtures[0] = 4 ## Awaken
+	mixtures[2] = 3 ## Cure
+	mixtures[5] = 12 ## Fireball
+	mixtures[7] = 5 ## Heal
+	mixtures[11] = 2 ## Light
+	mixtures[12] = 6 ## Magic Missile
+	mixtures[15] = 2 ## Protection
+	mixtures[18] = 1 ## Sleep
+	mixtures[23] = 2 ## X-it
+	mixtures[25] = 3 ## Z-down
 
 
 func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
