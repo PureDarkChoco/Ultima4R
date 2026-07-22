@@ -910,10 +910,7 @@ func _on_escape() -> void:
 		## xu4 choosePlayer cancel → "None"; slide roster away.
 		_clear_pending_order(true)
 		return
-	if _sides_open:
-		_sides_open = false
-		_layout_side_panels(true)
-		return
+	## Tab panel stays open until Tab is pressed again — Esc does not collapse it.
 	if _pending_cmd != U4Commands.Id.NONE:
 		## xu4 ReadDir: Esc clears "Dir?" on the same line — no extra message.
 		_clear_pending_dir()
