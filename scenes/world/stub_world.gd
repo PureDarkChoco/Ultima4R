@@ -70,6 +70,8 @@ var _order_cursor := 0
 ## xu4 ztatsFor(): 0 = idle, 1 = pick member, 2 = viewing sheet.
 var _ztats_stage := 0
 var _ztats_cursor := 0
+## Flat page index while viewing: 0..party-1 = chars, then gear/reagents/mixtures.
+var _ztats_flat := 0
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -1234,7 +1236,22 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		if _is_ztats_dismiss(event):
 			_close_ztats(false)
 			return true
-		## ← → cycle members; digits jump to a slot.
+		## ↑↓ scroll inventory lists; ←→ cycle pages (chars → gear → reagents → mixtures).
+		if _ztats_panel and _ztats_panel.is_inventory_page():
+			if event.is_action_pressed("move_up"):
+				_ztats_panel.scroll_inventory(-1)
+				return true
+			if event.is_action_pressed("move_down"):
+				_ztats_panel.scroll_inventory(1)
+				return true
+			if event is InputEventKey:
+				var kscroll := event as InputEventKey
+				if kscroll.keycode == KEY_UP or kscroll.physical_keycode == KEY_UP:
+					_ztats_panel.scroll_inventory(-1)
+					return true
+				if kscroll.keycode == KEY_DOWN or kscroll.physical_keycode == KEY_DOWN:
+					_ztats_panel.scroll_inventory(1)
+					return true
 		if event.is_action_pressed("move_left"):
 			_nudge_ztats_view(-1)
 			return true
@@ -1248,6 +1265,10 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 				return true
 			if kview.keycode == KEY_RIGHT or kview.physical_keycode == KEY_RIGHT:
 				_nudge_ztats_view(1)
+				return true
+			## 0 → equipment page (xu4).
+			if _is_ztats_equipment_key(kview):
+				_show_ztats_inventory(ZtatsPanel.InvPage.GEAR)
 				return true
 			var slot := _player_slot_from_key(kview)
 			if slot >= 0:
@@ -1272,9 +1293,14 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		return true
 	## ↑↓ are polled in _tick_select_cursor (hold-repeat like world move).
 	if event is InputEventKey:
-		var pick := _player_slot_from_key(event as InputEventKey)
+		var ke := event as InputEventKey
+		## 0 → jump straight to equipment.
+		if _is_ztats_equipment_key(ke):
+			_show_ztats_inventory(ZtatsPanel.InvPage.GEAR)
+			return true
+		var pick := _player_slot_from_key(ke)
 		if pick < 0:
-			if _is_digit_key(event as InputEventKey):
+			if _is_digit_key(ke):
 				_close_ztats(true)
 				return true
 			return false
@@ -1317,9 +1343,31 @@ func _return_ztats_to_pick() -> void:
 
 
 func _nudge_ztats_view(delta: int) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	_ztats_cursor = posmod(_ztats_cursor + delta, n)
-	_show_ztats_member(_ztats_cursor)
+	var n := _ztats_flat_count()
+	if n <= 0:
+		return
+	_ztats_flat = posmod(_ztats_flat + delta, n)
+	_show_ztats_flat(_ztats_flat)
+
+
+func _ztats_flat_count() -> int:
+	## Party character sheets + Equipment + Reagents + Mixtures.
+	return maxi(GameState.party_size(), 1) + 3
+
+
+func _show_ztats_flat(flat: int) -> void:
+	var party_n := maxi(GameState.party_size(), 1)
+	if flat < party_n:
+		_show_ztats_member(flat)
+		return
+	var inv := flat - party_n
+	match inv:
+		0:
+			_show_ztats_inventory(ZtatsPanel.InvPage.GEAR)
+		1:
+			_show_ztats_inventory(ZtatsPanel.InvPage.REAGENTS)
+		_:
+			_show_ztats_inventory(ZtatsPanel.InvPage.MIXTURES)
 
 
 func _nudge_ztats_cursor(delta: int) -> void:
@@ -1346,6 +1394,7 @@ func _show_ztats_member(slot: int) -> void:
 	_ensure_ztats_panel()
 	_ztats_stage = 2
 	_ztats_cursor = slot
+	_ztats_flat = slot
 	_clear_order_selection()
 	_layout_prompt_row()
 	## Reuse the open character panel chrome — swap roster for sheet content.
@@ -1360,10 +1409,35 @@ func _show_ztats_member(slot: int) -> void:
 		_ztats_panel.open_member(slot)
 
 
+func _show_ztats_inventory(page: int) -> void:
+	_ensure_ztats_panel()
+	_ztats_stage = 2
+	var party_n := maxi(GameState.party_size(), 1)
+	match page:
+		ZtatsPanel.InvPage.GEAR:
+			_ztats_flat = party_n
+		ZtatsPanel.InvPage.REAGENTS:
+			_ztats_flat = party_n + 1
+		_:
+			_ztats_flat = party_n + 2
+	_clear_order_selection()
+	_layout_prompt_row()
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	if _roster:
+		_roster.visible = false
+	_order_opened_roster = true
+	if _ztats_panel:
+		_ztats_panel.open_inventory(page)
+
+
 func _close_ztats(show_none: bool) -> void:
 	var was := _ztats_stage
 	_ztats_stage = 0
 	_ztats_cursor = 0
+	_ztats_flat = 0
 	_clear_order_selection()
 	if _ztats_panel:
 		_ztats_panel.close_panel()
@@ -1463,6 +1537,16 @@ func _is_digit_key(event: InputEventKey) -> bool:
 		or (phys >= KEY_0 and phys <= KEY_9)
 		or (code >= KEY_KP_0 and code <= KEY_KP_9)
 		or (phys >= KEY_KP_0 and phys <= KEY_KP_9)
+	)
+
+
+func _is_ztats_equipment_key(event: InputEventKey) -> bool:
+	## xu4: 0 opens Weapons / equipment list.
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return (
+		code == KEY_0 or phys == KEY_0
+		or code == KEY_KP_0 or phys == KEY_KP_0
 	)
 
 

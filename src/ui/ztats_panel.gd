@@ -6,6 +6,10 @@ extends Control
 
 const _WeaponIcons := preload("res://src/core/weapon_icons.gd")
 const _ArmorIcons := preload("res://src/core/armor_icons.gd")
+const _ReagentIcons := preload("res://src/core/reagent_icons.gd")
+const _Spells := preload("res://src/core/spells.gd")
+
+enum InvPage { NONE = -1, GEAR = 0, REAGENTS = 1, MIXTURES = 2 }
 
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
@@ -54,9 +58,39 @@ const GEAR_ARMOR_NAME_SAMPLE_KO := "마법 판금"
 const ATTR_LABEL_SAMPLES := ["STR: ", "DEX: ", "INT: ", "힘: ", "민첩: ", "지능: "]
 const COMBAT_LABEL_SAMPLES := ["ATK: ", "DEF: ", "공격: ", "방어: "]
 const STAT_VALUE_SAMPLE := "99"
+const INV_ICON := 20
+const INV_ROW_H := 25
+const INV_LIST_SEP := 3
+const INV_STAT_W := 52
+const INV_MANA_W := 40
+const INV_DMG_W := 56
+const INV_QTY_W := 32
+## Wider side gutters so equipment / reagents / mixtures sit more centered.
+const INV_PAD_H := 22
+const INV_PAD_V := 6
+const INV_SCROLLBAR_GAP := 10
+const INV_SCROLL_EDGE_PAD := 1
+const COL_INV_CURSOR := Color(0.28, 0.32, 0.22, 1)
+## Spell A–Z index beside Korean names — brighter gold than body text.
+const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
 
 
 var _title: Label
+var _char_root: Control
+var _inv_root: Control
+var _inv_title: Label
+var _inv_scroll: ScrollContainer
+var _inv_list: VBoxContainer
+var _inv_page: int = InvPage.NONE
+var _inv_selectable: Array[Control] = []
+var _inv_cursor := 0
+## Per-page cursor / scroll while this Ztats session is open (cleared on close).
+var _inv_saved_cursor: Dictionary = {}
+var _inv_saved_scroll: Dictionary = {}
+## When true, next cursor apply restores saved scroll instead of recentering.
+var _inv_keep_scroll := false
+## When true (↑↓ only), scroll to keep the cursor centered.
+var _inv_do_center := false
 var _tile_host: Control
 var _tile: TextureRect
 var _sleep_zz: Label
@@ -102,14 +136,22 @@ func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_build()
+	_build_inv()
 
 
 func is_open() -> bool:
-	return visible and _slot >= 0
+	return visible and (_slot >= 0 or _inv_page != InvPage.NONE)
+
+
+func is_inventory_page() -> bool:
+	return visible and _inv_page != InvPage.NONE
 
 
 func open_member(slot: int) -> void:
+	_remember_inv_view()
 	_slot = slot
+	_inv_page = InvPage.NONE
+	_show_char(true)
 	_refresh()
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = true
@@ -117,15 +159,72 @@ func open_member(slot: int) -> void:
 	set_process(_needs_status_pulse())
 
 
+func open_inventory(page: int, restore_cursor: bool = true) -> void:
+	_remember_inv_view()
+	_slot = -1
+	_inv_page = page
+	var want := 0
+	_inv_keep_scroll = false
+	_inv_do_center = false
+	if restore_cursor and _inv_saved_cursor.has(page):
+		want = int(_inv_saved_cursor[page])
+		_inv_keep_scroll = _inv_saved_scroll.has(page)
+	_show_char(false)
+	_refresh_inventory(want)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	visible = true
+	move_to_front()
+	set_process(false)
+
+
+func scroll_inventory(delta: int) -> void:
+	## Compatibility alias — ↑↓ moves the item cursor (skips titles).
+	move_inventory_cursor(delta)
+
+
+func move_inventory_cursor(delta: int) -> void:
+	if not is_inventory_page() or _inv_selectable.is_empty():
+		return
+	## Gear / mixtures wrap; reagents have no cursor.
+	var n := _inv_selectable.size()
+	if _inv_page == InvPage.GEAR or _inv_page == InvPage.MIXTURES:
+		_inv_cursor = posmod(_inv_cursor + delta, n)
+	else:
+		_inv_cursor = clampi(_inv_cursor + delta, 0, n - 1)
+	_inv_keep_scroll = false
+	_inv_do_center = true
+	_inv_saved_cursor[_inv_page] = _inv_cursor
+	_apply_inv_cursor()
+
+
 func close_panel() -> void:
 	_slot = -1
-	_status_code = PartyRoster.Status.OK
-	_hp_critical = false
-	if _sleep_zz:
-		_sleep_zz.visible = false
-	set_process(false)
+	_inv_page = InvPage.NONE
+	_inv_cursor = 0
+	_inv_saved_cursor.clear()
+	_inv_saved_scroll.clear()
+	_inv_keep_scroll = false
+	_inv_do_center = false
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_process(false)
+	_show_char(true)
+
+
+func _remember_inv_view() -> void:
+	if _inv_page == InvPage.NONE:
+		return
+	if not _inv_selectable.is_empty():
+		_inv_saved_cursor[_inv_page] = _inv_cursor
+	if _inv_scroll:
+		_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
+
+
+func _show_char(on: bool) -> void:
+	if _char_root:
+		_char_root.visible = on
+	if _inv_root:
+		_inv_root.visible = not on
 
 
 func _needs_status_pulse() -> bool:
@@ -200,6 +299,7 @@ func _build() -> void:
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.clip_contents = true
 	add_child(pad)
+	_char_root = pad
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 0)
@@ -911,3 +1011,554 @@ func _relayout_bars() -> void:
 	_apply_fill_width(_hp_fill)
 	_apply_fill_width(_mp_fill)
 	_apply_fill_width(_exp_fill)
+
+
+func _build_inv() -> void:
+	_inv_root = MarginContainer.new()
+	_inv_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_inv_root.add_theme_constant_override("margin_left", INV_PAD_H)
+	_inv_root.add_theme_constant_override("margin_right", INV_PAD_H)
+	_inv_root.add_theme_constant_override("margin_top", INV_PAD_V)
+	_inv_root.add_theme_constant_override("margin_bottom", INV_PAD_V)
+	_inv_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inv_root.visible = false
+	add_child(_inv_root)
+
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 6)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inv_root.add_child(root)
+
+	_inv_title = Label.new()
+	_inv_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_inv_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inv_title.add_theme_font_size_override("font_size", FONT_SIZE + 1)
+	_inv_title.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(_inv_title)
+	root.add_child(_inv_title)
+
+	_inv_scroll = ScrollContainer.new()
+	_inv_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inv_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_inv_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_inv_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(_inv_scroll)
+
+	## Gap between list content and the scrollbar track.
+	var list_pad := MarginContainer.new()
+	list_pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_pad.add_theme_constant_override("margin_right", INV_SCROLLBAR_GAP)
+	list_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inv_scroll.add_child(list_pad)
+
+	_inv_list = VBoxContainer.new()
+	_inv_list.add_theme_constant_override("separation", INV_LIST_SEP)
+	_inv_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inv_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	list_pad.add_child(_inv_list)
+
+
+func _refresh_inventory(want_cursor: int = 0) -> void:
+	if _inv_list == null:
+		return
+	for c in _inv_list.get_children():
+		c.queue_free()
+	_inv_selectable.clear()
+	_inv_cursor = maxi(0, want_cursor)
+	_inv_scroll.scroll_vertical = 0
+	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_inv_list.add_theme_constant_override("separation", INV_LIST_SEP)
+	match _inv_page:
+		InvPage.GEAR:
+			_inv_title.text = Locale.t("ztats_page_equipment")
+			_fill_gear_page()
+		InvPage.REAGENTS:
+			_inv_title.text = Locale.t("ztats_page_reagents")
+			_fill_reagents_page()
+		InvPage.MIXTURES:
+			_inv_title.text = Locale.t("ztats_page_mixtures")
+			_fill_mixtures_page()
+		_:
+			_inv_title.text = "?"
+	if not _inv_selectable.is_empty():
+		_inv_cursor = clampi(_inv_cursor, 0, _inv_selectable.size() - 1)
+		_inv_saved_cursor[_inv_page] = _inv_cursor
+		call_deferred("_apply_inv_cursor")
+	elif _inv_keep_scroll and _inv_saved_scroll.has(_inv_page):
+		## Reagents (no cursor) — still restore last scroll if any.
+		call_deferred("_restore_inv_scroll")
+
+
+func _fill_gear_page() -> void:
+	_add_inv_section(Locale.t("ztats_page_weapons"))
+	_add_gear_header(Locale.t("ztats_col_damage"))
+	for w in range(1, GameState.weapons.size()): ## skip Hands
+		var qty := int(GameState.weapons[w])
+		if qty <= 0:
+			continue
+		_add_gear_item_row(
+			_load_keyed_gear_path(_WeaponIcons.path_for_id(w)),
+			Locale.weapon_name(w),
+			_WeaponIcons.damage_of(w),
+			qty
+		)
+	_add_inv_section(Locale.t("ztats_page_armor"))
+	_add_gear_header(Locale.t("ztats_col_defense"))
+	for a in range(1, GameState.armor.size()): ## skip No Armor
+		var qty2 := int(GameState.armor[a])
+		if qty2 <= 0:
+			continue
+		_add_gear_item_row(
+			_load_keyed_gear_path(_ArmorIcons.path_for_id(a)),
+			Locale.armor_name(a),
+			_ArmorIcons.defense_of(a),
+			qty2
+		)
+
+
+func _fill_reagents_page() -> void:
+	## No item cursor — compact layout sized to never need a scrollbar.
+	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_add_gear_header(Locale.t("ztats_col_qty"), false)
+	for r in GameState.reagents.size():
+		var letter := "%s. %s" % [String.chr(65 + r), Locale.reagent_name(r)]
+		_add_icon_qty_row(
+			_load_keyed_gear_path(_ReagentIcons.path_for_id(r)),
+			letter,
+			int(GameState.reagents[r]),
+			false
+		)
+	call_deferred("_fit_reagents_layout")
+
+
+func _fit_reagents_layout() -> void:
+	## Compact rows/gaps unique to reagents — always fit inside the viewport (no scrollbar).
+	if _inv_page != InvPage.REAGENTS or _inv_list == null or _inv_scroll == null:
+		return
+	var kids := _inv_list.get_children()
+	var count := kids.size()
+	if count < 1:
+		return
+	var view_h := _inv_scroll.size.y
+	if view_h < 1.0:
+		return
+	var gaps := maxi(count - 1, 0)
+	## Tighter than gear/mix — exact fit so SCROLL_MODE_DISABLED never clips.
+	var sep := 2.0
+	var row_h := (view_h - sep * float(gaps)) / float(count)
+	if row_h > 24.0:
+		row_h = 24.0
+		if gaps > 0:
+			sep = maxf(1.0, (view_h - row_h * float(count)) / float(gaps))
+	elif row_h < float(INV_ICON):
+		## Prefer fitting icons; collapse gaps before shrinking below icon size.
+		row_h = mini(float(INV_ICON), view_h / float(count))
+		if gaps > 0:
+			sep = maxf(0.0, (view_h - row_h * float(count)) / float(gaps))
+	_inv_list.add_theme_constant_override("separation", int(round(sep)))
+	for i in count:
+		var c := kids[i] as Control
+		if c == null:
+			continue
+		var h := maxf(row_h - 2.0, 14.0) if i == 0 else row_h
+		c.custom_minimum_size = Vector2(0, h)
+		c.size.y = h
+
+
+func _fill_mixtures_page() -> void:
+	## Mixed spells only. Columns: Name · Mana · Qty · Damage (range when known).
+	## KO: A.–Z. index in accent color. EN: first letter of the name in accent color.
+	_add_mix_header()
+	var ko := GameState.language == "ko"
+	for s in _Spells.COUNT:
+		var qty := 0
+		if s < GameState.mixtures.size():
+			qty = int(GameState.mixtures[s])
+		if qty <= 0:
+			continue
+		_add_mix_item_row(
+			Locale.spell_name(s),
+			_Spells.mp_cost(s),
+			qty,
+			_Spells.damage_text(s),
+			_Spells.letter(s) if ko else "",
+			not ko
+		)
+
+
+func _add_inv_section(title: String) -> void:
+	## Fixed stride matching item rows (clip so font metrics can't add 1–2px).
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.clip_contents = true
+	wrap.set_meta("inv_skip", true)
+
+	var lab := Label.new()
+	lab.text = title
+	lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.add_theme_font_size_override("font_size", FONT_SIZE)
+	lab.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(lab)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_child(lab)
+	_inv_list.add_child(wrap)
+
+
+func _add_gear_header(stat_label: String, show_stat: bool = true) -> void:
+	## Column titles — fixed height matching item rows.
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.clip_contents = true
+	wrap.set_meta("inv_skip", true)
+
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var icon_pad := Control.new()
+	icon_pad.custom_minimum_size = Vector2(INV_ICON, 1)
+	icon_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon_pad)
+
+	var nm := Label.new()
+	nm.text = Locale.t("ztats_col_name")
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nm.add_theme_font_size_override("font_size", FONT_SIZE - 1)
+	nm.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(nm)
+	row.add_child(nm)
+
+	if show_stat:
+		var st := Label.new()
+		st.text = stat_label
+		st.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		st.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		st.custom_minimum_size = Vector2(INV_STAT_W, 0)
+		st.add_theme_font_size_override("font_size", FONT_SIZE - 1)
+		st.add_theme_color_override("font_color", COL_ACCENT)
+		UiTheme.apply_font(st)
+		row.add_child(st)
+
+	var q := Label.new()
+	q.text = Locale.t("ztats_col_qty")
+	q.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	q.custom_minimum_size = Vector2(INV_QTY_W, 0)
+	q.add_theme_font_size_override("font_size", FONT_SIZE - 1)
+	q.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(q)
+	row.add_child(q)
+
+	wrap.add_child(row)
+	_inv_list.add_child(wrap)
+
+
+func _add_gear_item_row(tex: Texture2D, name: String, stat: int, qty: int) -> void:
+	var inner := _make_inv_inner_row()
+	_add_inv_icon(inner, tex)
+	_add_inv_name(inner, name)
+	_add_inv_num(inner, str(stat), INV_STAT_W)
+	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
+	_register_inv_row(inner)
+
+
+func _add_icon_qty_row(tex: Texture2D, name: String, qty: int, selectable: bool = true) -> void:
+	var inner := _make_inv_inner_row()
+	_add_inv_icon(inner, tex)
+	_add_inv_name(inner, name)
+	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
+	if selectable:
+		_register_inv_row(inner)
+	else:
+		_add_inv_static_row(inner)
+
+
+func _add_inv_static_row(inner: HBoxContainer) -> void:
+	## Non-selectable row (reagents — no cursor highlight).
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.clip_contents = true
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(inner)
+	_inv_list.add_child(wrap)
+
+
+func _add_mix_header() -> void:
+	## Name · Mana · Qty · Damage — fixed height matching item rows.
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.clip_contents = true
+	wrap.set_meta("inv_skip", true)
+
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var nm := Label.new()
+	nm.text = Locale.t("ztats_col_name")
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nm.add_theme_font_size_override("font_size", FONT_SIZE - 1)
+	nm.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(nm)
+	row.add_child(nm)
+
+	for pair in [
+		[Locale.t("ztats_col_mana"), INV_MANA_W],
+		[Locale.t("ztats_col_qty"), INV_QTY_W],
+		[Locale.t("ztats_col_damage"), INV_DMG_W],
+	]:
+		var lab := Label.new()
+		lab.text = str(pair[0])
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		lab.custom_minimum_size = Vector2(float(pair[1]), 0)
+		lab.add_theme_font_size_override("font_size", FONT_SIZE - 1)
+		lab.add_theme_color_override("font_color", COL_ACCENT)
+		UiTheme.apply_font(lab)
+		row.add_child(lab)
+
+	wrap.add_child(row)
+	_inv_list.add_child(wrap)
+
+
+func _add_mix_item_row(
+	name: String,
+	mana: int,
+	qty: int,
+	dmg: String,
+	index_letter: String = "",
+	color_first_letter: bool = false
+) -> void:
+	var inner := _make_inv_inner_row()
+	if not index_letter.is_empty():
+		_add_mix_index(inner, index_letter)
+		_add_inv_name(inner, name)
+	elif color_first_letter and not name.is_empty():
+		_add_mix_name_colored_initial(inner, name)
+	else:
+		_add_inv_name(inner, name)
+	_add_inv_num(inner, str(mana), INV_MANA_W)
+	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
+	_add_inv_num(inner, dmg, INV_DMG_W)
+	_register_inv_row(inner)
+
+
+func _add_mix_index(row: HBoxContainer, letter: String) -> void:
+	var lab := Label.new()
+	lab.text = "%s." % letter
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_apply_mix_index_style(lab)
+	row.add_child(lab)
+
+
+func _add_mix_name_colored_initial(row: HBoxContainer, name: String) -> void:
+	## EN: tint the cast letter (first character) without a gap before the rest.
+	var host := HBoxContainer.new()
+	host.add_theme_constant_override("separation", 0)
+	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	host.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var initial := Label.new()
+	initial.text = name.substr(0, 1)
+	initial.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_apply_mix_index_style(initial)
+	host.add_child(initial)
+
+	var rest := name.substr(1)
+	if not rest.is_empty():
+		var body := Label.new()
+		body.text = rest
+		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		body.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		body.clip_text = true
+		var settings := LabelSettings.new()
+		var f: Font = UiTheme.font()
+		if f:
+			settings.font = f
+		settings.font_size = FONT_SIZE
+		settings.font_color = COL_TEXT
+		body.label_settings = settings
+		host.add_child(body)
+
+	row.add_child(host)
+
+
+func _apply_mix_index_style(lab: Label) -> void:
+	## LabelSettings wins over theme defaults so the index stays distinct from the name.
+	var settings := LabelSettings.new()
+	var f: Font = UiTheme.font()
+	if f:
+		settings.font = f
+	settings.font_size = FONT_SIZE
+	settings.font_color = COL_MIX_INDEX
+	lab.label_settings = settings
+
+
+func _make_inv_inner_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return row
+
+
+func _add_inv_icon(row: HBoxContainer, tex: Texture2D) -> void:
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(INV_ICON, INV_ICON)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture = tex
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+
+
+func _add_inv_name(row: HBoxContainer, name: String) -> void:
+	var nm := Label.new()
+	nm.text = name
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nm.add_theme_font_size_override("font_size", FONT_SIZE)
+	nm.add_theme_color_override("font_color", COL_TEXT)
+	nm.clip_text = true
+	UiTheme.apply_font(nm)
+	row.add_child(nm)
+
+
+func _add_inv_num(row: HBoxContainer, text: String, width: float) -> void:
+	var q := Label.new()
+	q.text = text
+	q.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	q.custom_minimum_size = Vector2(width, 0)
+	q.add_theme_font_size_override("font_size", FONT_SIZE)
+	q.add_theme_color_override("font_color", COL_TEXT)
+	UiTheme.apply_font(q)
+	row.add_child(q)
+
+
+func _register_inv_row(inner: HBoxContainer) -> void:
+	## Wrapper so cursor highlight can sit behind the row without breaking HBox layout.
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.clip_contents = true
+	wrap.set_meta("inv_selectable", true)
+
+	var bg := ColorRect.new()
+	bg.name = "CursorBg"
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.color = COL_INV_CURSOR
+	bg.visible = false
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(bg)
+
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(inner)
+
+	_inv_list.add_child(wrap)
+	_inv_selectable.append(wrap)
+
+
+func _apply_inv_cursor() -> void:
+	if _inv_selectable.is_empty():
+		return
+	_inv_cursor = clampi(_inv_cursor, 0, _inv_selectable.size() - 1)
+	for i in _inv_selectable.size():
+		var row := _inv_selectable[i]
+		if row == null or not is_instance_valid(row):
+			continue
+		var bg := row.get_node_or_null("CursorBg") as ColorRect
+		if bg:
+			bg.visible = i == _inv_cursor
+	## ←→ return: restore scroll. ↑↓: center. First open: stay at top (titles visible).
+	if _inv_keep_scroll and _inv_saved_scroll.has(_inv_page):
+		_restore_inv_scroll()
+	elif _inv_do_center:
+		var row2 := _inv_selectable[_inv_cursor]
+		if row2 and is_instance_valid(row2):
+			call_deferred("_scroll_cursor_centered", row2)
+	else:
+		## First visit this session — show headers/titles at the top.
+		if _inv_scroll:
+			_inv_scroll.scroll_vertical = 0
+		_inv_saved_scroll[_inv_page] = 0
+	_inv_keep_scroll = false
+	_inv_do_center = false
+
+
+func _restore_inv_scroll() -> void:
+	if _inv_scroll == null or not _inv_saved_scroll.has(_inv_page):
+		return
+	var y := int(_inv_saved_scroll[_inv_page])
+	## Wait one frame so list min-size is ready, then clamp into range.
+	await get_tree().process_frame
+	if _inv_scroll == null or _inv_page == InvPage.NONE:
+		return
+	var host := _inv_scroll.get_child(0) as Control
+	var content_h := host.size.y if host else 0.0
+	var max_scroll := maxi(0, int(content_h - _inv_scroll.size.y))
+	_inv_scroll.scroll_vertical = clampi(y, 0, max_scroll)
+	_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
+
+
+func _scroll_cursor_centered(row: Control) -> void:
+	## Keep the selected row near the vertical middle until list ends.
+	## Always keep the full selected row (plus a small pad) inside the view
+	## so glyphs are never clipped by the ScrollContainer edge.
+	if _inv_scroll == null or row == null or not is_instance_valid(row):
+		return
+	if _inv_list == null:
+		return
+	var view_h := _inv_scroll.size.y
+	if view_h < 1.0:
+		return
+	## Scroll child is the padded list host — use its height for max scroll.
+	var host := _inv_scroll.get_child(0) as Control
+	var content_h := host.size.y if host else _inv_list.size.y
+	content_h = maxf(content_h, _inv_list.get_combined_minimum_size().y)
+	var row_top := row.position.y
+	var row_h := maxf(row.size.y, float(INV_ROW_H))
+	content_h = maxf(content_h, row_top + row_h)
+	var max_scroll := maxf(0.0, content_h - view_h)
+	var pad := float(INV_SCROLL_EDGE_PAD)
+	var ideal := row_top + row_h * 0.5 - view_h * 0.5
+	var scroll := clampf(ideal, 0.0, max_scroll)
+	## Nudge so the selected row is never cut at top/bottom.
+	var min_scroll := row_top + row_h + pad - view_h
+	var max_keep := row_top - pad
+	if min_scroll <= max_keep:
+		scroll = clampf(scroll, min_scroll, max_keep)
+	scroll = clampf(scroll, 0.0, max_scroll)
+	_inv_scroll.scroll_vertical = int(round(scroll))
+	if _inv_page != InvPage.NONE:
+		_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical

@@ -45,6 +45,17 @@ const NAME_TO_ID := {
 	"mystic robe": Id.MYSTIC_ROBE,
 }
 
+## xu4 config.b armor defense by id (Skin/No Armour = 96).
+const DEFENSE: Array[int] = [
+	96, 128, 144, 160, 176, 192, 208, 248,
+]
+
+
+static func defense_of(armor_id: int) -> int:
+	if armor_id < 0 or armor_id >= DEFENSE.size():
+		return 0
+	return DEFENSE[armor_id]
+
 
 static func path_for_id(armor_id: int) -> String:
 	return str(PATHS.get(armor_id, ""))

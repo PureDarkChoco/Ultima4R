@@ -2,6 +2,8 @@ extends Node
 
 ## Tiny string table for intro UI. Real TLK / TITLE.EXE text comes later.
 
+const _Spells := preload("res://src/core/spells.gd")
+
 const _T := {
 	"app_title": {
 		"en_u4": "Ultima IV Reloaded",
@@ -421,7 +423,7 @@ const _T := {
 	"item_magic_sword": {
 		"en_u4": "Magic Sword",
 		"en_us": "Magic Sword",
-		"ko": "마법검",
+		"ko": "마법 검",
 	},
 	"item_bow": {
 		"en_u4": "Bow",
@@ -431,7 +433,7 @@ const _T := {
 	"item_magic_axe": {
 		"en_u4": "Magic Axe",
 		"en_us": "Magic Axe",
-		"ko": "마법도끼",
+		"ko": "마법 도끼",
 	},
 	"item_mystic_sword": {
 		"en_u4": "Mystic Sword",
@@ -476,12 +478,12 @@ const _T := {
 	"item_magic_wand": {
 		"en_u4": "Magic Wand",
 		"en_us": "Magic Wand",
-		"ko": "마법 지팡이",
+		"ko": "마법봉",
 	},
 	"item_wand": {
 		"en_u4": "Wand",
 		"en_us": "Wand",
-		"ko": "마법 지팡이",
+		"ko": "마법봉",
 	},
 	"item_hands": {
 		"en_u4": "Hands",
@@ -532,6 +534,96 @@ const _T := {
 		"en_u4": "No Armor",
 		"en_us": "No Armor",
 		"ko": "없음",
+	},
+	"ztats_page_equipment": {
+		"en_u4": "Equipment",
+		"en_us": "Equipment",
+		"ko": "장비",
+	},
+	"ztats_page_weapons": {
+		"en_u4": "Weapons",
+		"en_us": "Weapons",
+		"ko": "무기",
+	},
+	"ztats_page_armor": {
+		"en_u4": "Armour",
+		"en_us": "Armor",
+		"ko": "갑옷",
+	},
+	"ztats_page_reagents": {
+		"en_u4": "Reagents",
+		"en_us": "Reagents",
+		"ko": "시약",
+	},
+	"ztats_page_mixtures": {
+		"en_u4": "Mixtures",
+		"en_us": "Mixtures",
+		"ko": "마법",
+	},
+	"ztats_col_name": {
+		"en_u4": "Name",
+		"en_us": "Name",
+		"ko": "이름",
+	},
+	"ztats_col_damage": {
+		"en_u4": "Damage",
+		"en_us": "Damage",
+		"ko": "공격력",
+	},
+	"ztats_col_defense": {
+		"en_u4": "Defense",
+		"en_us": "Defense",
+		"ko": "방어력",
+	},
+	"ztats_col_mana": {
+		"en_u4": "Mana",
+		"en_us": "Mana",
+		"ko": "마나",
+	},
+	"ztats_col_qty": {
+		"en_u4": "Qty",
+		"en_us": "Qty",
+		"ko": "수량",
+	},
+	"reag_ash": {
+		"en_u4": "Sulphurous Ash",
+		"en_us": "Sulphurous Ash",
+		"ko": "유황재",
+	},
+	"reag_ginseng": {
+		"en_u4": "Ginseng",
+		"en_us": "Ginseng",
+		"ko": "인삼",
+	},
+	"reag_garlic": {
+		"en_u4": "Garlic",
+		"en_us": "Garlic",
+		"ko": "마늘",
+	},
+	"reag_silk": {
+		"en_u4": "Spider Silk",
+		"en_us": "Spider Silk",
+		"ko": "거미줄",
+	},
+	"reag_moss": {
+		"en_u4": "Blood Moss",
+		"en_us": "Blood Moss",
+		"ko": "피이끼",
+	},
+	"reag_pearl": {
+		"en_u4": "Black Pearl",
+		"en_us": "Black Pearl",
+		"ko": "흑진주",
+	},
+	"reag_nightshade": {
+		"en_u4": "Nightshade",
+		"en_us": "Nightshade",
+		"ko": "밤그늘풀",
+	},
+	"reag_mandrake": {
+		"en_u4": "Mandrake Root",
+		"en_us": "Mandrake Root",
+		"ko": "맨드레이크 뿌리",
 	},
 }
 
@@ -642,3 +734,40 @@ func virtue_card_name(virtue: int) -> String:
 
 func virtue_choice_label(letter: String, virtue: int) -> String:
 	return "%s — %s" % [letter, virtue_card_name(virtue)]
+
+
+const _WEAPON_KEYS := [
+	"item_hands", "item_staff", "item_dagger", "item_sling", "item_mace", "item_axe",
+	"item_sword", "item_bow", "item_crossbow", "item_flaming_oil", "item_halberd",
+	"item_magic_axe", "item_magic_sword", "item_magic_bow", "item_magic_wand", "item_mystic_sword",
+]
+const _ARMOR_KEYS := [
+	"item_no_armor", "item_cloth", "item_leather", "item_chain", "item_plate",
+	"item_magic_chain", "item_magic_plate", "item_mystic_robe",
+]
+const _REAG_KEYS := [
+	"reag_ash", "reag_ginseng", "reag_garlic", "reag_silk",
+	"reag_moss", "reag_pearl", "reag_nightshade", "reag_mandrake",
+]
+
+
+func weapon_name(weapon_id: int) -> String:
+	if weapon_id < 0 or weapon_id >= _WEAPON_KEYS.size():
+		return "?"
+	return t(_WEAPON_KEYS[weapon_id])
+
+
+func armor_name(armor_id: int) -> String:
+	if armor_id < 0 or armor_id >= _ARMOR_KEYS.size():
+		return "?"
+	return t(_ARMOR_KEYS[armor_id])
+
+
+func reagent_name(reag_id: int) -> String:
+	if reag_id < 0 or reag_id >= _REAG_KEYS.size():
+		return "?"
+	return t(_REAG_KEYS[reag_id])
+
+
+func spell_name(spell_id: int) -> String:
+	return _Spells.name_of(spell_id, GameState.lang_short())

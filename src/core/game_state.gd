@@ -32,6 +32,11 @@ var karma: Array[int] = []
 var gems: int = 99
 ## Sextant required for Locate (L / Ctrl+L). Stub-owned for now.
 var has_sextant: bool = true
+## Party inventory counts (xu4 SaveGame arrays).
+var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
+var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE
+var reagents: Array[int] = [] ## 8
+var mixtures: Array[int] = [] ## 26 — spells A..Z
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()
@@ -59,7 +64,33 @@ func reset_party() -> void:
 	for i in 8:
 		karma[i] = 50
 	is_new_game = false
+	_reset_inventory_stubs()
 	refresh_party_order()
+
+
+func _reset_inventory_stubs() -> void:
+	## Full demo stock so Ztats pages can review every name translation.
+	weapons.clear()
+	weapons.resize(16)
+	weapons[0] = 0 ## Hands — not listed
+	for i in range(1, 16):
+		weapons[i] = 1
+
+	armor.clear()
+	armor.resize(8)
+	armor[0] = 0 ## No Armor — not listed
+	for i in range(1, 8):
+		armor[i] = 1
+
+	reagents.clear()
+	reagents.resize(8)
+	for i in 8:
+		reagents[i] = 8 - i
+
+	mixtures.clear()
+	mixtures.resize(26)
+	for i in 26:
+		mixtures[i] = 1
 
 
 func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:

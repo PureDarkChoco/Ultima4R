@@ -70,6 +70,17 @@ const NAME_TO_ID := {
 	"mystic sword": Id.MYSTIC_SWORD,
 }
 
+## xu4 config.b weapon damage by id.
+const DAMAGE: Array[int] = [
+	8, 16, 24, 32, 40, 48, 64, 40, 56, 64, 96, 96, 128, 80, 160, 255,
+]
+
+
+static func damage_of(weapon_id: int) -> int:
+	if weapon_id < 0 or weapon_id >= DAMAGE.size():
+		return 0
+	return DAMAGE[weapon_id]
+
 
 static func path_for_id(weapon_id: int) -> String:
 	return str(PATHS.get(weapon_id, ""))
