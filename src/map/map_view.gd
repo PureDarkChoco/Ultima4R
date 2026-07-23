@@ -74,6 +74,10 @@ var _frame_cd := 0.0
 var _cached_leader_class := -2
 var _water_scroll := 0
 var _water_cd := WATER_SCROLL_PERIOD
+## Ship grounding jolt — party/ship sprite offset while > 0.
+var _shake_left := 0.0
+var _shake_dur := 0.0
+var _shake_amp := 0.0
 
 
 func _ready() -> void:
@@ -239,6 +243,24 @@ func transport_tile() -> int:
 	return _transport_tile
 
 
+func shake_ship(duration: float = 0.28, amplitude: float = 2.0) -> void:
+	## Brief jolt when Yell-cruise runs aground — subtle ship nudge.
+	_shake_dur = maxf(duration, 0.05)
+	_shake_left = _shake_dur
+	_shake_amp = maxf(amplitude, 0.5)
+	_rebuild()
+
+
+func _shake_offset() -> Vector2i:
+	if _shake_left <= 0.0:
+		return Vector2i.ZERO
+	var fall := clampf(_shake_left / _shake_dur, 0.0, 1.0)
+	## Soft decaying nudge — mostly horizontal, 1–2 px feel.
+	var ox := int(round(sin(_shake_left * 38.0) * _shake_amp * fall))
+	var oy := int(round(cos(_shake_left * 29.0) * _shake_amp * 0.25 * fall))
+	return Vector2i(ox, oy)
+
+
 static func is_ship_tile(tile_id: int) -> bool:
 	return tile_id >= TILE_SHIP_W and tile_id <= TILE_SHIP_S
 
@@ -316,18 +338,23 @@ func _process(delta: float) -> void:
 		_water_scroll = (_water_scroll + 1) % TILE_SRC
 		water_changed = true
 
+	var shake_changed := false
+	if _shake_left > 0.0:
+		_shake_left = maxf(0.0, _shake_left - delta)
+		shake_changed = true
+
 	if _scroll_frames_left > 0:
 		# Same frame as set_center — keep first pose on screen for one full frame.
 		if _scroll_skip_process:
 			_scroll_skip_process = false
-			if frame_changed or water_changed:
+			if frame_changed or water_changed or shake_changed:
 				_rebuild()
 			return
 		_scroll_frames_left -= 1
 		_rebuild()
 		return
 
-	if frame_changed or water_changed:
+	if frame_changed or water_changed or shake_changed:
 		_rebuild()
 
 
@@ -601,6 +628,7 @@ func _overlay_slice(tile_id: int) -> Image:
 func _paint_party_marker() -> void:
 	## Center tile: transport sprite, or class/Avatar 2-frame walk cycle.
 	var dst := Vector2i((view_w / 2) * TILE_SRC, (view_h / 2) * TILE_SRC)
+	dst += _shake_offset()
 	if _transport_tile >= 0:
 		var ride: Image = null
 		if is_horse_tile(_transport_tile):

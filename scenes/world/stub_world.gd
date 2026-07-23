@@ -76,6 +76,13 @@ var _transport: int = Transport.FOOT
 var _transport_tile := -1
 ## xu4 horseSpeed: Yell toggles gallop (double-step). Cleared on X-it.
 var _horse_gallop := false
+## Ultima V-style ship cruise: Yell → Dir → keep sailing until Yell or land.
+var _ship_cruise_dir := Vector2i.ZERO
+var _ship_yell_await_dir := false
+## Hull left with each frigate overlay (key "x,y") so re-boarding keeps damage.
+var _ship_hulls: Dictionary = {}
+## Hull lost when Yell-cruise hits land / shallows (U5 grounding feel).
+const SHIP_CRASH_DAMAGE := 5
 var _move_cd := 0.0
 var _hold_arm := 0.0
 var _move_repeating := false
@@ -111,7 +118,7 @@ var _sides_open := false
 var _order_opened_roster := false
 ## Bump to cancel a pending delayed roster slide-away.
 var _order_close_token := 0
-const ORDER_ROSTER_HOLD_SEC := 0.6
+const ORDER_ROSTER_HOLD_SEC := 1.1
 var _side_tween: Tween
 ## Locked message panel geometry (visible size — grows on Tab).
 var _msg_h := 0.0
@@ -233,6 +240,8 @@ func _do_board() -> void:
 	if MapView.is_ship_tile(tid):
 		_push_message(Locale.t("cmd_board_ship"), false)
 		_transport = Transport.SHIP
+		## Restore this frigate's stored hull (default full if first board).
+		GameState.ship_hull = _take_ship_hull_at(_tile_pos)
 	elif MapView.is_horse_tile(tid):
 		_push_message(Locale.t("cmd_board_horse"), false)
 		_transport = Transport.HORSE
@@ -257,17 +266,21 @@ func _do_xit() -> void:
 		leave_tid = (
 			MapView.TILE_SHIP_W if _transport == Transport.SHIP else MapView.TILE_HORSE_W
 		)
+	if _transport == Transport.SHIP:
+		## Persist hull on this world cell so the same ship keeps its damage.
+		_store_ship_hull_at(_tile_pos, GameState.ship_hull)
 	_map.add_overlay(_tile_pos, leave_tid)
 	_transport = Transport.FOOT
 	_transport_tile = -1
 	_horse_gallop = false
+	_stop_ship_cruise()
 	_map.set_transport_tile(-1)
 	_push_message(Locale.t("cmd_xit"), false)
 	_refresh_ship_hull_hud()
 
 
 func _do_yell() -> void:
-	## xu4 case 'y': horse only — Giddyup! / Whoa!; else What?
+	## Horse: xu4 Giddyup/Whoa. Ship: U5-style cruise (Yell → Dir → auto-sail).
 	if _transport == Transport.HORSE:
 		_horse_gallop = not _horse_gallop
 		if _horse_gallop:
@@ -275,7 +288,97 @@ func _do_yell() -> void:
 		else:
 			_push_message(Locale.t("cmd_yell_whoa"), false)
 		return
+	if _transport == Transport.SHIP:
+		if _ship_cruise_dir != Vector2i.ZERO:
+			_stop_ship_cruise()
+			## Ship cruise halt — not horse "Whoa".
+			_push_message(Locale.t("cmd_yell_ship_stop"), false)
+			return
+		if _ship_yell_await_dir:
+			_clear_ship_yell_await()
+			return
+		_clear_pending_dir()
+		_ship_yell_await_dir = true
+		_layout_prompt_row()
+		return
 	_push_message(Locale.t("cmd_yell_what"), false)
+
+
+func _clear_ship_yell_await() -> void:
+	_ship_yell_await_dir = false
+	_layout_prompt_row()
+
+
+func _stop_ship_cruise() -> void:
+	_ship_cruise_dir = Vector2i.ZERO
+	_ship_yell_await_dir = false
+	_layout_prompt_row()
+
+
+func _start_ship_cruise(dir: Vector2i) -> void:
+	_ship_yell_await_dir = false
+	_ship_cruise_dir = dir
+	_update_transport_facing(dir)
+	_layout_prompt_row()
+	_push_message(Locale.t("cmd_sail", [_direction_label(dir, false)]), false)
+	## First beat sails immediately (facing already set — no separate turn turn).
+	_move_cd = 0.0
+	_try_ship_cruise_step()
+
+
+func _try_ship_cruise_step() -> void:
+	if _ship_cruise_dir == Vector2i.ZERO or _transport != Transport.SHIP:
+		_stop_ship_cruise()
+		return
+	if _map != null and _map.is_scrolling():
+		_map.finish_scroll()
+	var dir := _ship_cruise_dir
+	## Stay facing the cruise heading.
+	if dir != _ship_facing_dir():
+		_update_transport_facing(dir)
+	var next := Vector2i(
+		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+	)
+	if not _can_move_to(next):
+		_stop_ship_cruise()
+		_damage_ship_from_grounding()
+		_push_message(Locale.t("cmd_yell_land"), false)
+		_arm_hold_after_step(true)
+		return
+	## Quiet steps while cruising — avoid spamming Sail messages.
+	_apply_world_step(next, dir, false)
+	_move_cd = _move_hold_interval()
+
+
+func _ship_hull_key(tile: Vector2i) -> String:
+	return "%d,%d" % [tile.x, tile.y]
+
+
+func _take_ship_hull_at(tile: Vector2i) -> int:
+	## Pop stored hull for this overlay cell (full if never damaged).
+	var key := _ship_hull_key(tile)
+	if _ship_hulls.has(key):
+		var h: int = int(_ship_hulls[key])
+		_ship_hulls.erase(key)
+		return clampi(h, 0, GameState.SHIP_HULL_MAX)
+	return GameState.SHIP_HULL_MAX
+
+
+func _store_ship_hull_at(tile: Vector2i, hull: int) -> void:
+	_ship_hulls[_ship_hull_key(tile)] = clampi(hull, 0, GameState.SHIP_HULL_MAX)
+
+
+func _damage_ship_from_grounding() -> void:
+	## U5-like: running aground while Yell-cruising chips the hull.
+	GameState.ship_hull = clampi(
+		GameState.ship_hull - SHIP_CRASH_DAMAGE,
+		0,
+		GameState.SHIP_HULL_MAX
+	)
+	_refresh_ship_hull_hud()
+	if _map != null:
+		_map.shake_ship()
 
 
 func _can_move_to(dest: Vector2i) -> bool:
@@ -645,7 +748,11 @@ func _prompt_row_text() -> String:
 	if _order_stage == 2:
 		return MSG_PROMPT + Locale.t("cmd_with")
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
-		return MSG_PROMPT + Locale.t("cmd_need_dir", [_pending_cmd_name])
+		return MSG_PROMPT + Locale.need_dir_prompt(_pending_cmd_name)
+	if _ship_yell_await_dir:
+		return MSG_PROMPT + Locale.need_dir_prompt(
+			U4Commands.label(U4Commands.Id.YELL, GameState.lang_short())
+		)
 	return MSG_PROMPT
 
 
@@ -966,6 +1073,16 @@ func _process(delta: float) -> void:
 	if _ztats_stage != 0:
 		return
 
+	## U5-style ship cruise: keep sailing without holding a key.
+	if _ship_cruise_dir != Vector2i.ZERO:
+		if _transport != Transport.SHIP:
+			_stop_ship_cruise()
+			return
+		if _move_cd > 0.0:
+			return
+		_try_ship_cruise_step()
+		return
+
 	var dir := _read_move_dir()
 	if dir == Vector2i.ZERO:
 		_block_dir_until_keyup = false
@@ -992,6 +1109,14 @@ func _process(delta: float) -> void:
 		_finish_directed_command(dir)
 		_block_dir_until_keyup = true
 		_move_cd = 0.0
+		_move_repeating = false
+		_hold_arm = 0.0
+		return
+
+	## Ship Yell: waiting for a cruise heading.
+	if _ship_yell_await_dir:
+		_start_ship_cruise(dir)
+		_block_dir_until_keyup = true
 		_move_repeating = false
 		_hold_arm = 0.0
 		return
@@ -1232,22 +1357,27 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_locate_hud()
 			get_viewport().set_input_as_handled()
 			return
-		## Waiting for a direction (A/G/J/O/T) — same line as "Attack: Dir?".
-		if _pending_cmd != U4Commands.Id.NONE:
+		## Waiting for a direction (A/G/J/O/T or ship Yell) — same line as "Attack: Dir?".
+		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
 			if _is_direction_key(event):
 				return
 			## xu4: Space / Enter cancel Dir? without a message.
 			if _is_dir_cancel_key(event):
 				_clear_pending_dir()
+				_clear_ship_yell_await()
 				get_viewport().set_input_as_handled()
 				return
 			## Any other key → classic grey "What?" (no prompt), abort Dir?.
 			_clear_pending_dir()
+			_clear_ship_yell_await()
 			_push_message(Locale.t("cmd_what"), false)
 			get_viewport().set_input_as_handled()
 			return
 		var cmd := U4Commands.from_event(event)
 		if cmd != U4Commands.Id.NONE:
+			## Starting another command cancels an in-progress ship cruise await.
+			if cmd != U4Commands.Id.YELL and _ship_yell_await_dir:
+				_clear_ship_yell_await()
 			_handle_command(cmd)
 			get_viewport().set_input_as_handled()
 
@@ -2535,7 +2665,9 @@ func _directed_result_message(cmd: int) -> String:
 			return Locale.t("cmd_nothing_to_attack")
 		U4Commands.Id.JIMMY:
 			return Locale.t("cmd_jimmy_what")
-		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+		U4Commands.Id.OPEN:
+			return Locale.t("cmd_nothing_to_open")
+		U4Commands.Id.GET_CHEST:
 			return Locale.t("cmd_not_here")
 		U4Commands.Id.TALK:
 			return Locale.t("cmd_no_response")

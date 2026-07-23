@@ -177,9 +177,15 @@ const _T := {
 		"ko": "방향키 이동 · A–Z 명령키 · Esc 메뉴 · F11 전체화면",
 	},
 	"cmd_need_dir": {
-		"en_u4": "%s: Dir?",
-		"en_us": "%s: Dir?",
-		"ko": "%s: Dir?",
+		"en_u4": "%s: %s",
+		"en_us": "%s: %s",
+		"ko": "%s: %s",
+	},
+	## Second half of direction prompts ("Attack: Dir?").
+	"cmd_dir_ask": {
+		"en_u4": "Dir?",
+		"en_us": "Dir?",
+		"ko": "방향?",
 	},
 	"cmd_dir_done": {
 		"en_u4": "%s: %s",
@@ -194,152 +200,169 @@ const _T := {
 	"cmd_what": {
 		"en_u4": "What?",
 		"en_us": "What?",
-		"ko": "What?",
+		"ko": "응?",
 	},
 	"cmd_nothing_to_attack": {
 		"en_u4": "Nothing to Attack!",
 		"en_us": "Nothing to Attack!",
-		"ko": "Nothing to Attack!",
+		"ko": "공격할 대상이 없다!",
 	},
 	"cmd_jimmy_what": {
 		"en_u4": "Jimmy what?",
 		"en_us": "Jimmy what?",
-		"ko": "Jimmy what?",
+		"ko": "무엇의 자물쇠를?",
 	},
 	"cmd_not_here": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",
-		"ko": "Not Here!",
+		"ko": "여기엔 없다!",
+	},
+	"cmd_nothing_to_open": {
+		"en_u4": "Not Here!",
+		"en_us": "Not Here!",
+		"ko": "열 것이 없다!",
 	},
 	"cmd_no_response": {
 		"en_u4": "Funny, no response!",
 		"en_us": "Funny, no response!",
-		"ko": "Funny, no response!",
+		"ko": "이상하다, 대답이 없다!",
 	},
 	"cmd_fire_what": {
 		"en_u4": "Fire What?",
 		"en_us": "Fire What?",
-		"ko": "Fire What?",
+		"ko": "무엇을 쏘나?",
 	},
 	## xu4 board() / exitTransport()
 	"cmd_board_what": {
 		"en_u4": "Board What?",
 		"en_us": "Board What?",
-		"ko": "Board What?",
+		"ko": "무엇에 타나?",
 	},
 	"cmd_board_cant": {
 		"en_u4": "Board: Can't!",
 		"en_us": "Board: Can't!",
-		"ko": "Board: Can't!",
+		"ko": "탑승: 불가!",
 	},
 	"cmd_board_ship": {
 		"en_u4": "Board Frigate!",
 		"en_us": "Board Frigate!",
-		"ko": "Board Frigate!",
+		"ko": "프리깃에 승선!",
 	},
 	"cmd_board_horse": {
 		"en_u4": "Mount Horse!",
 		"en_us": "Mount Horse!",
-		"ko": "Mount Horse!",
+		"ko": "말에 오른다!",
 	},
 	"cmd_xit": {
 		"en_u4": "X-it",
 		"en_us": "X-it",
-		"ko": "X-it",
+		"ko": "하차",
 	},
 	"cmd_xit_what": {
 		"en_u4": "X-it What?",
 		"en_us": "X-it What?",
-		"ko": "X-it What?",
+		"ko": "무엇에서 내리나?",
 	},
 	"cmd_blocked": {
 		"en_u4": "Blocked!",
 		"en_us": "Blocked!",
-		"ko": "Blocked!",
+		"ko": "막혔다!",
 	},
-	## xu4 Yell (Y) — horse gallop only.
+	## xu4 Yell (Y) — horse gallop.
 	"cmd_yell_giddyup": {
 		"en_u4": "Yell Giddyup!",
 		"en_us": "Yell Giddyup!",
-		"ko": "Yell Giddyup!",
+		"ko": "외침: 이랴!",
 	},
 	"cmd_yell_whoa": {
 		"en_u4": "Yell Whoa!",
 		"en_us": "Yell Whoa!",
-		"ko": "Yell Whoa!",
+		"ko": "외침: 워워!",
 	},
 	"cmd_yell_what": {
 		"en_u4": "Yell What?",
 		"en_us": "Yell What?",
-		"ko": "Yell What?",
+		"ko": "무엇에 외치나?",
+	},
+	## Ship cruise stop (U5-style) — not horse Whoa.
+	"cmd_yell_ship_stop": {
+		"en_u4": "Stopped!",
+		"en_us": "Stopped!",
+		"ko": "정지!",
+	},
+	## Ship cruise stopped by land / shallow / blocked water.
+	"cmd_yell_land": {
+		"en_u4": "Land!",
+		"en_us": "Land!",
+		"ko": "육지!",
 	},
 	## xu4 ship movement feedback.
 	"cmd_turn": {
 		"en_u4": "Turn %s!",
 		"en_us": "Turn %s!",
-		"ko": "Turn %s!",
+		"ko": "%s으로 선회!",
 	},
 	"cmd_sail": {
 		"en_u4": "Sail %s!",
 		"en_us": "Sail %s!",
-		"ko": "Sail %s!",
+		"ko": "%s으로 항해!",
 	},
 	"cmd_peer_gem": {
 		"en_u4": "Peer at a Gem!",
 		"en_us": "Peer at a Gem!",
-		"ko": "Peer at a Gem!",
+		"ko": "보석을 들여다본다!",
 	},
 	"cmd_peer_what": {
 		"en_u4": "Peer at What?",
 		"en_us": "Peer at What?",
-		"ko": "Peer at What?",
+		"ko": "무엇으로 들여다보나?",
 	},
 	## xu4 newOrder()
 	"cmd_new_order": {
 		"en_u4": "New Order!",
 		"en_us": "New Order!",
-		"ko": "New Order!",
+		"ko": "대열 변경!",
 	},
 	"cmd_exchange": {
 		"en_u4": "Exchange # ",
 		"en_us": "Exchange # ",
-		"ko": "Exchange # ",
+		"ko": "대열 변경 # ",
 	},
 	"cmd_exchange_done": {
 		"en_u4": "Exchange # %s",
 		"en_us": "Exchange # %s",
-		"ko": "Exchange # %s",
+		"ko": "대열 변경 # %s",
 	},
 	"cmd_with": {
 		"en_u4": "    with # ",
 		"en_us": "    with # ",
-		"ko": "    with # ",
+		"ko": "    와 # ",
 	},
 	"cmd_with_done": {
 		"en_u4": "    with # %s",
 		"en_us": "    with # %s",
-		"ko": "    with # %s",
+		"ko": "    와 # %s",
 	},
 	"cmd_none": {
 		"en_u4": "None",
 		"en_us": "None",
-		"ko": "None",
+		"ko": "없음",
 	},
 	"cmd_must_lead": {
 		"en_u4": "%s, You must lead!",
 		"en_us": "%s, You must lead!",
-		"ko": "%s, You must lead!",
+		"ko": "%s, 네가 앞장서라!",
 	},
 	## xu4 ztatsFor()
 	"cmd_ztats_for": {
 		"en_u4": "Ztats for: ",
 		"en_us": "Ztats for: ",
-		"ko": "Ztats for: ",
+		"ko": "상태 보기: ",
 	},
 	"cmd_ztats_for_done": {
 		"en_u4": "Ztats for: %s",
 		"en_us": "Ztats for: %s",
-		"ko": "Ztats for: %s",
+		"ko": "상태 보기: %s",
 	},
 	## xu4 readyWeapon()
 	"cmd_ready_for": {
@@ -760,10 +783,21 @@ const _T := {
 
 func t(key: String, args: Array = []) -> String:
 	var pack: Dictionary = _T.get(key, {})
-	var s: String = pack.get(GameState.language, pack.get("en_us", key))
+	var s: String = str(pack.get(GameState.language, pack.get("en_us", key)))
 	if args.is_empty():
 		return s
-	return s % args
+	## Prefer scalar `%` for a single arg — clearer than Array packing.
+	if args.size() == 1:
+		return s % str(args[0])
+	var parts: Array = []
+	for a in args:
+		parts.append(str(a))
+	return s % parts
+
+
+func need_dir_prompt(cmd_name: String) -> String:
+	## "Attack: Dir?" / "공격: 방향?"
+	return t("cmd_need_dir", [cmd_name, t("cmd_dir_ask")])
 
 
 func lang_label(lang_id: String = "") -> String:
