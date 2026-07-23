@@ -1145,6 +1145,9 @@ func _process(delta: float) -> void:
 		)
 		if _can_move_to(next2):
 			_apply_world_step(next2, dir, false)
+		elif _map != null:
+			## Only one tile cleared — soft bump like ship grounding (FX only).
+			_map.shake_ship()
 	_arm_hold_after_step(true)
 
 
