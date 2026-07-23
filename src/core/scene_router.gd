@@ -37,7 +37,9 @@ func go(path: String, fade: bool = false) -> void:
 	if fade:
 		_go_with_fade(path)
 	else:
-		get_tree().change_scene_to_file(path)
+		var err := get_tree().change_scene_to_file(path)
+		if err != OK:
+			push_error("SceneRouter: failed to load %s (%s)" % [path, error_string(err)])
 
 
 func to_menu() -> void:
@@ -81,7 +83,14 @@ func _go_with_fade(path: String) -> void:
 	tw.tween_property(_fade_rect, "color:a", 1.0, FADE_OUT_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_interval(FADE_HOLD_SEC)
 	tw.tween_callback(func() -> void:
-		get_tree().change_scene_to_file(path)
+		var err := get_tree().change_scene_to_file(path)
+		if err != OK:
+			push_error("SceneRouter: failed to load %s (%s)" % [path, error_string(err)])
+			## Don't leave the player stuck on a full black screen.
+			_fade_rect.color = Color(0, 0, 0, 0)
+			_fade_rect.visible = false
+			_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_fading = false
 	)
 	tw.tween_property(_fade_rect, "color:a", 0.0, FADE_IN_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(func() -> void:

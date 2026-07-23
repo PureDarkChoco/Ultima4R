@@ -166,6 +166,10 @@ func armor_of_class(klass: int) -> int:
 	return int(member_armor[klass])
 
 
+func armor_of_slot(slot: int) -> int:
+	return armor_of_class(party_member_at(slot))
+
+
 func ready_weapon(slot: int, weapon_id: int) -> int:
 	## xu4 PartyMember::setWeapon — swap inventory ↔ equipped.
 	var klass := party_member_at(slot)
@@ -185,6 +189,28 @@ func ready_weapon(slot: int, weapon_id: int) -> int:
 	if weapon_id != 0:
 		weapons[weapon_id] -= 1
 	member_weapons[klass] = weapon_id
+	return EquipError.SUCCEEDED
+
+
+func wear_armor(slot: int, armor_id: int) -> int:
+	## xu4 PartyMember::setArmor — swap inventory ↔ equipped.
+	var klass := party_member_at(slot)
+	if klass < 0:
+		return EquipError.NONE_LEFT
+	if armor_id < 0 or armor_id >= armor.size():
+		return EquipError.NONE_LEFT
+	var old := armor_of_class(klass)
+	if old == armor_id:
+		return EquipError.SUCCEEDED
+	if armor_id != 0 and armor[armor_id] < 1:
+		return EquipError.NONE_LEFT
+	if not ArmorIcons.can_wear(armor_id, klass):
+		return EquipError.CLASS_RESTRICTED
+	if old != 0 and old < armor.size():
+		armor[old] += 1
+	if armor_id != 0:
+		armor[armor_id] -= 1
+	member_armor[klass] = armor_id
 	return EquipError.SUCCEEDED
 
 

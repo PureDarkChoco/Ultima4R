@@ -20,6 +20,7 @@ extends Control
 var _peer_overlay: PeerGemOverlay
 var _ztats_panel: ZtatsPanel
 var _ready_panel: ReadyPanel
+var _wear_panel: WearPanel
 var _locate_label: Label
 var _locate_on := false
 
@@ -77,6 +78,10 @@ var _ztats_flat := 0
 var _ready_stage := 0
 var _ready_cursor := 0
 var _ready_slot := -1
+## xu4 wearArmor(): 0 = idle, 1 = pick member, 2 = pick armor.
+var _wear_stage := 0
+var _wear_cursor := 0
+var _wear_slot := -1
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -458,6 +463,10 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_ready_for")
 	if _ready_stage == 2:
 		return MSG_PROMPT + Locale.t("cmd_ready_weapon")
+	if _wear_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_wear_for")
+	if _wear_stage == 2:
+		return MSG_PROMPT + Locale.t("cmd_wear_armor")
 	if _ztats_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_ztats_for")
 	if _order_stage == 1:
@@ -772,12 +781,15 @@ func _process(delta: float) -> void:
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
-	## Z/N/R pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1:
+	## Z/N/R/W pick lists: same hold timing as world move; wrap at ends.
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1:
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
 		_tick_ready_weapon_cursor()
+		return
+	if _wear_stage == 2:
+		_tick_wear_armor_cursor()
 		return
 	if _ztats_stage != 0:
 		return
@@ -857,6 +869,8 @@ func _tick_select_cursor() -> void:
 		_nudge_ztats_cursor(step)
 	elif _ready_stage == 1:
 		_nudge_ready_cursor(step)
+	elif _wear_stage == 1:
+		_nudge_wear_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -920,6 +934,9 @@ func _on_escape() -> void:
 	if _ready_stage != 0:
 		_close_ready(true)
 		return
+	if _wear_stage != 0:
+		_close_wear(true)
+		return
 	if _ztats_stage != 0:
 		_close_ztats(true)
 		return
@@ -945,8 +962,8 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
-			## Ztats / Ready open: don't collapse/expand side panels.
-			if _ztats_stage != 0 or _ready_stage != 0:
+			## Ztats / Ready / Wear open: don't collapse/expand side panels.
+			if _ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0:
 				get_viewport().set_input_as_handled()
 				return
 			_toggle_side_panels()
@@ -954,9 +971,15 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / New Order accept keyboard + gamepad.
+	## Ztats / Ready / Wear / New Order accept keyboard + gamepad.
 	if _ready_stage != 0:
 		if _handle_ready_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _wear_stage != 0:
+		if _handle_wear_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -1050,6 +1073,7 @@ func _handle_command(cmd: int) -> void:
 		_clear_pending_order()
 		_close_ztats(false)
 		_close_ready(false)
+		_close_wear(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
@@ -1057,6 +1081,7 @@ func _handle_command(cmd: int) -> void:
 		_clear_pending_order()
 		_close_ztats(false)
 		_close_ready(false)
+		_close_wear(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
@@ -1065,6 +1090,7 @@ func _handle_command(cmd: int) -> void:
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_ready(false)
+	_close_wear(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
@@ -1073,6 +1099,8 @@ func _handle_command(cmd: int) -> void:
 		_do_ztats()
 	elif cmd == U4Commands.Id.READY:
 		_do_ready()
+	elif cmd == U4Commands.Id.WEAR:
+		_do_wear()
 	elif cmd == U4Commands.Id.LOCATE:
 		if not GameState.has_sextant:
 			_push_message(Locale.t("cmd_locate_what"), false)
@@ -1199,6 +1227,7 @@ func _do_new_order() -> void:
 	## Ultima4R: digits still work; ↑↓ + Enter also pick slots.
 	_close_ztats(false)
 	_close_ready(false)
+	_close_wear(false)
 	_push_message(Locale.t("cmd_new_order"), false)
 	if GameState.party_size() <= 1:
 		## Nobody to exchange with.
@@ -1230,6 +1259,7 @@ func _do_ztats() -> void:
 	## xu4 ztatsFor(): "Ztats for: " → pick member → character sheet.
 	_clear_pending_order()
 	_close_ready(false)
+	_close_wear(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		return
@@ -1502,7 +1532,7 @@ func _close_ztats(show_none: bool) -> void:
 		_roster.visible = true
 	if was != 0:
 		_close_order_roster()
-	elif _order_opened_roster and _order_stage == 0 and _ready_stage == 0:
+	elif _order_opened_roster and _order_stage == 0 and _ready_stage == 0 and _wear_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
 	if show_none and was == 1:
@@ -1526,6 +1556,7 @@ func _do_ready() -> void:
 	## xu4 readyWeapon(): "Ready a weapon for: " → pick member → weapon list.
 	_clear_pending_order()
 	_close_ztats(false)
+	_close_wear(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		return
@@ -1751,7 +1782,246 @@ func _close_ready(show_none: bool) -> void:
 		_roster.visible = true
 	if was != 0:
 		_close_order_roster()
-	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0:
+	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _wear_stage == 0:
+		_close_order_roster()
+	_layout_prompt_row()
+	if show_none and was == 1:
+		_push_message(Locale.t("cmd_none"), false)
+
+
+func _ensure_wear_panel() -> void:
+	if _wear_panel != null:
+		return
+	var host := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as Control
+	if host == null:
+		return
+	_wear_panel = WearPanel.new()
+	_wear_panel.name = "WearPanel"
+	_wear_panel.visible = false
+	_wear_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(_wear_panel)
+
+
+func _do_wear() -> void:
+	## xu4 wearArmor(): "Wear Armour for: " → pick member → armor list.
+	_clear_pending_order()
+	_close_ztats(false)
+	_close_ready(false)
+	if GameState.party_size() <= 0:
+		_push_message(Locale.t("cmd_none"), false)
+		return
+	_open_order_roster()
+	_wear_stage = 1
+	_wear_cursor = 0
+	_wear_slot = -1
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	if _wear_panel:
+		_wear_panel.close_panel()
+	_sync_wear_selection()
+	_layout_prompt_row()
+
+
+func _handle_wear_input(event: InputEvent) -> bool:
+	if not event.is_pressed():
+		return false
+	if event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	if _wear_stage == 2:
+		return _handle_wear_armor_input(event)
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_wear(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_wear(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_close_wear(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_wear_slot(_wear_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_wear_slot(_wear_cursor)
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var pick := _player_slot_from_key(ke)
+		if pick < 0:
+			if _is_digit_key(ke):
+				_close_wear(true)
+			return true
+		_accept_wear_slot(pick)
+		return true
+	return true
+
+
+func _handle_wear_armor_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_wear(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_wear(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_close_wear(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_confirm_wear_cursor()
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_confirm_wear_cursor()
+		return true
+	## Letter A–H selects that armor index (xu4 readAlphaAction).
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		var letter := _wear_letter_from_key(k)
+		if letter >= 0:
+			_try_wear_armor(letter)
+			return true
+		## W while picking armor → back to member pick.
+		if k.keycode == KEY_W or k.physical_keycode == KEY_W:
+			_return_wear_to_pick()
+			return true
+	return true
+
+
+func _wear_letter_from_key(k: InputEventKey) -> int:
+	## Returns armor id 0..7 for A–H, else -1.
+	for code in [k.keycode, k.physical_keycode, k.unicode]:
+		if code >= KEY_A and code <= KEY_H:
+			return code - KEY_A
+		if code >= 65 and code <= 72: ## 'A'..'H'
+			return code - 65
+		if code >= 97 and code <= 104: ## 'a'..'h'
+			return code - 97
+	return -1
+
+
+func _tick_wear_armor_cursor() -> void:
+	var step := _read_select_step()
+	if step == 0:
+		_reset_hold_state()
+		return
+	var held := Vector2i(0, step)
+	if held != _held_dir:
+		_held_dir = held
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	if _wear_panel:
+		_wear_panel.nudge_cursor(step)
+	_arm_hold_after_step()
+
+
+func _nudge_wear_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	_wear_cursor = posmod(_wear_cursor + delta, n)
+	_sync_wear_selection()
+
+
+func _sync_wear_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_wear_cursor, -1)
+
+
+func _accept_wear_slot(slot: int) -> void:
+	var n := GameState.party_size()
+	if slot < 0 or slot >= n:
+		_close_wear(true)
+		return
+	_wear_slot = slot
+	var pname := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_wear_for_done", [pname]), false)
+	_show_wear_armor(slot)
+
+
+func _show_wear_armor(slot: int) -> void:
+	_ensure_wear_panel()
+	_wear_stage = 2
+	_reset_hold_state()
+	_clear_order_selection()
+	if _roster:
+		_roster.visible = false
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	_order_opened_roster = true
+	if _wear_panel:
+		_wear_panel.open_for(slot)
+	_layout_prompt_row()
+
+
+func _return_wear_to_pick() -> void:
+	_wear_stage = 1
+	_wear_slot = -1
+	_reset_hold_state()
+	if _wear_panel:
+		_wear_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	_order_opened_roster = true
+	_sync_wear_selection()
+	_layout_prompt_row()
+
+
+func _confirm_wear_cursor() -> void:
+	if _wear_panel == null:
+		return
+	var aid: int = _wear_panel.cursor_armor_id()
+	if aid < 0:
+		return
+	_try_wear_armor(aid)
+
+
+func _try_wear_armor(armor_id: int) -> void:
+	if _wear_slot < 0:
+		return
+	var err := GameState.wear_armor(_wear_slot, armor_id)
+	match err:
+		GameState.EquipError.NONE_LEFT:
+			_push_message(Locale.t("cmd_wear_none"), false)
+		GameState.EquipError.CLASS_RESTRICTED:
+			_push_message(_wear_restricted_message(_wear_slot, armor_id), false)
+		_:
+			_push_message(Locale.t("cmd_wear_done", [Locale.armor_name(armor_id)]), false)
+			_close_wear(false)
+
+
+func _wear_restricted_message(slot: int, armor_id: int) -> String:
+	var klass := GameState.party_member_at(slot)
+	var cname := Virtues.class_name_of(klass, GameState.lang_short())
+	var aname := Locale.armor_name(armor_id)
+	return Locale.t("cmd_wear_restricted", [cname, aname])
+
+
+func _close_wear(show_none: bool) -> void:
+	var was := _wear_stage
+	_wear_stage = 0
+	_wear_cursor = 0
+	_wear_slot = -1
+	_clear_order_selection()
+	if _wear_panel:
+		_wear_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	if was != 0:
+		_close_order_roster()
+	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _ready_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
 	if show_none and was == 1:

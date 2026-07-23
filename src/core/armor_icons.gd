@@ -50,11 +50,32 @@ const DEFENSE: Array[int] = [
 	96, 128, 144, 160, 176, 192, 208, 248,
 ]
 
+## xu4 config.b canuse bitmask per ClassId (bit N = class N may wear).
+const CANUSE: Array[int] = [
+	0xFF, ## Skin / No Armour — all
+	0xFF, ## Cloth — all
+	0xFE, ## Leather — not mage
+	0x34, ## Chain — fighter/tinker/paladin
+	0x34, ## Plate — fighter/tinker/paladin
+	0x24, ## Magic Chain — fighter/paladin
+	0x20, ## Magic Plate — paladin
+	0xFF, ## Mystic Robe — all
+]
+
 
 static func defense_of(armor_id: int) -> int:
 	if armor_id < 0 or armor_id >= DEFENSE.size():
 		return 0
 	return DEFENSE[armor_id]
+
+
+static func can_wear(armor_id: int, klass: int) -> bool:
+	## xu4 Armor::canWear — class bit set in canuse.
+	if armor_id < 0 or armor_id >= CANUSE.size():
+		return false
+	if klass < 0 or klass > 7:
+		return false
+	return (CANUSE[armor_id] & (1 << klass)) != 0
 
 
 static func path_for_id(armor_id: int) -> String:

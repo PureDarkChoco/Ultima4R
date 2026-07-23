@@ -314,6 +314,37 @@ const _T := {
 		"en_us": "Δ",
 		"ko": "Δ",
 	},
+	## xu4 wearArmor()
+	"cmd_wear_for": {
+		"en_u4": "Wear Armour for: ",
+		"en_us": "Wear Armour for: ",
+		"ko": "갑옷을 장착할 대상: ",
+	},
+	"cmd_wear_for_done": {
+		"en_u4": "Wear Armour for: %s",
+		"en_us": "Wear Armour for: %s",
+		"ko": "갑옷을 장착할 대상: %s",
+	},
+	"cmd_wear_armor": {
+		"en_u4": "Armour: ",
+		"en_us": "Armour: ",
+		"ko": "갑옷: ",
+	},
+	"cmd_wear_done": {
+		"en_u4": "%s",
+		"en_us": "%s",
+		"ko": "%s",
+	},
+	"cmd_wear_none": {
+		"en_u4": "None left!",
+		"en_us": "None left!",
+		"ko": "남은 갑옷이 없다!",
+	},
+	"cmd_wear_restricted": {
+		"en_u4": "A %s may NOT use %s",
+		"en_us": "A %s may NOT use %s",
+		"ko": "%s은(는) %s을(를) 쓸 수 없다",
+	},
 	"cmd_fired": {
 		"en_u4": "%s",
 		"en_us": "%s",
