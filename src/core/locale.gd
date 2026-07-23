@@ -6,9 +6,9 @@ const _Spells := preload("res://src/core/spells.gd")
 
 const _T := {
 	"app_title": {
-		"en_u4": "Ultima IV Reloaded",
-		"en_us": "Ultima IV Reloaded",
-		"ko": "울티마 IV Reloaded",
+		"en_u4": "Ultima IV++",
+		"en_us": "Ultima IV++",
+		"ko": "울티마 IV++",
 	},
 	"boot_checking": {
 		"en_u4": "Seeking the realms of Britannia...",

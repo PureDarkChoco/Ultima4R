@@ -1,4 +1,4 @@
-# Ultima IV Reloaded — TODO / Vision
+# Ultima IV++ — TODO / Vision
 
 > Godot 4 기반 **현대화 리메이크**.  
 > xu4는 원본 포맷·규칙 참고용. GOG 원본 데이터는 런타임에만 읽고 repo에 커밋하지 않음.
@@ -29,7 +29,7 @@
 - `[P0]` 지금 당장 / 기반
 - `[P1]` 플레이어블 수직 슬라이스에 필요
 - `[P2]` 본편 루프 (클리어 가능)
-- `[P3]` Reloaded 차별화 (비주얼·QoL)
+- `[P3]` PP 차별화 (비주얼·QoL)
 - `[P4]` 후순위 / 폴리시
 
 상태: `⬜` 미착수 · `🔄` 진행중 · `✅` 완료 · `⏸` 보류
@@ -58,7 +58,7 @@
 - [x] `✅` `stub_world.tscn` — 클래스/시작좌표 확인용 임시 화면
 - [x] `✅` Autoload: `GameState`, `Locale`, `SceneRouter`
 
-### I2. 미덕 질문 (로직 = 원작, 연출 = Reloaded)
+### I2. 미덕 질문 (로직 = 원작, 연출 = PP)
 - [x] `✅` `VirtueQuestionTree` — xu4 `initQuestionTree` / `doQuestion` 포트
 - [x] `✅` 직업 = 최종 미덕 (`questionTree[14]`) · 시작 좌표 원작 테이블
 - [x] `✅` 스텁 질문문 (en_u4 / en_us / ko)
@@ -156,7 +156,7 @@
 - [ ] `⬜` 원거리·마법 조준 통일 UX
 - [ ] `⬜` 전투 종료 → 월드 복귀·보상
 
-참고: xu4 README에도 “Ultima 5 style aiming in combat”가 개선 아이디어로 있음 — Reloaded에서는 기본 스펙으로 채택.
+참고: xu4 README에도 “Ultima 5 style aiming in combat”가 개선 아이디어로 있음 — PP에서는 기본 스펙으로 채택.
 
 ---
 
@@ -172,7 +172,7 @@
 
 ---
 
-## Phase E — Reloaded 비주얼 & 분위기 `[P3]`
+## Phase E — PP 비주얼 & 분위기 `[P3]`
 
 ### E1. 픽셀 리마스터 타일/스프라이트
 - [ ] `⬜` 아트 디렉션 보드 (해상도, 팔레트, 타일 크기 — 예: 16→32/48 upscale 스타일)
@@ -232,7 +232,7 @@
  → A 맵 로드 + 걷기
  → F 입력맵(키보드+패드) 병행
  → B 대화(구조) + en_u4
- → C 전투 + 자유 조준         ← Reloaded 정체성
+ → C 전투 + 자유 조준         ← PP 정체성
  → D 게임 루프
  → B en_us / ko (본편 대사)
  → E 리마스터 타일 + 라이팅
