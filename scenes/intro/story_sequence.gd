@@ -41,6 +41,9 @@ const EN_FONT_SCALE := 0.88
 ## Korean glyphs are wider; scale further.
 const KO_FONT_SCALE := 0.80
 const ASK_MAX_LINES := 4
+const BLINK_OUT_SEC := 0.32
+const BLINK_HOLD_SEC := 0.10
+const BLINK_IN_SEC := 0.42
 
 const BG_AT := {
 	0: "145-tree.png",
@@ -84,6 +87,8 @@ var _abacus_full: Image
 var _abacus_base: Image
 var _abacus_frame: Image
 var _abacus_tex: ImageTexture
+var _fade: ColorRect
+var _busy_fade := false
 
 
 func _ready() -> void:
@@ -120,6 +125,13 @@ func _ready() -> void:
 	UiTheme.apply_font(_text)
 	add_child(_text)
 
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade.z_index = 20
+	add_child(_fade)
+
 	resized.connect(_layout)
 	GameState.language_changed.connect(func(_l: String) -> void: _on_language_changed())
 	_present_story(0)
@@ -147,6 +159,9 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _busy_fade:
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("ui_cancel") or (
 		event is InputEventKey and event.pressed and not event.echo
 		and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE)
@@ -200,6 +215,8 @@ func _is_advance_key(event: InputEvent) -> bool:
 
 
 func _advance() -> void:
+	if _busy_fade:
+		return
 	if _gate_phase == GatePhase.OPENING:
 		_gate_h = MOONGATE.size.y
 		_compose_gate(false)
@@ -213,9 +230,46 @@ func _advance() -> void:
 		set_process(false)
 		return
 	if _story_ind >= STORY_COUNT - 1:
+		## Abacus/cards: no blink — picture already on the card backdrop.
 		_start_questions()
 		return
-	_present_story(_story_ind + 1)
+	var next_i := _story_ind + 1
+	if _story_bg_file(_story_ind) != _story_bg_file(next_i):
+		_blink_then(func() -> void: _present_story(next_i))
+	else:
+		## Same picture — text only, no blink.
+		_present_story(next_i)
+
+
+func _story_bg_file(ind: int) -> String:
+	## Effective background for this story index (carry forward until BG_AT updates).
+	var file := TREE_FILE
+	var keys: Array = BG_AT.keys()
+	keys.sort()
+	for k in keys:
+		if int(k) > ind:
+			break
+		file = str(BG_AT[k])
+	return file
+
+
+func _blink_then(after_black: Callable) -> void:
+	## Brief black blink between story beats (and into the abacus).
+	if _busy_fade or _fade == null:
+		after_black.call()
+		return
+	_busy_fade = true
+	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_fade.color = Color(0, 0, 0, 0)
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, BLINK_OUT_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_interval(BLINK_HOLD_SEC)
+	tw.tween_callback(after_black)
+	tw.tween_property(_fade, "color:a", 0.0, BLINK_IN_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void:
+		_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_busy_fade = false
+	)
 
 
 func _present_story(ind: int) -> void:

@@ -64,5 +64,5 @@ func _unhandled_input(event: InputEvent) -> void:
 		or event is InputEventJoypadButton
 		or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
 	):
-		SceneRouter.to_world()
+		SceneRouter.to_world(true)
 		get_viewport().set_input_as_handled()
