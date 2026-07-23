@@ -221,6 +221,69 @@ const _T := {
 		"en_us": "Fire What?",
 		"ko": "Fire What?",
 	},
+	## xu4 board() / exitTransport()
+	"cmd_board_what": {
+		"en_u4": "Board What?",
+		"en_us": "Board What?",
+		"ko": "Board What?",
+	},
+	"cmd_board_cant": {
+		"en_u4": "Board: Can't!",
+		"en_us": "Board: Can't!",
+		"ko": "Board: Can't!",
+	},
+	"cmd_board_ship": {
+		"en_u4": "Board Frigate!",
+		"en_us": "Board Frigate!",
+		"ko": "Board Frigate!",
+	},
+	"cmd_board_horse": {
+		"en_u4": "Mount Horse!",
+		"en_us": "Mount Horse!",
+		"ko": "Mount Horse!",
+	},
+	"cmd_xit": {
+		"en_u4": "X-it",
+		"en_us": "X-it",
+		"ko": "X-it",
+	},
+	"cmd_xit_what": {
+		"en_u4": "X-it What?",
+		"en_us": "X-it What?",
+		"ko": "X-it What?",
+	},
+	"cmd_blocked": {
+		"en_u4": "Blocked!",
+		"en_us": "Blocked!",
+		"ko": "Blocked!",
+	},
+	## xu4 Yell (Y) — horse gallop only.
+	"cmd_yell_giddyup": {
+		"en_u4": "Yell Giddyup!",
+		"en_us": "Yell Giddyup!",
+		"ko": "Yell Giddyup!",
+	},
+	"cmd_yell_whoa": {
+		"en_u4": "Yell Whoa!",
+		"en_us": "Yell Whoa!",
+		"ko": "Yell Whoa!",
+	},
+	"cmd_yell_what": {
+		"en_u4": "Yell What?",
+		"en_us": "Yell What?",
+		"ko": "Yell What?",
+	},
+	## xu4 ship movement feedback.
+	"cmd_turn": {
+		"en_u4": "Turn %s!",
+		"en_us": "Turn %s!",
+		"ko": "Turn %s!",
+	},
+	"cmd_sail": {
+		"en_u4": "Sail %s!",
+		"en_us": "Sail %s!",
+		"ko": "Sail %s!",
+	},
 	"cmd_peer_gem": {
 		"en_u4": "Peer at a Gem!",
 		"en_us": "Peer at a Gem!",

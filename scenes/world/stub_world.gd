@@ -5,6 +5,9 @@ extends Control
 ## closed clips to the bottom 5 at the same pitch. Last line is always
 ## Ultima-style prompt + blue charset @ cursor animation (bottom-aligned history).
 
+## Preload so world scene parses even if global class cache is stale.
+const _TileRules := preload("res://src/map/tile_rules.gd")
+
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
 @onready var _map_pane: Control = $RootCol/MapPane
@@ -25,7 +28,9 @@ var _locate_label: Label
 var _locate_on := false
 
 const MOVE_HOLD_DELAY := 0.5
-const MOVE_HOLD_INTERVAL := 0.1
+## World move repeat cadence (lower = faster). Horse matches foot unless galloping.
+const MOVE_HOLD_INTERVAL_FOOT := 0.15
+const MOVE_HOLD_INTERVAL_SHIP := 0.15
 const MSG_PROMPT := "► "
 const MSG_KEEP := 64
 const MSG_OPEN_LINES := 15
@@ -55,6 +60,12 @@ const LOCATE_HUD_COLOR := Color(0.91, 0.9, 0.82, 1)
 
 var _world := WorldMapData.new()
 var _tile_pos := Vector2i(83, 105)
+## xu4 transportContext stub: foot / horse / ship.
+enum Transport { FOOT, HORSE, SHIP }
+var _transport: int = Transport.FOOT
+var _transport_tile := -1
+## xu4 horseSpeed: Yell toggles gallop (double-step). Cleared on X-it.
+var _horse_gallop := false
 var _move_cd := 0.0
 var _hold_arm := 0.0
 var _move_repeating := false
@@ -141,6 +152,7 @@ func _ready() -> void:
 		_tile_pos = GameState.start_pos if GameState.start_pos != Vector2i.ZERO else Vector2i(83, 105)
 		_map.setup(_world, atlas)
 		_map.set_center(_tile_pos)
+		_place_temp_transports()
 
 	call_deferred("_fit_explore_map")
 	call_deferred("grab_focus")
@@ -160,6 +172,152 @@ func _load_atlas() -> Texture2D:
 	if img.load(atlas_path) == OK:
 		return ImageTexture.create_from_image(img)
 	return null
+
+
+func _place_temp_transports() -> void:
+	## Stub: horse on nearby land + ship on nearby water for boarding tests.
+	if _map == null or _world == null or not _world.loaded:
+		return
+	var horse := _find_nearby_tile(_tile_pos, false)
+	var ship := _find_nearby_tile(_tile_pos, true)
+	var items: Array[Vector3i] = []
+	if horse != Vector2i(-1, -1):
+		items.append(Vector3i(horse.x, horse.y, MapView.TILE_HORSE_W))
+	if ship != Vector2i(-1, -1):
+		items.append(Vector3i(ship.x, ship.y, MapView.TILE_SHIP_W))
+	_map.set_overlays(items)
+
+
+func _find_nearby_tile(origin: Vector2i, want_water: bool) -> Vector2i:
+	## Spiral search (skip origin): sailable water vs walkable land.
+	for radius in range(1, 8):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius:
+					continue
+				var p := Vector2i(
+					posmod(origin.x + dx, WorldMapData.WIDTH),
+					posmod(origin.y + dy, WorldMapData.HEIGHT)
+				)
+				var tid := _world.tile_at(p.x, p.y)
+				if want_water:
+					if _TileRules.is_sailable(tid):
+						return p
+				elif _TileRules.walk_on(tid) != 0 and not _TileRules.is_water(tid):
+					return p
+	return Vector2i(-1, -1)
+
+
+func _do_board() -> void:
+	## xu4 board(): must be on foot; object underfoot must be horse/ship/balloon.
+	if _transport != Transport.FOOT:
+		_push_message(Locale.t("cmd_board_cant"), false)
+		return
+	if _map == null:
+		_push_message(Locale.t("cmd_board_what"), false)
+		return
+	var tid := _map.overlay_at(_tile_pos)
+	if tid < 0:
+		_push_message(Locale.t("cmd_board_what"), false)
+		return
+	if MapView.is_ship_tile(tid):
+		_push_message(Locale.t("cmd_board_ship"), false)
+		_transport = Transport.SHIP
+	elif MapView.is_horse_tile(tid):
+		_push_message(Locale.t("cmd_board_horse"), false)
+		_transport = Transport.HORSE
+		_horse_gallop = false
+	else:
+		_push_message(Locale.t("cmd_board_what"), false)
+		return
+	_map.remove_overlay_at(_tile_pos)
+	_transport_tile = tid
+	_map.set_transport_tile(_transport_tile)
+
+
+func _do_xit() -> void:
+	## xu4 exitTransport(): leave horse/ship as a map object underfoot.
+	if _transport == Transport.FOOT or _map == null:
+		_push_message(Locale.t("cmd_xit_what"), false)
+		return
+	## Leave empty horse/ship facing as last ridden; gallop resets.
+	var leave_tid := _transport_tile
+	if leave_tid < 0:
+		leave_tid = (
+			MapView.TILE_SHIP_W if _transport == Transport.SHIP else MapView.TILE_HORSE_W
+		)
+	_map.add_overlay(_tile_pos, leave_tid)
+	_transport = Transport.FOOT
+	_transport_tile = -1
+	_horse_gallop = false
+	_map.set_transport_tile(-1)
+	_push_message(Locale.t("cmd_xit"), false)
+
+
+func _do_yell() -> void:
+	## xu4 case 'y': horse only — Giddyup! / Whoa!; else What?
+	if _transport == Transport.HORSE:
+		_horse_gallop = not _horse_gallop
+		if _horse_gallop:
+			_push_message(Locale.t("cmd_yell_giddyup"), false)
+		else:
+			_push_message(Locale.t("cmd_yell_whoa"), false)
+		return
+	_push_message(Locale.t("cmd_yell_what"), false)
+
+
+func _can_move_to(dest: Vector2i) -> bool:
+	## xu4 terrain rules via TileRules (walk / sail / horse creature-walk).
+	if _world == null or not _world.loaded:
+		return true
+	var dest_id := _world.tile_at(dest.x, dest.y)
+	var from_id := _world.tile_at(_tile_pos.x, _tile_pos.y)
+	var dir := Vector2i(
+		dest.x - _tile_pos.x,
+		dest.y - _tile_pos.y
+	)
+	## Wrap-aware direction (shortest step on toroidal world).
+	if dir.x > WorldMapData.WIDTH / 2:
+		dir.x -= WorldMapData.WIDTH
+	elif dir.x < -WorldMapData.WIDTH / 2:
+		dir.x += WorldMapData.WIDTH
+	if dir.y > WorldMapData.HEIGHT / 2:
+		dir.y -= WorldMapData.HEIGHT
+	elif dir.y < -WorldMapData.HEIGHT / 2:
+		dir.y += WorldMapData.HEIGHT
+	dir = Vector2i(clampi(dir.x, -1, 1), clampi(dir.y, -1, 1))
+
+	## xu4 WITH_OBJECTS: standing on / entering ship|horse uses that tile's walk rule.
+	if _transport == Transport.FOOT and _map != null:
+		var over := _map.overlay_at(dest)
+		if MapView.is_ship_tile(over) or MapView.is_horse_tile(over):
+			## Ship/horse tiles are walkable; still need walk-off from previous terrain.
+			return _TileRules.can_walk_off(from_id, dir)
+
+	return _TileRules.can_avatar_enter(
+		dest_id,
+		from_id,
+		dir,
+		_transport == Transport.SHIP,
+		_transport == Transport.HORSE
+	)
+
+
+func _update_transport_facing(dir: Vector2i) -> void:
+	if _map == null or _transport == Transport.FOOT:
+		return
+	if _transport == Transport.SHIP:
+		_transport_tile = MapView.ship_tile_for_dir(dir)
+		_map.set_transport_tile(_transport_tile)
+	elif _transport == Transport.HORSE:
+		var facing := MapView.horse_tile_for_dir(dir)
+		if facing >= 0:
+			_transport_tile = facing
+			_map.set_transport_tile(_transport_tile)
+
+
+func _ship_facing_dir() -> Vector2i:
+	return MapView.dir_for_ship_tile(_transport_tile)
 
 
 func _resolve_world_map_path() -> String:
@@ -824,14 +982,41 @@ func _process(delta: float) -> void:
 		_hold_arm = 0.0
 		return
 
-	_tile_pos = Vector2i(
+	## xu4 ship: must face the direction before sailing (turn costs the step).
+	if _transport == Transport.SHIP and dir != _ship_facing_dir():
+		_update_transport_facing(dir)
+		_push_message(Locale.t("cmd_turn", [_direction_label(dir, false)]), false)
+		_arm_hold_after_step(true)
+		return
+
+	var next := Vector2i(
 		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
 		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
 	)
-	_map.set_center(_tile_pos)
+	if not _can_move_to(next):
+		_push_message(Locale.t("cmd_blocked"), false)
+		_arm_hold_after_step(true)
+		return
+	_apply_world_step(next, dir)
+	## xu4 horse gallop: second step after a short beat (same keypress).
+	if _transport == Transport.HORSE and _horse_gallop:
+		var next2 := Vector2i(
+			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+		)
+		if _can_move_to(next2):
+			_apply_world_step(next2, dir, false)
+	_arm_hold_after_step(true)
+
+
+func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true) -> void:
+	_tile_pos = next
+	_update_transport_facing(dir)
+	if _map != null:
+		_map.set_center(_tile_pos)
 	_refresh_locate_hud()
-	_push_move_message(dir)
-	_arm_hold_after_step()
+	if with_message:
+		_push_move_message(dir)
 
 
 func _reset_hold_state() -> void:
@@ -841,8 +1026,29 @@ func _reset_hold_state() -> void:
 	_held_dir = Vector2i.ZERO
 
 
-func _arm_hold_after_step() -> void:
-	_move_cd = MOVE_HOLD_INTERVAL
+func _move_hold_delay() -> float:
+	return MOVE_HOLD_DELAY
+
+
+func _move_hold_interval() -> float:
+	## Horse (incl. gallop) and ship use the same key-repeat as foot;
+	## gallop speed comes from the extra step, not a shorter interval.
+	if _transport == Transport.SHIP:
+		return MOVE_HOLD_INTERVAL_SHIP
+	return MOVE_HOLD_INTERVAL_FOOT
+
+
+func _arm_hold_after_step(world_move: bool = false) -> void:
+	## UI lists keep a steady cadence; world walk/ride uses transport speed.
+	if world_move:
+		_move_cd = _move_hold_interval()
+		if _move_repeating:
+			_hold_arm = 0.0
+		else:
+			_move_repeating = true
+			_hold_arm = _move_hold_delay()
+		return
+	_move_cd = MOVE_HOLD_INTERVAL_FOOT
 	if _move_repeating:
 		_hold_arm = 0.0
 	else:
@@ -1101,6 +1307,12 @@ func _handle_command(cmd: int) -> void:
 		_do_ready()
 	elif cmd == U4Commands.Id.WEAR:
 		_do_wear()
+	elif cmd == U4Commands.Id.BOARD:
+		_do_board()
+	elif cmd == U4Commands.Id.XIT:
+		_do_xit()
+	elif cmd == U4Commands.Id.YELL:
+		_do_yell()
 	elif cmd == U4Commands.Id.LOCATE:
 		if not GameState.has_sextant:
 			_push_message(Locale.t("cmd_locate_what"), false)
@@ -2223,7 +2435,11 @@ func _refresh_party() -> void:
 func _push_move_message(dir: Vector2i) -> void:
 	if not _load_error.is_empty():
 		return
-	_push_message(_direction_label(dir, true))
+	## xu4 avatarMoved: foot/horse = direction name; ship = "Sail …!".
+	if _transport == Transport.SHIP:
+		_push_message(Locale.t("cmd_sail", [_direction_label(dir, false)]), false)
+	else:
+		_push_message(_direction_label(dir, true))
 
 
 func _direction_label(dir: Vector2i, for_move: bool = false) -> String:
