@@ -65,13 +65,15 @@ var mixtures: Array[int] = [] ## 26 — spells A..Z
 ## Equipped gear by class id 0..7 (xu4 SaveGamePlayerRecord weapon/armor).
 var member_weapons: Array[int] = []
 var member_armor: Array[int] = []
-## Class-indexed vitals (xu4 SaveGamePlayerRecord hp / status).
+## Class-indexed vitals (xu4 SaveGamePlayerRecord hp / mp / status).
 var member_hp: Array[int] = []
 var member_max_hp: Array[int] = []
+var member_mp: Array[int] = []
 var member_status: Array[int] = [] ## PartyRoster.Status
 ## xu4 starving / poison: 2 HP each turn while afflicted.
 const STARVE_DAMAGE := 2
 const POISON_DAMAGE := 2
+const MP_MAX_CAP := 99
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()
@@ -178,6 +180,7 @@ func _reset_member_vitals() -> void:
 	## Seed from PartyRoster stub tables until savegame load is wired.
 	member_hp.clear()
 	member_max_hp.clear()
+	member_mp.clear()
 	member_status.clear()
 	for i in 8:
 		var st: int = PartyRoster.STUB_STATUS[i]
@@ -187,6 +190,10 @@ func _reset_member_vitals() -> void:
 		member_status.append(st)
 		member_hp.append(hp)
 		member_max_hp.append(PartyRoster.STUB_MAX_HP[i])
+		## xu4 MP caps at class max (INT-based, ≤99); clamp stub seed.
+		var mx := _max_mp_for_class(i)
+		var mp: int = 0 if st == PartyRoster.Status.DEAD else mini(int(PartyRoster.STUB_MP[i]), mx)
+		member_mp.append(mp)
 
 
 func _reset_member_gear() -> void:
@@ -400,6 +407,47 @@ func status_of_class(klass: int) -> int:
 	return int(member_status[klass])
 
 
+func mp_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_mp.size():
+		return 0
+	return int(member_mp[klass])
+
+
+func max_mp_of_class(klass: int) -> int:
+	return _max_mp_for_class(klass)
+
+
+func _max_mp_for_class(klass: int) -> int:
+	## xu4 PartyMember::getMaxMp — INT × class factor, capped at 99.
+	if klass < 0 or klass >= PartyRoster.STUB_INT.size():
+		return 0
+	var intel: int = int(PartyRoster.STUB_INT[klass])
+	var max_mp := 0
+	match klass:
+		0: ## Mage: 200% INT
+			max_mp = intel * 2
+		3: ## Druid: 150% INT
+			max_mp = int(intel * 3 / 2)
+		1, 5, 6: ## Bard / Paladin / Ranger: 100% INT
+			max_mp = intel
+		4: ## Tinker: 50% INT
+			max_mp = int(intel / 2)
+		2, 7: ## Fighter / Shepherd: none
+			max_mp = 0
+		_:
+			max_mp = 0
+	return mini(max_mp, MP_MAX_CAP)
+
+
+func is_member_disabled(klass: int) -> bool:
+	## xu4 Creature::isDisabled — sleeping or dead (poisoned can still act/regen).
+	var st := status_of_class(klass)
+	return (
+		st == PartyRoster.Status.DEAD
+		or st == PartyRoster.Status.SLEEPING
+	)
+
+
 func apply_member_damage(klass: int, damage: int) -> bool:
 	## xu4 PartyMember::applyDamage (non-combat). True if the hit landed (flash).
 	## Death at HP <= 0 (xu4 used < 0, leaving a one-turn 0-HP lag — we don't).
@@ -472,6 +520,12 @@ func end_party_turn(on_world_map: bool = true) -> Dictionary:
 					damaged_mask |= 1 << i
 					poisoned_mask |= 1 << i
 					vitals_changed = true
+		## xu4: MP +1 each turn if not disabled and below max (same turn as wake).
+		if not is_member_disabled(mid):
+			var mx := max_mp_of_class(mid)
+			if mx > 0 and mid < member_mp.size() and int(member_mp[mid]) < mx:
+				member_mp[mid] = int(member_mp[mid]) + 1
+				vitals_changed = true
 
 	## Starving after per-member status (xu4 emits STARVING after the loop).
 	if food == 0:

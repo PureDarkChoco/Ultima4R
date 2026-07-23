@@ -661,8 +661,8 @@ static func member_ztats(slot: int) -> Dictionary:
 		"class": Virtues.class_name_of(mid, lang),
 		"status": status_label(st),
 		"status_code": st,
-		"mp": 0 if st == Status.DEAD else STUB_MP[mid],
-		"max_mp": STUB_MAX_MP[mid],
+		"mp": GameState.mp_of_class(mid),
+		"max_mp": GameState.max_mp_of_class(mid),
 		"level": STUB_LEVELS[mid],
 		"str": STUB_STR[mid],
 		"dex": STUB_DEX[mid],
@@ -893,9 +893,9 @@ func refresh() -> void:
 		_set_row_contents_visible(i, true)
 		var st: int = GameState.status_of_class(mid)
 		var hp: int = GameState.hp_of_class(mid)
-		var mp: int = STUB_MP[mid]
+		var mp: int = GameState.mp_of_class(mid)
 		var mhp: int = GameState.max_hp_of_class(mid)
-		var mmp: int = STUB_MAX_MP[mid]
+		var mmp: int = GameState.max_mp_of_class(mid)
 		if st == Status.DEAD:
 			hp = 0
 			mp = 0
