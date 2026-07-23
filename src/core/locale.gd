@@ -278,6 +278,42 @@ const _T := {
 		"en_us": "Ztats for: %s",
 		"ko": "Ztats for: %s",
 	},
+	## xu4 readyWeapon()
+	"cmd_ready_for": {
+		"en_u4": "Ready a weapon for: ",
+		"en_us": "Ready a weapon for: ",
+		"ko": "무기를 장착할 대상: ",
+	},
+	"cmd_ready_for_done": {
+		"en_u4": "Ready a weapon for: %s",
+		"en_us": "Ready a weapon for: %s",
+		"ko": "무기를 장착할 대상: %s",
+	},
+	"cmd_ready_weapon": {
+		"en_u4": "Weapon: ",
+		"en_us": "Weapon: ",
+		"ko": "무기: ",
+	},
+	"cmd_ready_done": {
+		"en_u4": "%s",
+		"en_us": "%s",
+		"ko": "%s",
+	},
+	"cmd_ready_none": {
+		"en_u4": "None left!",
+		"en_us": "None left!",
+		"ko": "남은 무기가 없다!",
+	},
+	"cmd_ready_restricted": {
+		"en_u4": "A %s may NOT use %s %s",
+		"en_us": "A %s may NOT use %s %s",
+		"ko": "%s은(는) %s을(를) 쓸 수 없다",
+	},
+	"ready_col_delta": {
+		"en_u4": "Δ",
+		"en_us": "Δ",
+		"ko": "Δ",
+	},
 	"cmd_fired": {
 		"en_u4": "%s",
 		"en_us": "%s",

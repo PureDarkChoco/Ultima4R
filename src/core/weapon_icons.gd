@@ -75,11 +75,41 @@ const DAMAGE: Array[int] = [
 	8, 16, 24, 32, 40, 48, 64, 40, 56, 64, 96, 96, 128, 80, 160, 255,
 ]
 
+## xu4 config.b canuse bitmask per ClassId (bit N = class N may ready).
+## Derived from not/only lists in module/Ultima-IV/config.b.
+const CANUSE: Array[int] = [
+	0xFF, ## Hands — all
+	0xFF, ## Staff — all
+	0xFF, ## Dagger — all
+	0xFF, ## Sling — all
+	0xFE, ## Mace — not mage
+	0xF6, ## Axe — not mage/druid
+	0xF6, ## Sword — not mage/druid
+	0x7E, ## Bow — not mage/shepherd
+	0x7E, ## Crossbow — not mage/shepherd
+	0xFF, ## Flaming Oil — all
+	0x34, ## Halberd — fighter/tinker/paladin
+	0x30, ## Magic Axe — tinker/paladin
+	0x74, ## Magic Sword — fighter/tinker/paladin/ranger
+	0x7A, ## Magic Bow — not mage/fighter/shepherd
+	0x0B, ## Magic Wand — mage/bard/druid
+	0xFF, ## Mystic Sword — all
+]
+
 
 static func damage_of(weapon_id: int) -> int:
 	if weapon_id < 0 or weapon_id >= DAMAGE.size():
 		return 0
 	return DAMAGE[weapon_id]
+
+
+static func can_ready(weapon_id: int, klass: int) -> bool:
+	## xu4 Weapon::canReady — class bit set in canuse.
+	if weapon_id < 0 or weapon_id >= CANUSE.size():
+		return false
+	if klass < 0 or klass > 7:
+		return false
+	return (CANUSE[weapon_id] & (1 << klass)) != 0
 
 
 static func path_for_id(weapon_id: int) -> String:

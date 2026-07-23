@@ -19,6 +19,7 @@ extends Control
 
 var _peer_overlay: PeerGemOverlay
 var _ztats_panel: ZtatsPanel
+var _ready_panel: ReadyPanel
 var _locate_label: Label
 var _locate_on := false
 
@@ -72,6 +73,10 @@ var _ztats_stage := 0
 var _ztats_cursor := 0
 ## Flat page index while viewing: 0..party-1 = chars, then gear/reagents/mixtures.
 var _ztats_flat := 0
+## xu4 readyWeapon(): 0 = idle, 1 = pick member, 2 = pick weapon.
+var _ready_stage := 0
+var _ready_cursor := 0
+var _ready_slot := -1
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -449,6 +454,10 @@ func _place_msg_block(panel_h: float) -> void:
 
 func _prompt_row_text() -> String:
 	## xu4: "Attack: Dir?" waits on the same line as the command (after ►).
+	if _ready_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_ready_for")
+	if _ready_stage == 2:
+		return MSG_PROMPT + Locale.t("cmd_ready_weapon")
 	if _ztats_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_ztats_for")
 	if _order_stage == 1:
@@ -763,9 +772,12 @@ func _process(delta: float) -> void:
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
-	## Z/N pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0:
+	## Z/N/R pick lists: same hold timing as world move; wrap at ends.
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1:
 		_tick_select_cursor()
+		return
+	if _ready_stage == 2:
+		_tick_ready_weapon_cursor()
 		return
 	if _ztats_stage != 0:
 		return
@@ -843,6 +855,8 @@ func _tick_select_cursor() -> void:
 		return
 	if _ztats_stage == 1:
 		_nudge_ztats_cursor(step)
+	elif _ready_stage == 1:
+		_nudge_ready_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -903,6 +917,9 @@ func _on_escape() -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
+	if _ready_stage != 0:
+		_close_ready(true)
+		return
 	if _ztats_stage != 0:
 		_close_ztats(true)
 		return
@@ -928,8 +945,8 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
-			## Ztats open: don't collapse/expand side panels.
-			if _ztats_stage != 0:
+			## Ztats / Ready open: don't collapse/expand side panels.
+			if _ztats_stage != 0 or _ready_stage != 0:
 				get_viewport().set_input_as_handled()
 				return
 			_toggle_side_panels()
@@ -937,7 +954,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / New Order accept keyboard + gamepad.
+	## Ztats / Ready / New Order accept keyboard + gamepad.
+	if _ready_stage != 0:
+		if _handle_ready_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _ztats_stage != 0:
 		if _handle_ztats_input(event):
 			get_viewport().set_input_as_handled()
@@ -1026,12 +1049,14 @@ func _handle_command(cmd: int) -> void:
 		_clear_pending_dir()
 		_clear_pending_order()
 		_close_ztats(false)
+		_close_ready(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
 		## xu4: print "Attack: " then "Dir?" on the *same* line and wait.
 		_clear_pending_order()
 		_close_ztats(false)
+		_close_ready(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
@@ -1039,12 +1064,15 @@ func _handle_command(cmd: int) -> void:
 	_clear_pending_dir()
 	_clear_pending_order()
 	_close_ztats(false)
+	_close_ready(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
 		_do_new_order()
 	elif cmd == U4Commands.Id.ZTATS:
 		_do_ztats()
+	elif cmd == U4Commands.Id.READY:
+		_do_ready()
 	elif cmd == U4Commands.Id.LOCATE:
 		if not GameState.has_sextant:
 			_push_message(Locale.t("cmd_locate_what"), false)
@@ -1170,6 +1198,7 @@ func _do_new_order() -> void:
 	## xu4 newOrder(): "New Order!" → Exchange # → with # → swapPlayers.
 	## Ultima4R: digits still work; ↑↓ + Enter also pick slots.
 	_close_ztats(false)
+	_close_ready(false)
 	_push_message(Locale.t("cmd_new_order"), false)
 	if GameState.party_size() <= 1:
 		## Nobody to exchange with.
@@ -1200,6 +1229,7 @@ func _ensure_ztats_panel() -> void:
 func _do_ztats() -> void:
 	## xu4 ztatsFor(): "Ztats for: " → pick member → character sheet.
 	_clear_pending_order()
+	_close_ready(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		return
@@ -1472,7 +1502,256 @@ func _close_ztats(show_none: bool) -> void:
 		_roster.visible = true
 	if was != 0:
 		_close_order_roster()
-	elif _order_opened_roster and _order_stage == 0:
+	elif _order_opened_roster and _order_stage == 0 and _ready_stage == 0:
+		_close_order_roster()
+	_layout_prompt_row()
+	if show_none and was == 1:
+		_push_message(Locale.t("cmd_none"), false)
+
+
+func _ensure_ready_panel() -> void:
+	if _ready_panel != null:
+		return
+	var host := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as Control
+	if host == null:
+		return
+	_ready_panel = ReadyPanel.new()
+	_ready_panel.name = "ReadyPanel"
+	_ready_panel.visible = false
+	_ready_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(_ready_panel)
+
+
+func _do_ready() -> void:
+	## xu4 readyWeapon(): "Ready a weapon for: " → pick member → weapon list.
+	_clear_pending_order()
+	_close_ztats(false)
+	if GameState.party_size() <= 0:
+		_push_message(Locale.t("cmd_none"), false)
+		return
+	_open_order_roster()
+	_ready_stage = 1
+	_ready_cursor = 0
+	_ready_slot = -1
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	if _ready_panel:
+		_ready_panel.close_panel()
+	_sync_ready_selection()
+	_layout_prompt_row()
+
+
+func _handle_ready_input(event: InputEvent) -> bool:
+	if not event.is_pressed():
+		return false
+	if event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	if _ready_stage == 2:
+		return _handle_ready_weapon_input(event)
+	## Pick member — same affordances as Ztats / New Order.
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_ready(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_ready(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_close_ready(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_ready_slot(_ready_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_ready_slot(_ready_cursor)
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var pick := _player_slot_from_key(ke)
+		if pick < 0:
+			if _is_digit_key(ke):
+				_close_ready(true)
+			return true
+		_accept_ready_slot(pick)
+		return true
+	return true
+
+
+func _handle_ready_weapon_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_ready(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_ready(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_close_ready(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_confirm_ready_cursor()
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_confirm_ready_cursor()
+		return true
+	## Letter A–P selects that weapon index (xu4 readAlphaAction).
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		var letter := _ready_letter_from_key(k)
+		if letter >= 0:
+			_try_ready_weapon(letter)
+			return true
+		## R while picking weapon → back to member pick (like Ztats Z).
+		if k.keycode == KEY_R or k.physical_keycode == KEY_R:
+			_return_ready_to_pick()
+			return true
+	return true
+
+
+func _ready_letter_from_key(k: InputEventKey) -> int:
+	## Returns weapon id 0..15 for A–P, else -1.
+	for code in [k.keycode, k.physical_keycode, k.unicode]:
+		if code >= KEY_A and code <= KEY_P:
+			return code - KEY_A
+		if code >= 65 and code <= 80: ## 'A'..'P'
+			return code - 65
+		if code >= 97 and code <= 112: ## 'a'..'p'
+			return code - 97
+	return -1
+
+
+func _tick_ready_weapon_cursor() -> void:
+	var step := _read_select_step()
+	if step == 0:
+		_reset_hold_state()
+		return
+	var held := Vector2i(0, step)
+	if held != _held_dir:
+		_held_dir = held
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	if _ready_panel:
+		_ready_panel.nudge_cursor(step)
+	_arm_hold_after_step()
+
+
+func _nudge_ready_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	_ready_cursor = posmod(_ready_cursor + delta, n)
+	_sync_ready_selection()
+
+
+func _sync_ready_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_ready_cursor, -1)
+
+
+func _accept_ready_slot(slot: int) -> void:
+	var n := GameState.party_size()
+	if slot < 0 or slot >= n:
+		_close_ready(true)
+		return
+	_ready_slot = slot
+	var pname := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_ready_for_done", [pname]), false)
+	_show_ready_weapons(slot)
+
+
+func _show_ready_weapons(slot: int) -> void:
+	_ensure_ready_panel()
+	_ready_stage = 2
+	_reset_hold_state()
+	_clear_order_selection()
+	if _roster:
+		_roster.visible = false
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	_order_opened_roster = true
+	if _ready_panel:
+		_ready_panel.open_for(slot)
+	_layout_prompt_row()
+
+
+func _return_ready_to_pick() -> void:
+	_ready_stage = 1
+	_ready_slot = -1
+	_reset_hold_state()
+	if _ready_panel:
+		_ready_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	_order_opened_roster = true
+	_sync_ready_selection()
+	_layout_prompt_row()
+
+
+func _confirm_ready_cursor() -> void:
+	if _ready_panel == null:
+		return
+	var wid := _ready_panel.cursor_weapon_id()
+	if wid < 0:
+		return
+	_try_ready_weapon(wid)
+
+
+func _try_ready_weapon(weapon_id: int) -> void:
+	if _ready_slot < 0:
+		return
+	var err := GameState.ready_weapon(_ready_slot, weapon_id)
+	match err:
+		GameState.EquipError.NONE_LEFT:
+			_push_message(Locale.t("cmd_ready_none"), false)
+		GameState.EquipError.CLASS_RESTRICTED:
+			_push_message(_ready_restricted_message(_ready_slot, weapon_id), false)
+		_:
+			_push_message(Locale.t("cmd_ready_done", [Locale.weapon_name(weapon_id)]), false)
+			_close_ready(false)
+
+
+func _ready_restricted_message(slot: int, weapon_id: int) -> String:
+	var klass := GameState.party_member_at(slot)
+	var cname := Virtues.class_name_of(klass, GameState.lang_short())
+	var wname := Locale.weapon_name(weapon_id)
+	if GameState.language == "ko":
+		return Locale.t("cmd_ready_restricted", [cname, wname])
+	var article := "an" if _weapon_starts_vowel(wname) else "a"
+	return Locale.t("cmd_ready_restricted", [cname, article, wname])
+
+
+func _weapon_starts_vowel(name: String) -> bool:
+	if name.is_empty():
+		return false
+	var ch := name.substr(0, 1).to_lower()
+	return ch in ["a", "e", "i", "o", "u", "y"]
+
+
+func _close_ready(show_none: bool) -> void:
+	var was := _ready_stage
+	_ready_stage = 0
+	_ready_cursor = 0
+	_ready_slot = -1
+	_clear_order_selection()
+	if _ready_panel:
+		_ready_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	if was != 0:
+		_close_order_roster()
+	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
 	if show_none and was == 1:

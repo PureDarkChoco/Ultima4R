@@ -614,6 +614,8 @@ static func member_ztats(slot: int) -> Dictionary:
 		tile = _load_texture_file(CORPSE_PATH)
 	var face: Texture2D = _ztats_face_portrait(mid, mid == player_cls)
 	var lang := GameState.lang_short()
+	var wid := GameState.weapon_of_class(mid)
+	var aid := GameState.armor_of_class(mid)
 	return {
 		"name": nm,
 		"sex": sex,
@@ -630,10 +632,10 @@ static func member_ztats(slot: int) -> Dictionary:
 		"max_hp": STUB_MAX_HP[mid],
 		"exp": STUB_EXP[mid],
 		"exp_next": STUB_EXP_TO_NEXT[mid],
-		"weapon": STUB_WEAPON[mid],
-		"armor": STUB_ARMOR[mid],
-		"atk": STUB_ATK[mid],
-		"def": STUB_DEF[mid],
+		"weapon": Locale.weapon_name(wid),
+		"armor": Locale.armor_name(aid),
+		"atk": WeaponIcons.damage_of(wid),
+		"def": ArmorIcons.defense_of(aid),
 		"tile": tile,
 		"portrait": face,
 	}

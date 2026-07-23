@@ -37,10 +37,23 @@ var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
 var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE
 var reagents: Array[int] = [] ## 8
 var mixtures: Array[int] = [] ## 26 — spells A..Z
+## Equipped gear by class id 0..7 (xu4 SaveGamePlayerRecord weapon/armor).
+var member_weapons: Array[int] = []
+var member_armor: Array[int] = []
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()
 var intro_overlay := IntroTextOverlay.new()
+
+## Match PartyRoster.STUB_WEAPON / STUB_ARMOR class defaults.
+const DEFAULT_WEAPON := [1, 3, 5, 2, 4, 12, 7, 10]
+const DEFAULT_ARMOR := [1, 2, 3, 5, 2, 4, 6, 7]
+
+enum EquipError {
+	SUCCEEDED = 0,
+	NONE_LEFT = 1,
+	CLASS_RESTRICTED = 2,
+}
 
 
 func _ready() -> void:
@@ -117,6 +130,62 @@ func _reset_inventory_stubs() -> void:
 	mixtures[18] = 1 ## Sleep
 	mixtures[23] = 2 ## X-it
 	mixtures[25] = 3 ## Z-down
+	_reset_member_gear()
+
+
+func _reset_member_gear() -> void:
+	## Equip stub defaults and pull those items out of party stock (xu4 style).
+	member_weapons.clear()
+	member_weapons.resize(8)
+	member_armor.clear()
+	member_armor.resize(8)
+	for c in 8:
+		var w: int = DEFAULT_WEAPON[c]
+		var a: int = DEFAULT_ARMOR[c]
+		member_weapons[c] = w
+		member_armor[c] = a
+		if w > 0 and w < weapons.size() and weapons[w] > 0:
+			weapons[w] -= 1
+		if a > 0 and a < armor.size() and armor[a] > 0:
+			armor[a] -= 1
+
+
+func weapon_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_weapons.size():
+		return 0
+	return int(member_weapons[klass])
+
+
+func weapon_of_slot(slot: int) -> int:
+	return weapon_of_class(party_member_at(slot))
+
+
+func armor_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_armor.size():
+		return 0
+	return int(member_armor[klass])
+
+
+func ready_weapon(slot: int, weapon_id: int) -> int:
+	## xu4 PartyMember::setWeapon — swap inventory ↔ equipped.
+	var klass := party_member_at(slot)
+	if klass < 0:
+		return EquipError.NONE_LEFT
+	if weapon_id < 0 or weapon_id >= weapons.size():
+		return EquipError.NONE_LEFT
+	var old := weapon_of_class(klass)
+	if old == weapon_id:
+		return EquipError.SUCCEEDED
+	if weapon_id != 0 and weapons[weapon_id] < 1:
+		return EquipError.NONE_LEFT
+	if not WeaponIcons.can_ready(weapon_id, klass):
+		return EquipError.CLASS_RESTRICTED
+	if old != 0 and old < weapons.size():
+		weapons[old] += 1
+	if weapon_id != 0:
+		weapons[weapon_id] -= 1
+	member_weapons[klass] = weapon_id
+	return EquipError.SUCCEEDED
 
 
 func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
