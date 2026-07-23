@@ -32,6 +32,9 @@ var karma: Array[int] = []
 var gems: int = 99
 ## Sextant required for Locate (L / Ctrl+L). Stub-owned for now.
 var has_sextant: bool = true
+## xu4 SaveGame.shiphull — 0..50; shown while aboard a frigate.
+var ship_hull: int = 50
+const SHIP_HULL_MAX := 50
 ## Party inventory counts (xu4 SaveGame arrays).
 var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
 var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE

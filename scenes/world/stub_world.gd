@@ -26,6 +26,9 @@ var _ready_panel: ReadyPanel
 var _wear_panel: WearPanel
 var _locate_label: Label
 var _locate_on := false
+var _ship_hull_hud: HBoxContainer
+var _ship_hull_icon: TextureRect
+var _ship_hull_lab: Label
 
 const MOVE_HOLD_DELAY := 0.5
 ## World move repeat cadence (lower = faster). Horse matches foot unless galloping.
@@ -57,6 +60,13 @@ const COMPACT_RIGHT_TILES := 2
 const LOCATE_HUD_INSET := Vector2(6, 0)
 const LOCATE_HUD_FONT_SIZE := 13
 const LOCATE_HUD_COLOR := Color(0.91, 0.9, 0.82, 1)
+## Ship hull HUD — same X as Locate; Y on bottom bar while aboard.
+const SHIP_HULL_HUD_INSET := Vector2(6, 0)
+const SHIP_HULL_HUD_FONT_SIZE := 13
+const SHIP_HULL_HUD_COLOR := Color(0.95, 0.9, 0.55, 1)
+const SHIP_HULL_HUD_COLOR_LOW := Color(0.92, 0.28, 0.28, 1)
+const SHIP_HULL_LOW_THRESHOLD := 20
+const SHIP_HULL_ICON_SZ := 14.0
 
 var _world := WorldMapData.new()
 var _tile_pos := Vector2i(83, 105)
@@ -233,6 +243,7 @@ func _do_board() -> void:
 	_map.remove_overlay_at(_tile_pos)
 	_transport_tile = tid
 	_map.set_transport_tile(_transport_tile)
+	_refresh_ship_hull_hud()
 
 
 func _do_xit() -> void:
@@ -252,6 +263,7 @@ func _do_xit() -> void:
 	_horse_gallop = false
 	_map.set_transport_tile(-1)
 	_push_message(Locale.t("cmd_xit"), false)
+	_refresh_ship_hull_hud()
 
 
 func _do_yell() -> void:
@@ -360,6 +372,7 @@ func _fit_map_tiles_and_sides() -> void:
 	_map.set_view_tiles(MapView.VIEW_W, MapView.VIEW_H)
 	_layout_side_panels(false)
 	_layout_locate_hud()
+	_layout_ship_hull_hud()
 	_refresh_message_view()
 
 
@@ -772,6 +785,7 @@ func _layout_side_panels(animate: bool) -> void:
 			_ztats_panel.visible = true
 			_ztats_panel.move_to_front()
 	_layout_locate_hud()
+	_layout_ship_hull_hud()
 
 
 func _tween_msg_height(h: float) -> void:
@@ -1406,6 +1420,110 @@ func _layout_locate_hud() -> void:
 		top_origin.y + floorf((bar_h - text_sz.y) * 0.5) + LOCATE_HUD_INSET.y
 	)
 	_locate_label.move_to_front()
+
+
+func _ensure_ship_hull_hud() -> void:
+	## Icon + hull value on the bottom bar (right of gems / Locate column).
+	if _ship_hull_hud != null:
+		return
+	_ship_hull_hud = HBoxContainer.new()
+	_ship_hull_hud.name = "ShipHullHud"
+	_ship_hull_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ship_hull_hud.add_theme_constant_override("separation", 3)
+	_ship_hull_hud.visible = false
+	_ship_hull_icon = TextureRect.new()
+	_ship_hull_icon.custom_minimum_size = Vector2(SHIP_HULL_ICON_SZ, SHIP_HULL_ICON_SZ)
+	_ship_hull_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_ship_hull_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_ship_hull_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_ship_hull_icon.texture = _make_ship_hull_icon()
+	_ship_hull_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_ship_hull_hud.add_child(_ship_hull_icon)
+	_ship_hull_lab = Label.new()
+	_ship_hull_lab.add_theme_font_size_override("font_size", SHIP_HULL_HUD_FONT_SIZE)
+	_ship_hull_lab.add_theme_color_override("font_color", SHIP_HULL_HUD_COLOR)
+	_ship_hull_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	UiTheme.apply_font(_ship_hull_lab)
+	_ship_hull_hud.add_child(_ship_hull_lab)
+	add_child(_ship_hull_hud)
+
+
+func _make_ship_hull_icon() -> Texture2D:
+	## Keyed west-facing frigate from shapes.png (tile 16).
+	var img := Image.new()
+	if img.load(MapView.U4_ATLAS) != OK:
+		var tex := load(MapView.U4_ATLAS) as Texture2D
+		if tex:
+			img = tex.get_image()
+	if img == null or img.is_empty():
+		return null
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var s := MapView.TILE_SRC
+	var slice := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	slice.blit_rect(img, Rect2i(0, MapView.TILE_SHIP_W * s, s, s), Vector2i.ZERO)
+	for y in s:
+		for x in s:
+			var c := slice.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				slice.set_pixel(x, y, Color(0, 0, 0, 0))
+	## Crop to content so the 14px icon reads larger.
+	var x0 := s
+	var y0 := s
+	var x1 := -1
+	var y1 := -1
+	for y in s:
+		for x in s:
+			if slice.get_pixel(x, y).a > 0.5:
+				x0 = mini(x0, x)
+				y0 = mini(y0, y)
+				x1 = maxi(x1, x)
+				y1 = maxi(y1, y)
+	if x1 < x0:
+		return ImageTexture.create_from_image(slice)
+	var cw := x1 - x0 + 1
+	var ch := y1 - y0 + 1
+	var cropped := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
+	cropped.blit_rect(slice, Rect2i(x0, y0, cw, ch), Vector2i.ZERO)
+	return ImageTexture.create_from_image(cropped)
+
+
+func _refresh_ship_hull_hud() -> void:
+	_ensure_ship_hull_hud()
+	var aboard := _transport == Transport.SHIP
+	if _ship_hull_hud:
+		_ship_hull_hud.visible = aboard
+	if aboard and _ship_hull_lab:
+		var hull := clampi(GameState.ship_hull, 0, GameState.SHIP_HULL_MAX)
+		_ship_hull_lab.text = "%02d" % hull
+		_ship_hull_lab.add_theme_color_override(
+			"font_color",
+			SHIP_HULL_HUD_COLOR_LOW if hull <= SHIP_HULL_LOW_THRESHOLD else SHIP_HULL_HUD_COLOR
+		)
+	_layout_ship_hull_hud()
+
+
+func _layout_ship_hull_hud() -> void:
+	## Match Locate's open-map right X; center vertically on the bottom bar.
+	if _ship_hull_hud == null or not _ship_hull_hud.visible:
+		return
+	if _map_pane == null or _bottom_bar == null:
+		return
+	var g := _side_geom()
+	var map_right: float = floorf(g["right_open_x"])
+	_ship_hull_hud.reset_size()
+	var hud_sz := _ship_hull_hud.get_combined_minimum_size()
+	_ship_hull_hud.size = hud_sz
+	var map_origin := _map_pane.global_position - global_position
+	var bot_origin := _bottom_bar.global_position - global_position
+	var bar_h := _bottom_bar.size.y
+	if bar_h < 1.0:
+		bar_h = _bottom_bar.custom_minimum_size.y
+	_ship_hull_hud.position = Vector2(
+		map_origin.x + map_right - hud_sz.x - SHIP_HULL_HUD_INSET.x,
+		bot_origin.y + floorf((bar_h - hud_sz.y) * 0.5) + SHIP_HULL_HUD_INSET.y
+	)
+	_ship_hull_hud.move_to_front()
 
 
 func _do_peer() -> void:
