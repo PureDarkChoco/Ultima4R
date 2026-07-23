@@ -78,6 +78,11 @@ var _transport_tile := -1
 var _horse_gallop := false
 ## Ultima V-style ship cruise: Yell → Dir → keep sailing until Yell or land.
 var _ship_cruise_dir := Vector2i.ZERO
+## xu4 EventHandler interval: 1000/gameCyclesPerSecond (default 250ms).
+var _world_clock_accum := 0.0
+## xu4 gameTimeSinceLastCommand — auto Pass after > 20s idle (TurnController).
+const AUTO_PASS_SEC := 20.0
+var _idle_since_command := 0.0
 var _ship_yell_await_dir := false
 ## Hull left with each frigate overlay (key "x,y") so re-boarding keeps damage.
 var _ship_hulls: Dictionary = {}
@@ -229,13 +234,16 @@ func _do_board() -> void:
 	## xu4 board(): must be on foot; object underfoot must be horse/ship/balloon.
 	if _transport != Transport.FOOT:
 		_push_message(Locale.t("cmd_board_cant"), false)
+		_finish_party_turn()
 		return
 	if _map == null:
 		_push_message(Locale.t("cmd_board_what"), false)
+		_finish_party_turn()
 		return
 	var tid := _map.overlay_at(_tile_pos)
 	if tid < 0:
 		_push_message(Locale.t("cmd_board_what"), false)
+		_finish_party_turn()
 		return
 	if MapView.is_ship_tile(tid):
 		_push_message(Locale.t("cmd_board_ship"), false)
@@ -248,17 +256,20 @@ func _do_board() -> void:
 		_horse_gallop = false
 	else:
 		_push_message(Locale.t("cmd_board_what"), false)
+		_finish_party_turn()
 		return
 	_map.remove_overlay_at(_tile_pos)
 	_transport_tile = tid
 	_map.set_transport_tile(_transport_tile)
 	_refresh_ship_hull_hud()
+	_finish_party_turn()
 
 
 func _do_xit() -> void:
 	## xu4 exitTransport(): leave horse/ship as a map object underfoot.
 	if _transport == Transport.FOOT or _map == null:
 		_push_message(Locale.t("cmd_xit_what"), false)
+		_finish_party_turn()
 		return
 	## Leave empty horse/ship facing as last ridden; gallop resets.
 	var leave_tid := _transport_tile
@@ -277,6 +288,7 @@ func _do_xit() -> void:
 	_map.set_transport_tile(-1)
 	_push_message(Locale.t("cmd_xit"), false)
 	_refresh_ship_hull_hud()
+	_finish_party_turn()
 
 
 func _do_yell() -> void:
@@ -287,12 +299,14 @@ func _do_yell() -> void:
 			_push_message(Locale.t("cmd_yell_giddyup"), false)
 		else:
 			_push_message(Locale.t("cmd_yell_whoa"), false)
+		_finish_party_turn()
 		return
 	if _transport == Transport.SHIP:
 		if _ship_cruise_dir != Vector2i.ZERO:
 			_stop_ship_cruise()
 			## Ship cruise halt — not horse "Whoa".
 			_push_message(Locale.t("cmd_yell_ship_stop"), false)
+			_finish_party_turn()
 			return
 		if _ship_yell_await_dir:
 			_clear_ship_yell_await()
@@ -302,6 +316,7 @@ func _do_yell() -> void:
 		_layout_prompt_row()
 		return
 	_push_message(Locale.t("cmd_yell_what"), false)
+	_finish_party_turn()
 
 
 func _clear_ship_yell_await() -> void:
@@ -344,10 +359,12 @@ func _try_ship_cruise_step() -> void:
 		_stop_ship_cruise()
 		_damage_ship_from_grounding()
 		_push_message(Locale.t("cmd_yell_land"), false)
+		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 	## Quiet steps while cruising — avoid spamming Sail messages.
 	_apply_world_step(next, dir, false)
+	_finish_party_turn()
 	_move_cd = _move_hold_interval()
 
 
@@ -1047,6 +1064,10 @@ func _on_order_roster_closed() -> void:
 
 func _process(delta: float) -> void:
 	_tick_cursor(delta)
+	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
+	_tick_world_clock(delta)
+	## xu4 force pass if no commands within last 20 seconds.
+	_tick_auto_pass(delta)
 
 	_move_cd = maxf(0.0, _move_cd - delta)
 	_hold_arm = maxf(0.0, _hold_arm - delta)
@@ -1125,6 +1146,7 @@ func _process(delta: float) -> void:
 	if _transport == Transport.SHIP and dir != _ship_facing_dir():
 		_update_transport_facing(dir)
 		_push_message(Locale.t("cmd_turn", [_direction_label(dir, false)]), false)
+		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 
@@ -1134,6 +1156,7 @@ func _process(delta: float) -> void:
 	)
 	if not _can_move_to(next):
 		_push_message(Locale.t("cmd_blocked"), false)
+		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 	_apply_world_step(next, dir)
@@ -1148,6 +1171,8 @@ func _process(delta: float) -> void:
 		elif _map != null:
 			## Only one tile cleared — soft bump like ship grounding (FX only).
 			_map.shake_ship()
+	## Gallop still ends one party turn (xu4 finishTurn once per key).
+	_finish_party_turn()
 	_arm_hold_after_step(true)
 
 
@@ -1471,6 +1496,7 @@ func _handle_command(cmd: int) -> void:
 			]))
 	elif cmd == U4Commands.Id.PASS:
 		_push_message(Locale.t("cmd_fired", [name]))
+		_finish_party_turn()
 	else:
 		_push_message(Locale.t("cmd_stub", [letter, name]))
 
@@ -2648,6 +2674,60 @@ func _refresh_inventory_bars() -> void:
 		_top_bar.refresh()
 
 
+func _finish_party_turn() -> void:
+	## xu4 GameController::finishTurn → Party::endTurn (food / moves / starve).
+	_stamp_command_time()
+	var result: Dictionary = GameState.end_party_turn()
+	if result.get("food_changed", false):
+		_refresh_inventory_bars()
+	if result.get("starving", false):
+		_push_message(Locale.t("cmd_starving"), false)
+	if result.get("vitals_changed", false):
+		_refresh_party()
+		var mask: int = int(result.get("damaged_mask", 0))
+		if _roster and _roster.has_method("flash_players"):
+			_roster.flash_players(mask)
+		if _compact_roster and _compact_roster.has_method("flash_players"):
+			_compact_roster.flash_players(mask)
+
+
+func _stamp_command_time() -> void:
+	## xu4 gameStampCommandTime() — restart idle Pass timer.
+	_idle_since_command = 0.0
+
+
+func _can_auto_pass() -> bool:
+	## Only while free world TurnController would be active in xu4.
+	if not _load_error.is_empty():
+		return false
+	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0:
+		return false
+	if _pending_cmd != U4Commands.Id.NONE:
+		return false
+	if _ship_yell_await_dir:
+		return false
+	if _ship_cruise_dir != Vector2i.ZERO:
+		return false
+	return true
+
+
+func _tick_auto_pass(delta: float) -> void:
+	## xu4 timerFired: if gameTimeSinceLastCommand() > 20 → Space (Space).
+	if not _can_auto_pass():
+		return
+	_idle_since_command += delta
+	if _idle_since_command > AUTO_PASS_SEC:
+		_do_auto_pass()
+
+
+func _do_auto_pass() -> void:
+	var name := U4Commands.label(U4Commands.Id.PASS, GameState.lang_short())
+	_push_message(Locale.t("cmd_fired", [name]))
+	_finish_party_turn()
+
+
 func _finish_directed_command(dir: Vector2i) -> void:
 	var cmd := _pending_cmd
 	var cmd_name := _pending_cmd_name
@@ -2659,6 +2739,8 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	var result := _directed_result_message(cmd)
 	if not result.is_empty():
 		_push_message(result, false)
+	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
+	_finish_party_turn()
 
 
 func _directed_result_message(cmd: int) -> String:
@@ -2725,6 +2807,21 @@ func _push_message(line: String, with_prompt: bool = true) -> void:
 	while _msg_lines.size() > MSG_KEEP:
 		_msg_lines.remove_at(0)
 	_refresh_message_view()
+
+
+func _tick_world_clock(delta: float) -> void:
+	## xu4 timerFired at gameCyclesPerSecond (default 4 Hz).
+	if not _load_error.is_empty():
+		return
+	_world_clock_accum += delta
+	var sky_changed := false
+	while _world_clock_accum >= GameState.WORLD_TICK_SEC:
+		_world_clock_accum -= GameState.WORLD_TICK_SEC
+		## Stub world is always the surface map for now.
+		if GameState.tick_world_clock(true):
+			sky_changed = true
+	if sky_changed and _top_bar != null and _top_bar.has_method("refresh"):
+		_top_bar.refresh()
 
 
 func _tick_cursor(delta: float) -> void:

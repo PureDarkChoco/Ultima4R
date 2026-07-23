@@ -140,6 +140,19 @@ var _relayouting := false
 var _tile_aspect := 9.0 / 10.0
 ## Open Tab panel outer height — compact rows/gaps are derived from this.
 var _open_outer_h := 0.0
+## xu4 stats->flashPlayers: brief red flash on damaged slots.
+var _flash_mask := 0
+var _flash_t := 0.0
+const FLASH_SEC := 0.35
+const FLASH_COLOR := Color(1.0, 0.35, 0.28, 1)
+
+
+func flash_players(mask: int) -> void:
+	## Bit i set → party slot i took damage (xu4 flashPlayers).
+	if mask == 0:
+		return
+	_flash_mask = mask
+	_flash_t = FLASH_SEC
 
 
 func _ready() -> void:
@@ -162,6 +175,32 @@ func _process(delta: float) -> void:
 			_frame_bit[i] = 1 - _frame_bit[i]
 			_frame_cd[i] = randf_range(FRAME_MIN, FRAME_MAX)
 	_apply_portrait_anim()
+	if _flash_t > 0.0:
+		_flash_t = maxf(0.0, _flash_t - delta)
+		_apply_damage_flash()
+		if _flash_t <= 0.0:
+			_flash_mask = 0
+			_clear_damage_flash()
+
+
+func _apply_damage_flash() -> void:
+	## Pulse damaged roster rows while flash timer is active.
+	var pulse := 0.55 + 0.45 * absf(sin(_flash_t * TAU * 4.0))
+	for i in mini(8, _row_panels.size()):
+		if _flash_mask & (1 << i):
+			if _row_panels[i]:
+				_row_panels[i].modulate = Color(
+					lerpf(1.0, FLASH_COLOR.r, pulse),
+					lerpf(1.0, FLASH_COLOR.g, pulse),
+					lerpf(1.0, FLASH_COLOR.b, pulse),
+					1.0
+				)
+
+
+func _clear_damage_flash() -> void:
+	for i in mini(8, _row_panels.size()):
+		if _row_panels[i]:
+			_row_panels[i].modulate = Color.WHITE
 
 
 func packed_height() -> float:
@@ -607,7 +646,7 @@ static func member_ztats(slot: int) -> Dictionary:
 	elif mid in [0, 3, 4, 7]:
 		## Classic companions: Mariah/Jaana/Julia/Katrina female.
 		sex = "F"
-	var st: int = STUB_STATUS[mid]
+	var st: int = GameState.status_of_class(mid)
 	## Class tile: corpse when dead (same as roster). Face: always the painted portrait.
 	var tile: Texture2D = _ztats_class_tile(mid)
 	if st == Status.DEAD:
@@ -628,8 +667,8 @@ static func member_ztats(slot: int) -> Dictionary:
 		"str": STUB_STR[mid],
 		"dex": STUB_DEX[mid],
 		"int": STUB_INT[mid],
-		"hp": 0 if st == Status.DEAD else STUB_HP[mid],
-		"max_hp": STUB_MAX_HP[mid],
+		"hp": GameState.hp_of_class(mid),
+		"max_hp": GameState.max_hp_of_class(mid),
 		"exp": STUB_EXP[mid],
 		"exp_next": STUB_EXP_TO_NEXT[mid],
 		"weapon": Locale.weapon_name(wid),
@@ -852,10 +891,10 @@ func refresh() -> void:
 			continue
 
 		_set_row_contents_visible(i, true)
-		var st: int = STUB_STATUS[mid]
-		var hp: int = STUB_HP[mid]
+		var st: int = GameState.status_of_class(mid)
+		var hp: int = GameState.hp_of_class(mid)
 		var mp: int = STUB_MP[mid]
-		var mhp: int = STUB_MAX_HP[mid]
+		var mhp: int = GameState.max_hp_of_class(mid)
 		var mmp: int = STUB_MAX_MP[mid]
 		if st == Status.DEAD:
 			hp = 0
@@ -934,10 +973,10 @@ func _apply_portrait_anim() -> void:
 		var mid: int = GameState.party_member_at(i)
 		if mid < 0:
 			continue
-		var st: int = STUB_STATUS[mid]
+		var st: int = GameState.status_of_class(mid)
 		var icon := _icons[i]
-		var mhp: int = STUB_MAX_HP[mid]
-		var hp: int = 0 if st == Status.DEAD else STUB_HP[mid]
+		var mhp: int = GameState.max_hp_of_class(mid)
+		var hp: int = GameState.hp_of_class(mid)
 		var hp_ratio := 0.0 if mhp <= 0 else float(hp) / float(mhp)
 		var hp_critical := hp_ratio <= HP_CRIT_RATIO and st != Status.DEAD
 

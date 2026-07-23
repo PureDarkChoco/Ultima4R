@@ -436,6 +436,11 @@ const _T := {
 		"en_us": "%s",
 		"ko": "%s",
 	},
+	"cmd_starving": {
+		"en_u4": "Starving!!!",
+		"en_us": "Starving!!!",
+		"ko": "굶주린다!!!",
+	},
 	"cmd_stub": {
 		"en_u4": "%s) %s — (not yet implemented)",
 		"en_us": "%s) %s — stub (coming soon)",

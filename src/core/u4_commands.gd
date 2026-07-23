@@ -121,7 +121,7 @@ const LABEL_KO := {
 	Id.XIT: "하차",
 	Id.YELL: "외치기",
 	Id.ZTATS: "상태",
-	Id.PASS: "대기",
+	Id.PASS: "통과",
 }
 
 ## Commands that need a direction afterward (A, G, J, O, T).

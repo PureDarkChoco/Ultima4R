@@ -35,6 +35,28 @@ var has_sextant: bool = true
 ## xu4 SaveGame.shiphull — 0..50; shown while aboard a frigate.
 var ship_hull: int = 50
 const SHIP_HULL_MAX := 50
+## xu4 SaveGame.food — centi-units (HUD shows food / 100). Cap 9999 displayed.
+var food: int = 1000 ## display 10 (xu4 centi-units)
+const FOOD_MAX := 999900
+var moves: int = 0
+
+## xu4 world clock (GameController::timerFired / updateMoons).
+## Real-time 4 Hz ticks — not tied to party moves.
+const MOON_PHASES := 24
+const MOON_SECONDS_PER_PHASE := 4
+const GAME_CYCLES_PER_SECOND := 4
+## Ticks per Felucca phase / wind check (= 16 ≈ 4 seconds).
+const PHASE_TICKS := MOON_SECONDS_PER_PHASE * GAME_CYCLES_PER_SECOND
+const WORLD_TICK_SEC := 1.0 / float(GAME_CYCLES_PER_SECOND)
+## StatusInfoBar wind indices: 0 N … 7 NW (8-way; xu4 was cardinals only).
+const WIND_DIRS := [0, 1, 2, 3, 4, 5, 6, 7]
+
+var moon_phase: int = 0 ## runtime sub-tick 0..383 (not saved in classic)
+var trammel_phase: int = 0 ## 0..7
+var felucca_phase: int = 0 ## 0..7
+var wind_dir: int = 0 ## N — xu4 starts DIR_NORTH
+var wind_counter: int = 0
+var wind_lock: bool = false
 ## Party inventory counts (xu4 SaveGame arrays).
 var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
 var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE
@@ -43,6 +65,12 @@ var mixtures: Array[int] = [] ## 26 — spells A..Z
 ## Equipped gear by class id 0..7 (xu4 SaveGamePlayerRecord weapon/armor).
 var member_weapons: Array[int] = []
 var member_armor: Array[int] = []
+## Class-indexed vitals (xu4 SaveGamePlayerRecord hp / status).
+var member_hp: Array[int] = []
+var member_max_hp: Array[int] = []
+var member_status: Array[int] = [] ## PartyRoster.Status
+## xu4 starving: 2 HP to each living member each turn at food == 0.
+const STARVE_DAMAGE := 2
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()
@@ -80,6 +108,14 @@ func reset_party() -> void:
 	for i in 8:
 		karma[i] = 50
 	is_new_game = false
+	moon_phase = 0
+	trammel_phase = 0
+	felucca_phase = 0
+	wind_dir = 0
+	wind_counter = 0
+	wind_lock = false
+	food = 1000
+	moves = 0
 	_reset_inventory_stubs()
 	refresh_party_order()
 
@@ -134,6 +170,22 @@ func _reset_inventory_stubs() -> void:
 	mixtures[23] = 2 ## X-it
 	mixtures[25] = 3 ## Z-down
 	_reset_member_gear()
+	_reset_member_vitals()
+
+
+func _reset_member_vitals() -> void:
+	## Seed from PartyRoster stub tables until savegame load is wired.
+	member_hp.clear()
+	member_max_hp.clear()
+	member_status.clear()
+	for i in 8:
+		var st: int = PartyRoster.STUB_STATUS[i]
+		var hp: int = PartyRoster.STUB_HP[i]
+		if st == PartyRoster.Status.DEAD:
+			hp = 0
+		member_status.append(st)
+		member_hp.append(hp)
+		member_max_hp.append(PartyRoster.STUB_MAX_HP[i])
 
 
 func _reset_member_gear() -> void:
@@ -304,6 +356,124 @@ func refresh_party_order() -> void:
 
 func lang_short() -> String:
 	return "ko" if language == "ko" else "en"
+
+
+func food_display() -> int:
+	## xu4 stats.cpp: food / 100 on the HUD.
+	return int(food / 100)
+
+
+func adjust_food(delta: int) -> bool:
+	## xu4 Party::adjustFood — returns true when the displayed value changes.
+	var old_disp := food_display()
+	food = clampi(food + delta, 0, FOOD_MAX)
+	return food_display() != old_disp
+
+
+func is_party_member_dead(slot: int) -> bool:
+	var mid := party_member_at(slot)
+	return is_class_dead(mid)
+
+
+func is_class_dead(klass: int) -> bool:
+	if klass < 0 or klass >= member_status.size():
+		return false
+	return member_status[klass] == PartyRoster.Status.DEAD
+
+
+func hp_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_hp.size():
+		return 0
+	return int(member_hp[klass])
+
+
+func max_hp_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_max_hp.size():
+		return 0
+	return int(member_max_hp[klass])
+
+
+func status_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_status.size():
+		return PartyRoster.Status.OK
+	return int(member_status[klass])
+
+
+func apply_member_damage(klass: int, damage: int) -> bool:
+	## xu4 PartyMember::applyDamage (non-combat). True if the hit landed (flash).
+	## Death at HP <= 0 (xu4 used < 0, leaving a one-turn 0-HP lag — we don't).
+	if klass < 0 or klass >= member_hp.size():
+		return false
+	if member_status[klass] == PartyRoster.Status.DEAD:
+		return false
+	var new_hp: int = int(member_hp[klass]) - damage
+	if new_hp <= 0:
+		member_status[klass] = PartyRoster.Status.DEAD
+		new_hp = 0
+	member_hp[klass] = new_hp
+	return true
+
+
+func living_party_count() -> int:
+	## xu4: dead members do not eat; poisoned/sleeping still do.
+	var n := 0
+	for i in party_size():
+		if not is_party_member_dead(i):
+			n += 1
+	return n
+
+
+func end_party_turn() -> Dictionary:
+	## xu4 Party::endTurn food + GameController STARVING (2 HP each).
+	moves += 1
+	var old_disp := food_display()
+	var eat := living_party_count()
+	if eat > 0:
+		food = maxi(0, food - eat)
+	var damaged_mask := 0
+	var vitals_changed := false
+	if food == 0:
+		for i in party_size():
+			var mid := party_member_at(i)
+			if apply_member_damage(mid, STARVE_DAMAGE):
+				damaged_mask |= 1 << i
+				vitals_changed = true
+	return {
+		"food_changed": food_display() != old_disp,
+		"starving": food == 0,
+		"vitals_changed": vitals_changed,
+		"damaged_mask": damaged_mask,
+	}
+
+
+func tick_world_clock(on_world_map: bool = true) -> bool:
+	## xu4 GameController::timerFired + updateMoons (one 0.25s game cycle).
+	## Returns true when HUD moons/wind should refresh.
+	var changed := false
+	wind_counter += 1
+	if wind_counter >= PHASE_TICKS:
+		## 25% chance to pick a new direction (xu4_random(4) == 1 cadence).
+		if not wind_lock and (randi() % 4) == 1:
+			var next_wind: int = WIND_DIRS[randi() % WIND_DIRS.size()]
+			if next_wind != wind_dir:
+				wind_dir = next_wind
+				changed = true
+		wind_counter = 0
+
+	if not on_world_map:
+		return changed
+
+	var old_tram := trammel_phase
+	var old_fel := felucca_phase
+	moon_phase += 1
+	if moon_phase >= MOON_PHASES * PHASE_TICKS:
+		moon_phase = 0
+	var real_moon: int = int(moon_phase / float(PHASE_TICKS))
+	felucca_phase = real_moon % 8
+	trammel_phase = mini(int(real_moon / 3.0), 7)
+	if trammel_phase != old_tram or felucca_phase != old_fel:
+		changed = true
+	return changed
 
 
 func _probe_u4_data() -> bool:

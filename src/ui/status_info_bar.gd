@@ -1,7 +1,7 @@
 class_name StatusInfoBar
 extends PanelContainer
 
-## SKY: moons + wind (top bar, centered)
+## SKY: moons centered on the bar; wind sits just to their right
 ## INVENTORY: gold / food / keys / skull / torches / gems (bottom bar, centered)
 ## FULL: classic left moons + right inventory (archive / side layouts)
 
@@ -32,12 +32,12 @@ const STAT_NUM_W := 34.0 # "9999"
 const ITEM_NUM_W := 20.0 # "99"
 const ICON_SZ := 14.0
 
-## Stub world state until savegame is wired.
-var trammel_phase: int = 2
-var felucca_phase: int = 6
-var wind_dir: int = Wind.E
+## Moons / wind come from GameState world clock (xu4 timerFired).
+var trammel_phase: int = 0
+var felucca_phase: int = 0
+var wind_dir: int = Wind.N
 var gold: int = 1234
-var food: int = 567
+var food: int = 567 ## mirrored from GameState.food_display() on refresh
 var keys: int = 3
 var skull: int = 1
 var torches: int = 12
@@ -185,6 +185,8 @@ func _h_spacer() -> Control:
 
 
 func _make_sky_cluster() -> HBoxContainer:
+	## Moons sit on the true centerline; wind sits just to their right.
+	## A same-width left spacer balances the wind so the moon pair stays centered.
 	var cluster := HBoxContainer.new()
 	cluster.add_theme_constant_override("separation", 16)
 	cluster.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -197,7 +199,6 @@ func _make_sky_cluster() -> HBoxContainer:
 	_fel = _moon_icon()
 	moons.add_child(_tram)
 	moons.add_child(_fel)
-	cluster.add_child(moons)
 
 	_wind = TextureRect.new()
 	_wind.custom_minimum_size = Vector2(16, 16)
@@ -205,6 +206,14 @@ func _make_sky_cluster() -> HBoxContainer:
 	_wind.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_wind.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_wind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	var wind_balance := Control.new()
+	wind_balance.custom_minimum_size = _wind.custom_minimum_size
+	wind_balance.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wind_balance.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	cluster.add_child(wind_balance)
+	cluster.add_child(moons)
 	cluster.add_child(_wind)
 	return cluster
 
@@ -276,6 +285,12 @@ func _phase_char_index(phase: int) -> int:
 
 
 func refresh() -> void:
+	if bar_kind == BarKind.SKY or bar_kind == BarKind.FULL:
+		trammel_phase = GameState.trammel_phase
+		felucca_phase = GameState.felucca_phase
+		wind_dir = GameState.wind_dir
+	if bar_kind == BarKind.INVENTORY or bar_kind == BarKind.FULL:
+		food = GameState.food_display()
 	if _tram != null and _moon_tex.size() >= 8:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
