@@ -69,8 +69,9 @@ var member_armor: Array[int] = []
 var member_hp: Array[int] = []
 var member_max_hp: Array[int] = []
 var member_status: Array[int] = [] ## PartyRoster.Status
-## xu4 starving: 2 HP to each living member each turn at food == 0.
+## xu4 starving / poison: 2 HP each turn while afflicted.
 const STARVE_DAMAGE := 2
+const POISON_DAMAGE := 2
 var is_new_game: bool = false
 var u4_data_ok: bool = false
 var intro_data := TitleExeData.new()
@@ -414,6 +415,25 @@ func apply_member_damage(klass: int, damage: int) -> bool:
 	return true
 
 
+func wake_member(klass: int) -> bool:
+	## xu4 PartyMember::wakeUp — clears sleep only.
+	if klass < 0 or klass >= member_status.size():
+		return false
+	if member_status[klass] != PartyRoster.Status.SLEEPING:
+		return false
+	member_status[klass] = PartyRoster.Status.OK
+	return true
+
+
+func heal_ship(pts: int = 1) -> bool:
+	## xu4 Party::healShip — hull capped at 50.
+	if pts <= 0 or ship_hull >= SHIP_HULL_MAX:
+		return false
+	var before := ship_hull
+	ship_hull = mini(SHIP_HULL_MAX, ship_hull + pts)
+	return ship_hull != before
+
+
 func living_party_count() -> int:
 	## xu4: dead members do not eat; poisoned/sleeping still do.
 	var n := 0
@@ -423,26 +443,56 @@ func living_party_count() -> int:
 	return n
 
 
-func end_party_turn() -> Dictionary:
-	## xu4 Party::endTurn food + GameController STARVING (2 HP each).
+func end_party_turn(on_world_map: bool = true) -> Dictionary:
+	## xu4 Party::endTurn (food, sleep, poison, starve, ship heal).
 	moves += 1
 	var old_disp := food_display()
 	var eat := living_party_count()
 	if eat > 0:
 		food = maxi(0, food - eat)
+
 	var damaged_mask := 0
+	var poisoned_mask := 0
 	var vitals_changed := false
+	var ship_hull_changed := false
+
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		var st := status_of_class(mid)
+		match st:
+			PartyRoster.Status.SLEEPING:
+				## xu4: xu4_random(5) == 0 → 20% wake per turn.
+				if (randi() % 5) == 0 and wake_member(mid):
+					vitals_changed = true
+			PartyRoster.Status.POISONED:
+				## xu4: 2 HP / turn; poison does not wear off on its own.
+				if apply_member_damage(mid, POISON_DAMAGE):
+					damaged_mask |= 1 << i
+					poisoned_mask |= 1 << i
+					vitals_changed = true
+
+	## Starving after per-member status (xu4 emits STARVING after the loop).
 	if food == 0:
 		for i in party_size():
-			var mid := party_member_at(i)
-			if apply_member_damage(mid, STARVE_DAMAGE):
+			var mid2 := party_member_at(i)
+			if apply_member_damage(mid2, STARVE_DAMAGE):
 				damaged_mask |= 1 << i
 				vitals_changed = true
+
+	## xu4: 25% chance to repair 1 hull on the world map while hull < 50.
+	if on_world_map and ship_hull < SHIP_HULL_MAX and (randi() % 4) == 0:
+		if heal_ship(1):
+			ship_hull_changed = true
+
 	return {
 		"food_changed": food_display() != old_disp,
 		"starving": food == 0,
 		"vitals_changed": vitals_changed,
 		"damaged_mask": damaged_mask,
+		"poisoned_mask": poisoned_mask,
+		"ship_hull_changed": ship_hull_changed,
 	}
 
 

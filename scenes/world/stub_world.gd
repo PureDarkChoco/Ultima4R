@@ -86,6 +86,8 @@ var _idle_since_command := 0.0
 var _ship_yell_await_dir := false
 ## Hull left with each frigate overlay (key "x,y") so re-boarding keeps damage.
 var _ship_hulls: Dictionary = {}
+## Last frigate left on the world map (for xu4-style hull regen while ashore).
+var _parked_ship_tile := Vector2i(-1, -1)
 ## Hull lost when Yell-cruise hits land / shallows (U5 grounding feel).
 const SHIP_CRASH_DAMAGE := 5
 var _move_cd := 0.0
@@ -250,6 +252,7 @@ func _do_board() -> void:
 		_transport = Transport.SHIP
 		## Restore this frigate's stored hull (default full if first board).
 		GameState.ship_hull = _take_ship_hull_at(_tile_pos)
+		_parked_ship_tile = Vector2i(-1, -1)
 	elif MapView.is_horse_tile(tid):
 		_push_message(Locale.t("cmd_board_horse"), false)
 		_transport = Transport.HORSE
@@ -280,6 +283,7 @@ func _do_xit() -> void:
 	if _transport == Transport.SHIP:
 		## Persist hull on this world cell so the same ship keeps its damage.
 		_store_ship_hull_at(_tile_pos, GameState.ship_hull)
+		_parked_ship_tile = _tile_pos
 	_map.add_overlay(_tile_pos, leave_tid)
 	_transport = Transport.FOOT
 	_transport_tile = -1
@@ -2675,20 +2679,26 @@ func _refresh_inventory_bars() -> void:
 
 
 func _finish_party_turn() -> void:
-	## xu4 GameController::finishTurn → Party::endTurn (food / moves / starve).
+	## xu4 GameController::finishTurn → Party::endTurn (food / status / starve / hull).
 	_stamp_command_time()
-	var result: Dictionary = GameState.end_party_turn()
+	var result: Dictionary = GameState.end_party_turn(true)
 	if result.get("food_changed", false):
 		_refresh_inventory_bars()
 	if result.get("starving", false):
 		_push_message(Locale.t("cmd_starving"), false)
+	if result.get("ship_hull_changed", false):
+		## xu4 regenerates saveGame.shiphull on the world map even ashore.
+		if _transport != Transport.SHIP and _parked_ship_tile.x >= 0:
+			_store_ship_hull_at(_parked_ship_tile, GameState.ship_hull)
+		_refresh_ship_hull_hud()
 	if result.get("vitals_changed", false):
 		_refresh_party()
 		var mask: int = int(result.get("damaged_mask", 0))
-		if _roster and _roster.has_method("flash_players"):
-			_roster.flash_players(mask)
-		if _compact_roster and _compact_roster.has_method("flash_players"):
-			_compact_roster.flash_players(mask)
+		if mask != 0:
+			if _roster and _roster.has_method("flash_players"):
+				_roster.flash_players(mask)
+			if _compact_roster and _compact_roster.has_method("flash_players"):
+				_compact_roster.flash_players(mask)
 
 
 func _stamp_command_time() -> void:
