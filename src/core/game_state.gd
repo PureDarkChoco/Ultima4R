@@ -50,6 +50,10 @@ const PHASE_TICKS := MOON_SECONDS_PER_PHASE * GAME_CYCLES_PER_SECOND
 const WORLD_TICK_SEC := 1.0 / float(GAME_CYCLES_PER_SECOND)
 ## StatusInfoBar wind indices: 0 N … 7 NW (8-way; xu4 was cardinals only).
 const WIND_DIRS := [0, 1, 2, 3, 4, 5, 6, 7]
+const DIR_N := Vector2i(0, -1)
+const DIR_E := Vector2i(1, 0)
+const DIR_S := Vector2i(0, 1)
+const DIR_W := Vector2i(-1, 0)
 
 var moon_phase: int = 0 ## runtime sub-tick 0..383 (not saved in classic)
 var trammel_phase: int = 0 ## 0..7
@@ -371,6 +375,83 @@ func food_display() -> int:
 	return int(food / 100)
 
 
+func wind_into_cardinals(w: int = -1) -> Array[Vector2i]:
+	## Sailing these headings is against the wind (harder).
+	## Diagonal winds affect both adjacent cardinals.
+	if w < 0:
+		w = wind_dir
+	var out: Array[Vector2i] = []
+	match posmod(w, 8):
+		0:
+			out.assign([DIR_N])
+		1:
+			out.assign([DIR_N, DIR_E])
+		2:
+			out.assign([DIR_E])
+		3:
+			out.assign([DIR_S, DIR_E])
+		4:
+			out.assign([DIR_S])
+		5:
+			out.assign([DIR_S, DIR_W])
+		6:
+			out.assign([DIR_W])
+		7:
+			out.assign([DIR_N, DIR_W])
+	return out
+
+
+func wind_with_cardinals(w: int = -1) -> Array[Vector2i]:
+	## Sailing these headings is with the wind (easier) — reverse of into.
+	if w < 0:
+		w = wind_dir
+	var out: Array[Vector2i] = []
+	match posmod(w, 8):
+		0:
+			out.assign([DIR_S])
+		1:
+			out.assign([DIR_S, DIR_W])
+		2:
+			out.assign([DIR_W])
+		3:
+			out.assign([DIR_N, DIR_W])
+		4:
+			out.assign([DIR_N])
+		5:
+			out.assign([DIR_N, DIR_E])
+		6:
+			out.assign([DIR_E])
+		7:
+			out.assign([DIR_S, DIR_E])
+	return out
+
+
+func ship_slowed_by_wind(move_dir: Vector2i) -> bool:
+	## Into wind: 25% sail / 75% slow. With wind: 75% sail / 25% slow.
+	## (xu4 used moves%4 patterns with the same expected rates.)
+	var d := Vector2i(clampi(move_dir.x, -1, 1), clampi(move_dir.y, -1, 1))
+	if d == Vector2i.ZERO:
+		return false
+	for v in wind_into_cardinals():
+		if v == d:
+			return (randi() % 4) != 0 ## 3/4 slowed
+	for v in wind_with_cardinals():
+		if v == d:
+			return (randi() % 4) == 0 ## 1/4 slowed
+	return false
+
+
+func ship_grounding_damage(move_dir: Vector2i) -> int:
+	## Y-cruise grounding: headwind 0, otherwise flat -5 (no tailwind penalty).
+	var d := Vector2i(clampi(move_dir.x, -1, 1), clampi(move_dir.y, -1, 1))
+	if d == Vector2i.ZERO:
+		return 5
+	for v in wind_into_cardinals():
+		if v == d:
+			return 0
+	return 5
+
+
 func adjust_food(delta: int) -> bool:
 	## xu4 Party::adjustFood — returns true when the displayed value changes.
 	var old_disp := food_display()
@@ -535,8 +616,8 @@ func end_party_turn(on_world_map: bool = true) -> Dictionary:
 				damaged_mask |= 1 << i
 				vitals_changed = true
 
-	## xu4: 25% chance to repair 1 hull on the world map while hull < 50.
-	if on_world_map and ship_hull < SHIP_HULL_MAX and (randi() % 4) == 0:
+	## World-map hull regen at half xu4 pace (12.5% / turn vs 25%).
+	if on_world_map and ship_hull < SHIP_HULL_MAX and (randi() % 8) == 0:
 		if heal_ship(1):
 			ship_hull_changed = true
 

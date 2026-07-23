@@ -88,8 +88,6 @@ var _ship_yell_await_dir := false
 var _ship_hulls: Dictionary = {}
 ## Last frigate left on the world map (for xu4-style hull regen while ashore).
 var _parked_ship_tile := Vector2i(-1, -1)
-## Hull lost when Yell-cruise hits land / shallows (U5 grounding feel).
-const SHIP_CRASH_DAMAGE := 5
 var _move_cd := 0.0
 var _hold_arm := 0.0
 var _move_repeating := false
@@ -361,12 +359,18 @@ func _try_ship_cruise_step() -> void:
 	)
 	if not _can_move_to(next):
 		_stop_ship_cruise()
-		_damage_ship_from_grounding()
+		_damage_ship_from_grounding(dir)
 		_push_message(Locale.t("cmd_yell_land"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
-	## Quiet steps while cruising — avoid spamming Sail messages.
+	## xu4 wind: same Slow progress rules as manual sail (incl. 8-way diagonals).
+	if GameState.ship_slowed_by_wind(dir):
+		_push_message(Locale.t("cmd_slow_progress"), false)
+		_finish_party_turn()
+		_move_cd = _move_hold_interval()
+		return
+	## Quiet successful cruise steps — avoid spamming Sail messages.
 	_apply_world_step(next, dir, false)
 	_finish_party_turn()
 	_move_cd = _move_hold_interval()
@@ -390,14 +394,16 @@ func _store_ship_hull_at(tile: Vector2i, hull: int) -> void:
 	_ship_hulls[_ship_hull_key(tile)] = clampi(hull, 0, GameState.SHIP_HULL_MAX)
 
 
-func _damage_ship_from_grounding() -> void:
-	## U5-like: running aground while Yell-cruising chips the hull.
-	GameState.ship_hull = clampi(
-		GameState.ship_hull - SHIP_CRASH_DAMAGE,
-		0,
-		GameState.SHIP_HULL_MAX
-	)
-	_refresh_ship_hull_hud()
+func _damage_ship_from_grounding(dir: Vector2i) -> void:
+	## Y-cruise grounding: headwind 0, else -5.
+	var dmg := GameState.ship_grounding_damage(dir)
+	if dmg > 0:
+		GameState.ship_hull = clampi(
+			GameState.ship_hull - dmg,
+			0,
+			GameState.SHIP_HULL_MAX
+		)
+		_refresh_ship_hull_hud()
 	if _map != null:
 		_map.shake_ship()
 
@@ -1103,6 +1109,30 @@ func _process(delta: float) -> void:
 		if _transport != Transport.SHIP:
 			_stop_ship_cruise()
 			return
+		var steer := _read_move_dir()
+		if steer != Vector2i.ZERO and not _block_dir_until_keyup:
+			if steer == -_ship_cruise_dir:
+				## Reverse key: stop only — keep current facing, no turn.
+				_stop_ship_cruise()
+				_push_message(Locale.t("cmd_yell_ship_stop"), false)
+				_finish_party_turn()
+				_block_dir_until_keyup = true
+				_move_repeating = false
+				_hold_arm = 0.0
+				_held_dir = steer
+				return
+			elif steer != _ship_cruise_dir:
+				## Other arrows: change cruise heading (and face that way).
+				_ship_cruise_dir = steer
+				_update_transport_facing(steer)
+				_push_message(Locale.t("cmd_sail", [_direction_label(steer, false)]), false)
+				_block_dir_until_keyup = true
+				_move_repeating = false
+				_hold_arm = 0.0
+				_held_dir = steer
+				_move_cd = 0.0
+		elif steer == Vector2i.ZERO:
+			_block_dir_until_keyup = false
 		if _move_cd > 0.0:
 			return
 		_try_ship_cruise_step()
@@ -1160,6 +1190,12 @@ func _process(delta: float) -> void:
 	)
 	if not _can_move_to(next):
 		_push_message(Locale.t("cmd_blocked"), false)
+		_finish_party_turn()
+		_arm_hold_after_step(true)
+		return
+	## xu4 ship: slowedByWind before the hull moves (into / with wind).
+	if _transport == Transport.SHIP and GameState.ship_slowed_by_wind(dir):
+		_push_message(Locale.t("cmd_slow_progress"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return

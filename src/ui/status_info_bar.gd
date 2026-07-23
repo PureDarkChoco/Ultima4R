@@ -10,20 +10,14 @@ enum BarKind { FULL, SKY, INVENTORY }
 @export var bar_kind: BarKind = BarKind.FULL
 
 const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
-const WIND_DIR_PATHS := [
-	"res://assets/ui/wind/n.png",
-	"res://assets/ui/wind/ne.png",
-	"res://assets/ui/wind/e.png",
-	"res://assets/ui/wind/se.png",
-	"res://assets/ui/wind/s.png",
-	"res://assets/ui/wind/sw.png",
-	"res://assets/ui/wind/w.png",
-	"res://assets/ui/wind/nw.png",
-]
+## Filenames do not match tip direction (e.g. n.png points south).
+## Use the east-pointing sprite and rotate so tip == wind_dir compass.
+const WIND_EAST_PATH := "res://assets/ui/wind/w.png" ## visual tip = East
 const MOON_CHAR0 := 20 # xu4 MOON_CHAR; phases 0..7
 const GLYPH := 16
 
 ## Wind: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW
+## Arrow tip = wind FROM / headwind direction (xu4 windDirection).
 enum Wind { N, NE, E, SE, S, SW, W, NW }
 
 const GOLD_FOOD_MAX := 9999
@@ -43,7 +37,7 @@ var skull: int = 1
 var torches: int = 12
 
 var _moon_tex: Array[Texture2D] = []
-var _wind_tex: Array[Texture2D] = []
+var _wind_east_tex: Texture2D
 var _tram: TextureRect
 var _fel: TextureRect
 var _wind: TextureRect
@@ -105,9 +99,8 @@ func _load_tex(path: String) -> Texture2D:
 
 
 func _load_wind_icons() -> void:
-	_wind_tex.clear()
-	for path in WIND_DIR_PATHS:
-		_wind_tex.append(_load_tex(path))
+	## Single east-facing arrow; refresh() rotates tip to match wind_dir.
+	_wind_east_tex = _load_tex(WIND_EAST_PATH)
 
 
 func _load_moons() -> void:
@@ -206,6 +199,8 @@ func _make_sky_cluster() -> HBoxContainer:
 	_wind.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_wind.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_wind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	## Rotate around center so tip tracks wind_dir (0=N … 7=NW).
+	_wind.pivot_offset = Vector2(8, 8)
 
 	var wind_balance := Control.new()
 	wind_balance.custom_minimum_size = _wind.custom_minimum_size
@@ -295,8 +290,11 @@ func refresh() -> void:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
 	var wd := posmod(wind_dir, 8)
-	if _wind != null and _wind_tex.size() >= 8 and _wind_tex[wd] != null:
-		_wind.texture = _wind_tex[wd]
+	if _wind != null and _wind_east_tex != null:
+		_wind.texture = _wind_east_tex
+		## w.png tip faces East at 0°; wind_dir 0 (N) → -90°.
+		_wind.rotation_degrees = float(wd) * 45.0 - 90.0
+		_wind.pivot_offset = _wind.size * 0.5
 	if _gold_lab:
 		_gold_lab.text = "%d" % mini(gold, GOLD_FOOD_MAX)
 	if _food_lab:

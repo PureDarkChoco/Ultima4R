@@ -307,6 +307,11 @@ const _T := {
 		"en_us": "Sail %s!",
 		"ko": "%s으로 항해!",
 	},
+	"cmd_slow_progress": {
+		"en_u4": "Slow progress!",
+		"en_us": "Slow progress!",
+		"ko": "더디게 나아간다!",
+	},
 	"cmd_peer_gem": {
 		"en_u4": "Peer at a Gem!",
 		"en_us": "Peer at a Gem!",
