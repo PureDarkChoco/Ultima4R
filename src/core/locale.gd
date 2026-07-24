@@ -451,6 +451,71 @@ const _T := {
 		"en_us": "%s) %s — stub (coming soon)",
 		"ko": "%s) %s — 아직 미구현",
 	},
+	"mix_title": {
+		"en_u4": "Mix reagents",
+		"en_us": "Mix reagents",
+		"ko": "시약 조합",
+	},
+	"mix_make_new": {
+		"en_u4": "Mix New…",
+		"en_us": "Mix New…",
+		"ko": "새 조합…",
+	},
+	"mix_hint_list": {
+		"en_u4": "Enter/A-Z mix · Esc/Space quit",
+		"en_us": "Enter/A-Z mix · Esc/Space quit",
+		"ko": "Enter/A-Z 조합 · Esc/Space 종료",
+	},
+	"mix_hint_reag": {
+		"en_u4": "Enter select · Mix/M mix · Esc/Space quit",
+		"en_us": "Enter select · Mix/M mix · Esc/Space quit",
+		"ko": "Enter 선택 · Mix/M 조합 · Esc/Space 종료",
+	},
+	"mix_action_mix": {
+		"en_u4": "Mix",
+		"en_us": "Mix",
+		"ko": "조합",
+	},
+	"mix_for_spell": {
+		"en_u4": "For Spell: ",
+		"en_us": "For Spell: ",
+		"ko": "마법: ",
+	},
+	"mix_for_spell_letter": {
+		"en_u4": "For Spell: %s",
+		"en_us": "For Spell: %s",
+		"ko": "마법: %s",
+	},
+	"mix_success": {
+		"en_u4": "Success! Mixed %s.",
+		"en_us": "Success! Mixed %s.",
+		"ko": "%s 마법 조합에 성공했다!",
+	},
+	"mix_failed": {
+		"en_u4": "It Fizzles!",
+		"en_us": "It Fizzles!",
+		"ko": "실패했다! 시약이 소모되었다.",
+	},
+	"mix_need_reag": {
+		"en_u4": "You don't have enough reagents!",
+		"en_us": "You don't have enough reagents!",
+		"ko": "시약이 부족하다!",
+	},
+	"mix_none_left": {
+		"en_u4": "None Left!",
+		"en_us": "None Left!",
+		"ko": "시약이 없다!",
+	},
+	"mix_full": {
+		"en_u4": "You cannot mix any more of that spell!",
+		"en_us": "You cannot mix any more of that spell!",
+		"ko": "그 마법은 더 이상 조합할 수 없다!",
+	},
+	"mix_reag_none": {
+		"en_u4": "None Left!",
+		"en_us": "None Left!",
+		"ko": "남은 시약이 없다!",
+	},
 	"cmd_locate": {
 		"en_u4": "%s  %s %s",
 		"en_us": "%s  %s %s",

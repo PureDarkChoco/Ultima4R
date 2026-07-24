@@ -66,6 +66,8 @@ var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
 var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE
 var reagents: Array[int] = [] ## 8
 var mixtures: Array[int] = [] ## 26 — spells A..Z
+## Spells successfully mixed at least once (kept even if qty returns to 0).
+var spell_known: Array[bool] = []
 ## Equipped gear by class id 0..7 (xu4 SaveGamePlayerRecord weapon/armor).
 var member_weapons: Array[int] = []
 var member_armor: Array[int] = []
@@ -153,14 +155,14 @@ func _reset_inventory_stubs() -> void:
 	## Always show all eight reagents; some may be zero.
 	reagents.clear()
 	reagents.resize(8)
-	reagents[0] = 12
-	reagents[1] = 0
-	reagents[2] = 8
-	reagents[3] = 6
-	reagents[4] = 0
-	reagents[5] = 4
-	reagents[6] = 2
-	reagents[7] = 0
+	reagents[0] = 12 ## ash
+	reagents[1] = 10 ## ginseng
+	reagents[2] = 8 ## garlic
+	reagents[3] = 6 ## silk
+	reagents[4] = 8 ## moss
+	reagents[5] = 4 ## pearl
+	reagents[6] = 2 ## nightshade
+	reagents[7] = 3 ## mandrake
 
 	mixtures.clear()
 	mixtures.resize(26)
@@ -176,8 +178,106 @@ func _reset_inventory_stubs() -> void:
 	mixtures[18] = 1 ## Sleep
 	mixtures[23] = 2 ## X-it
 	mixtures[25] = 3 ## Z-down
+	_seed_spell_known_from_mixtures()
 	_reset_member_gear()
 	_reset_member_vitals()
+
+
+func _seed_spell_known_from_mixtures() -> void:
+	spell_known.clear()
+	spell_known.resize(Spells.COUNT)
+	for i in Spells.COUNT:
+		spell_known[i] = i < mixtures.size() and int(mixtures[i]) > 0
+
+
+func is_spell_known(spell_id: int) -> bool:
+	if spell_id < 0 or spell_id >= spell_known.size():
+		return false
+	return bool(spell_known[spell_id])
+
+
+func mark_spell_known(spell_id: int) -> void:
+	if spell_id < 0 or spell_id >= Spells.COUNT:
+		return
+	if spell_known.size() < Spells.COUNT:
+		_seed_spell_known_from_mixtures()
+	spell_known[spell_id] = true
+
+
+func known_spell_ids() -> Array[int]:
+	var out: Array[int] = []
+	for i in Spells.COUNT:
+		if is_spell_known(i):
+			out.append(i)
+	return out
+
+
+func mixture_qty(spell_id: int) -> int:
+	if spell_id < 0 or spell_id >= mixtures.size():
+		return 0
+	return int(mixtures[spell_id])
+
+
+func reagent_qty(reag_id: int) -> int:
+	if reag_id < 0 or reag_id >= reagents.size():
+		return 0
+	return int(reagents[reag_id])
+
+
+func adjust_reagent(reag_id: int, delta: int) -> bool:
+	## xu4 Party::adjustReagent. False if would go below 0.
+	if reag_id < 0 or reag_id >= reagents.size():
+		return false
+	var next: int = int(reagents[reag_id]) + delta
+	if next < 0:
+		return false
+	reagents[reag_id] = next
+	return true
+
+
+func has_any_reagents() -> bool:
+	for r in reagents:
+		if int(r) > 0:
+			return true
+	return false
+
+
+func can_remix_spell(spell_id: int) -> bool:
+	## Known recipe reagents all present (≥1 each) and mixture not capped.
+	if not is_spell_known(spell_id):
+		return false
+	if mixture_qty(spell_id) >= Spells.MIXTURE_MAX:
+		return false
+	for r in Spells.reagents_for_recipe(spell_id):
+		if reagent_qty(r) < 1:
+			return false
+	return true
+
+
+func remix_spell(spell_id: int) -> bool:
+	## Auto-consume recipe reagents and add one mixture. False if unavailable.
+	if not can_remix_spell(spell_id):
+		return false
+	for r in Spells.reagents_for_recipe(spell_id):
+		if not adjust_reagent(r, -1):
+			return false
+	mixtures[spell_id] = mixture_qty(spell_id) + 1
+	mark_spell_known(spell_id)
+	return true
+
+
+func commit_new_mix(spell_id: int, selected_mask: int) -> bool:
+	## xu4 spellMix after reagents already deducted into the selection.
+	## On success: +1 mixture and mark known. On failure: reagents stay spent.
+	if spell_id < 0 or spell_id >= Spells.COUNT:
+		return false
+	if mixture_qty(spell_id) >= Spells.MIXTURE_MAX:
+		return false
+	if not Spells.recipe_matches(spell_id, selected_mask):
+		return false
+	mixtures[spell_id] = mixture_qty(spell_id) + 1
+	mark_spell_known(spell_id)
+	return true
 
 
 func _reset_member_vitals() -> void:

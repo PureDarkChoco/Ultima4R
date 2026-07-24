@@ -7,6 +7,7 @@ extends Control
 
 ## Preload so world scene parses even if global class cache is stale.
 const _TileRules := preload("res://src/map/tile_rules.gd")
+const _MixPanel := preload("res://src/ui/mix_panel.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -24,6 +25,7 @@ var _peer_overlay: PeerGemOverlay
 var _ztats_panel: ZtatsPanel
 var _ready_panel: ReadyPanel
 var _wear_panel: WearPanel
+var _mix_panel # MixPanel — preloaded script instance
 var _locate_label: Label
 var _locate_on := false
 var _ship_hull_hud: HBoxContainer
@@ -115,6 +117,8 @@ var _ready_slot := -1
 var _wear_stage := 0
 var _wear_cursor := 0
 var _wear_slot := -1
+## Improved Mix: 0 = idle, 1 = known list, 2 = reagent pick, 3 = wait spell letter (Make new).
+var _mix_stage := 0
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -768,6 +772,12 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_wear_for")
 	if _wear_stage == 2:
 		return MSG_PROMPT + Locale.t("cmd_wear_armor")
+	if _mix_stage == 1:
+		return MSG_PROMPT + Locale.t("mix_title")
+	if _mix_stage == 2:
+		return MSG_PROMPT + Locale.t("mix_title")
+	if _mix_stage == 3:
+		return MSG_PROMPT + Locale.t("mix_for_spell")
 	if _ztats_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_ztats_for")
 	if _order_stage == 1:
@@ -1091,8 +1101,8 @@ func _process(delta: float) -> void:
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
-	## Z/N/R/W pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1:
+	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2:
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1101,7 +1111,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0:
+	if _ztats_stage != 0 or _mix_stage != 0:
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1302,6 +1312,8 @@ func _tick_select_cursor() -> void:
 		_nudge_ready_cursor(step)
 	elif _wear_stage == 1:
 		_nudge_wear_cursor(step)
+	elif _mix_stage == 1 or _mix_stage == 2:
+		_nudge_mix_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -1362,6 +1374,9 @@ func _on_escape() -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
+	if _mix_stage != 0:
+		_close_mix(true)
+		return
 	if _ready_stage != 0:
 		_close_ready(true)
 		return
@@ -1393,8 +1408,8 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
-			## Ztats / Ready / Wear open: don't collapse/expand side panels.
-			if _ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0:
+			## Ztats / Ready / Wear / Mix open: don't collapse/expand side panels.
+			if _ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0:
 				get_viewport().set_input_as_handled()
 				return
 			_toggle_side_panels()
@@ -1402,7 +1417,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / New Order accept keyboard + gamepad.
+	## Ztats / Ready / Wear / Mix / New Order accept keyboard + gamepad.
+	if _mix_stage != 0:
+		if _handle_mix_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _ready_stage != 0:
 		if _handle_ready_input(event):
 			get_viewport().set_input_as_handled()
@@ -1510,6 +1531,7 @@ func _handle_command(cmd: int) -> void:
 		_close_ztats(false)
 		_close_ready(false)
 		_close_wear(false)
+		_close_mix(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
@@ -1518,6 +1540,7 @@ func _handle_command(cmd: int) -> void:
 		_close_ztats(false)
 		_close_ready(false)
 		_close_wear(false)
+		_close_mix(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
@@ -1527,6 +1550,7 @@ func _handle_command(cmd: int) -> void:
 	_close_ztats(false)
 	_close_ready(false)
 	_close_wear(false)
+	_close_mix(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
@@ -1537,6 +1561,8 @@ func _handle_command(cmd: int) -> void:
 		_do_ready()
 	elif cmd == U4Commands.Id.WEAR:
 		_do_wear()
+	elif cmd == U4Commands.Id.MIX:
+		_do_mix()
 	elif cmd == U4Commands.Id.BOARD:
 		_do_board()
 	elif cmd == U4Commands.Id.XIT:
@@ -2079,7 +2105,7 @@ func _close_ztats(show_none: bool) -> void:
 		_roster.visible = true
 	if was != 0:
 		_close_order_roster()
-	elif _order_opened_roster and _order_stage == 0 and _ready_stage == 0 and _wear_stage == 0:
+	elif _order_opened_roster and _order_stage == 0 and _ready_stage == 0 and _wear_stage == 0 and _mix_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
 	if show_none and was == 1:
@@ -2329,7 +2355,7 @@ func _close_ready(show_none: bool) -> void:
 		_roster.visible = true
 	if was != 0:
 		_close_order_roster()
-	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _wear_stage == 0:
+	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _wear_stage == 0 and _mix_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
 	if show_none and was == 1:
@@ -2568,11 +2594,294 @@ func _close_wear(show_none: bool) -> void:
 		_roster.visible = true
 	if was != 0:
 		_close_order_roster()
-	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _ready_stage == 0:
+	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _ready_stage == 0 and _mix_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
 	if show_none and was == 1:
 		_push_message(Locale.t("cmd_none"), false)
+
+
+func _ensure_mix_panel() -> void:
+	if _mix_panel != null:
+		return
+	var host := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as Control
+	if host == null:
+		return
+	_mix_panel = _MixPanel.new()
+	_mix_panel.name = "MixPanel"
+	_mix_panel.visible = false
+	_mix_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(_mix_panel)
+
+
+func _do_mix() -> void:
+	## Improved Mix: known recipes remixed from a list; unknown via reagent pick.
+	_clear_pending_order()
+	_close_ztats(false)
+	_close_ready(false)
+	_close_wear(false)
+	if not GameState.has_any_reagents():
+		_push_message(Locale.t("mix_none_left"), false)
+		_finish_party_turn()
+		return
+	_push_message(Locale.t("mix_title"), false)
+	_ensure_mix_panel()
+	_open_order_roster()
+	if _roster:
+		_roster.visible = false
+	if _ztats_panel:
+		_ztats_panel.close_panel()
+	_mix_stage = 1
+	_reset_hold_state()
+	if _mix_panel:
+		_mix_panel.open_list()
+	_layout_prompt_row()
+
+
+func _nudge_mix_cursor(step: int) -> void:
+	if _mix_panel == null:
+		return
+	_mix_panel.nudge_cursor(step)
+
+
+func _handle_mix_input(event: InputEvent) -> bool:
+	if not event.is_pressed():
+		return false
+	if event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+		## Space cancels the whole Mix session (list / letter / reagents).
+		if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
+			_close_mix(true)
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_mix(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_mix(true)
+		return true
+
+	if _mix_stage == 3:
+		return _handle_mix_spell_letter(event)
+	if _mix_stage == 2:
+		return _handle_mix_reagent_input(event)
+	return _handle_mix_list_input(event)
+
+
+func _handle_mix_list_input(event: InputEvent) -> bool:
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_mix_list_cursor()
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_mix_list_cursor()
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var spell := _spell_id_from_key(ke)
+		if spell >= 0:
+			_mix_spell_shortcut(spell)
+			return true
+		if _is_direction_key(ke):
+			return true
+	return true
+
+
+func _handle_mix_spell_letter(event: InputEvent) -> bool:
+	## Mix New — wait for A–Z. Known spells remix from the list; unknown → reagents.
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		if ke.keycode == KEY_BACKSPACE or ke.physical_keycode == KEY_BACKSPACE:
+			_return_mix_to_list()
+			return true
+		var spell := _spell_id_from_key(ke)
+		if spell >= 0:
+			if GameState.is_spell_known(spell):
+				_return_to_list_and_remix(spell)
+			else:
+				_begin_new_mix(spell)
+			return true
+	return true
+
+
+func _return_to_list_and_remix(spell_id: int) -> void:
+	## Make new + already-known letter → jump back to list and auto-mix.
+	_mix_stage = 1
+	if _mix_panel:
+		_mix_panel.open_list()
+		var idx: int = int(_mix_panel.index_of_spell(spell_id))
+		if idx >= 0:
+			_mix_panel.set_cursor(idx)
+	_layout_prompt_row()
+	_try_remix_spell(spell_id)
+
+
+func _handle_mix_reagent_input(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		## Backspace → cancel reagent pick, return selected stock, show spell list.
+		if ke.keycode == KEY_BACKSPACE or ke.physical_keycode == KEY_BACKSPACE:
+			_return_mix_to_list()
+			return true
+		## M confirms the mixture (Mix again while in reagent mode).
+		if ke.keycode == KEY_M or ke.physical_keycode == KEY_M:
+			_confirm_new_mix()
+			return true
+		var reag := _reagent_id_from_key(ke)
+		if reag >= 0:
+			if _mix_panel and not _mix_panel.toggle_reagent_by_id(reag):
+				_push_message(Locale.t("mix_reag_none"), false)
+			return true
+		if _is_order_confirm_key(ke):
+			_accept_mix_reagent_cursor()
+			return true
+		if _is_direction_key(ke):
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_mix_reagent_cursor()
+		return true
+	return true
+
+
+func _return_mix_to_list() -> void:
+	## Leave reagent pick without ending the Mix session.
+	if _mix_panel and int(_mix_panel.mode()) == _MixPanel.Mode.REAGENTS:
+		_mix_panel.revert_selected_reagents()
+	_mix_stage = 1
+	if _mix_panel:
+		_mix_panel.open_list()
+	_layout_prompt_row()
+
+
+func _accept_mix_reagent_cursor() -> void:
+	## Enter on Mix row → combine; otherwise toggle reagent under cursor.
+	if _mix_panel and _mix_panel.cursor_is_confirm_mix():
+		_confirm_new_mix()
+		return
+	if _mix_panel and not _mix_panel.toggle_reagent_at_cursor():
+		_push_message(Locale.t("mix_reag_none"), false)
+
+
+func _spell_id_from_key(ke: InputEventKey) -> int:
+	var code := ke.keycode
+	if code < KEY_A or code > KEY_Z:
+		code = ke.physical_keycode
+	if code < KEY_A or code > KEY_Z:
+		return -1
+	return code - KEY_A
+
+
+func _reagent_id_from_key(ke: InputEventKey) -> int:
+	var code := ke.keycode
+	if code < KEY_A or code > KEY_H:
+		code = ke.physical_keycode
+	if code < KEY_A or code > KEY_H:
+		return -1
+	return code - KEY_A
+
+
+func _accept_mix_list_cursor() -> void:
+	if _mix_panel == null:
+		return
+	var row_id: int = int(_mix_panel.cursor_list_id())
+	if row_id == _MixPanel.ROW_MAKE_NEW:
+		_mix_stage = 3
+		_layout_prompt_row()
+		return
+	if row_id >= 0:
+		_try_remix_spell(row_id)
+
+
+func _mix_spell_shortcut(spell_id: int) -> void:
+	if GameState.is_spell_known(spell_id):
+		if _mix_panel:
+			var idx: int = int(_mix_panel.index_of_spell(spell_id))
+			if idx >= 0:
+				_mix_panel.set_cursor(idx)
+		_try_remix_spell(spell_id)
+	else:
+		_begin_new_mix(spell_id)
+
+
+func _try_remix_spell(spell_id: int) -> void:
+	if GameState.mixture_qty(spell_id) >= Spells.MIXTURE_MAX:
+		_push_message(Locale.t("mix_full"), false)
+		return
+	if not GameState.can_remix_spell(spell_id):
+		_push_message(Locale.t("mix_need_reag"), false)
+		return
+	if not GameState.remix_spell(spell_id):
+		_push_message(Locale.t("mix_need_reag"), false)
+		return
+	_push_message(Locale.t("mix_success", [Locale.spell_name(spell_id)]), false)
+	if _mix_panel:
+		_mix_panel.refresh_list_quantities()
+	_layout_prompt_row()
+
+
+func _begin_new_mix(spell_id: int) -> void:
+	if GameState.mixture_qty(spell_id) >= Spells.MIXTURE_MAX:
+		_push_message(Locale.t("mix_full"), false)
+		_mix_stage = 1
+		if _mix_panel:
+			_mix_panel.open_list()
+		_layout_prompt_row()
+		return
+	_mix_stage = 2
+	if _mix_panel:
+		_mix_panel.open_reagents(spell_id)
+	_layout_prompt_row()
+
+
+func _confirm_new_mix() -> void:
+	if _mix_panel == null or int(_mix_panel.mode()) != _MixPanel.Mode.REAGENTS:
+		return
+	var spell_id: int = int(_mix_panel.spell_id())
+	var mask: int = int(_mix_panel.selected_mask())
+	## Selected reagents already deducted from inventory.
+	if GameState.commit_new_mix(spell_id, mask):
+		## Clear selection counts without reverting (already consumed).
+		_mix_panel.close_panel()
+		_push_message(Locale.t("mix_success", [Locale.spell_name(spell_id)]), false)
+		_mix_stage = 1
+		_mix_panel.open_list()
+		var idx: int = int(_mix_panel.index_of_spell(spell_id))
+		if idx >= 0:
+			_mix_panel.set_cursor(idx)
+		_layout_prompt_row()
+		return
+	## Failure — reagents stay spent; leave Mix.
+	_mix_panel.close_panel()
+	_push_message(Locale.t("mix_failed"), false)
+	_mix_stage = 0
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_layout_prompt_row()
+	_finish_party_turn()
+
+
+func _close_mix(show_none: bool) -> void:
+	var was := _mix_stage
+	if was == 0:
+		if _mix_panel:
+			_mix_panel.close_panel()
+		return
+	if was == 2 and _mix_panel:
+		_mix_panel.revert_selected_reagents()
+	_mix_stage = 0
+	if _mix_panel:
+		_mix_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_layout_prompt_row()
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+	_finish_party_turn()
 
 
 func _handle_order_input(event: InputEvent) -> bool:
@@ -2776,7 +3085,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0:
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false

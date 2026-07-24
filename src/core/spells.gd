@@ -4,6 +4,48 @@ extends Object
 ## Ultima IV spells A–Z (xu4 spell.cpp). Index 0 = A … 25 = Z.
 
 const COUNT := 26
+const REAGENT_COUNT := 8
+const MIXTURE_MAX := 99
+
+## xu4 Reagent bit masks (spell.cpp).
+const ASH := 1 << 0
+const GINSENG := 1 << 1
+const GARLIC := 1 << 2
+const SILK := 1 << 3
+const MOSS := 1 << 4
+const PEARL := 1 << 5
+const NIGHTSHADE := 1 << 6
+const MANDRAKE := 1 << 7
+
+## Exact recipe bitmasks (xu4 spells[].components).
+const RECIPE_MASK: Array[int] = [
+	GINSENG | GARLIC, ## A Awaken
+	SILK | MOSS, ## B Blink
+	GINSENG | GARLIC, ## C Cure
+	ASH | GARLIC | PEARL, ## D Dispell
+	ASH | SILK | PEARL, ## E Energy Field
+	ASH | PEARL, ## F Fireball
+	ASH | PEARL | MANDRAKE, ## G Gate
+	GINSENG | SILK, ## H Heal
+	PEARL | MANDRAKE, ## I Iceball
+	PEARL | NIGHTSHADE | MANDRAKE, ## J Jinx
+	PEARL | NIGHTSHADE, ## K Kill
+	ASH, ## L Light
+	ASH | PEARL, ## M Magic Missile
+	ASH | GARLIC | MANDRAKE, ## N Negate
+	ASH | MOSS, ## O Open
+	ASH | GINSENG | GARLIC, ## P Protection
+	ASH | GINSENG | MOSS, ## Q Quickness
+	ASH | GINSENG | GARLIC | SILK | MOSS | MANDRAKE, ## R Resurrect
+	SILK | GINSENG, ## S Sleep
+	ASH | MOSS | MANDRAKE, ## T Tremor
+	ASH | GARLIC, ## U Undead
+	NIGHTSHADE | MANDRAKE, ## V View
+	ASH | MOSS, ## W Winds
+	ASH | SILK | MOSS, ## X X-it
+	SILK | MOSS, ## Y Y-up
+	SILK | MOSS, ## Z Z-down
+]
 
 ## MP cost by spell index (xu4 spells[].mp).
 const MP_COST: Array[int] = [
@@ -65,3 +107,24 @@ static func damage_text(spell_id: int) -> String:
 	if lo == hi:
 		return str(lo)
 	return "%d-%d" % [lo, hi]
+
+
+static func recipe_mask(spell_id: int) -> int:
+	if spell_id < 0 or spell_id >= COUNT:
+		return 0
+	return RECIPE_MASK[spell_id]
+
+
+static func recipe_matches(spell_id: int, selected_mask: int) -> bool:
+	## xu4 spellMix — exact component bitmask match.
+	return recipe_mask(spell_id) == selected_mask
+
+
+static func reagents_for_recipe(spell_id: int) -> Array[int]:
+	## Reagent indices required by the known recipe (one each).
+	var out: Array[int] = []
+	var mask := recipe_mask(spell_id)
+	for r in REAGENT_COUNT:
+		if mask & (1 << r):
+			out.append(r)
+	return out
