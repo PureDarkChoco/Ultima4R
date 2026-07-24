@@ -272,6 +272,21 @@ const _T := {
 		"en_us": "Can't!",
 		"ko": "불가!",
 	},
+	"cmd_quit_save": {
+		"en_u4": "Quit & Save...",
+		"en_us": "Quit & Save...",
+		"ko": "저장 후 종료...",
+	},
+	"cmd_quit_moves": {
+		"en_u4": "%s moves",
+		"en_us": "%s moves",
+		"ko": "%s 턴",
+	},
+	"cmd_quit_not_saved": {
+		"en_u4": "Not saved yet.",
+		"en_us": "Save not wired yet.",
+		"ko": "아직 저장되지 않았다.",
+	},
 	"cmd_yes": {
 		"en_u4": "Yes",
 		"en_us": "Yes",

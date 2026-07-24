@@ -1622,11 +1622,15 @@ func _handle_command(cmd: int) -> void:
 				_format_u4_sextant(_tile_pos.x),
 				_format_u4_sextant(_tile_pos.y),
 			]))
+		_finish_party_turn()
+	elif cmd == U4Commands.Id.QUIT_SAVE:
+		_do_quit_save()
 	elif cmd == U4Commands.Id.PASS:
 		_push_message(Locale.t("cmd_fired", [name]))
 		_finish_party_turn()
 	else:
 		_push_message(Locale.t("cmd_stub", [letter, name]))
+		_finish_party_turn()
 
 
 func _ensure_peer_overlay() -> void:
@@ -1815,14 +1819,17 @@ func _layout_ship_hull_hud() -> void:
 
 func _do_peer() -> void:
 	## Peer: spend a gem, show ~16:9 gem map until Space/Enter/Esc.
+	## xu4: even "Peer at What?" still ends the turn.
 	if GameState.gems <= 0:
 		_push_message(Locale.t("cmd_peer_what"), false)
+		_finish_party_turn()
 		return
 	GameState.gems -= 1
 	_refresh_inventory_bars()
 	_push_message(Locale.t("cmd_peer_gem"), false)
 	_ensure_peer_overlay()
 	if _peer_overlay == null or _map == null:
+		_finish_party_turn()
 		return
 	var tile_sz := _map.displayed_tile_size()
 	var loc := ""
@@ -1835,8 +1842,19 @@ func _do_peer() -> void:
 
 
 func _close_peer_overlay() -> void:
-	if _peer_overlay:
-		_peer_overlay.close_peer()
+	## Dismiss gem view — consumes the party turn (xu4 peer → finishTurn).
+	if _peer_overlay == null or not _peer_overlay.is_open():
+		return
+	_peer_overlay.close_peer()
+	_finish_party_turn()
+
+
+func _do_quit_save() -> void:
+	## xu4: "Quit & Save...\n%d moves\n" — save stub until persistence is wired.
+	_push_message(Locale.t("cmd_quit_save"), false)
+	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
+	_push_message(Locale.t("cmd_quit_not_saved"), false)
+	_finish_party_turn()
 
 
 func _do_new_order() -> void:
@@ -3414,12 +3432,13 @@ func _refresh_inventory_bars() -> void:
 		_top_bar.refresh()
 
 
-func _finish_party_turn() -> void:
+func _finish_party_turn(in_combat: bool = false) -> void:
 	## xu4 GameController::finishTurn → Party::endTurn (food / status / starve / hull).
+	## Combat turns pass in_combat=true so moves (camp heal clock) do not advance.
 	_stamp_command_time()
-	var result: Dictionary = GameState.end_party_turn(true)
-	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying).
-	var ground_flash := _apply_ground_tile_effect()
+	var result: Dictionary = GameState.end_party_turn(true, in_combat)
+	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying / combat).
+	var ground_flash := 0 if in_combat else _apply_ground_tile_effect()
 	if result.get("food_changed", false):
 		_refresh_inventory_bars()
 	if result.get("starving", false):

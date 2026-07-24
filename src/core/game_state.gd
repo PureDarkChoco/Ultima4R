@@ -38,9 +38,12 @@ const SHIP_HULL_MAX := 50
 ## xu4 SaveGame.food — centi-units (HUD shows food / 100). Cap 9999 displayed.
 var food: int = 1000 ## display 10 (xu4 centi-units)
 const FOOD_MAX := 999900
+## xu4 SaveGame.moves — party turns since character creation (world/dungeon).
+## Combat does not advance this counter in Ultima4R (xu4 does; we keep combat separate).
 var moves: int = 0
-## xu4 SaveGame.lastcamp — (moves / CAMP_HEAL_INTERVAL) & 0xffff after a heal rest.
+## xu4 SaveGame.lastcamp — (moves / CAMP_HEAL_INTERVAL) & 0xffff after a non-ambush rest.
 var lastcamp: int = 0
+## xu4 camp.h — heal only when the moves/100 bucket differs from lastcamp.
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
 const TILE_CORPSE := 56
@@ -684,16 +687,22 @@ func wake_party() -> void:
 			wake_member(mid)
 
 
+func camp_move_bucket() -> int:
+	## xu4: moves / CAMP_HEAL_INTERVAL (C integer division).
+	return int(moves / CAMP_HEAL_INTERVAL)
+
+
 func camp_heal_available() -> bool:
-	## xu4 CampController — lastcamp vs (moves / 100) & 0xffff.
-	var bucket: int = int(moves / float(CAMP_HEAL_INTERVAL))
+	## xu4 CampController — heal when bucket != lastcamp (or bucket overflowed 16-bit).
+	var bucket := camp_move_bucket()
 	if bucket >= 0x10000:
 		return true
 	return (bucket & 0xffff) != (lastcamp & 0xffff)
 
 
 func mark_camp_used() -> void:
-	lastcamp = int(moves / float(CAMP_HEAL_INTERVAL)) & 0xffff
+	## xu4: always written after a completed (non-ambush) camp rest.
+	lastcamp = camp_move_bucket() & 0xffff
 
 
 func apply_camp_rest(exclude_klass: int = -1) -> bool:
@@ -761,18 +770,33 @@ func living_party_count() -> int:
 	return n
 
 
-func end_party_turn(on_world_map: bool = true) -> Dictionary:
-	## xu4 Party::endTurn (food, sleep, poison, starve, ship heal).
-	moves += 1
-	var old_disp := food_display()
-	var eat := living_party_count()
-	if eat > 0:
-		food = maxi(0, food - eat)
+func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dictionary:
+	## xu4 Party::endTurn.
+	## - World/dungeon: moves++ then food / sleep wake / poison / starve / MP / hull.
+	## - Combat (xu4): still moves++, but no food/status. Ultima4R skips moves in combat
+	##   so camp heal / virtue timers only advance outside battle.
+	if not in_combat:
+		moves += 1
 
+	var old_disp := food_display()
 	var damaged_mask := 0
 	var poisoned_mask := 0
 	var vitals_changed := false
 	var ship_hull_changed := false
+
+	if in_combat:
+		return {
+			"food_changed": false,
+			"starving": food == 0,
+			"vitals_changed": false,
+			"damaged_mask": 0,
+			"poisoned_mask": 0,
+			"ship_hull_changed": false,
+		}
+
+	var eat := living_party_count()
+	if eat > 0:
+		food = maxi(0, food - eat)
 
 	for i in party_size():
 		var mid := party_member_at(i)
