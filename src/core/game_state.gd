@@ -554,6 +554,31 @@ func wake_member(klass: int) -> bool:
 	return true
 
 
+func apply_tile_effect(effect: int) -> int:
+	## xu4 Party::applyEffect(ALL_PLAYERS) — returns flash mask (party slots).
+	match effect:
+		TileRules.Effect.POISON, TileRules.Effect.POISONFIELD:
+			return _apply_poison_tile_effect()
+		_:
+			return 0
+
+
+func _apply_poison_tile_effect() -> int:
+	## xu4: each living, not-already-poisoned member — xu4_random(5) == 0 → 20%.
+	var flash_mask := 0
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if status_of_class(mid) == PartyRoster.Status.POISONED:
+			continue
+		if (randi() % 5) != 0:
+			continue
+		member_status[mid] = PartyRoster.Status.POISONED
+		flash_mask |= 1 << i
+	return flash_mask
+
+
 func heal_ship(pts: int = 1) -> bool:
 	## xu4 Party::healShip — hull capped at 50.
 	if pts <= 0 or ship_hull >= SHIP_HULL_MAX:

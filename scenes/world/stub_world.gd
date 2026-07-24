@@ -1199,6 +1199,16 @@ func _process(delta: float) -> void:
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
+	## xu4 foot/horse: slowedByTile on the destination (forest/hills/…).
+	if (
+		(_transport == Transport.FOOT or _transport == Transport.HORSE)
+		and _world != null
+		and _TileRules.slowed_by_tile(_world.tile_at(next.x, next.y))
+	):
+		_push_message(Locale.t("cmd_slow_progress"), false)
+		_finish_party_turn()
+		_arm_hold_after_step(true)
+		return
 	_apply_world_step(next, dir)
 	## xu4 horse gallop: second step after a short beat (same keypress).
 	if _transport == Transport.HORSE and _horse_gallop:
@@ -1207,7 +1217,15 @@ func _process(delta: float) -> void:
 			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
 		)
 		if _can_move_to(next2):
-			_apply_world_step(next2, dir, false)
+			var slow2 := (
+				_world != null
+				and _TileRules.slowed_by_tile(_world.tile_at(next2.x, next2.y))
+			)
+			if slow2:
+				## Second gallop step stalls — stay put, turn already continues below.
+				_push_message(Locale.t("cmd_slow_progress"), false)
+			else:
+				_apply_world_step(next2, dir, false)
 		elif _map != null:
 			## Only one tile cleared — soft bump like ship grounding (FX only).
 			_map.shake_ship()
@@ -2718,6 +2736,8 @@ func _finish_party_turn() -> void:
 	## xu4 GameController::finishTurn → Party::endTurn (food / status / starve / hull).
 	_stamp_command_time()
 	var result: Dictionary = GameState.end_party_turn(true)
+	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying).
+	var ground_flash := _apply_ground_tile_effect()
 	if result.get("food_changed", false):
 		_refresh_inventory_bars()
 	if result.get("starving", false):
@@ -2727,14 +2747,22 @@ func _finish_party_turn() -> void:
 		if _transport != Transport.SHIP and _parked_ship_tile.x >= 0:
 			_store_ship_hull_at(_parked_ship_tile, GameState.ship_hull)
 		_refresh_ship_hull_hud()
-	if result.get("vitals_changed", false):
+	var mask: int = int(result.get("damaged_mask", 0)) | ground_flash
+	if result.get("vitals_changed", false) or ground_flash != 0:
 		_refresh_party()
-		var mask: int = int(result.get("damaged_mask", 0))
 		if mask != 0:
 			if _roster and _roster.has_method("flash_players"):
 				_roster.flash_players(mask)
 			if _compact_roster and _compact_roster.has_method("flash_players"):
 				_compact_roster.flash_players(mask)
+
+
+func _apply_ground_tile_effect() -> int:
+	## xu4 finishTurn: map->tileTypeAt(coords)->getEffect() → Party::applyEffect.
+	if _world == null:
+		return 0
+	var tid := _world.tile_at(_tile_pos.x, _tile_pos.y)
+	return GameState.apply_tile_effect(_TileRules.effect_of(tid))
 
 
 func _stamp_command_time() -> void:

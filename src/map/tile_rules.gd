@@ -15,26 +15,43 @@ const F_SAIL := 1
 const F_SWIM := 2
 const F_CREATURE_BLOCK := 4 ## xu4 creatureunwalkable — horses cannot enter
 
-## Per tile id 0..255: PackedInt32Array of (walk_on | walk_off<<8 | flags<<16)
+## Per tile id 0..255: PackedInt32Array of (walk_on | walk_off<<8 | flags<<16 | speed<<24)
 static var _table: PackedInt32Array = PackedInt32Array()
+## xu4 TileEffect per tile id (separate from speed packing).
+static var _effects: PackedByteArray = PackedByteArray()
+
+## xu4 TileSpeed (types.h) — destination tile can stall a foot/horse step.
+enum Speed { FAST = 0, SLOW = 1, VSLOW = 2, VVSLOW = 3 }
+
+## xu4 TileEffect (types.h) — ground underfoot after each turn.
+enum Effect { NONE = 0, POISON = 1, POISONFIELD = 2, FIRE = 3, SLEEP = 4, LAVA = 5 }
 
 
 static func _ensure() -> void:
 	if _table.size() == 256:
 		return
 	_table.resize(256)
+	_effects.resize(256)
+	_effects.fill(Effect.NONE)
 	## Default rule: walkable all ways.
 	for i in 256:
 		_table[i] = _pack(WALK_ALL, WALK_ALL, 0)
 	_fill_named()
 
 
-static func _pack(walk_on: int, walk_off: int, flags: int) -> int:
-	return (walk_on & 0xFF) | ((walk_off & 0xFF) << 8) | ((flags & 0xFF) << 16)
+static func _pack(walk_on: int, walk_off: int, flags: int, speed: int = Speed.FAST) -> int:
+	return (
+		(walk_on & 0xFF)
+		| ((walk_off & 0xFF) << 8)
+		| ((flags & 0xFF) << 16)
+		| ((speed & 0xFF) << 24)
+	)
 
 
-static func _set_range(from_id: int, count: int, walk_on: int, walk_off: int, flags: int) -> void:
-	var v := _pack(walk_on, walk_off, flags)
+static func _set_range(
+	from_id: int, count: int, walk_on: int, walk_off: int, flags: int, speed: int = Speed.FAST
+) -> void:
+	var v := _pack(walk_on, walk_off, flags, speed)
 	for i in count:
 		var id := from_id + i
 		if id >= 0 and id < 256:
@@ -46,13 +63,35 @@ static func _blocked(from_id: int, count: int, flags: int = 0) -> void:
 	_set_range(from_id, count, 0, WALK_ALL, flags)
 
 
+static func _set_speed(from_id: int, count: int, speed: int) -> void:
+	for i in count:
+		var id := from_id + i
+		if id < 0 or id >= 256:
+			continue
+		var v: int = _table[id]
+		_table[id] = (v & 0x00FFFFFF) | ((speed & 0xFF) << 24)
+
+
+static func _set_effect(from_id: int, count: int, effect: int) -> void:
+	for i in count:
+		var id := from_id + i
+		if id < 0 or id >= 256:
+			continue
+		_effects[id] = effect
+
+
 static func _fill_named() -> void:
 	## Indices match xu4 `u4-save-ids` expansion (256 bytes).
 	## sea / water: swim + sail
 	_set_range(0, 2, 0, WALK_ALL, F_SAIL | F_SWIM)
 	## shallows: swim only (ships blocked)
 	_set_range(2, 1, 0, WALK_ALL, F_SWIM)
-	## swamp, grass, brush, forest, hills — default walkable (already set)
+	## swamp / grass / brush / forest / hills
+	_set_speed(3, 1, Speed.SLOW) ## swamp — 1/8 stall
+	_set_effect(3, 1, Effect.POISON) ## swamp — 1/5 poison / member / turn
+	_set_speed(5, 1, Speed.VSLOW) ## brush — 1/4 stall
+	_set_speed(6, 1, Speed.VSLOW) ## forest uses brush rule — 1/4 stall
+	_set_speed(7, 1, Speed.VVSLOW) ## hills — 1/2 stall
 	## mountains
 	_blocked(8, 1, F_CREATURE_BLOCK)
 	## 9–12 dungeon/city/castle/town — default
@@ -80,7 +119,11 @@ static func _fill_named() -> void:
 	## moongate opening — solid; open moongate walkable
 	_blocked(64, 3)
 	## fields: poison/fire/sleep walkable; energy blocked
+	_set_effect(68, 1, Effect.POISONFIELD) ## poison_field — same 1/5 as swamp
 	_blocked(69, 1, F_CREATURE_BLOCK) ## energy
+	_set_speed(70, 1, Speed.VVSLOW) ## fire_field — 1/2 stall
+	_set_effect(70, 1, Effect.FIRE)
+	_set_effect(71, 1, Effect.SLEEP)
 	_blocked(72, 1) ## solid
 	## secret_door: cantwalkon retreat only → NESW ok (default)
 	## altar — default walkable; campfire solid
@@ -127,6 +170,31 @@ static func flags(tile_id: int) -> int:
 	_ensure()
 	tile_id = clampi(tile_id, 0, 255)
 	return (_table[tile_id] >> 16) & 0xFF
+
+
+static func speed_of(tile_id: int) -> int:
+	_ensure()
+	tile_id = clampi(tile_id, 0, 255)
+	return (_table[tile_id] >> 24) & 0xFF
+
+
+static func effect_of(tile_id: int) -> int:
+	_ensure()
+	tile_id = clampi(tile_id, 0, 255)
+	return int(_effects[tile_id])
+
+
+static func slowed_by_tile(tile_id: int) -> bool:
+	## xu4 location.cpp slowedByTile — independent roll per step into the tile.
+	match speed_of(tile_id):
+		Speed.SLOW:
+			return (randi() % 8) == 0 ## 12.5%
+		Speed.VSLOW:
+			return (randi() % 4) == 0 ## 25%
+		Speed.VVSLOW:
+			return (randi() % 2) == 0 ## 50%
+		_:
+			return false
 
 
 static func is_sailable(tile_id: int) -> bool:
