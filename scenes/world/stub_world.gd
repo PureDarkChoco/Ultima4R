@@ -8,6 +8,7 @@ extends Control
 ## Preload so world scene parses even if global class cache is stale.
 const _TileRules := preload("res://src/map/tile_rules.gd")
 const _MixPanel := preload("res://src/ui/mix_panel.gd")
+const _CombatMapData := preload("res://src/map/combat_map_data.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -119,6 +120,12 @@ var _wear_cursor := 0
 var _wear_slot := -1
 ## Improved Mix: 0 = idle, 1 = known list, 2 = reagent pick, 3 = wait spell letter (Make new).
 var _mix_stage := 0
+## Hole up & Camp: 0 = idle, 1 = resting on CAMP.CON.
+var _camp_stage := 0
+var _camp_rest_left := 0.0
+var _camp_map # CombatMapData
+## xu4 settings campTime default (Resting… animation seconds).
+const CAMP_REST_SEC := 10.0
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -1111,7 +1118,10 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0:
+	if _camp_stage == 1:
+		_tick_camp_rest(delta)
+		return
+	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0:
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1377,6 +1387,9 @@ func _on_escape() -> void:
 	if _mix_stage != 0:
 		_close_mix(true)
 		return
+	if _camp_stage != 0:
+		## Resting… — Esc does nothing (Tab alone may toggle panels).
+		return
 	if _ready_stage != 0:
 		_close_ready(true)
 		return
@@ -1409,15 +1422,23 @@ func _input(event: InputEvent) -> void:
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
 			## Ztats / Ready / Wear / Mix open: don't collapse/expand side panels.
+			## Camp rest allows Tab so inventory panels stay reachable.
 			if _ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0:
 				get_viewport().set_input_as_handled()
 				return
 			_toggle_side_panels()
 			get_viewport().set_input_as_handled()
+			return
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / Mix / New Order accept keyboard + gamepad.
+	## Ztats / Ready / Wear / Mix / Camp / New Order accept keyboard + gamepad.
+	if _camp_stage != 0:
+		if _handle_camp_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _mix_stage != 0:
 		if _handle_mix_input(event):
 			get_viewport().set_input_as_handled()
@@ -1532,6 +1553,7 @@ func _handle_command(cmd: int) -> void:
 		_close_ready(false)
 		_close_wear(false)
 		_close_mix(false)
+		_close_camp(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
@@ -1541,6 +1563,7 @@ func _handle_command(cmd: int) -> void:
 		_close_ready(false)
 		_close_wear(false)
 		_close_mix(false)
+		_close_camp(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
@@ -1551,6 +1574,7 @@ func _handle_command(cmd: int) -> void:
 	_close_ready(false)
 	_close_wear(false)
 	_close_mix(false)
+	_close_camp(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
@@ -1563,6 +1587,8 @@ func _handle_command(cmd: int) -> void:
 		_do_wear()
 	elif cmd == U4Commands.Id.MIX:
 		_do_mix()
+	elif cmd == U4Commands.Id.HOLE_UP:
+		_do_hole_up()
 	elif cmd == U4Commands.Id.BOARD:
 		_do_board()
 	elif cmd == U4Commands.Id.XIT:
@@ -2884,6 +2910,146 @@ func _close_mix(show_none: bool) -> void:
 	_finish_party_turn()
 
 
+func _do_hole_up() -> void:
+	## xu4 holeUp() — print command, then reject invalid transport / place.
+	_push_message(Locale.t("cmd_hole_up"), false)
+	var deny := _hole_up_deny_message()
+	if not deny.is_empty():
+		_push_message(deny, false)
+		return
+	_begin_camp_rest()
+
+
+func _hole_up_deny_message() -> String:
+	## xu4 holeUp():
+	## - !(WORLDMAP|DUNGEON) → "Not here!" (inside towns/castles)
+	## - transport != FOOT → "Only on foot!" (horse / ship / balloon)
+	## On the world map we also reject water and settlement portal tiles
+	## (dungeon/city/castle/town/LCB) — same "Not here!" spirit.
+	if _transport != Transport.FOOT:
+		return Locale.t("cmd_only_on_foot")
+	if _world != null and _world.loaded:
+		var tid := _world.tile_at(_tile_pos.x, _tile_pos.y)
+		if _TileRules.is_water(tid) or _is_settlement_portal_tile(tid):
+			return Locale.t("cmd_not_here")
+	return ""
+
+
+func _is_settlement_portal_tile(tid: int) -> bool:
+	## shapes indices 9–15: dungeon / city / castle / town / LCB wings.
+	return tid >= 9 and tid <= 15
+
+
+func _handle_camp_input(event: InputEvent) -> bool:
+	## Resting… — swallow all input except Tab (handled in _input).
+	if not event.is_pressed() or event.is_echo():
+		return false
+	return true
+
+
+func _begin_camp_rest() -> void:
+	var path := _CombatMapData.resolve_u4_file("CAMP.CON")
+	var cmap = _CombatMapData.new()
+	if path.is_empty() or not cmap.load_from_path(path):
+		_push_message(Locale.t("cmd_not_here"), false)
+		_camp_stage = 0
+		_layout_prompt_row()
+		return
+
+	var sleepers: Array[Vector2i] = []
+	for i in GameState.party_size():
+		var mid := GameState.party_member_at(i)
+		if mid < 0 or GameState.is_class_dead(mid):
+			continue
+		var start: Vector2i = (
+			cmap.player_start[i] if i < cmap.player_start.size() else Vector2i(5, 5)
+		)
+		sleepers.append(start)
+
+	_camp_map = cmap
+	GameState.put_party_to_sleep()
+	_refresh_party()
+	if _map:
+		_map.enter_camp(cmap, sleepers)
+
+	_push_message(Locale.t("cmd_camp_resting"), false)
+	_camp_stage = 1
+	_camp_rest_left = CAMP_REST_SEC
+	_layout_prompt_row()
+
+
+func _tick_camp_rest(delta: float) -> void:
+	if _camp_stage != 1:
+		return
+	_camp_rest_left -= delta
+	if _camp_rest_left > 0.0:
+		return
+	_finish_camp_rest()
+
+
+func _finish_camp_rest() -> void:
+	## xu4 CampController after Resting… — 1/8 ambush, else heal + exit.
+	if (randi() % 8) == 0:
+		## Combat not wired yet — interrupt rest without heal (xu4 starts fight).
+		_push_message(Locale.t("cmd_camp_ambushed"), false)
+		_end_camp_session(false)
+		return
+
+	var healed := false
+	if GameState.camp_heal_available():
+		healed = GameState.apply_camp_rest()
+	GameState.mark_camp_used()
+	_push_message(
+		Locale.t("cmd_camp_healed" if healed else "cmd_camp_no_effect"),
+		false
+	)
+	_end_camp_session(true)
+
+
+func _end_camp_session(_healed: bool) -> void:
+	GameState.wake_party()
+	_refresh_party()
+	if _map:
+		_map.exit_camp()
+	_camp_map = null
+	_camp_stage = 0
+	_camp_rest_left = 0.0
+	_layout_prompt_row()
+	_finish_party_turn()
+
+
+func _cancel_camp(show_none: bool) -> void:
+	## Interrupt Resting… without heal.
+	if _camp_stage == 0:
+		return
+	GameState.wake_party()
+	_refresh_party()
+	if _map:
+		_map.exit_camp()
+	_camp_map = null
+	_camp_stage = 0
+	_camp_rest_left = 0.0
+	_layout_prompt_row()
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+	_finish_party_turn()
+
+
+func _close_camp(_show_none: bool) -> void:
+	## Silent abort when another command preempts camp.
+	if _camp_stage == 0:
+		return
+	GameState.wake_party()
+	_refresh_party()
+	if _map:
+		_map.exit_camp()
+	_camp_map = null
+	_camp_stage = 0
+	_camp_rest_left = 0.0
+	_layout_prompt_row()
+	_finish_party_turn()
+
+
 func _handle_order_input(event: InputEvent) -> bool:
 	## Digits / ↑↓+Enter / gamepad D-pad+A. Space/B/Esc cancel.
 	## Returns true if the event was consumed.
@@ -3085,7 +3251,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0:
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false

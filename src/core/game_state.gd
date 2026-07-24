@@ -39,6 +39,11 @@ const SHIP_HULL_MAX := 50
 var food: int = 1000 ## display 10 (xu4 centi-units)
 const FOOD_MAX := 999900
 var moves: int = 0
+## xu4 SaveGame.lastcamp — (moves / CAMP_HEAL_INTERVAL) & 0xffff after a heal rest.
+var lastcamp: int = 0
+const CAMP_HEAL_INTERVAL := 100
+## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
+const TILE_CORPSE := 56
 
 ## xu4 world clock (GameController::timerFired / updateMoons).
 ## Real-time 4 Hz ticks — not tied to party moves.
@@ -125,6 +130,7 @@ func reset_party() -> void:
 	wind_lock = false
 	food = 1000
 	moves = 0
+	lastcamp = 0
 	_reset_inventory_stubs()
 	refresh_party_order()
 
@@ -652,6 +658,61 @@ func wake_member(klass: int) -> bool:
 		return false
 	member_status[klass] = PartyRoster.Status.OK
 	return true
+
+
+func put_member_to_sleep(klass: int) -> bool:
+	## xu4 PartyMember::putToSleep — living members only.
+	if klass < 0 or klass >= member_status.size():
+		return false
+	if member_status[klass] == PartyRoster.Status.DEAD:
+		return false
+	member_status[klass] = PartyRoster.Status.SLEEPING
+	return true
+
+
+func put_party_to_sleep() -> void:
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid >= 0:
+			put_member_to_sleep(mid)
+
+
+func wake_party() -> void:
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid >= 0:
+			wake_member(mid)
+
+
+func camp_heal_available() -> bool:
+	## xu4 CampController — lastcamp vs (moves / 100) & 0xffff.
+	var bucket: int = int(moves / float(CAMP_HEAL_INTERVAL))
+	if bucket >= 0x10000:
+		return true
+	return (bucket & 0xffff) != (lastcamp & 0xffff)
+
+
+func mark_camp_used() -> void:
+	lastcamp = int(moves / float(CAMP_HEAL_INTERVAL)) & 0xffff
+
+
+func apply_camp_rest() -> bool:
+	## xu4 Party::applyRest(HT_CAMPHEAL) — full MP; HP += 99 + (rand & 0x77).
+	## Poison is not cured. Returns true if any living member gained HP.
+	var healed := false
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		member_mp[mid] = max_mp_of_class(mid)
+		var hp: int = int(member_hp[mid])
+		var mx: int = max_hp_of_class(mid)
+		if hp >= mx:
+			continue
+		hp += 99 + (randi() & 0x77)
+		member_hp[mid] = mini(hp, mx)
+		healed = true
+	return healed
 
 
 func apply_tile_effect(effect: int) -> int:

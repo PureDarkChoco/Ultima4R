@@ -217,6 +217,36 @@ const _T := {
 		"en_us": "Not Here!",
 		"ko": "여기엔 없다!",
 	},
+	"cmd_only_on_foot": {
+		"en_u4": "Only on foot!",
+		"en_us": "Only on foot!",
+		"ko": "도보로만 가능하다!",
+	},
+	"cmd_hole_up": {
+		"en_u4": "Hole up & Camp!",
+		"en_us": "Hole up & Camp!",
+		"ko": "야영한다!",
+	},
+	"cmd_camp_resting": {
+		"en_u4": "Resting...",
+		"en_us": "Resting...",
+		"ko": "휴식 중...",
+	},
+	"cmd_camp_healed": {
+		"en_u4": "Party Healed!",
+		"en_us": "Party Healed!",
+		"ko": "파티가 회복했다!",
+	},
+	"cmd_camp_no_effect": {
+		"en_u4": "No effect.",
+		"en_us": "No effect.",
+		"ko": "효과가 없다.",
+	},
+	"cmd_camp_ambushed": {
+		"en_u4": "Ambushed!",
+		"en_us": "Ambushed!",
+		"ko": "기습당했다!",
+	},
 	"cmd_nothing_to_open": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",
