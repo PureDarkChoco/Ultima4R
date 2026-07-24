@@ -670,10 +670,10 @@ func put_member_to_sleep(klass: int) -> bool:
 	return true
 
 
-func put_party_to_sleep() -> void:
+func put_party_to_sleep(except_klass: int = -1) -> void:
 	for i in party_size():
 		var mid := party_member_at(i)
-		if mid >= 0:
+		if mid >= 0 and mid != except_klass:
 			put_member_to_sleep(mid)
 
 
@@ -696,13 +696,16 @@ func mark_camp_used() -> void:
 	lastcamp = int(moves / float(CAMP_HEAL_INTERVAL)) & 0xffff
 
 
-func apply_camp_rest() -> bool:
+func apply_camp_rest(exclude_klass: int = -1) -> bool:
 	## xu4 Party::applyRest(HT_CAMPHEAL) — full MP; HP += 99 + (rand & 0x77).
 	## Poison is not cured. Returns true if any living member gained HP.
+	## U5 watch: exclude_klass (guard) never restores HP/MP.
 	var healed := false
 	for i in party_size():
 		var mid := party_member_at(i)
 		if mid < 0 or is_class_dead(mid):
+			continue
+		if mid == exclude_klass:
 			continue
 		member_mp[mid] = max_mp_of_class(mid)
 		var hp: int = int(member_hp[mid])

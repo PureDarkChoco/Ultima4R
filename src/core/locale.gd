@@ -247,6 +247,41 @@ const _T := {
 		"en_us": "Ambushed!",
 		"ko": "기습당했다!",
 	},
+	"cmd_camp_set_watch": {
+		"en_u4": "Set a watch?",
+		"en_us": "Set a watch?",
+		"ko": "경비를 세울까?",
+	},
+	"cmd_camp_who_guards": {
+		"en_u4": "Who will guard?",
+		"en_us": "Who will guard?",
+		"ko": "누가 경비할까?",
+	},
+	"cmd_camp_guard_named": {
+		"en_u4": "%s guards.",
+		"en_us": "%s stands watch.",
+		"ko": "%s이(가) 경비한다.",
+	},
+	"cmd_who": {
+		"en_u4": "Who?",
+		"en_us": "Who?",
+		"ko": "누구?",
+	},
+	"cmd_cant": {
+		"en_u4": "Can't!",
+		"en_us": "Can't!",
+		"ko": "불가!",
+	},
+	"cmd_yes": {
+		"en_u4": "Yes",
+		"en_us": "Yes",
+		"ko": "예",
+	},
+	"cmd_no": {
+		"en_u4": "No",
+		"en_us": "No",
+		"ko": "아니오",
+	},
 	"cmd_nothing_to_open": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",

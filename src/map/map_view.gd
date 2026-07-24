@@ -96,7 +96,17 @@ var _shake_amp := 0.0
 var _camp_map # CombatMapData — preloaded script instance
 var _camp_bg: PackedByteArray = PackedByteArray() ## view_w×view_h backdrop (margins)
 var _camp_sleepers: Array[Vector2i] = [] ## camp-local coords
+var _camp_guard_pos := Vector2i(-1, -1)
+var _camp_guard_class := -1
+var _camp_guard_cd := 0.0
+var _camp_guard_a: Image
+var _camp_guard_b: Image
 var _corpse_slice: Image
+
+const _TileRulesCamp := preload("res://src/map/tile_rules.gd")
+## Seconds between random guard steps while Resting…
+const CAMP_GUARD_STEP_MIN := 0.35
+const CAMP_GUARD_STEP_MAX := 0.75
 
 
 func _ready() -> void:
@@ -183,21 +193,58 @@ func is_camping() -> bool:
 	return _camp_map != null
 
 
-func enter_camp(map, sleepers: Array[Vector2i]) -> void:
+func enter_camp(
+	map,
+	sleepers: Array[Vector2i],
+	guard_class: int = -1,
+	guard_pos: Vector2i = Vector2i(-1, -1)
+) -> void:
 	## Show CAMP.CON centered; margins from tiles immediately left/right of party.
+	## U5 watch: optional awake guard who patrols the camp map.
 	_camp_map = map
 	_camp_sleepers = sleepers.duplicate()
+	_camp_guard_class = guard_class
+	_camp_guard_pos = guard_pos
+	_camp_guard_cd = CAMP_GUARD_STEP_MIN
+	_camp_guard_a = null
+	_camp_guard_b = null
+	if guard_class >= 0:
+		_cache_camp_guard_icons()
+		if _camp_guard_pos.x < 0 or _camp_guard_pos.y < 0:
+			_camp_guard_pos = Vector2i(CAMP_W / 2, CAMP_H / 2)
 	_build_camp_background()
 	_scroll_frames_left = 0
 	_rebuild()
 
 
 func exit_camp() -> void:
-	if _camp_map == null and _camp_sleepers.is_empty() and _camp_bg.is_empty():
+	if (
+		_camp_map == null
+		and _camp_sleepers.is_empty()
+		and _camp_bg.is_empty()
+		and _camp_guard_class < 0
+	):
 		return
 	_camp_map = null
 	_camp_sleepers.clear()
 	_camp_bg = PackedByteArray()
+	_camp_guard_pos = Vector2i(-1, -1)
+	_camp_guard_class = -1
+	_camp_guard_cd = 0.0
+	_camp_guard_a = null
+	_camp_guard_b = null
+	_rebuild()
+
+
+func tick_camp_guard(delta: float) -> void:
+	## Random orthogonal patrol inside CAMP.CON while resting.
+	if _camp_map == null or _camp_guard_class < 0:
+		return
+	_camp_guard_cd -= delta
+	if _camp_guard_cd > 0.0:
+		return
+	_camp_guard_cd = randf_range(CAMP_GUARD_STEP_MIN, CAMP_GUARD_STEP_MAX)
+	_step_camp_guard()
 	_rebuild()
 
 
@@ -652,6 +699,7 @@ func _rebuild_camp() -> void:
 				)
 
 	_paint_camp_sleepers(origin_x, origin_y)
+	_paint_camp_guard(origin_x, origin_y)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -1046,6 +1094,69 @@ func _paint_camp_sleepers(origin_x: int, origin_y: int) -> void:
 			continue
 		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
 		_buf.blend_rect(_corpse_slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+
+
+func _cache_camp_guard_icons() -> void:
+	_camp_guard_a = null
+	_camp_guard_b = null
+	if _camp_guard_class < 0 or _camp_guard_class >= CLASS_TILE_EVEN.size():
+		return
+	var even: int = CLASS_TILE_EVEN[_camp_guard_class]
+	_camp_guard_a = _slice_keyed_tile(even)
+	_camp_guard_b = _slice_keyed_tile(even + 1)
+	if _camp_guard_b == null:
+		_camp_guard_b = _camp_guard_a
+
+
+func _paint_camp_guard(origin_x: int, origin_y: int) -> void:
+	if _camp_guard_class < 0:
+		return
+	if _camp_guard_a == null:
+		_cache_camp_guard_icons()
+	var img := _camp_guard_b if _avatar_frame == 1 and _camp_guard_b != null else _camp_guard_a
+	if img == null or img.is_empty():
+		return
+	var sx := origin_x + _camp_guard_pos.x
+	var sy := origin_y + _camp_guard_pos.y
+	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+		return
+	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+	_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+
+
+func _step_camp_guard() -> void:
+	if _camp_map == null:
+		return
+	var dirs: Array[Vector2i] = [
+		Vector2i(1, 0),
+		Vector2i(-1, 0),
+		Vector2i(0, 1),
+		Vector2i(0, -1),
+	]
+	## Shuffle-ish: try a few random dirs.
+	for _try in 4:
+		var d: Vector2i = dirs[randi() % dirs.size()]
+		var next := _camp_guard_pos + d
+		if not _camp_guard_can_enter(next):
+			continue
+		_camp_guard_pos = next
+		return
+
+
+func _camp_guard_can_enter(pos: Vector2i) -> bool:
+	if pos.x < 0 or pos.y < 0 or pos.x >= CAMP_W or pos.y >= CAMP_H:
+		return false
+	if _camp_map == null:
+		return false
+	var tid := int(_camp_map.tile_at(pos.x, pos.y))
+	if _TileRulesCamp.walk_on(tid) == 0:
+		return false
+	if _TileRulesCamp.is_water(tid):
+		return false
+	for s in _camp_sleepers:
+		if s == pos:
+			return false
+	return true
 
 
 func _blit_water_tile(tid: int, dst: Vector2i) -> void:

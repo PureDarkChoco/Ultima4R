@@ -120,10 +120,12 @@ var _wear_cursor := 0
 var _wear_slot := -1
 ## Improved Mix: 0 = idle, 1 = known list, 2 = reagent pick, 3 = wait spell letter (Make new).
 var _mix_stage := 0
-## Hole up & Camp: 0 = idle, 1 = resting on CAMP.CON.
+## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
 var _camp_map # CombatMapData
+var _camp_guard_klass := -1
+var _camp_guard_cursor := 0
 ## xu4 settings campTime default (Resting… animation seconds).
 const CAMP_REST_SEC := 10.0
 var _load_error: String = ""
@@ -787,6 +789,10 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("mix_for_spell")
 	if _ztats_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_ztats_for")
+	if _camp_stage == 2:
+		return MSG_PROMPT + Locale.t("cmd_camp_set_watch")
+	if _camp_stage == 3:
+		return MSG_PROMPT + Locale.t("cmd_camp_who_guards")
 	if _order_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_exchange")
 	if _order_stage == 2:
@@ -1109,7 +1115,7 @@ func _process(delta: float) -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2:
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3:
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1324,6 +1330,8 @@ func _tick_select_cursor() -> void:
 		_nudge_wear_cursor(step)
 	elif _mix_stage == 1 or _mix_stage == 2:
 		_nudge_mix_cursor(step)
+	elif _camp_stage == 3:
+		_nudge_camp_guard_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -1387,8 +1395,11 @@ func _on_escape() -> void:
 	if _mix_stage != 0:
 		_close_mix(true)
 		return
-	if _camp_stage != 0:
+	if _camp_stage == 1:
 		## Resting… — Esc does nothing (Tab alone may toggle panels).
+		return
+	if _camp_stage == 2 or _camp_stage == 3:
+		_cancel_camp(true)
 		return
 	if _ready_stage != 0:
 		_close_ready(true)
@@ -1421,9 +1432,16 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
-			## Ztats / Ready / Wear / Mix open: don't collapse/expand side panels.
+			## Ztats / Ready / Wear / Mix / camp pick open: don't collapse/expand side panels.
 			## Camp rest allows Tab so inventory panels stay reachable.
-			if _ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0:
+			if (
+				_ztats_stage != 0
+				or _ready_stage != 0
+				or _wear_stage != 0
+				or _mix_stage != 0
+				or _camp_stage == 2
+				or _camp_stage == 3
+			):
 				get_viewport().set_input_as_handled()
 				return
 			_toggle_side_panels()
@@ -2911,13 +2929,16 @@ func _close_mix(show_none: bool) -> void:
 
 
 func _do_hole_up() -> void:
-	## xu4 holeUp() — print command, then reject invalid transport / place.
+	## U5-style Hole up: ask for a watch, then CAMP.CON rest.
 	_push_message(Locale.t("cmd_hole_up"), false)
 	var deny := _hole_up_deny_message()
 	if not deny.is_empty():
 		_push_message(deny, false)
 		return
-	_begin_camp_rest()
+	_camp_guard_klass = -1
+	_camp_guard_cursor = 0
+	_camp_stage = 2
+	_layout_prompt_row()
 
 
 func _hole_up_deny_message() -> String:
@@ -2941,22 +2962,182 @@ func _is_settlement_portal_tile(tid: int) -> bool:
 
 
 func _handle_camp_input(event: InputEvent) -> bool:
-	## Resting… — swallow all input except Tab (handled in _input).
 	if not event.is_pressed() or event.is_echo():
 		return false
+	if _camp_stage == 2:
+		return _handle_camp_watch_yn(event)
+	if _camp_stage == 3:
+		return _handle_camp_guard_pick(event)
+	## Resting… — swallow all input except Tab (handled in _input).
 	return true
 
 
-func _begin_camp_rest() -> void:
+func _handle_camp_watch_yn(event: InputEvent) -> bool:
+	## U5: Set a watch? — Y / N (A=Yes, B/Esc/Space=cancel→None).
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_cancel_camp(true)
+			return true
+		if _is_order_cancel_key(k):
+			_cancel_camp(true)
+			return true
+		if k.keycode == KEY_Y or k.physical_keycode == KEY_Y:
+			_accept_camp_set_watch(true)
+			return true
+		if k.keycode == KEY_N or k.physical_keycode == KEY_N:
+			_accept_camp_set_watch(false)
+			return true
+	if event is InputEventJoypadButton:
+		var jb := event as InputEventJoypadButton
+		if jb.button_index == JOY_BUTTON_A:
+			_accept_camp_set_watch(true)
+			return true
+		if jb.button_index == JOY_BUTTON_B:
+			_cancel_camp(true)
+			return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_cancel_camp(true)
+		return true
+	return true
+
+
+func _accept_camp_set_watch(yes: bool) -> void:
+	_push_message(Locale.t("cmd_yes" if yes else "cmd_no"), false)
+	if not yes:
+		_begin_camp_rest(-1)
+		return
+	## Need at least one living member to stand watch.
+	if _living_party_slot_count() < 1:
+		_begin_camp_rest(-1)
+		return
+	_camp_stage = 3
+	_camp_guard_cursor = _first_living_party_slot()
+	_open_order_roster()
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_sync_camp_guard_selection()
+	_layout_prompt_row()
+
+
+func _handle_camp_guard_pick(event: InputEvent) -> bool:
+	## Who will guard? — list cursor + digits both work; bad picks stay on prompt.
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_cancel_camp(true)
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_cancel_camp(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_cancel_camp(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_cancel_camp(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_camp_guard_slot(_camp_guard_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_camp_guard_slot(_camp_guard_cursor)
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var dig := _player_digit_index_from_key(ke)
+		if dig >= 0:
+			## Keys 1–8: in-range → try accept; out of party → Who? and re-prompt.
+			if dig >= GameState.party_size():
+				_push_message(Locale.t("cmd_who"), false)
+				_layout_prompt_row()
+				return true
+			_camp_guard_cursor = dig
+			_sync_camp_guard_selection()
+			_accept_camp_guard_slot(dig)
+			return true
+		if _is_digit_key(ke):
+			## 0 / 9 / etc. — not a party number.
+			_push_message(Locale.t("cmd_who"), false)
+			_layout_prompt_row()
+			return true
+	return true
+
+
+func _nudge_camp_guard_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	var slot := _camp_guard_cursor
+	for _i in n:
+		slot = posmod(slot + delta, n)
+		if _camp_guard_slot_eligible(slot):
+			_camp_guard_cursor = slot
+			_sync_camp_guard_selection()
+			return
+
+
+func _sync_camp_guard_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_camp_guard_cursor, -1)
+
+
+func _camp_guard_slot_eligible(slot: int) -> bool:
+	## Awake, living party members only (xu4 isDisabled → dead / sleeping).
+	if slot < 0 or slot >= GameState.party_size():
+		return false
+	var mid := GameState.party_member_at(slot)
+	if mid < 0:
+		return false
+	return not GameState.is_member_disabled(mid)
+
+
+func _accept_camp_guard_slot(slot: int) -> void:
+	## List Enter and digit keys share this path — reject stays on Who will guard?
+	var n := GameState.party_size()
+	if slot < 0 or slot >= n:
+		_push_message(Locale.t("cmd_who"), false)
+		_layout_prompt_row()
+		return
+	if not _camp_guard_slot_eligible(slot):
+		_push_message(Locale.t("cmd_cant"), false)
+		_layout_prompt_row()
+		return
+	var mid := GameState.party_member_at(slot)
+	var pname := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_camp_guard_named", [pname]), false)
+	_clear_order_selection()
+	if not _sides_open:
+		_close_order_roster()
+	_begin_camp_rest(mid)
+
+
+func _living_party_slot_count() -> int:
+	var n := 0
+	for i in GameState.party_size():
+		if _camp_guard_slot_eligible(i):
+			n += 1
+	return n
+
+
+func _first_living_party_slot() -> int:
+	for i in GameState.party_size():
+		if _camp_guard_slot_eligible(i):
+			return i
+	return 0
+
+
+func _begin_camp_rest(guard_klass: int) -> void:
 	var path := _CombatMapData.resolve_u4_file("CAMP.CON")
 	var cmap = _CombatMapData.new()
 	if path.is_empty() or not cmap.load_from_path(path):
 		_push_message(Locale.t("cmd_not_here"), false)
 		_camp_stage = 0
+		_camp_guard_klass = -1
 		_layout_prompt_row()
 		return
 
+	_camp_guard_klass = guard_klass
 	var sleepers: Array[Vector2i] = []
+	var guard_pos := Vector2i(5, 5)
 	for i in GameState.party_size():
 		var mid := GameState.party_member_at(i)
 		if mid < 0 or GameState.is_class_dead(mid):
@@ -2964,13 +3145,16 @@ func _begin_camp_rest() -> void:
 		var start: Vector2i = (
 			cmap.player_start[i] if i < cmap.player_start.size() else Vector2i(5, 5)
 		)
+		if mid == guard_klass:
+			guard_pos = start
+			continue
 		sleepers.append(start)
 
 	_camp_map = cmap
-	GameState.put_party_to_sleep()
+	GameState.put_party_to_sleep(guard_klass)
 	_refresh_party()
 	if _map:
-		_map.enter_camp(cmap, sleepers)
+		_map.enter_camp(cmap, sleepers, guard_klass, guard_pos)
 
 	_push_message(Locale.t("cmd_camp_resting"), false)
 	_camp_stage = 1
@@ -2981,6 +3165,8 @@ func _begin_camp_rest() -> void:
 func _tick_camp_rest(delta: float) -> void:
 	if _camp_stage != 1:
 		return
+	if _map:
+		_map.tick_camp_guard(delta)
 	_camp_rest_left -= delta
 	if _camp_rest_left > 0.0:
 		return
@@ -2989,6 +3175,7 @@ func _tick_camp_rest(delta: float) -> void:
 
 func _finish_camp_rest() -> void:
 	## xu4 CampController after Resting… — 1/8 ambush, else heal + exit.
+	## U5 watch: guard is always excluded from heal.
 	if (randi() % 8) == 0:
 		## Combat not wired yet — interrupt rest without heal (xu4 starts fight).
 		_push_message(Locale.t("cmd_camp_ambushed"), false)
@@ -2997,7 +3184,7 @@ func _finish_camp_rest() -> void:
 
 	var healed := false
 	if GameState.camp_heal_available():
-		healed = GameState.apply_camp_rest()
+		healed = GameState.apply_camp_rest(_camp_guard_klass)
 	GameState.mark_camp_used()
 	_push_message(
 		Locale.t("cmd_camp_healed" if healed else "cmd_camp_no_effect"),
@@ -3014,21 +3201,29 @@ func _end_camp_session(_healed: bool) -> void:
 	_camp_map = null
 	_camp_stage = 0
 	_camp_rest_left = 0.0
+	_camp_guard_klass = -1
 	_layout_prompt_row()
 	_finish_party_turn()
 
 
 func _cancel_camp(show_none: bool) -> void:
-	## Interrupt Resting… without heal.
+	## Abort watch prompt / Resting… without heal.
 	if _camp_stage == 0:
 		return
-	GameState.wake_party()
-	_refresh_party()
-	if _map:
-		_map.exit_camp()
+	var was := _camp_stage
+	if was == 1:
+		GameState.wake_party()
+		_refresh_party()
+		if _map:
+			_map.exit_camp()
+	elif was == 3:
+		_clear_order_selection()
+		if not _sides_open:
+			_close_order_roster()
 	_camp_map = null
 	_camp_stage = 0
 	_camp_rest_left = 0.0
+	_camp_guard_klass = -1
 	_layout_prompt_row()
 	if show_none:
 		_push_message(Locale.t("cmd_none"), false)
@@ -3039,13 +3234,20 @@ func _close_camp(_show_none: bool) -> void:
 	## Silent abort when another command preempts camp.
 	if _camp_stage == 0:
 		return
-	GameState.wake_party()
-	_refresh_party()
-	if _map:
-		_map.exit_camp()
+	var was := _camp_stage
+	if was == 1:
+		GameState.wake_party()
+		_refresh_party()
+		if _map:
+			_map.exit_camp()
+	elif was == 3:
+		_clear_order_selection()
+		if not _sides_open:
+			_close_order_roster()
 	_camp_map = null
 	_camp_stage = 0
 	_camp_rest_left = 0.0
+	_camp_guard_klass = -1
 	_layout_prompt_row()
 	_finish_party_turn()
 
@@ -3148,19 +3350,24 @@ func _is_ztats_equipment_key(event: InputEventKey) -> bool:
 	)
 
 
-func _player_slot_from_key(event: InputEventKey) -> int:
-	## 1..party_size → 0-based slot; else -1 (xu4 None).
-	var n := -1
+func _player_digit_index_from_key(event: InputEventKey) -> int:
+	## Keys 1–8 → 0..7. Not a 1–8 digit → -1 (caller may treat 0/9 as Who?).
 	var code := event.keycode
 	var phys := event.physical_keycode
 	if code >= KEY_1 and code <= KEY_8:
-		n = code - KEY_1
-	elif phys >= KEY_1 and phys <= KEY_8:
-		n = phys - KEY_1
-	elif code >= KEY_KP_1 and code <= KEY_KP_8:
-		n = code - KEY_KP_1
-	elif phys >= KEY_KP_1 and phys <= KEY_KP_8:
-		n = phys - KEY_KP_1
+		return code - KEY_1
+	if phys >= KEY_1 and phys <= KEY_8:
+		return phys - KEY_1
+	if code >= KEY_KP_1 and code <= KEY_KP_8:
+		return code - KEY_KP_1
+	if phys >= KEY_KP_1 and phys <= KEY_KP_8:
+		return phys - KEY_KP_1
+	return -1
+
+
+func _player_slot_from_key(event: InputEventKey) -> int:
+	## 1..party_size → 0-based slot; else -1 (xu4 None).
+	var n := _player_digit_index_from_key(event)
 	if n < 0 or n >= GameState.party_size():
 		return -1
 	return n
