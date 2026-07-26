@@ -22,6 +22,8 @@ Runtime loader: `src/map/u4_tile_bank.gd` (`U4TileBank`).
 
 **Fields / lava (68–71, 76):** same Y-scroll as water on the tile itself (`field_poison` … `field_sleep`, `lava`).
 
+**Spit / campfire (75):** 2-frame fire flicker — `075_spit.png` + `075_spit_1.png` (structure fixed, fire only).
+
 **Same-id frame files** (optional, discrete cycles):
 
 ```

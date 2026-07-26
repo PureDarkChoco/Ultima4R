@@ -312,7 +312,15 @@ func _restore_city_from_save(w: Dictionary) -> void:
 		clampi(int(w.get("city_y", 15)), 0, _CityMapData.HEIGHT - 1)
 	)
 	_tile_pos = local
-	_map.enter_city(cmap, local, _city_return_pos)
+	## Outside rim plains follow the Enter gate, not the saved mid-city tile.
+	var portal := _WorldPortals.portal_at(return_pos)
+	if portal.is_empty():
+		portal = _WorldPortals.portal_for_fname(fname)
+	var spawn := Vector2i(
+		int(portal.get("sx", local.x)),
+		int(portal.get("sy", local.y))
+	)
+	_map.enter_city(cmap, local, _city_return_pos, spawn)
 	_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 
 

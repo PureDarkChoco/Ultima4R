@@ -42,7 +42,10 @@ const TILE_FIELD_POISON := 68
 const TILE_FIELD_ENERGY := 69
 const TILE_FIELD_FIRE := 70
 const TILE_FIELD_SLEEP := 71
+const TILE_SPIT := 75 ## campfire spit — 2-frame fire flicker (`075_spit_1.png`)
 const TILE_LAVA := 76
+## Multi-frame terrain flip period (spit, etc.).
+const TILE_ANIM_PERIOD := 0.20
 ## Temporary transport sprites (shapes tile indices).
 const TILE_SHIP_W := 16
 const TILE_SHIP_N := 17
@@ -50,6 +53,12 @@ const TILE_SHIP_E := 18
 const TILE_SHIP_S := 19
 const TILE_HORSE_W := 20
 const TILE_HORSE_E := 21
+## Bridge tiles — near (south) white railing redrawn over sprites for depth.
+const TILE_BRIDGE := 23
+const TILE_BRIDGE_N := 25
+const TILE_BRIDGE_S := 26
+## First source row of the near railing on bridge / bridge_s (32×32 art).
+const BRIDGE_NEAR_RAIL_Y := 19
 ## World terrain ids used by camp margins.
 const TILE_SWAMP := 3
 const TILE_GRASS := 4
@@ -106,6 +115,8 @@ var _frame_cd := 0.0
 var _cached_leader_class := -2
 var _water_scroll := 0
 var _water_cd := WATER_SCROLL_PERIOD
+var _tile_anim_frame := 0
+var _tile_anim_cd := TILE_ANIM_PERIOD
 ## Ship grounding jolt — party/ship sprite offset while > 0.
 var _shake_left := 0.0
 var _shake_dur := 0.0
@@ -227,15 +238,25 @@ func is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 
 
-func enter_city(map, start: Vector2i, world_pos: Vector2i = Vector2i(-1, -1)) -> void:
+func enter_city(
+	map,
+	start: Vector2i,
+	world_pos: Vector2i = Vector2i(-1, -1),
+	entrance_spawn: Vector2i = Vector2i(-1, -1)
+) -> void:
 	## Show .ULT city terrain with party at `start` (city-local coords).
 	## `world_pos` = portal tile on WORLD.MAP — used to paint outside margins.
+	## `entrance_spawn` = Enter gate cell (portal sx/sy). Rim plains use this, not
+	## `start` — load may place the party mid-city far from the gate.
 	## Keep world horse/ship overlays (same persistence as save); city view ignores them.
 	## Keep mounted transport sprite (horse) — do not reset to foot.
 	exit_camp()
 	_city_map = map
 	_city_world_pos = world_pos
-	_city_enter_side = _city_entrance_side(start)
+	var rim := start
+	if entrance_spawn.x >= 0 and entrance_spawn.y >= 0:
+		rim = entrance_spawn
+	_city_enter_side = _city_entrance_side(rim)
 	_scroll_frames_left = 0
 	center = start
 	_init_npc_frames()
@@ -501,6 +522,13 @@ func _process(delta: float) -> void:
 		_water_scroll = (_water_scroll + 1) % TILE_SRC
 		water_changed = true
 
+	_tile_anim_cd -= delta
+	var tile_anim_changed := false
+	if _tile_anim_cd <= 0.0:
+		_tile_anim_cd = TILE_ANIM_PERIOD
+		_tile_anim_frame += 1
+		tile_anim_changed = true
+
 	var npc_changed := false
 	if is_in_city() and not _npc_frame_cd.is_empty():
 		if _tick_npc_frames(delta):
@@ -520,14 +548,14 @@ func _process(delta: float) -> void:
 		# Same frame as set_center — keep first pose on screen for one full frame.
 		if _scroll_skip_process:
 			_scroll_skip_process = false
-			if frame_changed or water_changed or npc_changed or shake_changed:
+			if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed:
 				_rebuild()
 			return
 		_scroll_frames_left -= 1
 		_rebuild()
 		return
 
-	if frame_changed or water_changed or npc_changed or shake_changed:
+	if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed:
 		_rebuild()
 
 
@@ -755,6 +783,7 @@ func _rebuild() -> void:
 	)
 	_paint_overlays(cam)
 	_paint_party_marker()
+	_paint_bridge_near_rails(cam)
 
 	_tex.set_image(_buf)
 	texture = _tex
@@ -789,6 +818,7 @@ func _rebuild_city() -> void:
 	)
 	_paint_city_persons(cam)
 	_paint_party_marker()
+	_paint_bridge_near_rails(cam)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -1597,7 +1627,7 @@ func _normalize_camp_margin_tile(tid: int) -> int:
 	match tid:
 		TILE_SWAMP, TILE_GRASS, TILE_BRUSH, TILE_FOREST, TILE_HILLS, TILE_MOUNTAINS:
 			return tid
-		23, 25, 26: ## bridge / bridge_n / bridge_s
+		TILE_BRIDGE, TILE_BRIDGE_N, TILE_BRIDGE_S:
 			return TILE_GRASS
 		_:
 			## dungeon/city/castle/town/LCB and other non-terrain → plains
@@ -1610,6 +1640,8 @@ func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
 		_U4TileBankScript.blit_water_to(target, tid, dst, _water_scroll)
 	elif tid >= TILE_WHITE_SW and tid <= TILE_WHITE_NE:
 		_U4TileBankScript.blit_water_edge_to(target, tid, dst, _water_scroll)
+	elif _U4TileBankScript.frame_count(tid) > 1:
+		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	else:
 		_U4TileBankScript.blit_to(target, tid, dst)
 
@@ -1721,6 +1753,42 @@ func _paint_overlays(cam: Vector2) -> void:
 		if slice == null:
 			continue
 		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+
+
+func _paint_bridge_near_rails(cam: Vector2) -> void:
+	## Redraw south/near white railing over party & NPCs (not in xu4 — enhancement).
+	## Far railing on bridge_n stays under sprites; only bridge / bridge_s need this.
+	if not tiles_ready:
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	var base := Vector2i(floori(cam.x), floori(cam.y))
+	var rail_h := TILE_SRC - BRIDGE_NEAR_RAIL_Y
+	var src := Rect2i(0, BRIDGE_NEAR_RAIL_Y, TILE_SRC, rail_h)
+	for dy in view_h + 1:
+		for dx in view_w + 1:
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			var tid: int
+			if is_in_city():
+				tid = clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
+			elif world != null and world.loaded:
+				tid = clampi(world.tile_at(mx, my), 0, TILE_ID_MAX)
+			else:
+				continue
+			if tid != TILE_BRIDGE and tid != TILE_BRIDGE_S:
+				continue
+			var screen := Vector2(mx, my) - cam + Vector2(half_x, half_y)
+			var px := int(round(screen.x * float(TILE_SRC)))
+			var py := int(round(screen.y * float(TILE_SRC))) + BRIDGE_NEAR_RAIL_Y
+			if px <= -TILE_SRC or py <= -rail_h:
+				continue
+			if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+				continue
+			var slice := _overlay_slice(tid)
+			if slice == null or slice.is_empty():
+				continue
+			_buf.blend_rect(slice, src, Vector2i(px, py))
 
 
 func _overlay_slice(tile_id: int) -> Image:
