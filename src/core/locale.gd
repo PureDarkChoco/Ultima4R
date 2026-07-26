@@ -327,6 +327,46 @@ const _T := {
 		"en_us": "No saved games.",
 		"ko": "저장된 게임이 없다.",
 	},
+	"esc_menu_title": {
+		"en_u4": "Menu",
+		"en_us": "Menu",
+		"ko": "메뉴",
+	},
+	"esc_menu_hint": {
+		"en_u4": "↑↓ + Enter. Esc closes.",
+		"en_us": "↑↓ + Enter. Esc closes.",
+		"ko": "↑↓ + Enter. Esc 닫기.",
+	},
+	"esc_menu_save": {
+		"en_u4": "Save Game",
+		"en_us": "Save Game",
+		"ko": "게임 저장",
+	},
+	"esc_menu_load": {
+		"en_u4": "Load Game",
+		"en_us": "Load Game",
+		"ko": "게임 불러오기",
+	},
+	"esc_menu_return": {
+		"en_u4": "Return to Menu",
+		"en_us": "Return to Menu",
+		"ko": "시작 메뉴로",
+	},
+	"esc_menu_option": {
+		"en_u4": "Option",
+		"en_us": "Options",
+		"ko": "옵션",
+	},
+	"esc_menu_quit": {
+		"en_u4": "Quit",
+		"en_us": "Quit",
+		"ko": "종료",
+	},
+	"esc_menu_option_soon": {
+		"en_u4": "Not available.",
+		"en_us": "Options are not available yet.",
+		"ko": "아직 사용할 수 없다.",
+	},
 	"save_slot_empty": {
 		"en_u4": "%s: (Empty)",
 		"en_us": "%s: (Empty)",

@@ -11,6 +11,7 @@ const _MixPanel := preload("res://src/ui/mix_panel.gd")
 const _CombatMapData := preload("res://src/map/combat_map_data.gd")
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
+const _EscMenuPanel := preload("res://src/ui/esc_menu_panel.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -130,9 +131,12 @@ var _camp_guard_klass := -1
 var _camp_guard_cursor := 0
 ## xu4 settings campTime default (Resting… animation seconds).
 const CAMP_REST_SEC := 10.0
-## Quit & Save: 0 = idle, 1 = slot picker open.
+## Quit & Save / Esc Load: 0 = idle, 1 = save picker, 2 = load picker.
 var _save_stage := 0
 var _save_panel # SaveSlotPanel
+## True when the slot picker was opened from the Esc menu (return there after).
+var _slot_from_esc := false
+var _esc_menu # EscMenuPanel
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -173,6 +177,7 @@ func _ready() -> void:
 	_ensure_peer_overlay()
 	_ensure_ztats_panel()
 	_ensure_save_panel()
+	_ensure_esc_menu()
 	_ensure_locate_hud()
 	if _compact_roster:
 		_compact_roster.set_compact(true)
@@ -880,6 +885,10 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_camp_who_guards")
 	if _save_stage == 1:
 		return MSG_PROMPT + Locale.t("save_title")
+	if _save_stage == 2:
+		return MSG_PROMPT + Locale.t("load_title")
+	if _esc_menu_is_open():
+		return MSG_PROMPT + Locale.t("esc_menu_title")
 	if _order_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_exchange")
 	if _order_stage == 2:
@@ -1202,7 +1211,7 @@ func _process(delta: float) -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _save_stage == 1:
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open():
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1214,7 +1223,7 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0:
+	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1419,8 +1428,10 @@ func _tick_select_cursor() -> void:
 		_nudge_mix_cursor(step)
 	elif _camp_stage == 3:
 		_nudge_camp_guard_cursor(step)
-	elif _save_stage == 1:
+	elif _save_stage == 1 or _save_stage == 2:
 		_nudge_save_cursor(step)
+	elif _esc_menu_is_open():
+		_nudge_esc_menu_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -1510,8 +1521,11 @@ func _on_escape() -> void:
 	if _pending_cmd != U4Commands.Id.NONE:
 		## xu4 ReadDir: Esc clears "Dir?" on the same line — no extra message.
 		_clear_pending_dir()
+		return
+	if _esc_menu_is_open():
+		_close_esc_menu()
 	else:
-		SceneRouter.to_menu()
+		_open_esc_menu()
 
 
 func _input(event: InputEvent) -> void:
@@ -1534,6 +1548,7 @@ func _input(event: InputEvent) -> void:
 				or _camp_stage == 2
 				or _camp_stage == 3
 				or _save_stage != 0
+				or _esc_menu_is_open()
 			):
 				get_viewport().set_input_as_handled()
 				return
@@ -1543,9 +1558,15 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / Mix / Camp / Save / New Order accept keyboard + gamepad.
+	## Ztats / Ready / Wear / Mix / Camp / Save / Load / Esc menu / New Order.
 	if _save_stage != 0:
 		if _handle_save_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _esc_menu_is_open():
+		if _handle_esc_menu_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -1955,17 +1976,29 @@ func _do_quit_save() -> void:
 	## Q → slot picker popup; pick 1–4 / ↑↓+Enter to write JSON save.
 	_push_message(Locale.t("cmd_quit_save"), false)
 	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
+	_open_slot_picker(_SaveSlotPanel.Mode.SAVE, false)
+
+
+func _open_slot_picker(mode: int, from_esc: bool) -> void:
 	_ensure_save_panel()
 	if _save_panel == null:
 		_push_message(Locale.t("cmd_save_failed"), false)
-		_finish_party_turn()
+		if from_esc:
+			_open_esc_menu()
+		elif mode == _SaveSlotPanel.Mode.SAVE:
+			_finish_party_turn()
 		return
-	_save_stage = 1
+	_slot_from_esc = from_esc
+	_save_stage = 2 if mode == _SaveSlotPanel.Mode.LOAD else 1
 	_reset_hold_state()
-	_save_panel.open_panel(
-		_SaveSlotPanel.Mode.SAVE,
-		_SaveGame.default_save_cursor(GameState.session_loaded_slot, GameState.session_did_save)
-	)
+	var cursor := 0
+	if mode == _SaveSlotPanel.Mode.LOAD:
+		cursor = _SaveGame.default_load_cursor()
+	else:
+		cursor = _SaveGame.default_save_cursor(
+			GameState.session_loaded_slot, GameState.session_did_save
+		)
+	_save_panel.open_panel(mode, cursor)
 	_layout_prompt_row()
 
 
@@ -1975,6 +2008,103 @@ func _ensure_save_panel() -> void:
 	_save_panel = _SaveSlotPanel.new()
 	_save_panel.name = "SaveSlotPanel"
 	add_child(_save_panel)
+
+
+func _ensure_esc_menu() -> void:
+	if _esc_menu != null:
+		return
+	_esc_menu = _EscMenuPanel.new()
+	_esc_menu.name = "EscMenuPanel"
+	add_child(_esc_menu)
+
+
+func _esc_menu_is_open() -> bool:
+	return _esc_menu != null and _esc_menu.is_open()
+
+
+func _open_esc_menu() -> void:
+	_ensure_esc_menu()
+	_reset_hold_state()
+	_esc_menu.open_panel(0)
+	_layout_prompt_row()
+
+
+func _close_esc_menu() -> void:
+	if _esc_menu:
+		_esc_menu.close_panel()
+	_layout_prompt_row()
+
+
+func _nudge_esc_menu_cursor(delta: int) -> void:
+	if _esc_menu:
+		_esc_menu.nudge_cursor(delta)
+
+
+func _handle_esc_menu_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_close_esc_menu()
+			return true
+		if _is_order_confirm_key(k):
+			_confirm_esc_menu(_esc_menu.cursor() if _esc_menu else 0)
+			return true
+		## Optional letter shortcuts.
+		var letter := _esc_menu_letter_index(k)
+		if letter >= 0:
+			if _esc_menu:
+				_esc_menu.set_cursor(letter)
+			_confirm_esc_menu(letter)
+			return true
+	if event is InputEventJoypadButton:
+		var jb := event as InputEventJoypadButton
+		if jb.button_index == JOY_BUTTON_B:
+			_close_esc_menu()
+			return true
+		if jb.button_index == JOY_BUTTON_A:
+			_confirm_esc_menu(_esc_menu.cursor() if _esc_menu else 0)
+			return true
+	return true
+
+
+func _esc_menu_letter_index(k: InputEventKey) -> int:
+	var code := k.keycode
+	var phys := k.physical_keycode
+	if code == KEY_S or phys == KEY_S:
+		return _EscMenuPanel.Item.SAVE
+	if code == KEY_L or phys == KEY_L:
+		return _EscMenuPanel.Item.LOAD
+	if code == KEY_R or phys == KEY_R:
+		return _EscMenuPanel.Item.RETURN_MENU
+	if code == KEY_O or phys == KEY_O:
+		return _EscMenuPanel.Item.OPTION
+	if code == KEY_Q or phys == KEY_Q:
+		return _EscMenuPanel.Item.QUIT
+	return -1
+
+
+func _confirm_esc_menu(index: int) -> void:
+	match index:
+		_EscMenuPanel.Item.SAVE:
+			_close_esc_menu()
+			_open_slot_picker(_SaveSlotPanel.Mode.SAVE, true)
+		_EscMenuPanel.Item.LOAD:
+			if not _SaveGame.any_slot_exists():
+				if _esc_menu:
+					_esc_menu.set_status(Locale.t("load_none"))
+				return
+			_close_esc_menu()
+			_open_slot_picker(_SaveSlotPanel.Mode.LOAD, true)
+		_EscMenuPanel.Item.RETURN_MENU:
+			_close_esc_menu()
+			SceneRouter.to_menu()
+		_EscMenuPanel.Item.OPTION:
+			if _esc_menu:
+				_esc_menu.set_status(Locale.t("esc_menu_option_soon"))
+		_EscMenuPanel.Item.QUIT:
+			get_tree().quit()
 
 
 func _nudge_save_cursor(delta: int) -> void:
@@ -1994,13 +2124,13 @@ func _handle_save_input(event: InputEvent) -> bool:
 			_cancel_save(true)
 			return true
 		if _is_order_confirm_key(k):
-			_confirm_save_slot(_save_panel.cursor() if _save_panel else 0)
+			_confirm_slot_pick(_save_panel.cursor() if _save_panel else 0)
 			return true
 		var dig := _player_digit_index_from_key(k)
 		if dig >= 0 and dig < _SaveGame.SLOT_COUNT:
 			if _save_panel:
 				_save_panel.set_cursor(dig)
-			_confirm_save_slot(dig)
+			_confirm_slot_pick(dig)
 			return true
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
@@ -2008,12 +2138,19 @@ func _handle_save_input(event: InputEvent) -> bool:
 			_cancel_save(true)
 			return true
 		if jb.button_index == JOY_BUTTON_A:
-			_confirm_save_slot(_save_panel.cursor() if _save_panel else 0)
+			_confirm_slot_pick(_save_panel.cursor() if _save_panel else 0)
 			return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_cancel_save(true)
 		return true
 	return true
+
+
+func _confirm_slot_pick(slot_index: int) -> void:
+	if _save_stage == 2:
+		_confirm_load_slot(slot_index)
+	else:
+		_confirm_save_slot(slot_index)
 
 
 func _confirm_save_slot(slot_index: int) -> void:
@@ -2030,14 +2167,49 @@ func _confirm_save_slot(slot_index: int) -> void:
 	)
 	if not _SaveGame.write_slot(slot_n, data):
 		_push_message(Locale.t("cmd_save_failed"), false)
+		var from_esc_fail := _slot_from_esc
 		_close_save(false)
-		_finish_party_turn()
+		if from_esc_fail:
+			_open_esc_menu()
+		else:
+			_finish_party_turn()
 		return
 	GameState.session_did_save = true
 	GameState.session_loaded_slot = slot_n
+	var from_esc := _slot_from_esc
 	_close_save(false)
 	_push_message(Locale.t("cmd_saved"), false)
-	_finish_party_turn()
+	if from_esc:
+		_open_esc_menu()
+	else:
+		_finish_party_turn()
+
+
+func _confirm_load_slot(slot_index: int) -> void:
+	if slot_index < 0 or slot_index >= _SaveGame.SLOT_COUNT:
+		return
+	var slot_n := slot_index + 1
+	if not _SaveGame.slot_exists(slot_n):
+		_push_message(Locale.t("load_empty"), false)
+		return
+	var data := _SaveGame.read_slot(slot_n)
+	if data.is_empty():
+		_push_message(Locale.t("load_empty"), false)
+		return
+	var game: Variant = data.get("game", {})
+	var world: Variant = data.get("world", {})
+	if typeof(game) != TYPE_DICTIONARY:
+		_push_message(Locale.t("load_empty"), false)
+		return
+	GameState.apply_save_dict(game as Dictionary)
+	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
+	GameState.session_loaded_slot = slot_n
+	GameState.session_did_save = false
+	GameState.is_new_game = false
+	_SaveGame.set_last_loaded_slot(slot_n)
+	_close_save(false)
+	_slot_from_esc = false
+	SceneRouter.to_world()
 
 
 func _world_save_dict() -> Dictionary:
@@ -2072,7 +2244,11 @@ func _overlays_to_save() -> Array:
 func _cancel_save(show_none: bool) -> void:
 	if _save_stage == 0:
 		return
+	var from_esc := _slot_from_esc
 	_close_save(false)
+	if from_esc:
+		_open_esc_menu()
+		return
 	if show_none:
 		_push_message(Locale.t("cmd_none"), false)
 	_finish_party_turn()
@@ -2082,6 +2258,7 @@ func _close_save(_show_none: bool) -> void:
 	if _save_stage == 0 and (_save_panel == null or not _save_panel.is_open()):
 		return
 	_save_stage = 0
+	_slot_from_esc = false
 	if _save_panel:
 		_save_panel.close_panel()
 	_layout_prompt_row()
@@ -3707,7 +3884,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0:
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false
