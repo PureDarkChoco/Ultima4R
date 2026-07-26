@@ -572,6 +572,9 @@ func _can_move_to(dest: Vector2i) -> bool:
 	if _is_in_city():
 		if _city_map == null or not _city_map.loaded:
 			return false
+		## xu4: cannot walk through townsfolk.
+		if _city_map.person_tile_at(dest.x, dest.y) >= 0:
+			return false
 		var c_dest: int = int(_city_map.tile_at(dest.x, dest.y))
 		var c_from: int = int(_city_map.tile_at(_tile_pos.x, _tile_pos.y))
 		var cdir := Vector2i(

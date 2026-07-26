@@ -754,10 +754,33 @@ func _rebuild_city() -> void:
 		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
 		Vector2i.ZERO
 	)
+	_paint_city_persons(cam)
 	_paint_party_marker()
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
+
+
+func _paint_city_persons(cam: Vector2) -> void:
+	## Draw .ULT townsfolk (start tiles) in city-local space.
+	if _city_map == null or atlas_img == null:
+		return
+	if _city_map.persons.is_empty():
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for p in _city_map.persons:
+		var screen := Vector2(p.x, p.y) - cam + Vector2(half_x, half_y)
+		var px := int(round(screen.x * float(TILE_SRC)))
+		var py := int(round(screen.y * float(TILE_SRC)))
+		if px <= -TILE_SRC or py <= -TILE_SRC:
+			continue
+		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+			continue
+		var slice := _overlay_slice(int(p.z))
+		if slice == null:
+			continue
+		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
 
 
 func _city_tile_or_outside(x: int, y: int) -> int:
