@@ -1,9 +1,9 @@
 class_name U4Tileset
 extends RefCounted
 
-## Builds a Godot TileSet from u4graphics shapes.png (32×32 × 256, vertical strip).
+## Builds a Godot TileSet from individual shapes/*.png tiles (32×32 × 256).
 
-const SHAPES_PATH := "res://assets/tiles/u4graphics/shapes.png"
+const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const TILE_SIZE := 32
 const TILE_COUNT := 256
 
@@ -18,11 +18,12 @@ static func get_tileset() -> TileSet:
 
 
 static func build() -> TileSet:
-	var tex := load(SHAPES_PATH) as Texture2D
-	if tex == null:
-		push_error("U4Tileset: missing %s" % SHAPES_PATH)
+	var atlas_img: Image = _U4TileBankScript.stacked_atlas()
+	if atlas_img == null or atlas_img.is_empty():
+		push_error("U4Tileset: could not build atlas from shapes/")
 		return TileSet.new()
 
+	var tex := ImageTexture.create_from_image(atlas_img)
 	var atlas := TileSetAtlasSource.new()
 	atlas.texture = tex
 	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)

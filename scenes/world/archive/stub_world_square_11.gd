@@ -2,6 +2,8 @@ extends Control
 
 ## Left: square map (no frame). Right: Status + Message (Ultima blue frames).
 
+const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
+
 @onready var _map_pane: Control = $RootRow/MapPane
 @onready var _map: MapView = $RootRow/MapPane/MapView
 @onready var _roster: PartyRoster = %PartyRoster
@@ -35,16 +37,15 @@ func _ready() -> void:
 	resized.connect(_fit_square_map)
 	_style_right_panels()
 
-	var atlas := _load_atlas()
 	var path := _resolve_world_map_path()
 
-	if atlas == null:
-		_load_error = "shapes.png 로드 실패"
+	if not _U4TileBankScript.ensure_loaded():
+		_load_error = "shapes/ 타일 로드 실패"
 	elif not _world.load_from_path(path):
 		_load_error = "WORLD.MAP 로드 실패\n%s" % path
 	else:
 		_tile_pos = GameState.start_pos if GameState.start_pos != Vector2i.ZERO else Vector2i(83, 105)
-		_map.setup(_world, atlas)
+		_map.setup(_world)
 		_map.set_view_tiles(11, 11)
 		_map.set_center(_tile_pos)
 
@@ -57,17 +58,6 @@ func _ready() -> void:
 	else:
 		_refresh_party()
 		_push_location_message()
-
-
-func _load_atlas() -> Texture2D:
-	var atlas_path := "res://assets/tiles/u4graphics/shapes.png"
-	var tex := load(atlas_path) as Texture2D
-	if tex != null:
-		return tex
-	var img := Image.new()
-	if img.load(atlas_path) == OK:
-		return ImageTexture.create_from_image(img)
-	return null
 
 
 func _resolve_world_map_path() -> String:

@@ -13,8 +13,8 @@ Even tiles (frame A) and odd tiles (frame B) animate in the party roster:
 | Ranger | 44 | 45 |
 | Shepherd | 46 | 47 |
 
-Standalone PNGs below are even-frame snapshots (fallback if `shapes.png` is missing).
-Runtime animation loads A/B directly from `assets/tiles/u4graphics/shapes.png`.
+Standalone PNGs below are even-frame snapshots (fallback if shapes tiles are missing).
+Runtime animation loads A/B directly from `assets/tiles/u4graphics/shapes/` (via U4TileBank).
 
 | File | Class |
 |------|-------|

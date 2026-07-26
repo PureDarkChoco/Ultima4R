@@ -14,6 +14,7 @@ const _SaveGame := preload("res://src/core/save_game.gd")
 const _EscMenuPanel := preload("res://src/ui/esc_menu_panel.gd")
 const _CityMapData := preload("res://src/map/city_map_data.gd")
 const _WorldPortals := preload("res://src/map/world_portals.gd")
+const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -192,17 +193,16 @@ func _ready() -> void:
 	if GameState.party_order.is_empty():
 		GameState.refresh_party_order()
 
-	var atlas := _load_atlas()
 	var path := _resolve_world_map_path()
 	var loading_save := not GameState.pending_world_save.is_empty()
 
-	if atlas == null:
-		_load_error = "shapes.png 로드 실패"
+	if not _U4TileBankScript.ensure_loaded():
+		_load_error = "shapes/ 타일 로드 실패"
 	elif not _world.load_from_path(path):
 		_load_error = "WORLD.MAP 로드 실패\n%s" % path
 	else:
 		_tile_pos = GameState.start_pos if GameState.start_pos != Vector2i.ZERO else Vector2i(83, 105)
-		_map.setup(_world, atlas)
+		_map.setup(_world)
 		if loading_save:
 			_apply_world_save(GameState.pending_world_save)
 			GameState.pending_world_save.clear()
@@ -218,17 +218,6 @@ func _ready() -> void:
 	else:
 		_refresh_party()
 		_refresh_ship_hull_hud()
-
-
-func _load_atlas() -> Texture2D:
-	var atlas_path := "res://assets/tiles/u4graphics/shapes.png"
-	var tex := load(atlas_path) as Texture2D
-	if tex != null:
-		return tex
-	var img := Image.new()
-	if img.load(atlas_path) == OK:
-		return ImageTexture.create_from_image(img)
-	return null
 
 
 func _place_temp_transports() -> void:
@@ -1973,24 +1962,13 @@ func _ensure_ship_hull_hud() -> void:
 
 
 func _make_ship_hull_icon() -> Texture2D:
-	## Keyed west-facing frigate from shapes.png (tile 16).
-	var img := Image.new()
-	if img.load(MapView.U4_ATLAS) != OK:
-		var tex := load(MapView.U4_ATLAS) as Texture2D
-		if tex:
-			img = tex.get_image()
-	if img == null or img.is_empty():
+	## Keyed west-facing frigate from shapes tile 16.
+	if not _U4TileBankScript.ensure_loaded():
 		return null
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
+	var slice: Image = _U4TileBankScript.keyed_copy(MapView.TILE_SHIP_W)
+	if slice == null or slice.is_empty():
+		return null
 	var s := MapView.TILE_SRC
-	var slice := Image.create(s, s, false, Image.FORMAT_RGBA8)
-	slice.blit_rect(img, Rect2i(0, MapView.TILE_SHIP_W * s, s, s), Vector2i.ZERO)
-	for y in s:
-		for x in s:
-			var c := slice.get_pixel(x, y)
-			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-				slice.set_pixel(x, y, Color(0, 0, 0, 0))
 	## Crop to content so the 14px icon reads larger.
 	var x0 := s
 	var y0 := s

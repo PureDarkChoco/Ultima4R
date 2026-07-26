@@ -7,7 +7,7 @@ extends VBoxContainer
 
 enum Status { OK, POISONED, SLEEPING, DEAD }
 
-const SHAPES_PATH := "res://assets/tiles/u4graphics/shapes.png"
+const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const TILE_SRC := 32
 const CLASS_TILE_EVEN := [32, 34, 36, 38, 40, 42, 44, 46]
 
@@ -680,8 +680,7 @@ static func member_ztats(slot: int) -> Dictionary:
 	}
 
 
-## Cached shapes atlas / class tiles for Ztats & save-slot UI (avoid reloading PNG).
-static var _shapes_atlas_img: Image
+## Cached class tiles for Ztats & save-slot UI (avoid reloading PNGs).
 static var _class_tile_tex: Array[Texture2D] = []
 
 
@@ -694,32 +693,16 @@ static func _ztats_class_tile(klass: int) -> Texture2D:
 		_class_tile_tex.resize(PORTRAIT_PATHS.size())
 	if _class_tile_tex[klass] != null:
 		return _class_tile_tex[klass]
-	var atlas := _shapes_atlas_image()
-	if atlas != null and not atlas.is_empty():
+	if _U4TileBankScript.ensure_loaded():
 		var even: int = CLASS_TILE_EVEN[klass]
-		var max_tid := atlas.get_height() / TILE_SRC - 1
-		if even >= 0 and even <= max_tid:
-			var slice := Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
-			slice.blit_rect(atlas, Rect2i(0, even * TILE_SRC, TILE_SRC, TILE_SRC), Vector2i.ZERO)
-			_key_black_static(slice)
+		var slice: Image = _U4TileBankScript.keyed_copy(even)
+		if slice != null and not slice.is_empty():
 			var tex := ImageTexture.create_from_image(slice)
 			_class_tile_tex[klass] = tex
 			return tex
 	var fallback := _load_texture_file(PORTRAIT_PATHS[klass])
 	_class_tile_tex[klass] = fallback
 	return fallback
-
-
-static func _shapes_atlas_image() -> Image:
-	if _shapes_atlas_img != null and not _shapes_atlas_img.is_empty():
-		return _shapes_atlas_img
-	var atlas := Image.new()
-	if atlas.load(SHAPES_PATH) != OK:
-		return null
-	if atlas.get_format() != Image.FORMAT_RGBA8:
-		atlas.convert(Image.FORMAT_RGBA8)
-	_shapes_atlas_img = atlas
-	return _shapes_atlas_img
 
 
 static func _ztats_face_portrait(klass: int, is_avatar: bool) -> Texture2D:
@@ -740,15 +723,6 @@ static func _load_texture_file(path: String) -> Texture2D:
 		return ImageTexture.create_from_image(img)
 	var loaded := load(path) as Texture2D
 	return loaded
-
-
-static func _key_black_static(img: Image) -> void:
-	## Match roster chroma-key so black tile bg is transparent.
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
 
 
 func _order_row_style(cursor: int, locked: int, index: int) -> StyleBoxFlat:
@@ -787,14 +761,14 @@ func _apply_order_selection() -> void:
 func _load_portraits() -> void:
 	_portraits_a.clear()
 	_portraits_b.clear()
-	var atlas := _load_shapes_atlas()
+	var bank_ok := _U4TileBankScript.ensure_loaded()
 	for i in 8:
 		var tex_a: Texture2D = null
 		var tex_b: Texture2D = null
-		if atlas != null:
+		if bank_ok:
 			var even: int = CLASS_TILE_EVEN[i]
-			tex_a = _slice_keyed_tile(atlas, even)
-			tex_b = _slice_keyed_tile(atlas, even + 1)
+			tex_a = _slice_keyed_tile(even)
+			tex_b = _slice_keyed_tile(even + 1)
 		if tex_a == null:
 			tex_a = _load_keyed_portrait(PORTRAIT_PATHS[i])
 		if tex_b == null:
@@ -804,27 +778,10 @@ func _load_portraits() -> void:
 	_corpse = _load_keyed_portrait(CORPSE_PATH)
 
 
-func _load_shapes_atlas() -> Image:
-	var img := Image.new()
-	if img.load(SHAPES_PATH) != OK:
-		var loaded := load(SHAPES_PATH) as Texture2D
-		if loaded == null:
-			return null
-		img = loaded.get_image()
-		if img == null or img.is_empty():
-			return null
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
-	return img
-
-
-func _slice_keyed_tile(atlas: Image, tile_id: int) -> Texture2D:
-	var max_tid := atlas.get_height() / TILE_SRC - 1
-	if tile_id < 0 or tile_id > max_tid:
+func _slice_keyed_tile(tile_id: int) -> Texture2D:
+	var slice: Image = _U4TileBankScript.keyed_copy(tile_id)
+	if slice == null or slice.is_empty():
 		return null
-	var slice := Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
-	slice.blit_rect(atlas, Rect2i(0, tile_id * TILE_SRC, TILE_SRC, TILE_SRC), Vector2i.ZERO)
-	_key_black(slice)
 	return ImageTexture.create_from_image(slice)
 
 

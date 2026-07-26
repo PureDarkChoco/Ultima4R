@@ -1,19 +1,22 @@
 class_name MapView
 extends TextureRect
 
-## Renders Ultima IV explore view by blitting u4graphics shapes.png into an ImageTexture.
+## Renders Ultima IV explore view by blitting per-tile PNGs (U4TileBank) into an ImageTexture.
 ## Explore: fixed VIEW_W × VIEW_H grid; STRETCH_SCALE applies mild tall-tile aspect.
 
 ## Preload so MapView parses even if global class cache is stale.
 const _CombatMapDataScript := preload("res://src/map/combat_map_data.gd")
+const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 
 const VIEW_H := 11
 const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
 const VIEW_W_MIN := VIEW_W
 ## Implied tile width/height when VIEW_W×VIEW_H fills the map pane (~9:10).
 const TILE_ASPECT := 9.0 / 10.0
+## Legacy atlas path kept for docs / external refs; runtime uses shapes/*.png.
 const U4_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
 const TILE_SRC := 32
+const TILE_ID_MAX := 255
 ## Fallback Avatar tiles (when class unknown): 31 ↔ 30.
 const AVATAR_TILE_A := 31
 const AVATAR_TILE_B := 30
@@ -22,11 +25,25 @@ const CLASS_TILE_EVEN := [32, 34, 36, 38, 40, 42, 44, 46]
 ## Even/odd dwell — randomized each flip, hard-capped so neither frame sticks.
 const AVATAR_FRAME_MIN := 0.28
 const AVATAR_FRAME_MAX := 0.55
+## Townsfolk walk cycles — wider spread so they don't flip in lockstep.
+const NPC_FRAME_MIN := 0.22
+const NPC_FRAME_MAX := 0.85
 ## Classic U4 water (deep / medium / shallow) — vertical pixel scroll wrap.
 const WATER_TILE_MAX := 2 # ids 0..2
 ## Seconds per 1px scroll step (xu4-like flow). Tune anytime.
 const WATER_SCROLL_PERIOD := 0.12
-## Temporary transport sprites (shapes.png indices).
+## White stone corner tiles — shallow water under white mask.
+const TILE_WHITE_SW := 49
+const TILE_WHITE_SE := 50
+const TILE_WHITE_NW := 51
+const TILE_WHITE_NE := 52
+## Y-scroll fields / lava (same clock as water).
+const TILE_FIELD_POISON := 68
+const TILE_FIELD_ENERGY := 69
+const TILE_FIELD_FIRE := 70
+const TILE_FIELD_SLEEP := 71
+const TILE_LAVA := 76
+## Temporary transport sprites (shapes tile indices).
 const TILE_SHIP_W := 16
 const TILE_SHIP_N := 17
 const TILE_SHIP_E := 18
@@ -54,7 +71,8 @@ const SMOOTH_SCROLL := true
 const SCROLL_STEPS := 3
 
 var world: WorldMapData
-var atlas_img: Image
+## True once U4TileBank has all 256 individual tile images.
+var tiles_ready: bool = false
 var center := Vector2i(83, 105)
 ## Visible tile grid (odd so the party sits on a true center tile).
 var view_w: int = VIEW_W
@@ -113,6 +131,12 @@ var _city_world_pos := Vector2i.ZERO
 var _city_nb: Array[int] = []
 ## City-edge of the Enter spawn: 0=N 1=E 2=S 3=W — that outside strip is plains.
 var _city_enter_side := 2
+## Per-person walk frame (independent phase / dwell).
+var _npc_frame_bit: Array[int] = []
+var _npc_frame_cd: Array[float] = []
+var _npc_anim_dirty := false
+var _npc_rebuild_cd := 0.0
+const NPC_REBUILD_PERIOD := 0.08 ## Cap map redraws from NPC flips (~12 Hz).
 
 const _TileRulesCamp := preload("res://src/map/tile_rules.gd")
 ## Seconds between random guard steps while Resting…
@@ -135,29 +159,19 @@ func _ready() -> void:
 	texture = _tex
 
 
-func setup(p_world: WorldMapData, p_atlas: Texture2D) -> void:
+func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
+	## `_p_atlas` kept for call-site compatibility; tiles load from shapes/*.png.
 	world = p_world
-	atlas_img = null
+	tiles_ready = false
 	_avatar_a = null
 	_avatar_b = null
 	_horse_rider_class = -999
 	_corpse_slice = null
+	_overlay_slices.clear()
 	exit_camp()
 	exit_city()
-	if p_atlas != null:
-		atlas_img = p_atlas.get_image()
-		if atlas_img == null or atlas_img.is_empty():
-			var path := p_atlas.resource_path
-			if path.is_empty():
-				path = U4_ATLAS
-			var img := Image.new()
-			if img.load(path) == OK:
-				atlas_img = img
-	if atlas_img == null or atlas_img.is_empty():
-		atlas_img = _load_image_path(U4_ATLAS)
-	if atlas_img != null and not atlas_img.is_empty():
-		if atlas_img.get_format() != Image.FORMAT_RGBA8:
-			atlas_img.convert(Image.FORMAT_RGBA8)
+	tiles_ready = _U4TileBankScript.ensure_loaded()
+	if tiles_ready:
 		_cache_avatar_icons()
 	_scroll_frames_left = 0
 	_avatar_frame = 0
@@ -224,6 +238,7 @@ func enter_city(map, start: Vector2i, world_pos: Vector2i = Vector2i(-1, -1)) ->
 	_city_enter_side = _city_entrance_side(start)
 	_scroll_frames_left = 0
 	center = start
+	_init_npc_frames()
 	_build_city_outside()
 	_rebuild()
 
@@ -237,6 +252,10 @@ func exit_city() -> void:
 	_city_out_stride = 0
 	_city_nb.clear()
 	_city_enter_side = 2
+	_npc_frame_bit.clear()
+	_npc_frame_cd.clear()
+	_npc_anim_dirty = false
+	_npc_rebuild_cd = 0.0
 	_scroll_frames_left = 0
 	_rebuild()
 
@@ -459,7 +478,7 @@ func _unwrap_step(from: Vector2i, to: Vector2i) -> Vector2i:
 func _process(delta: float) -> void:
 	# Party #1 may change via reorder — refresh walker sprite.
 	var lead := GameState.party_leader_class()
-	if lead != _cached_leader_class and atlas_img != null:
+	if lead != _cached_leader_class and tiles_ready:
 		_cache_avatar_icons()
 		_rebuild()
 
@@ -477,6 +496,16 @@ func _process(delta: float) -> void:
 		_water_scroll = (_water_scroll + 1) % TILE_SRC
 		water_changed = true
 
+	var npc_changed := false
+	if is_in_city() and not _npc_frame_cd.is_empty():
+		if _tick_npc_frames(delta):
+			_npc_anim_dirty = true
+		_npc_rebuild_cd = maxf(0.0, _npc_rebuild_cd - delta)
+		if _npc_anim_dirty and _npc_rebuild_cd <= 0.0:
+			_npc_anim_dirty = false
+			_npc_rebuild_cd = NPC_REBUILD_PERIOD
+			npc_changed = true
+
 	var shake_changed := false
 	if _shake_left > 0.0:
 		_shake_left = maxf(0.0, _shake_left - delta)
@@ -486,19 +515,42 @@ func _process(delta: float) -> void:
 		# Same frame as set_center — keep first pose on screen for one full frame.
 		if _scroll_skip_process:
 			_scroll_skip_process = false
-			if frame_changed or water_changed or shake_changed:
+			if frame_changed or water_changed or npc_changed or shake_changed:
 				_rebuild()
 			return
 		_scroll_frames_left -= 1
 		_rebuild()
 		return
 
-	if frame_changed or water_changed or shake_changed:
+	if frame_changed or water_changed or npc_changed or shake_changed:
 		_rebuild()
 
 
 func _roll_frame_cd() -> void:
 	_frame_cd = randf_range(AVATAR_FRAME_MIN, AVATAR_FRAME_MAX)
+
+
+func _init_npc_frames() -> void:
+	_npc_frame_bit.clear()
+	_npc_frame_cd.clear()
+	if _city_map == null:
+		return
+	for _i in _city_map.persons.size():
+		_npc_frame_bit.append(randi() & 1)
+		## Stagger first flip so the crowd doesn't start in sync.
+		_npc_frame_cd.append(randf_range(0.0, NPC_FRAME_MAX))
+
+
+func _tick_npc_frames(delta: float) -> bool:
+	var changed := false
+	for i in _npc_frame_cd.size():
+		_npc_frame_cd[i] -= delta
+		if _npc_frame_cd[i] > 0.0:
+			continue
+		_npc_frame_bit[i] = 1 - _npc_frame_bit[i]
+		_npc_frame_cd[i] = randf_range(NPC_FRAME_MIN, NPC_FRAME_MAX)
+		changed = true
+	return changed
 
 
 func _load_image_path(path: String) -> Image:
@@ -522,7 +574,7 @@ func _avatar_tile_pair() -> Vector2i:
 func _cache_avatar_icons() -> void:
 	_avatar_a = null
 	_avatar_b = null
-	if atlas_img == null or atlas_img.is_empty():
+	if not tiles_ready:
 		return
 	var pair := _avatar_tile_pair()
 	_avatar_a = _slice_keyed_tile(pair.x)
@@ -557,7 +609,7 @@ func _ensure_horse_riders() -> void:
 
 func _compose_horse_rider(horse_id: int) -> Image:
 	## Horse base + rider torso from the current party walker sprite.
-	if atlas_img == null or _avatar_a == null or _avatar_a.is_empty():
+	if not tiles_ready or _avatar_a == null or _avatar_a.is_empty():
 		return null
 	var horse := _slice_keyed_tile(horse_id)
 	if horse == null or horse.is_empty():
@@ -619,17 +671,9 @@ func _horse_rider_for_transport() -> Image:
 
 
 func _slice_keyed_tile(tile_id: int) -> Image:
-	var max_tid := atlas_img.get_height() / TILE_SRC - 1
-	if tile_id < 0 or tile_id > max_tid:
+	if not tiles_ready or tile_id < 0 or tile_id > TILE_ID_MAX:
 		return null
-	var img := Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
-	img.blit_rect(atlas_img, Rect2i(0, tile_id * TILE_SRC, TILE_SRC, TILE_SRC), Vector2i.ZERO)
-	for y in TILE_SRC:
-		for x in TILE_SRC:
-			var c := img.get_pixel(x, y)
-			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
-	return img
+	return _U4TileBankScript.keyed_copy(tile_id)
 
 
 func _ensure_buffers() -> void:
@@ -658,7 +702,7 @@ func _rebuild() -> void:
 	_ensure_buffers()
 	_buf.fill(Color(0.05, 0.08, 0.07, 1))
 
-	if atlas_img == null or atlas_img.is_empty():
+	if not tiles_ready:
 		_tex.set_image(_buf)
 		texture = _tex
 		queue_redraw()
@@ -686,7 +730,6 @@ func _rebuild() -> void:
 		clampi(int(frac.y * float(TILE_SRC)), 0, TILE_SRC - 1)
 	)
 
-	var max_tid := maxi(atlas_img.get_height() / TILE_SRC - 1, 0)
 	var half_x := view_w / 2
 	var half_y := view_h / 2
 	# Stage (view+1) so fractional scroll has a strip to reveal.
@@ -695,17 +738,10 @@ func _rebuild() -> void:
 			var tid := clampi(
 				world.tile_at(base.x - half_x + dx, base.y - half_y + dy),
 				0,
-				mini(255, max_tid)
+				TILE_ID_MAX
 			)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			if tid <= WATER_TILE_MAX:
-				_blit_water_tile(tid, dst)
-			else:
-				_stage.blit_rect(
-					atlas_img,
-					Rect2i(0, tid * TILE_SRC, TILE_SRC, TILE_SRC),
-					dst
-				)
+			_blit_terrain_to(_stage, tid, dst)
 
 	_buf.blit_rect(
 		_stage,
@@ -732,23 +768,15 @@ func _rebuild_city() -> void:
 		clampi(int(frac.x * float(TILE_SRC)), 0, TILE_SRC - 1),
 		clampi(int(frac.y * float(TILE_SRC)), 0, TILE_SRC - 1)
 	)
-	var max_tid := maxi(atlas_img.get_height() / TILE_SRC - 1, 0)
 	var half_x := view_w / 2
 	var half_y := view_h / 2
 	for dy in view_h + 1:
 		for dx in view_w + 1:
 			var mx := base.x - half_x + dx
 			var my := base.y - half_y + dy
-			var tid := clampi(_city_tile_or_outside(mx, my), 0, mini(255, max_tid))
+			var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			if tid <= WATER_TILE_MAX:
-				_blit_water_tile(tid, dst)
-			else:
-				_stage.blit_rect(
-					atlas_img,
-					Rect2i(0, tid * TILE_SRC, TILE_SRC, TILE_SRC),
-					dst
-				)
+			_blit_terrain_to(_stage, tid, dst)
 	_buf.blit_rect(
 		_stage,
 		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
@@ -762,14 +790,15 @@ func _rebuild_city() -> void:
 
 
 func _paint_city_persons(cam: Vector2) -> void:
-	## Draw .ULT townsfolk (start tiles) in city-local space.
-	if _city_map == null or atlas_img == null:
+	## Draw .ULT townsfolk with 2-frame walk cycles (tile ↔ prev / even↔odd).
+	if _city_map == null or not tiles_ready:
 		return
 	if _city_map.persons.is_empty():
 		return
 	var half_x := view_w / 2
 	var half_y := view_h / 2
-	for p in _city_map.persons:
+	for i in _city_map.persons.size():
+		var p: Vector3i = _city_map.persons[i]
 		var screen := Vector2(p.x, p.y) - cam + Vector2(half_x, half_y)
 		var px := int(round(screen.x * float(TILE_SRC)))
 		var py := int(round(screen.y * float(TILE_SRC)))
@@ -777,10 +806,35 @@ func _paint_city_persons(cam: Vector2) -> void:
 			continue
 		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
 			continue
-		var slice := _overlay_slice(int(p.z))
+		var prev := -1
+		if i < _city_map.person_prev.size():
+			prev = int(_city_map.person_prev[i])
+		var draw_tid := _npc_frame_tile(int(p.z), prev, i)
+		var slice := _overlay_slice(draw_tid)
 		if slice == null:
 			continue
 		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+
+
+func _npc_frame_tile(tid: int, prev: int, person_i: int) -> int:
+	## Townsfolk / class sprites: flip between the two walk frames.
+	## Prefer .ULT prev↔tile pair; else even/odd for known ranges.
+	var a := tid
+	var b := tid
+	if prev >= 0 and prev <= TILE_ID_MAX and prev != tid:
+		a = mini(tid, prev)
+		b = maxi(tid, prev)
+	elif (tid >= 32 and tid <= 47) or (tid >= 80 and tid <= 95):
+		a = tid & ~1
+		b = a + 1
+	else:
+		return tid
+	if a == b:
+		return a
+	var bit := 0
+	if person_i >= 0 and person_i < _npc_frame_bit.size():
+		bit = _npc_frame_bit[person_i]
+	return b if bit == 1 else a
 
 
 func _city_tile_or_outside(x: int, y: int) -> int:
@@ -1158,7 +1212,6 @@ func _extend_city_rim_cell(cx: int, cy: int, edge_tid: int, horizontal: bool) ->
 
 func _rebuild_camp() -> void:
 	## 11×11 camp map centered; side columns from baked world-side backdrop.
-	var max_tid := maxi(atlas_img.get_height() / TILE_SRC - 1, 0)
 	var camp_w := CAMP_W
 	var camp_h := CAMP_H
 	var origin_x := (view_w - camp_w) / 2
@@ -1172,20 +1225,13 @@ func _rebuild_camp() -> void:
 			var cx := dx - origin_x
 			var cy := dy - origin_y
 			if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
-				tid = clampi(_camp_map.tile_at(cx, cy), 0, mini(255, max_tid))
+				tid = clampi(_camp_map.tile_at(cx, cy), 0, TILE_ID_MAX)
 			else:
 				var bi := dy * view_w + dx
 				if bi >= 0 and bi < _camp_bg.size():
-					tid = clampi(int(_camp_bg[bi]), 0, mini(255, max_tid))
+					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			if tid <= WATER_TILE_MAX:
-				_blit_water_to_buf(tid, dst)
-			else:
-				_buf.blit_rect(
-					atlas_img,
-					Rect2i(0, tid * TILE_SRC, TILE_SRC, TILE_SRC),
-					dst
-				)
+			_blit_terrain_to(_buf, tid, dst)
 
 	_paint_camp_sleepers(origin_x, origin_y)
 	_paint_camp_guard(origin_x, origin_y)
@@ -1553,22 +1599,22 @@ func _normalize_camp_margin_tile(tid: int) -> int:
 			return TILE_GRASS
 
 
-func _blit_water_to_buf(tid: int, dst: Vector2i) -> void:
-	var src_y0 := tid * TILE_SRC
-	var s := posmod(_water_scroll, TILE_SRC)
-	if s == 0:
-		_buf.blit_rect(atlas_img, Rect2i(0, src_y0, TILE_SRC, TILE_SRC), dst)
-		return
-	_buf.blit_rect(
-		atlas_img,
-		Rect2i(0, src_y0 + s, TILE_SRC, TILE_SRC - s),
-		dst
-	)
-	_buf.blit_rect(
-		atlas_img,
-		Rect2i(0, src_y0, TILE_SRC, s),
-		dst + Vector2i(0, TILE_SRC - s)
-	)
+func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
+	## Water, fields, lava, and white-corner edges share the same Y-scroll clock.
+	if tid <= WATER_TILE_MAX or _is_y_scroll_tile(tid):
+		_U4TileBankScript.blit_water_to(target, tid, dst, _water_scroll)
+	elif tid >= TILE_WHITE_SW and tid <= TILE_WHITE_NE:
+		_U4TileBankScript.blit_water_edge_to(target, tid, dst, _water_scroll)
+	else:
+		_U4TileBankScript.blit_to(target, tid, dst)
+
+
+func _is_y_scroll_tile(tid: int) -> bool:
+	match tid:
+		TILE_FIELD_POISON, TILE_FIELD_ENERGY, TILE_FIELD_FIRE, TILE_FIELD_SLEEP, TILE_LAVA:
+			return true
+		_:
+			return false
 
 
 func _paint_camp_sleepers(origin_x: int, origin_y: int) -> void:
@@ -1648,30 +1694,9 @@ func _camp_guard_can_enter(pos: Vector2i) -> bool:
 	return true
 
 
-func _blit_water_tile(tid: int, dst: Vector2i) -> void:
-	## xu4 ATYPE_SCROLL: shift tile rows down by `_water_scroll` px with wrap.
-	var src_y0 := tid * TILE_SRC
-	var s := posmod(_water_scroll, TILE_SRC)
-	if s == 0:
-		_stage.blit_rect(atlas_img, Rect2i(0, src_y0, TILE_SRC, TILE_SRC), dst)
-		return
-	# Lower band of the source tile → top of destination.
-	_stage.blit_rect(
-		atlas_img,
-		Rect2i(0, src_y0 + s, TILE_SRC, TILE_SRC - s),
-		dst
-	)
-	# Upper band → bottom of destination.
-	_stage.blit_rect(
-		atlas_img,
-		Rect2i(0, src_y0, TILE_SRC, s),
-		dst + Vector2i(0, TILE_SRC - s)
-	)
-
-
 func _paint_overlays(cam: Vector2) -> void:
 	## Draw temporary horse/ship stubs in world space (scroll with terrain).
-	if _overlays.is_empty() or atlas_img == null:
+	if _overlays.is_empty() or not tiles_ready:
 		return
 	var half_x := view_w / 2
 	var half_y := view_h / 2

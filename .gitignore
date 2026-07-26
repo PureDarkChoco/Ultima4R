@@ -11,3 +11,6 @@
 # Ultima VI GOG extracts (regenerate via tools/extract_u6_tiles.py)
 assets/tiles/u6/
 assets/ui/u6/
+
+# Local Python tooling (Pillow etc.)
+.tools_py/

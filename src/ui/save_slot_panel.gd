@@ -48,7 +48,7 @@ func _ready() -> void:
 
 
 func _cache_class_tiles() -> void:
-	## Lazy + shared with PartyRoster cache (do not reload shapes.png 8× on boot).
+	## Lazy + shared with PartyRoster cache (do not reload class tiles 8× on boot).
 	if _class_tiles.size() == 8:
 		return
 	_class_tiles.clear()
