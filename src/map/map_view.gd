@@ -874,7 +874,10 @@ func _npc_frame_tile(tid: int, prev: int, person_i: int) -> int:
 
 func _city_tile_or_outside(x: int, y: int) -> int:
 	if _city_map != null and x >= 0 and y >= 0 and x < _CITY_W and y < _CITY_H:
-		return int(_city_map.tile_at(x, y))
+		## Prefer annotated terrain (open doors → brick floor, etc.).
+		if _city_map.has_method("effective_tile_at"):
+			return clampi(int(_city_map.effective_tile_at(x, y)), 0, TILE_ID_MAX)
+		return clampi(int(_city_map.tile_at(x, y)), 0, TILE_ID_MAX)
 	return _city_outside_at(x, y)
 
 

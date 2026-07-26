@@ -212,6 +212,16 @@ const _T := {
 		"en_us": "Jimmy what?",
 		"ko": "무엇의 자물쇠를?",
 	},
+	"cmd_unlocked": {
+		"en_u4": "Unlocked!",
+		"en_us": "Unlocked!",
+		"ko": "잠금이 풀렸다!",
+	},
+	"cmd_no_keys": {
+		"en_u4": "No keys left!",
+		"en_us": "No keys left!",
+		"ko": "열쇠가 없다!",
+	},
 	"cmd_not_here": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",
@@ -221,6 +231,26 @@ const _T := {
 		"en_u4": "Only on foot!",
 		"en_us": "Only on foot!",
 		"ko": "도보로만 가능하다!",
+	},
+	"cmd_klimb_what": {
+		"en_u4": "Klimb what?",
+		"en_us": "Klimb what?",
+		"ko": "어디로 올라가?",
+	},
+	"cmd_descend_what": {
+		"en_u4": "Descend what?",
+		"en_us": "Descend what?",
+		"ko": "어디로 내려가?",
+	},
+	"cmd_klimb_lcb2": {
+		"en_u4": "Klimb to second floor!",
+		"en_us": "Klimb to second floor!",
+		"ko": "2층으로 올라간다!",
+	},
+	"cmd_descend_lcb1": {
+		"en_u4": "Descend to first floor!",
+		"en_us": "Descend to first floor!",
+		"ko": "1층으로 내려간다!",
 	},
 	"cmd_enter_what": {
 		"en_u4": "Enter what?",
@@ -596,6 +626,11 @@ const _T := {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",
 		"ko": "열 것이 없다!",
+	},
+	"cmd_opened": {
+		"en_u4": "Opened!",
+		"en_us": "Opened!",
+		"ko": "열렸다!",
 	},
 	"cmd_no_response": {
 		"en_u4": "Funny, no response!",

@@ -50,6 +50,9 @@ var person_prev: Array[int] = []
 var person_move: Array[int] = []
 var loaded: bool = false
 var source_path: String = ""
+## xu4 Map::annotations — temporary overlays (open doors, etc.).
+## Each: { "x": int, "y": int, "tid": int, "ttl": int }  ttl -1 = permanent.
+var annotations: Array[Dictionary] = []
 
 
 func clear() -> void:
@@ -59,16 +62,71 @@ func clear() -> void:
 	persons.clear()
 	person_prev.clear()
 	person_move.clear()
+	annotations.clear()
 	loaded = false
 	source_path = ""
 
 
 func tile_at(x: int, y: int) -> int:
+	## Raw .ULT terrain (WITHOUT annotations).
 	## Out-of-bounds is handled by MapView's outside ring (portal neighbours).
 	## Keep grass here as a safe fallback for gameplay queries.
 	if not loaded or x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT:
 		return 4
 	return int(tiles[y * WIDTH + x])
+
+
+func effective_tile_at(x: int, y: int) -> int:
+	## xu4 Map::tileTypeAt — non-visual annotations override base terrain.
+	var ann_tid := annotation_tile_at(x, y)
+	if ann_tid >= 0:
+		return ann_tid
+	return tile_at(x, y)
+
+
+func annotation_tile_at(x: int, y: int) -> int:
+	## First non-expired annotation tile id, or -1.
+	for a in annotations:
+		if int(a.get("x", -1)) == x and int(a.get("y", -1)) == y:
+			return int(a.get("tid", -1))
+	return -1
+
+
+func add_annotation(x: int, y: int, tid: int, ttl: int = -1) -> void:
+	## xu4 AnnotationList::add — newer annotations sit in front (stack; do not erase).
+	## Open door (ttl 4) stacks over a Jimmy unlock (ttl -1) so the unlock remains after close.
+	annotations.insert(0, {
+		"x": x,
+		"y": y,
+		"tid": clampi(tid, 0, 255),
+		"ttl": ttl,
+	})
+
+
+func remove_annotations_at(x: int, y: int) -> void:
+	for i in range(annotations.size() - 1, -1, -1):
+		var a: Dictionary = annotations[i]
+		if int(a.get("x", -1)) == x and int(a.get("y", -1)) == y:
+			annotations.remove_at(i)
+
+
+func pass_annotation_turns() -> bool:
+	## xu4 AnnotationList::passTurn — returns true if any annotation changed/removed.
+	var changed := false
+	var i := 0
+	while i < annotations.size():
+		var a: Dictionary = annotations[i]
+		var ttl := int(a.get("ttl", -1))
+		if ttl == 0:
+			annotations.remove_at(i)
+			changed = true
+			continue
+		if ttl > 0:
+			a["ttl"] = ttl - 1
+			annotations[i] = a
+			changed = true
+		i += 1
+	return changed
 
 
 func person_tile_at(x: int, y: int) -> int:
@@ -204,8 +262,8 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 	## City borderbehavior: exit — no wrap; OOB keeps old coords.
 	if next.x < 0 or next.y < 0 or next.x >= WIDTH or next.y >= HEIGHT:
 		return false
-	## xu4 slowedByTile on destination terrain (WITHOUT_OBJECTS).
-	if _TileRules.slowed_by_tile(tile_at(next.x, next.y)):
+	## xu4 slowedByTile on destination (annotations count — same as tileTypeAt).
+	if _TileRules.slowed_by_tile(effective_tile_at(next.x, next.y)):
 		return false
 
 	persons[i] = Vector3i(next.x, next.y, int(persons[i].z))
@@ -215,7 +273,7 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2i]:
 	## xu4 Map::getValidMoves for walking creatures (walks + creatureWalkable).
 	var out: Array[Vector2i] = []
-	var from_tid := tile_at(from.x, from.y)
+	var from_tid := effective_tile_at(from.x, from.y)
 	for d in _DIRS:
 		var dest := from + d
 		if dest.x < 0 or dest.y < 0 or dest.x >= WIDTH or dest.y >= HEIGHT:
@@ -225,7 +283,7 @@ func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2
 			continue
 		if _person_blocks(dest.x, dest.y, self_i):
 			continue
-		var dest_tid := tile_at(dest.x, dest.y)
+		var dest_tid := effective_tile_at(dest.x, dest.y)
 		if not _TileRules.can_walk_on(dest_tid, d):
 			continue
 		if not _TileRules.can_walk_off(from_tid, d):

@@ -112,6 +112,8 @@ static func _fill_named() -> void:
 	_blocked(48, 9)
 	## stone wall / locked door / door
 	_blocked(57, 3)
+	## Mark door tiles (ids from u4-save-ids / shapes).
+	## 58 locked_door, 59 door — walk already blocked above.
 	## chest — walkable
 	## ankh — solid
 	_blocked(61, 1)
@@ -207,6 +209,16 @@ static func is_swimable(tile_id: int) -> bool:
 
 static func is_water(tile_id: int) -> bool:
 	return is_sailable(tile_id) or is_swimable(tile_id)
+
+
+static func is_door(tile_id: int) -> bool:
+	## xu4 Tile::isDoor — unlocked door (id 59).
+	return clampi(tile_id, 0, 255) == 59
+
+
+static func is_locked_door(tile_id: int) -> bool:
+	## xu4 Tile::isLockedDoor — id 58.
+	return clampi(tile_id, 0, 255) == 58
 
 
 static func can_walk_on(tile_id: int, dir: Vector2i) -> bool:

@@ -14,6 +14,7 @@ const _SaveGame := preload("res://src/core/save_game.gd")
 const _EscMenuPanel := preload("res://src/ui/esc_menu_panel.gd")
 const _CityMapData := preload("res://src/map/city_map_data.gd")
 const _WorldPortals := preload("res://src/map/world_portals.gd")
+const _CityFloorPortals := preload("res://src/map/city_floor_portals.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 
 @onready var _top_bar: Control = %TopBar
@@ -576,8 +577,8 @@ func _can_move_to(dest: Vector2i) -> bool:
 		## xu4: cannot walk through townsfolk.
 		if _city_map.person_tile_at(dest.x, dest.y) >= 0:
 			return false
-		var c_dest: int = int(_city_map.tile_at(dest.x, dest.y))
-		var c_from: int = int(_city_map.tile_at(_tile_pos.x, _tile_pos.y))
+		var c_dest: int = int(_city_map.effective_tile_at(dest.x, dest.y))
+		var c_from: int = int(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y))
 		var cdir := Vector2i(
 			clampi(dest.x - _tile_pos.x, -1, 1),
 			clampi(dest.y - _tile_pos.y, -1, 1)
@@ -1442,9 +1443,9 @@ func _process(delta: float) -> void:
 
 
 func _terrain_tid_at(pos: Vector2i) -> int:
-	## Destination terrain for slowedByTile (WITHOUT_OBJECTS — base map byte).
+	## Destination terrain for slowedByTile (annotations count like xu4 tileTypeAt).
 	if _is_in_city() and _city_map != null and _city_map.loaded:
-		return int(_city_map.tile_at(pos.x, pos.y))
+		return int(_city_map.effective_tile_at(pos.x, pos.y))
 	if _world != null and _world.loaded:
 		return int(_world.tile_at(pos.x, pos.y))
 	return 4 ## grass fallback
@@ -1835,6 +1836,10 @@ func _handle_command(cmd: int) -> void:
 		_do_hole_up()
 	elif cmd == U4Commands.Id.ENTER:
 		_do_enter()
+	elif cmd == U4Commands.Id.KLIMB:
+		_do_klimb()
+	elif cmd == U4Commands.Id.DESCEND:
+		_do_descend()
 	elif cmd == U4Commands.Id.BOARD:
 		_do_board()
 	elif cmd == U4Commands.Id.XIT:
@@ -2345,9 +2350,13 @@ func _world_save_dict() -> Dictionary:
 	}
 	if _is_in_city():
 		var fname := ""
-		var portal := _WorldPortals.portal_at(_city_return_pos)
-		if not portal.is_empty():
-			fname = str(portal.get("fname", ""))
+		## Prefer the floor currently loaded (lcb_2 vs lcb_1), not only world Enter.
+		if _city_map != null and not str(_city_map.source_path).is_empty():
+			fname = str(_city_map.source_path).get_file()
+		if fname.is_empty():
+			var portal := _WorldPortals.portal_at(_city_return_pos)
+			if not portal.is_empty():
+				fname = str(portal.get("fname", ""))
 		d["in_city"] = true
 		d["x"] = _city_return_pos.x
 		d["y"] = _city_return_pos.y
@@ -3611,6 +3620,70 @@ func _do_enter() -> void:
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
 
 
+func _do_klimb() -> void:
+	## xu4 'k' → usePortalAt(ACTION_KLIMB). Castle floors first; dungeon later.
+	_use_city_floor_portal(_CityFloorPortals.Action.CLIMB)
+
+
+func _do_descend() -> void:
+	## xu4 'd' → usePortalAt(ACTION_DESCEND). LCB 2→1 for now (abyss later).
+	_use_city_floor_portal(_CityFloorPortals.Action.DESCEND)
+
+
+func _use_city_floor_portal(action: int) -> void:
+	## xu4 portal.cpp usePortalAt for city floor ladders (foot only).
+	var fail_key := (
+		"cmd_klimb_what" if action == _CityFloorPortals.Action.CLIMB
+		else "cmd_descend_what"
+	)
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		_push_message(Locale.t(fail_key), false)
+		_finish_party_turn()
+		return
+	## xu4: Klimb/Descend require TRANSPORT_FOOT (horse blocked).
+	if _transport != Transport.FOOT:
+		if action == _CityFloorPortals.Action.CLIMB:
+			## xu4 prints "Klimb\n" before "Only on foot!" (Descend omits the verb).
+			_push_message(U4Commands.label(U4Commands.Id.KLIMB, GameState.lang_short()), false)
+		_push_message(Locale.t("cmd_only_on_foot"), false)
+		_finish_party_turn()
+		return
+	var fname := str(_city_map.source_path).get_file()
+	var portal := _CityFloorPortals.portal_at(fname, _tile_pos, action)
+	if portal.is_empty():
+		_push_message(Locale.t(fail_key), false)
+		_finish_party_turn()
+		return
+	var dest_fname := str(portal.get("dest_fname", ""))
+	var path := _CityMapData.resolve_u4_file(dest_fname)
+	var cmap = _CityMapData.new()
+	if path.is_empty() or not cmap.load_from_path(path):
+		_push_message(Locale.t("cmd_enter_fail"), false)
+		_finish_party_turn()
+		return
+	var start := Vector2i(
+		clampi(int(portal.get("dx", _tile_pos.x)), 0, _CityMapData.WIDTH - 1),
+		clampi(int(portal.get("dy", _tile_pos.y)), 0, _CityMapData.HEIGHT - 1)
+	)
+	var msg_key := str(portal.get("msg", ""))
+	if not msg_key.is_empty():
+		_push_message(Locale.t(msg_key), false)
+	_city_map = cmap
+	_tile_pos = start
+	## Keep world exit tile; rim plains still from original Enter spawn.
+	var world_portal := _WorldPortals.portal_at(_city_return_pos)
+	if world_portal.is_empty():
+		world_portal = _WorldPortals.portal_for_fname(dest_fname)
+	var spawn := Vector2i(
+		int(world_portal.get("sx", 15)),
+		int(world_portal.get("sy", 30))
+	)
+	if _map != null:
+		_map.enter_city(cmap, start, _city_return_pos, spawn)
+		_map.set_transport_tile(-1)
+	_finish_party_turn()
+
+
 func _is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 
@@ -4122,6 +4195,9 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 	## xu4 Map::moveObjects — town NPCs roam after the party acts.
 	if not in_combat:
 		_move_city_persons()
+	## xu4 annotations.passTurn — open doors close after ttl.
+	if not in_combat:
+		_pass_map_annotations()
 	if result.get("food_changed", false):
 		_refresh_inventory_bars()
 	if result.get("starving", false):
@@ -4185,12 +4261,22 @@ func _move_city_persons() -> void:
 		_map.refresh()
 
 
+func _pass_map_annotations() -> void:
+	## xu4 AnnotationList::passTurn after creature moves.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return
+	if not _city_map.pass_annotation_turns():
+		return
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+
+
 func _apply_ground_tile_effect() -> int:
 	## xu4 finishTurn: map->tileTypeAt(coords)->getEffect() → Party::applyEffect.
 	if _is_in_city():
 		if _city_map == null or not _city_map.loaded:
 			return 0
-		var ctid := int(_city_map.tile_at(_tile_pos.x, _tile_pos.y))
+		var ctid := int(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y))
 		return GameState.apply_tile_effect(_TileRules.effect_of(ctid))
 	if _world == null:
 		return 0
@@ -4250,11 +4336,83 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	var dir_name := _direction_label(dir)
 	if not cmd_name.is_empty() and not dir_name.is_empty():
 		_push_message(Locale.t("cmd_dir_done", [cmd_name, dir_name]))
-	var result := _directed_result_message(cmd)
+	var result := ""
+	match cmd:
+		U4Commands.Id.OPEN:
+			result = _do_open(dir)
+		U4Commands.Id.JIMMY:
+			result = _do_jimmy(dir)
+		_:
+			result = _directed_result_message(cmd)
 	if not result.is_empty():
 		_push_message(result, false)
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	_finish_party_turn()
+
+
+func _do_open(dir: Vector2i) -> String:
+	## xu4 opendoor / openAt — unlocked door → brick floor annotation, ttl 4.
+	const TILE_BRICK_FLOOR := 62
+	const DOOR_OPEN_TTL := 4
+	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
+	if _is_in_city():
+		if _city_map == null or not _city_map.loaded:
+			return Locale.t("cmd_nothing_to_open")
+		if (
+			target.x < 0 or target.y < 0
+			or target.x >= _CityMapData.WIDTH
+			or target.y >= _CityMapData.HEIGHT
+		):
+			return Locale.t("cmd_nothing_to_open")
+		var tid := int(_city_map.effective_tile_at(target.x, target.y))
+		if _TileRules.is_locked_door(tid):
+			return Locale.t("cmd_cant")
+		if not _TileRules.is_door(tid):
+			return Locale.t("cmd_nothing_to_open")
+		_city_map.add_annotation(target.x, target.y, TILE_BRICK_FLOOR, DOOR_OPEN_TTL)
+		if _map != null and _map.has_method("refresh"):
+			_map.refresh()
+		return Locale.t("cmd_opened")
+	## World map: doors are rare; same rules if a door tile is present.
+	if _world == null or not _world.loaded:
+		return Locale.t("cmd_nothing_to_open")
+	var wtid := int(_world.tile_at(
+		posmod(target.x, WorldMapData.WIDTH),
+		posmod(target.y, WorldMapData.HEIGHT)
+	))
+	if _TileRules.is_locked_door(wtid):
+		return Locale.t("cmd_cant")
+	if _TileRules.is_door(wtid):
+		## No world annotation system yet — treat as not here outdoors.
+		return Locale.t("cmd_nothing_to_open")
+	return Locale.t("cmd_nothing_to_open")
+
+
+func _do_jimmy(dir: Vector2i) -> String:
+	## xu4 jimmyAt — locked door + key → permanent unlocked-door annotation.
+	## No failure roll in xu4: key always works; one key consumed.
+	## Annotations clear when the .ULT is reloaded (exit/re-enter or floor change).
+	const TILE_DOOR := 59
+	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return Locale.t("cmd_jimmy_what")
+	if (
+		target.x < 0 or target.y < 0
+		or target.x >= _CityMapData.WIDTH
+		or target.y >= _CityMapData.HEIGHT
+	):
+		return Locale.t("cmd_jimmy_what")
+	var tid := int(_city_map.effective_tile_at(target.x, target.y))
+	if not _TileRules.is_locked_door(tid):
+		return Locale.t("cmd_jimmy_what")
+	if GameState.keys <= 0:
+		return Locale.t("cmd_no_keys")
+	GameState.keys -= 1
+	_city_map.add_annotation(target.x, target.y, TILE_DOOR, -1)
+	_refresh_inventory_bars()
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+	return Locale.t("cmd_unlocked")
 
 
 func _directed_result_message(cmd: int) -> String:

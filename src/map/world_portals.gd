@@ -41,9 +41,12 @@ static func portal_at(pos: Vector2i) -> Dictionary:
 
 static func portal_for_fname(fname: String) -> Dictionary:
 	## First portal whose .ULT basename matches (case-insensitive). Empty if none.
+	## LCB upper floor (lcb_2) shares the world Enter tile with lcb_1.
 	var want := fname.get_file().to_lower()
 	if want.is_empty():
 		return {}
+	if want.begins_with("lcb"):
+		want = "lcb_1.ult"
 	for k in PORTALS.keys():
 		var p: Dictionary = PORTALS[k]
 		if str(p.get("fname", "")).get_file().to_lower() == want:

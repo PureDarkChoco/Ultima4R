@@ -2,7 +2,7 @@ class_name StatusInfoBar
 extends PanelContainer
 
 ## SKY: moons centered on the bar; wind sits just to their right
-## INVENTORY: gold / food / keys / skull / torches / gems (bottom bar, centered)
+## INVENTORY: gold / food / keys / torches / gems (bottom bar, centered)
 ## FULL: classic left moons + right inventory (archive / side layouts)
 
 enum BarKind { FULL, SKY, INVENTORY }
@@ -21,7 +21,7 @@ const GLYPH := 16
 enum Wind { N, NE, E, SE, S, SW, W, NW }
 
 const GOLD_FOOD_MAX := 9999
-const ITEM_MAX := 99 # keys / skull / torches / gems
+const ITEM_MAX := 99 # keys / torches / gems
 const STAT_NUM_W := 34.0 # "9999"
 const ITEM_NUM_W := 20.0 # "99"
 const ICON_SZ := 14.0
@@ -33,7 +33,6 @@ var wind_dir: int = Wind.N
 var gold: int = 1234
 var food: int = 567 ## mirrored from GameState.food_display() on refresh
 var keys: int = 3
-var skull: int = 1
 var torches: int = 12
 
 var _moon_tex: Array[Texture2D] = []
@@ -44,7 +43,6 @@ var _wind: TextureRect
 var _gold_lab: Label
 var _food_lab: Label
 var _keys_lab: Label
-var _skull_lab: Label
 var _torches_lab: Label
 var _gems_lab: Label
 
@@ -221,7 +219,6 @@ func _make_inventory_cluster() -> HBoxContainer:
 	_gold_lab = _add_stat(cluster, _coin_icon(), STAT_NUM_W)
 	_food_lab = _add_stat(cluster, _food_icon(), STAT_NUM_W)
 	_keys_lab = _add_stat(cluster, _key_icon(), ITEM_NUM_W)
-	_skull_lab = _add_stat(cluster, _skull_icon(), ITEM_NUM_W)
 	_torches_lab = _add_stat(cluster, _torch_icon(), ITEM_NUM_W)
 	_gems_lab = _add_stat(cluster, _gem_icon(), ITEM_NUM_W)
 	return cluster
@@ -289,7 +286,6 @@ func refresh() -> void:
 		gold = GameState.gold
 		keys = GameState.keys
 		torches = GameState.torches
-		skull = GameState.skull
 	if _tram != null and _moon_tex.size() >= 8:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
@@ -305,8 +301,6 @@ func refresh() -> void:
 		_food_lab.text = "%d" % mini(food, GOLD_FOOD_MAX)
 	if _keys_lab:
 		_keys_lab.text = "%d" % mini(keys, ITEM_MAX)
-	if _skull_lab:
-		_skull_lab.text = "%d" % mini(skull, ITEM_MAX)
 	if _torches_lab:
 		_torches_lab.text = "%d" % mini(torches, ITEM_MAX)
 	if _gems_lab:
@@ -366,42 +360,6 @@ func _key_icon() -> Texture2D:
 	img.set_pixel(12, 6, metal)
 	img.set_pixel(13, 6, metal)
 	img.set_pixel(13, 7, metal)
-	return ImageTexture.create_from_image(img)
-
-
-func _skull_icon() -> Texture2D:
-	## Compact skull (Skull of Mondain).
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var bone := Color(0.92, 0.9, 0.82, 1)
-	var shade := Color(0.55, 0.52, 0.45, 1)
-	var hole := Color(0.08, 0.08, 0.1, 1)
-	# cranium
-	for y in range(2, 11):
-		for x in range(3, 13):
-			var dx := x - 7.5
-			var dy := y - 6.0
-			if dx * dx / 22.0 + dy * dy / 16.0 <= 1.0:
-				img.set_pixel(x, y, bone if dy < 2.5 else shade)
-	# eye sockets
-	for y in range(5, 8):
-		for x in range(4, 7):
-			if (x - 5) * (x - 5) + (y - 6) * (y - 6) <= 2:
-				img.set_pixel(x, y, hole)
-		for x in range(9, 12):
-			if (x - 10) * (x - 10) + (y - 6) * (y - 6) <= 2:
-				img.set_pixel(x, y, hole)
-	# nose
-	img.set_pixel(7, 8, hole)
-	img.set_pixel(8, 8, hole)
-	img.set_pixel(7, 9, hole)
-	# jaw / teeth
-	for x in range(5, 11):
-		img.set_pixel(x, 11, bone)
-		img.set_pixel(x, 12, shade)
-	img.set_pixel(6, 12, hole)
-	img.set_pixel(8, 12, hole)
-	img.set_pixel(10, 12, hole)
 	return ImageTexture.create_from_image(img)
 
 
