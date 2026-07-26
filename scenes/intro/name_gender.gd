@@ -63,7 +63,7 @@ func _ready() -> void:
 	_male.pressed.connect(func() -> void: _set_sex("male"))
 	_female.pressed.connect(func() -> void: _set_sex("female"))
 	_continue.pressed.connect(_on_continue)
-	_back.pressed.connect(func() -> void: SceneRouter.to_menu())
+	_back.pressed.connect(func() -> void: SceneRouter.to_menu("new"))
 
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh())
 	_set_sex(GameState.player_sex if GameState.player_sex in ["male", "female"] else "male")
@@ -92,12 +92,13 @@ func _wire_focus_neighbors() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	## Only name/gender may leave character creation via Esc (→ main menu).
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
 		if _name_editing:
 			_end_name_edit()
 			_name.grab_focus()
 		else:
-			SceneRouter.to_menu()
+			SceneRouter.to_menu("new")
 		get_viewport().set_input_as_handled()
 		return
 

@@ -34,15 +34,16 @@ func _ready() -> void:
 
 	_btn_a.focus_neighbor_left = _btn_a.get_path_to(_btn_b)
 	_btn_a.focus_neighbor_right = _btn_a.get_path_to(_btn_b)
-	_btn_a.focus_neighbor_bottom = _btn_a.get_path_to(_back)
+	_btn_a.focus_neighbor_bottom = _btn_a.get_path_to(_btn_b)
 	_btn_b.focus_neighbor_left = _btn_b.get_path_to(_btn_a)
 	_btn_b.focus_neighbor_right = _btn_b.get_path_to(_btn_a)
-	_btn_b.focus_neighbor_bottom = _btn_b.get_path_to(_back)
-	_back.focus_neighbor_top = _back.get_path_to(_btn_a)
+	_btn_b.focus_neighbor_bottom = _btn_b.get_path_to(_btn_a)
 
 	_btn_a.pressed.connect(func() -> void: _choose(0))
 	_btn_b.pressed.connect(func() -> void: _choose(1))
-	_back.pressed.connect(func() -> void: SceneRouter.to_menu())
+	## Esc / Back only leave creation on the name/gender screen.
+	_back.visible = false
+	_back.disabled = true
 
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh())
 
@@ -59,7 +60,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _done:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
-		SceneRouter.to_menu()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("choice_a"):
 		_choose(0)

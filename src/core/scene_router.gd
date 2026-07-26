@@ -18,6 +18,8 @@ const FADE_IN_SEC := 0.42
 var _fade_layer: CanvasLayer
 var _fade_rect: ColorRect
 var _fading := false
+## Main menu button to focus after `to_menu` ("new", "journey", …). Cleared on read.
+var _pending_menu_focus := ""
 
 
 func _ready() -> void:
@@ -42,10 +44,19 @@ func go(path: String, fade: bool = false) -> void:
 			push_error("SceneRouter: failed to load %s (%s)" % [path, error_string(err)])
 
 
-func to_menu() -> void:
+func to_menu(focus: String = "") -> void:
 	## Title screen always uses the app language pref (not the last loaded slot).
+	## Optional `focus`: "new" / "journey" / "return" / "language" / "quit".
+	_pending_menu_focus = focus
 	GameState.restore_menu_language()
 	go(MAIN_MENU)
+
+
+func take_menu_focus() -> String:
+	## One-shot focus hint for main_menu._ready.
+	var f := _pending_menu_focus
+	_pending_menu_focus = ""
+	return f
 
 
 func to_new_game() -> void:

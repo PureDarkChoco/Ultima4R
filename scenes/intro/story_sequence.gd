@@ -162,11 +162,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _busy_fade:
 		get_viewport().set_input_as_handled()
 		return
+	## Esc only leaves character creation on the name/gender screen.
 	if event.is_action_pressed("ui_cancel") or (
 		event is InputEventKey and event.pressed and not event.echo
 		and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE)
 	):
-		SceneRouter.to_menu()
 		get_viewport().set_input_as_handled()
 		return
 	if not event.is_pressed() or event.is_echo():

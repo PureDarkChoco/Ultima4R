@@ -53,8 +53,8 @@ func _refresh() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_pressed() or event.is_echo():
 		return
+	## Esc only leaves character creation on the name/gender screen.
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
-		SceneRouter.to_menu()
 		get_viewport().set_input_as_handled()
 		return
 	if (

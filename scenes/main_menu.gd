@@ -61,8 +61,23 @@ func _ready() -> void:
 	resized.connect(_layout_u4)
 	_refresh_text()
 	call_deferred("_layout_u4")
-	_btn_journey.grab_focus()
+	_apply_pending_focus()
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh_text())
+
+
+func _apply_pending_focus() -> void:
+	## Restore selection after Esc from character creation, etc.
+	match SceneRouter.take_menu_focus():
+		"new":
+			_btn_new.grab_focus()
+		"return":
+			_btn_return.grab_focus()
+		"language":
+			_btn_lang.grab_focus()
+		"quit":
+			_btn_quit.grab_focus()
+		_:
+			_btn_journey.grab_focus()
 
 
 func _style_menu_line(btn: Button) -> void:
@@ -148,9 +163,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_load_input(event):
 			accept_event()
 		return
-	if event.is_action_pressed("ui_cancel"):
-		get_tree().quit()
-		return
+	## Esc does not quit — only the Quit menu item (or Q) exits.
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_R:
