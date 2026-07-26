@@ -325,6 +325,11 @@ func finish_scroll() -> void:
 	_rebuild()
 
 
+func refresh() -> void:
+	## Force a redraw (e.g. after city NPCs move on a party turn).
+	_rebuild()
+
+
 func set_center(tile: Vector2i, animate: bool = true) -> void:
 	if tile == center and _scroll_frames_left == 0:
 		return

@@ -4088,6 +4088,9 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 	var result: Dictionary = GameState.end_party_turn(true, in_combat)
 	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying / combat).
 	var ground_flash := 0 if in_combat else _apply_ground_tile_effect()
+	## xu4 Map::moveObjects — town NPCs roam after the party acts.
+	if not in_combat:
+		_move_city_persons()
 	if result.get("food_changed", false):
 		_refresh_inventory_bars()
 	if result.get("starving", false):
@@ -4107,8 +4110,23 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 				_compact_roster.flash_players(mask)
 
 
+func _move_city_persons() -> void:
+	## xu4 finishTurn → location->map->moveObjects(avatar).
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return
+	if not _city_map.move_persons(_tile_pos):
+		return
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+
+
 func _apply_ground_tile_effect() -> int:
 	## xu4 finishTurn: map->tileTypeAt(coords)->getEffect() → Party::applyEffect.
+	if _is_in_city():
+		if _city_map == null or not _city_map.loaded:
+			return 0
+		var ctid := int(_city_map.tile_at(_tile_pos.x, _tile_pos.y))
+		return GameState.apply_tile_effect(_TileRules.effect_of(ctid))
 	if _world == null:
 		return 0
 	var tid := _world.tile_at(_tile_pos.x, _tile_pos.y)

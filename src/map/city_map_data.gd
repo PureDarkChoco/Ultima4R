@@ -5,6 +5,8 @@ extends RefCounted
 ## Bytes 0..1023: 32×32 terrain. Bytes 1024..1279: 32 NPC records (xu4 layout).
 ## Prefer preload over bare class_name types (stale global class cache).
 
+const _TileRules := preload("res://src/map/tile_rules.gd")
+
 const WIDTH := 32
 const HEIGHT := 32
 const TILE_COUNT := WIDTH * HEIGHT
@@ -22,6 +24,21 @@ const PD_PREV_TILE := 3 * NPC_MAX
 const PD_MOVE := 6 * NPC_MAX
 const PD_CONV := 7 * NPC_MAX
 
+## xu4 ObjectMovement (object.h) — values match .ULT PD_MOVE bytes.
+const MOVE_FIXED := 0
+const MOVE_WANDER := 1
+const MOVE_FOLLOW := 0x80
+const MOVE_ATTACK := 0xFF
+## Internal: one-turn pause after talk (xu4 MOVEMENT_FOLLOW_PAUSE).
+const MOVE_FOLLOW_PAUSE := 2
+
+const _DIRS: Array[Vector2i] = [
+	Vector2i(-1, 0), ## W
+	Vector2i(0, -1), ## N
+	Vector2i(1, 0), ## E
+	Vector2i(0, 1), ## S
+]
+
 
 ## Terrain ids, row-major.
 var tiles: PackedByteArray = PackedByteArray()
@@ -29,6 +46,8 @@ var tiles: PackedByteArray = PackedByteArray()
 var persons: Array[Vector3i] = []
 ## Animation partner tile per person (same index as persons); -1 if none.
 var person_prev: Array[int] = []
+## xu4 movement mode per person (MOVE_*).
+var person_move: Array[int] = []
 var loaded: bool = false
 var source_path: String = ""
 
@@ -39,6 +58,7 @@ func clear() -> void:
 	tiles.fill(4) ## grass
 	persons.clear()
 	person_prev.clear()
+	person_move.clear()
 	loaded = false
 	source_path = ""
 
@@ -59,6 +79,14 @@ func person_tile_at(x: int, y: int) -> int:
 	return -1
 
 
+func person_index_at(x: int, y: int) -> int:
+	for i in persons.size():
+		var p: Vector3i = persons[i]
+		if int(p.x) == x and int(p.y) == y:
+			return i
+	return -1
+
+
 func load_from_path(path: String) -> bool:
 	clear()
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -74,10 +102,31 @@ func load_from_path(path: String) -> bool:
 	return true
 
 
+func move_persons(avatar: Vector2i) -> bool:
+	## xu4 Map::moveObjects — one attempt per person after the party turn.
+	## Returns true if any coordinate changed (caller should rebuild the view).
+	if not loaded or persons.is_empty():
+		return false
+	var any := false
+	for i in persons.size():
+		if _move_one(i, avatar):
+			any = true
+	return any
+
+
+func pause_follow(person_i: int) -> void:
+	## xu4 talk: FOLLOW → FOLLOW_PAUSE for one turn.
+	if person_i < 0 or person_i >= person_move.size():
+		return
+	if person_move[person_i] == MOVE_FOLLOW:
+		person_move[person_i] = MOVE_FOLLOW_PAUSE
+
+
 func _load_persons(bytes: PackedByteArray) -> void:
 	## xu4 loadCityMap person block after terrain.
 	persons.clear()
 	person_prev.clear()
+	person_move.clear()
 	if bytes.size() < FILE_FULL:
 		return
 	var pd := bytes.slice(TERRAIN_BYTES, FILE_FULL)
@@ -92,6 +141,137 @@ func _load_persons(bytes: PackedByteArray) -> void:
 		persons.append(Vector3i(x, y, tid))
 		var prev := int(pd[PD_PREV_TILE + i])
 		person_prev.append(prev if prev != 0 else -1)
+		person_move.append(_move_behavior(int(pd[PD_MOVE + i])))
+
+
+static func _move_behavior(ult_value: int) -> int:
+	## xu4 maploader.cpp moveBehavior.
+	match ult_value:
+		0:
+			return MOVE_FIXED
+		1:
+			return MOVE_WANDER
+		0x80:
+			return MOVE_FOLLOW
+		0xFF:
+			return MOVE_ATTACK
+		_:
+			return MOVE_FIXED
+
+
+func _move_one(i: int, avatar: Vector2i) -> bool:
+	## xu4 location.cpp moveObject (city / walking townsfolk).
+	var mode: int = person_move[i] if i < person_move.size() else MOVE_FIXED
+	match mode:
+		MOVE_FIXED:
+			return false
+		MOVE_FOLLOW_PAUSE:
+			## Resume following next turn.
+			person_move[i] = MOVE_FOLLOW
+			return false
+		MOVE_WANDER:
+			## Town: 50% stay put (world map always moves — not used here).
+			if (randi() % 2) != 0:
+				return false
+		MOVE_FOLLOW:
+			## Town: 50% skip entire follow attempt.
+			if (randi() % 2) != 0:
+				return false
+		MOVE_ATTACK:
+			## Adjacent attacker stays put (combat hook later).
+			if _manhattan(persons[i], avatar) <= 1:
+				return false
+		_:
+			return false
+
+	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
+	var valid := _valid_dirs(pos, i, avatar)
+	if valid.is_empty():
+		return false
+
+	var dir := Vector2i.ZERO
+	match mode:
+		MOVE_WANDER:
+			dir = valid[randi() % valid.size()]
+		MOVE_FOLLOW, MOVE_ATTACK:
+			dir = _path_to(pos, avatar, valid)
+		_:
+			return false
+	if dir == Vector2i.ZERO:
+		return false
+
+	var next := pos + dir
+	## City borderbehavior: exit — no wrap; OOB keeps old coords.
+	if next.x < 0 or next.y < 0 or next.x >= WIDTH or next.y >= HEIGHT:
+		return false
+	## xu4 slowedByTile on destination terrain (WITHOUT_OBJECTS).
+	if _TileRules.slowed_by_tile(tile_at(next.x, next.y)):
+		return false
+
+	persons[i] = Vector3i(next.x, next.y, int(persons[i].z))
+	return true
+
+
+func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2i]:
+	## xu4 Map::getValidMoves for walking creatures (walks + creatureWalkable).
+	var out: Array[Vector2i] = []
+	var from_tid := tile_at(from.x, from.y)
+	for d in _DIRS:
+		var dest := from + d
+		if dest.x < 0 or dest.y < 0 or dest.x >= WIDTH or dest.y >= HEIGHT:
+			## xu4 adds OOB to the mask but never commits the coord — skip.
+			continue
+		if dest == avatar:
+			continue
+		if _person_blocks(dest.x, dest.y, self_i):
+			continue
+		var dest_tid := tile_at(dest.x, dest.y)
+		if not _TileRules.can_walk_on(dest_tid, d):
+			continue
+		if not _TileRules.can_walk_off(from_tid, d):
+			continue
+		if not _TileRules.is_creature_walkable(dest_tid):
+			continue
+		out.append(d)
+	return out
+
+
+func _person_blocks(x: int, y: int, ignore_i: int) -> bool:
+	for j in persons.size():
+		if j == ignore_i:
+			continue
+		var p: Vector3i = persons[j]
+		if int(p.x) == x and int(p.y) == y:
+			return true
+	return false
+
+
+func _path_to(from: Vector2i, to: Vector2i, valid: Array[Vector2i]) -> Vector2i:
+	## xu4 map_pathTo — prefer relative dirs toward target, else any valid.
+	if valid.is_empty():
+		return Vector2i.ZERO
+	var prefer: Array[Vector2i] = []
+	var dx := from.x - to.x
+	var dy := from.y - to.y
+	## Relative from `from` toward `to` (xu4 map_getRelativeDirection).
+	for d in valid:
+		var toward := false
+		if dx < 0 and d.x > 0:
+			toward = true
+		if dx > 0 and d.x < 0:
+			toward = true
+		if dy < 0 and d.y > 0:
+			toward = true
+		if dy > 0 and d.y < 0:
+			toward = true
+		if toward:
+			prefer.append(d)
+	var pool: Array[Vector2i] = prefer if not prefer.is_empty() else valid
+	return pool[randi() % pool.size()]
+
+
+static func _manhattan(a: Vector3i, b: Vector2i) -> int:
+	return absi(int(a.x) - b.x) + absi(int(a.y) - b.y)
 
 
 static func resolve_u4_file(fname: String) -> String:
