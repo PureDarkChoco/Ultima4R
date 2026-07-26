@@ -132,8 +132,12 @@ var _camp_rest_left := 0.0
 var _camp_map # CombatMapData
 var _camp_guard_klass := -1
 var _camp_guard_cursor := 0
+## True while xu4 immobilized (all asleep) auto-turns are queued.
+var _immobilized_pending := false
 ## xu4 settings campTime default (Resting… animation seconds).
 const CAMP_REST_SEC := 10.0
+## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
+const IMMOBILIZED_SLEEP_SEC := 0.166
 ## Quit & Save / Esc Load: 0 = idle, 1 = save picker, 2 = load picker.
 var _save_stage := 0
 var _save_panel # SaveSlotPanel
@@ -1278,6 +1282,9 @@ func _process(delta: float) -> void:
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
+	## All asleep: Zzzzzz auto-turns own the clock — no player move/cruise.
+	if _is_party_asleep_locked():
+		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
 	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open():
 		_tick_select_cursor()
@@ -1403,12 +1410,10 @@ func _process(delta: float) -> void:
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
-	## xu4 foot/horse: slowedByTile on the destination (forest/hills/…).
+	## xu4 foot/horse: slowedByTile on the destination (forest/hills/…) — world and city.
 	if (
-		not _is_in_city()
-		and (_transport == Transport.FOOT or _transport == Transport.HORSE)
-		and _world != null
-		and _TileRules.slowed_by_tile(_world.tile_at(next.x, next.y))
+		(_transport == Transport.FOOT or _transport == Transport.HORSE)
+		and _TileRules.slowed_by_tile(_terrain_tid_at(next))
 	):
 		_push_message(Locale.t("cmd_slow_progress"), false)
 		_finish_party_turn()
@@ -1422,10 +1427,7 @@ func _process(delta: float) -> void:
 			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
 		)
 		if _can_move_to(next2):
-			var slow2 := (
-				_world != null
-				and _TileRules.slowed_by_tile(_world.tile_at(next2.x, next2.y))
-			)
+			var slow2 := _TileRules.slowed_by_tile(_terrain_tid_at(next2))
 			if slow2:
 				## Second gallop step stalls — stay put, turn already continues below.
 				_push_message(Locale.t("cmd_slow_progress"), false)
@@ -1437,6 +1439,15 @@ func _process(delta: float) -> void:
 	## Gallop still ends one party turn (xu4 finishTurn once per key).
 	_finish_party_turn()
 	_arm_hold_after_step(true)
+
+
+func _terrain_tid_at(pos: Vector2i) -> int:
+	## Destination terrain for slowedByTile (WITHOUT_OBJECTS — base map byte).
+	if _is_in_city() and _city_map != null and _city_map.loaded:
+		return int(_city_map.tile_at(pos.x, pos.y))
+	if _world != null and _world.loaded:
+		return int(_world.tile_at(pos.x, pos.y))
+	return 4 ## grass fallback
 
 
 func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true) -> void:
@@ -1699,6 +1710,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE:
 			_on_escape()
+			get_viewport().set_input_as_handled()
+			return
+		## xu4 immobilized (all asleep): no commands until someone wakes.
+		if _is_party_asleep_locked():
 			get_viewport().set_input_as_handled()
 			return
 		## Ctrl+L: toggle persistent Locate HUD (sextant required).
@@ -4092,7 +4107,15 @@ func _refresh_inventory_bars() -> void:
 func _finish_party_turn(in_combat: bool = false) -> void:
 	## xu4 GameController::finishTurn → Party::endTurn (food / status / starve / hull).
 	## Combat turns pass in_combat=true so moves (camp heal clock) do not advance.
+	## While the whole party is asleep, loops with "Zzzzzz" until someone wakes.
 	_stamp_command_time()
+	_run_party_turn_once(in_combat)
+	if in_combat:
+		return
+	_maybe_continue_immobilized()
+
+
+func _run_party_turn_once(in_combat: bool = false) -> void:
 	var result: Dictionary = GameState.end_party_turn(true, in_combat)
 	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying / combat).
 	var ground_flash := 0 if in_combat else _apply_ground_tile_effect()
@@ -4116,6 +4139,40 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 				_roster.flash_players(mask)
 			if _compact_roster and _compact_roster.has_method("flash_players"):
 				_compact_roster.flash_players(mask)
+
+
+func _maybe_continue_immobilized() -> void:
+	## xu4: while isImmobilized && !isDead → "Zzzzzz" then another finishTurn.
+	if GameState.is_party_dead():
+		_immobilized_pending = false
+		## Death sequence not wired yet — stop the sleep loop.
+		return
+	if not GameState.is_party_immobilized():
+		_immobilized_pending = false
+		return
+	_push_message(Locale.t("cmd_zzzzzz"), false)
+	if _immobilized_pending:
+		return
+	_immobilized_pending = true
+	var tree := get_tree()
+	if tree == null:
+		_immobilized_pending = false
+		return
+	tree.create_timer(IMMOBILIZED_SLEEP_SEC).timeout.connect(
+		_on_immobilized_timer,
+		CONNECT_ONE_SHOT
+	)
+
+
+func _on_immobilized_timer() -> void:
+	_immobilized_pending = false
+	if not is_inside_tree():
+		return
+	if GameState.is_party_dead() or not GameState.is_party_immobilized():
+		_refresh_party()
+		return
+	_run_party_turn_once(false)
+	_maybe_continue_immobilized()
 
 
 func _move_city_persons() -> void:
@@ -4150,6 +4207,8 @@ func _can_auto_pass() -> bool:
 	## Only while free world TurnController would be active in xu4.
 	if not _load_error.is_empty():
 		return false
+	if _is_party_asleep_locked():
+		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
 	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
@@ -4161,6 +4220,11 @@ func _can_auto_pass() -> bool:
 	if _ship_cruise_dir != Vector2i.ZERO:
 		return false
 	return true
+
+
+func _is_party_asleep_locked() -> bool:
+	## xu4 immobilized party — waiting on Zzzzzz turn pump.
+	return _immobilized_pending or GameState.is_party_immobilized()
 
 
 func _tick_auto_pass(delta: float) -> void:

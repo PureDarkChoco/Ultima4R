@@ -687,6 +687,11 @@ const _T := {
 		"en_us": "Slow progress!",
 		"ko": "더디게 나아간다!",
 	},
+	"cmd_zzzzzz": {
+		"en_u4": "Zzzzzz",
+		"en_us": "Zzzzzz",
+		"ko": "쿨쿨…",
+	},
 	"cmd_peer_gem": {
 		"en_u4": "Peer at a Gem!",
 		"en_us": "Peer at a Gem!",

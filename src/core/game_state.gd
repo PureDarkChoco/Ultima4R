@@ -111,7 +111,9 @@ var member_armor: Array[int] = []
 var member_hp: Array[int] = []
 var member_max_hp: Array[int] = []
 var member_mp: Array[int] = []
-var member_status: Array[int] = [] ## PartyRoster.Status
+var member_status: Array[int] = [] ## PartyRoster.Status (dead / sleep / poison / ok)
+## xu4 StatPoisoned bit — survives under sleep (camp); cleared by sleep *field*.
+var member_poisoned: Array[bool] = []
 var member_str: Array[int] = []
 var member_dex: Array[int] = []
 var member_int: Array[int] = []
@@ -251,6 +253,7 @@ func _reset_member_arrays_blank() -> void:
 	member_max_hp.clear()
 	member_mp.clear()
 	member_status.clear()
+	member_poisoned.clear()
 	member_str.clear()
 	member_dex.clear()
 	member_int.clear()
@@ -261,6 +264,7 @@ func _reset_member_arrays_blank() -> void:
 	member_max_hp.resize(8)
 	member_mp.resize(8)
 	member_status.resize(8)
+	member_poisoned.resize(8)
 	member_str.resize(8)
 	member_dex.resize(8)
 	member_int.resize(8)
@@ -272,6 +276,7 @@ func _reset_member_arrays_blank() -> void:
 		member_max_hp[i] = 100
 		member_mp[i] = 0
 		member_status[i] = PartyRoster.Status.OK
+		member_poisoned[i] = false
 		member_str[i] = 15
 		member_dex[i] = 15
 		member_int[i] = 15
@@ -519,6 +524,7 @@ func _init_party_from_xu4(avatar_klass: int, selected_virtues: Array[int]) -> vo
 	member_weapons[avatar_klass] = CLASS_START_WEAPON[avatar_klass]
 	member_armor[avatar_klass] = CLASS_START_ARMOR[avatar_klass]
 	member_status[avatar_klass] = PartyRoster.Status.OK
+	member_poisoned[avatar_klass] = false
 	var a_level := max_level_for_xp(member_xp[avatar_klass])
 	member_max_hp[avatar_klass] = a_level * 100
 	member_hp[avatar_klass] = member_max_hp[avatar_klass]
@@ -534,6 +540,7 @@ func _init_party_from_xu4(avatar_klass: int, selected_virtues: Array[int]) -> vo
 		member_weapons[i] = CLASS_START_WEAPON[i]
 		member_armor[i] = CLASS_START_ARMOR[i]
 		member_status[i] = PartyRoster.Status.OK
+		member_poisoned[i] = false
 		member_max_hp[i] = CLASS_START_LEVEL[i] * 100
 		member_hp[i] = member_max_hp[i]
 		member_mp[i] = max_mp_for_stats(i, member_int[i])
@@ -732,9 +739,48 @@ func max_hp_of_class(klass: int) -> int:
 
 
 func status_of_class(klass: int) -> int:
+	## xu4 Creature::getStatus — dead > sleeping > poisoned > good.
 	if klass < 0 or klass >= member_status.size():
 		return PartyRoster.Status.OK
-	return int(member_status[klass])
+	var st := int(member_status[klass])
+	if st == PartyRoster.Status.DEAD:
+		return PartyRoster.Status.DEAD
+	if st == PartyRoster.Status.SLEEPING:
+		return PartyRoster.Status.SLEEPING
+	if st == PartyRoster.Status.POISONED or is_member_poisoned(klass):
+		return PartyRoster.Status.POISONED
+	return PartyRoster.Status.OK
+
+
+func is_member_poisoned(klass: int) -> bool:
+	## xu4 StatPoisoned bit (may be set while sleeping).
+	if klass < 0 or klass >= member_poisoned.size():
+		return false
+	return bool(member_poisoned[klass])
+
+
+func is_party_immobilized() -> bool:
+	## xu4 Party::isImmobilized — every member disabled (sleeping or dead).
+	var n := party_size()
+	if n <= 0:
+		return true
+	for i in n:
+		var mid := party_member_at(i)
+		if mid >= 0 and not is_member_disabled(mid):
+			return false
+	return true
+
+
+func is_party_dead() -> bool:
+	## xu4 Party::isDead — every living slot is dead.
+	var n := party_size()
+	if n <= 0:
+		return true
+	for i in n:
+		var mid := party_member_at(i)
+		if mid >= 0 and not is_class_dead(mid):
+			return false
+	return true
 
 
 func mp_of_class(klass: int) -> int:
@@ -847,30 +893,40 @@ func apply_member_damage(klass: int, damage: int) -> bool:
 
 
 func wake_member(klass: int) -> bool:
-	## xu4 PartyMember::wakeUp — clears sleep only.
+	## xu4 PartyMember::wakeUp — clears sleep only; poison bit may remain.
 	if klass < 0 or klass >= member_status.size():
 		return false
 	if member_status[klass] != PartyRoster.Status.SLEEPING:
 		return false
-	member_status[klass] = PartyRoster.Status.OK
+	if is_member_poisoned(klass):
+		member_status[klass] = PartyRoster.Status.POISONED
+	else:
+		member_status[klass] = PartyRoster.Status.OK
 	return true
 
 
-func put_member_to_sleep(klass: int) -> bool:
+func put_member_to_sleep(klass: int, clear_poison: bool = false) -> bool:
 	## xu4 PartyMember::putToSleep — living members only.
+	## Sleep *field* clears poison first; Hole up / camp does not.
 	if klass < 0 or klass >= member_status.size():
 		return false
 	if member_status[klass] == PartyRoster.Status.DEAD:
 		return false
+	if clear_poison:
+		_set_poisoned(klass, false)
+	elif member_status[klass] == PartyRoster.Status.POISONED:
+		## Preserve poison under camp sleep (single status → sleeping).
+		_set_poisoned(klass, true)
 	member_status[klass] = PartyRoster.Status.SLEEPING
 	return true
 
 
 func put_party_to_sleep(except_klass: int = -1) -> void:
+	## Camp rest — do not cure poison (xu4 Hole up).
 	for i in party_size():
 		var mid := party_member_at(i)
 		if mid >= 0 and mid != except_klass:
-			put_member_to_sleep(mid)
+			put_member_to_sleep(mid, false)
 
 
 func wake_party() -> void:
@@ -878,6 +934,29 @@ func wake_party() -> void:
 		var mid := party_member_at(i)
 		if mid >= 0:
 			wake_member(mid)
+
+
+func _set_poisoned(klass: int, on: bool) -> void:
+	if klass < 0:
+		return
+	while member_poisoned.size() < 8:
+		member_poisoned.append(false)
+	if klass >= member_poisoned.size():
+		return
+	member_poisoned[klass] = on
+
+
+func _sync_poison_flags_from_status() -> void:
+	## After load without poison bits: derive from awake POISONED status.
+	while member_poisoned.size() < 8:
+		member_poisoned.append(false)
+	for i in mini(8, member_status.size()):
+		var st := int(member_status[i])
+		if st == PartyRoster.Status.POISONED:
+			member_poisoned[i] = true
+		elif st == PartyRoster.Status.OK or st == PartyRoster.Status.DEAD:
+			member_poisoned[i] = false
+		## SLEEPING: keep bit from save (or false if missing).
 
 
 func camp_move_bucket() -> int:
@@ -925,23 +1004,43 @@ func apply_tile_effect(effect: int) -> int:
 	match effect:
 		TileRules.Effect.POISON, TileRules.Effect.POISONFIELD:
 			return _apply_poison_tile_effect()
+		TileRules.Effect.SLEEP:
+			return _apply_sleep_tile_effect()
 		_:
 			return 0
 
 
 func _apply_poison_tile_effect() -> int:
-	## xu4: each living, not-already-poisoned member — xu4_random(5) == 0 → 20%.
+	## xu4: living, not-already-poisoned — xu4_random(5) == 0 → 20%.
+	## Sleeping members can gain the poison bit (getStatus is still SLEEPING).
 	var flash_mask := 0
 	for i in party_size():
 		var mid := party_member_at(i)
 		if mid < 0 or is_class_dead(mid):
 			continue
+		## xu4 skips only when getStatus()==POISONED (sleep+poison bit can re-flash).
 		if status_of_class(mid) == PartyRoster.Status.POISONED:
 			continue
 		if (randi() % 5) != 0:
 			continue
-		member_status[mid] = PartyRoster.Status.POISONED
+		_set_poisoned(mid, true)
+		if member_status[mid] != PartyRoster.Status.SLEEPING:
+			member_status[mid] = PartyRoster.Status.POISONED
 		flash_mask |= 1 << i
+	return flash_mask
+
+
+func _apply_sleep_tile_effect() -> int:
+	## xu4 EFFECT_SLEEP: skip disabled; 50% putToSleep; clears poison.
+	var flash_mask := 0
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_member_disabled(mid):
+			continue
+		if (randi() % 2) != 0:
+			continue
+		if put_member_to_sleep(mid, true):
+			flash_mask |= 1 << i
 	return flash_mask
 
 
@@ -999,6 +1098,7 @@ func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dicti
 		match st:
 			PartyRoster.Status.SLEEPING:
 				## xu4: xu4_random(5) == 0 → 20% wake per turn.
+				## Poison under sleep does not deal damage (getStatus == SLEEPING).
 				if (randi() % 5) == 0 and wake_member(mid):
 					vitals_changed = true
 			PartyRoster.Status.POISONED:
@@ -1097,6 +1197,7 @@ func to_save_dict() -> Dictionary:
 		"member_max_hp": member_max_hp.duplicate(),
 		"member_mp": member_mp.duplicate(),
 		"member_status": member_status.duplicate(),
+		"member_poisoned": member_poisoned.duplicate(),
 		"member_str": member_str.duplicate(),
 		"member_dex": member_dex.duplicate(),
 		"member_int": member_int.duplicate(),
@@ -1144,6 +1245,11 @@ func apply_save_dict(d: Dictionary) -> void:
 	_apply_int_array(member_max_hp, d.get("member_max_hp", []), 8)
 	_apply_int_array(member_mp, d.get("member_mp", []), 8)
 	_apply_int_array(member_status, d.get("member_status", []), 8)
+	if d.has("member_poisoned"):
+		_apply_bool_array(member_poisoned, d.get("member_poisoned", []), 8)
+	else:
+		member_poisoned.clear()
+		_sync_poison_flags_from_status()
 	_apply_int_array(member_str, d.get("member_str", []), 8)
 	_apply_int_array(member_dex, d.get("member_dex", []), 8)
 	_apply_int_array(member_int, d.get("member_int", []), 8)
