@@ -9,6 +9,8 @@ extends Control
 const _TileRules := preload("res://src/map/tile_rules.gd")
 const _MixPanel := preload("res://src/ui/mix_panel.gd")
 const _CombatMapData := preload("res://src/map/combat_map_data.gd")
+const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
+const _SaveGame := preload("res://src/core/save_game.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -128,6 +130,9 @@ var _camp_guard_klass := -1
 var _camp_guard_cursor := 0
 ## xu4 settings campTime default (Resting… animation seconds).
 const CAMP_REST_SEC := 10.0
+## Quit & Save: 0 = idle, 1 = slot picker open.
+var _save_stage := 0
+var _save_panel # SaveSlotPanel
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -162,22 +167,24 @@ func _ready() -> void:
 	_style_bars()
 	_style_side_panels()
 	## New character: start with side panels open (not full-tile).
-	## TODO: restore open/closed from save when savegame is wired.
+	## Saved games restore `_sides_open` from the slot.
 	_sides_open = GameState.is_new_game
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
 	_ensure_ztats_panel()
+	_ensure_save_panel()
 	_ensure_locate_hud()
 	if _compact_roster:
 		_compact_roster.set_compact(true)
 	if _roster:
 		_roster.set_compact(false)
-	## Stub: party of 4 for layout checks.
-	GameState.refresh_party_order()
-	## Full party of 8 for stub testing (all class companions).
+	## Keep saved / created party as-is (xu4: new game is solo).
+	if GameState.party_order.is_empty():
+		GameState.refresh_party_order()
 
 	var atlas := _load_atlas()
 	var path := _resolve_world_map_path()
+	var loading_save := not GameState.pending_world_save.is_empty()
 
 	if atlas == null:
 		_load_error = "shapes.png 로드 실패"
@@ -186,8 +193,12 @@ func _ready() -> void:
 	else:
 		_tile_pos = GameState.start_pos if GameState.start_pos != Vector2i.ZERO else Vector2i(83, 105)
 		_map.setup(_world, atlas)
-		_map.set_center(_tile_pos)
-		_place_temp_transports()
+		if loading_save:
+			_apply_world_save(GameState.pending_world_save)
+			GameState.pending_world_save.clear()
+		else:
+			_map.set_center(_tile_pos)
+			_place_temp_transports()
 
 	call_deferred("_fit_explore_map")
 	call_deferred("grab_focus")
@@ -196,6 +207,7 @@ func _ready() -> void:
 		push_error(_load_error)
 	else:
 		_refresh_party()
+		_refresh_ship_hull_hud()
 
 
 func _load_atlas() -> Texture2D:
@@ -221,6 +233,79 @@ func _place_temp_transports() -> void:
 	if ship != Vector2i(-1, -1):
 		items.append(Vector3i(ship.x, ship.y, MapView.TILE_SHIP_W))
 	_map.set_overlays(items)
+
+
+func _apply_world_save(w: Dictionary) -> void:
+	## Restore position / transport / Tab panels / ship hulls / map overlays.
+	if w.is_empty() or _map == null:
+		return
+	_tile_pos = Vector2i(int(w.get("x", _tile_pos.x)), int(w.get("y", _tile_pos.y)))
+	_sides_open = bool(w.get("sides_open", _sides_open))
+	_transport = int(w.get("transport", Transport.FOOT))
+	_transport_tile = int(w.get("transport_tile", -1))
+	_horse_gallop = bool(w.get("horse_gallop", false))
+	_parked_ship_tile = Vector2i(
+		int(w.get("parked_ship_x", -1)),
+		int(w.get("parked_ship_y", -1))
+	)
+	_ship_hulls.clear()
+	var hulls: Variant = w.get("ship_hulls", {})
+	if typeof(hulls) == TYPE_DICTIONARY:
+		for k in (hulls as Dictionary).keys():
+			_ship_hulls[str(k)] = int((hulls as Dictionary)[k])
+	_map.set_center(_tile_pos)
+	if _transport != Transport.FOOT and _transport_tile >= 0:
+		_map.set_transport_tile(_transport_tile)
+	else:
+		_map.set_transport_tile(-1)
+	## Prefer explicit overlay list (horses + ships on the map). Older saves
+	## without `overlays` fall back to reconstructing ships from hull keys.
+	if w.has("overlays"):
+		_map.set_overlays(_overlays_from_save(w.get("overlays", [])))
+	else:
+		_map.set_overlays(_overlays_from_hull_fallback())
+
+
+func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
+	var items: Array[Vector3i] = []
+	if typeof(raw) != TYPE_ARRAY:
+		return items
+	for entry in raw as Array:
+		if typeof(entry) == TYPE_DICTIONARY:
+			var d: Dictionary = entry
+			items.append(Vector3i(int(d.get("x", 0)), int(d.get("y", 0)), int(d.get("t", 0))))
+		elif typeof(entry) == TYPE_ARRAY:
+			var a: Array = entry
+			if a.size() >= 3:
+				items.append(Vector3i(int(a[0]), int(a[1]), int(a[2])))
+	return items
+
+
+func _overlays_from_hull_fallback() -> Array[Vector3i]:
+	## Legacy saves: only had ship hull keys / parked ship, no horse overlays.
+	var items: Array[Vector3i] = []
+	for key in _ship_hulls.keys():
+		var parts := str(key).split(",")
+		if parts.size() != 2:
+			continue
+		var sx := int(parts[0])
+		var sy := int(parts[1])
+		if _transport == Transport.SHIP and sx == _tile_pos.x and sy == _tile_pos.y:
+			continue
+		items.append(Vector3i(sx, sy, MapView.TILE_SHIP_W))
+	if (
+		_transport != Transport.SHIP
+		and _parked_ship_tile.x >= 0
+		and _parked_ship_tile.y >= 0
+	):
+		var already := false
+		for it in items:
+			if it.x == _parked_ship_tile.x and it.y == _parked_ship_tile.y:
+				already = true
+				break
+		if not already:
+			items.append(Vector3i(_parked_ship_tile.x, _parked_ship_tile.y, MapView.TILE_SHIP_W))
+	return items
 
 
 func _find_nearby_tile(origin: Vector2i, want_water: bool) -> Vector2i:
@@ -793,6 +878,8 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_camp_set_watch")
 	if _camp_stage == 3:
 		return MSG_PROMPT + Locale.t("cmd_camp_who_guards")
+	if _save_stage == 1:
+		return MSG_PROMPT + Locale.t("save_title")
 	if _order_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_exchange")
 	if _order_stage == 2:
@@ -1115,7 +1202,7 @@ func _process(delta: float) -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3:
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _save_stage == 1:
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1127,7 +1214,7 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0:
+	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0:
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1332,6 +1419,8 @@ func _tick_select_cursor() -> void:
 		_nudge_mix_cursor(step)
 	elif _camp_stage == 3:
 		_nudge_camp_guard_cursor(step)
+	elif _save_stage == 1:
+		_nudge_save_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -1395,6 +1484,9 @@ func _on_escape() -> void:
 	if _mix_stage != 0:
 		_close_mix(true)
 		return
+	if _save_stage != 0:
+		_cancel_save(true)
+		return
 	if _camp_stage == 1:
 		## Resting… — Esc does nothing (Tab alone may toggle panels).
 		return
@@ -1441,6 +1533,7 @@ func _input(event: InputEvent) -> void:
 				or _mix_stage != 0
 				or _camp_stage == 2
 				or _camp_stage == 3
+				or _save_stage != 0
 			):
 				get_viewport().set_input_as_handled()
 				return
@@ -1450,7 +1543,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / Mix / Camp / New Order accept keyboard + gamepad.
+	## Ztats / Ready / Wear / Mix / Camp / Save / New Order accept keyboard + gamepad.
+	if _save_stage != 0:
+		if _handle_save_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _camp_stage != 0:
 		if _handle_camp_input(event):
 			get_viewport().set_input_as_handled()
@@ -1572,6 +1671,7 @@ func _handle_command(cmd: int) -> void:
 		_close_wear(false)
 		_close_mix(false)
 		_close_camp(false)
+		_close_save(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
@@ -1582,6 +1682,7 @@ func _handle_command(cmd: int) -> void:
 		_close_wear(false)
 		_close_mix(false)
 		_close_camp(false)
+		_close_save(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
 		_layout_prompt_row()
@@ -1593,6 +1694,7 @@ func _handle_command(cmd: int) -> void:
 	_close_wear(false)
 	_close_mix(false)
 	_close_camp(false)
+	_close_save(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
@@ -1850,11 +1952,139 @@ func _close_peer_overlay() -> void:
 
 
 func _do_quit_save() -> void:
-	## xu4: "Quit & Save...\n%d moves\n" — save stub until persistence is wired.
+	## Q → slot picker popup; pick 1–4 / ↑↓+Enter to write JSON save.
 	_push_message(Locale.t("cmd_quit_save"), false)
 	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
-	_push_message(Locale.t("cmd_quit_not_saved"), false)
+	_ensure_save_panel()
+	if _save_panel == null:
+		_push_message(Locale.t("cmd_save_failed"), false)
+		_finish_party_turn()
+		return
+	_save_stage = 1
+	_reset_hold_state()
+	_save_panel.open_panel(
+		_SaveSlotPanel.Mode.SAVE,
+		_SaveGame.default_save_cursor(GameState.session_loaded_slot, GameState.session_did_save)
+	)
+	_layout_prompt_row()
+
+
+func _ensure_save_panel() -> void:
+	if _save_panel != null:
+		return
+	_save_panel = _SaveSlotPanel.new()
+	_save_panel.name = "SaveSlotPanel"
+	add_child(_save_panel)
+
+
+func _nudge_save_cursor(delta: int) -> void:
+	if _save_panel:
+		_save_panel.nudge_cursor(delta)
+
+
+func _handle_save_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_cancel_save(true)
+			return true
+		if _is_order_cancel_key(k):
+			_cancel_save(true)
+			return true
+		if _is_order_confirm_key(k):
+			_confirm_save_slot(_save_panel.cursor() if _save_panel else 0)
+			return true
+		var dig := _player_digit_index_from_key(k)
+		if dig >= 0 and dig < _SaveGame.SLOT_COUNT:
+			if _save_panel:
+				_save_panel.set_cursor(dig)
+			_confirm_save_slot(dig)
+			return true
+	if event is InputEventJoypadButton:
+		var jb := event as InputEventJoypadButton
+		if jb.button_index == JOY_BUTTON_B:
+			_cancel_save(true)
+			return true
+		if jb.button_index == JOY_BUTTON_A:
+			_confirm_save_slot(_save_panel.cursor() if _save_panel else 0)
+			return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_cancel_save(true)
+		return true
+	return true
+
+
+func _confirm_save_slot(slot_index: int) -> void:
+	## slot_index is 0-based; files are slot_1..4.
+	if slot_index < 0 or slot_index >= _SaveGame.SLOT_COUNT:
+		return
+	var slot_n := slot_index + 1
+	var data := _SaveGame.build_save(
+		GameState.to_save_dict(),
+		_world_save_dict(),
+		GameState.player_name,
+		GameState.moves,
+		GameState.player_class
+	)
+	if not _SaveGame.write_slot(slot_n, data):
+		_push_message(Locale.t("cmd_save_failed"), false)
+		_close_save(false)
+		_finish_party_turn()
+		return
+	GameState.session_did_save = true
+	GameState.session_loaded_slot = slot_n
+	_close_save(false)
+	_push_message(Locale.t("cmd_saved"), false)
 	_finish_party_turn()
+
+
+func _world_save_dict() -> Dictionary:
+	## World / UI bits not stored in GameState (xu4 x,y,transport + Tab panels).
+	var hulls := {}
+	for k in _ship_hulls.keys():
+		hulls[str(k)] = int(_ship_hulls[k])
+	return {
+		"x": _tile_pos.x,
+		"y": _tile_pos.y,
+		"sides_open": _sides_open,
+		"transport": _transport,
+		"transport_tile": _transport_tile,
+		"horse_gallop": _horse_gallop,
+		"ship_hulls": hulls,
+		"parked_ship_x": _parked_ship_tile.x,
+		"parked_ship_y": _parked_ship_tile.y,
+		"overlays": _overlays_to_save(),
+	}
+
+
+func _overlays_to_save() -> Array:
+	## Map-visible horses/ships (and any other transport overlays).
+	var out: Array = []
+	if _map == null:
+		return out
+	for item in _map.get_overlays():
+		out.append({"x": int(item.x), "y": int(item.y), "t": int(item.z)})
+	return out
+
+
+func _cancel_save(show_none: bool) -> void:
+	if _save_stage == 0:
+		return
+	_close_save(false)
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+	_finish_party_turn()
+
+
+func _close_save(_show_none: bool) -> void:
+	if _save_stage == 0 and (_save_panel == null or not _save_panel.is_open()):
+		return
+	_save_stage = 0
+	if _save_panel:
+		_save_panel.close_panel()
+	_layout_prompt_row()
 
 
 func _do_new_order() -> void:
@@ -3477,7 +3707,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0:
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false

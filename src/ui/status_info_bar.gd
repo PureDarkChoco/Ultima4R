@@ -286,6 +286,10 @@ func refresh() -> void:
 		wind_dir = GameState.wind_dir
 	if bar_kind == BarKind.INVENTORY or bar_kind == BarKind.FULL:
 		food = GameState.food_display()
+		gold = GameState.gold
+		keys = GameState.keys
+		torches = GameState.torches
+		skull = GameState.skull
 	if _tram != null and _moon_tex.size() >= 8:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]

@@ -29,14 +29,18 @@ var party_order: Array[int] = []
 var start_pos: Vector2i = Vector2i.ZERO
 var karma: Array[int] = []
 ## Inventory stubs until savegame is wired.
-var gems: int = 99
-## Sextant required for Locate (L / Ctrl+L). Stub-owned for now.
-var has_sextant: bool = true
+var gems: int = 0
+var gold: int = 200 ## xu4 SaveGame.gold
+var keys: int = 0
+var torches: int = 2
+var skull: int = 0 ## quest item count (HUD); bitflags later
+## Sextant required for Locate (L / Ctrl+L). xu4 starts with 0.
+var has_sextant: bool = false
 ## xu4 SaveGame.shiphull — 0..50; shown while aboard a frigate.
 var ship_hull: int = 50
 const SHIP_HULL_MAX := 50
 ## xu4 SaveGame.food — centi-units (HUD shows food / 100). Cap 9999 displayed.
-var food: int = 1000 ## display 10 (xu4 centi-units)
+var food: int = 30000 ## display 300 (xu4 finishInitiateGame)
 const FOOD_MAX := 999900
 ## xu4 SaveGame.moves — party turns since character creation (world/dungeon).
 ## Combat does not advance this counter in Ultima4R (xu4 does; we keep combat separate).
@@ -79,23 +83,41 @@ var spell_known: Array[bool] = []
 ## Equipped gear by class id 0..7 (xu4 SaveGamePlayerRecord weapon/armor).
 var member_weapons: Array[int] = []
 var member_armor: Array[int] = []
-## Class-indexed vitals (xu4 SaveGamePlayerRecord hp / mp / status).
+## Class-indexed vitals (xu4 SaveGamePlayerRecord).
 var member_hp: Array[int] = []
 var member_max_hp: Array[int] = []
 var member_mp: Array[int] = []
 var member_status: Array[int] = [] ## PartyRoster.Status
+var member_str: Array[int] = []
+var member_dex: Array[int] = []
+var member_int: Array[int] = []
+var member_xp: Array[int] = []
 ## xu4 starving / poison: 2 HP each turn while afflicted.
 const STARVE_DAMAGE := 2
 const POISON_DAMAGE := 2
 const MP_MAX_CAP := 99
 var is_new_game: bool = false
 var u4_data_ok: bool = false
+## Session save/load cursor hints (not written into slot JSON).
+var session_loaded_slot: int = 0 ## 1..4 if Journey loaded a slot this run
+var session_did_save: bool = false
+## Applied once by stub_world after Journey load.
+var pending_world_save: Dictionary = {}
 var intro_data := TitleExeData.new()
 var intro_overlay := IntroTextOverlay.new()
 
-## Match PartyRoster.STUB_WEAPON / STUB_ARMOR class defaults.
-const DEFAULT_WEAPON := [1, 3, 5, 2, 4, 12, 7, 10]
-const DEFAULT_ARMOR := [1, 2, 3, 5, 2, 4, 6, 7]
+## xu4 IntroController::initValuesForClass — weapon / armor / level / xp.
+const CLASS_START_WEAPON := [1, 3, 5, 2, 4, 6, 6, 1] ## Staff..Sword
+const CLASS_START_ARMOR := [1, 1, 2, 1, 2, 3, 2, 1] ## Cloth / Leather / Chain
+const CLASS_START_LEVEL := [2, 3, 3, 2, 2, 3, 2, 1]
+const CLASS_START_XP := [125, 240, 205, 175, 110, 325, 150, 5]
+## xu4 initValuesForNpcClass — companions waiting off-party.
+const COMPANION_STR := [9, 16, 20, 17, 15, 17, 16, 11]
+const COMPANION_DEX := [12, 19, 15, 16, 16, 14, 15, 12]
+const COMPANION_INT := [20, 13, 11, 13, 12, 17, 15, 10]
+## Kept as aliases for older call sites.
+const DEFAULT_WEAPON := CLASS_START_WEAPON
+const DEFAULT_ARMOR := CLASS_START_ARMOR
 
 enum EquipError {
 	SUCCEEDED = 0,
@@ -125,71 +147,85 @@ func reset_party() -> void:
 	for i in 8:
 		karma[i] = 50
 	is_new_game = false
+	session_loaded_slot = 0
+	session_did_save = false
+	pending_world_save.clear()
 	moon_phase = 0
 	trammel_phase = 0
 	felucca_phase = 0
 	wind_dir = 0
 	wind_counter = 0
 	wind_lock = false
-	food = 1000
+	## xu4 finishInitiateGame defaults (also used as clean slate).
+	food = 30000
 	moves = 0
 	lastcamp = 0
-	_reset_inventory_stubs()
-	refresh_party_order()
+	gems = 0
+	gold = 200
+	keys = 0
+	torches = 2
+	skull = 0
+	has_sextant = false
+	ship_hull = 50
+	_reset_inventory_empty()
+	_reset_member_arrays_blank()
 
 
-func _reset_inventory_stubs() -> void:
-	## Partial demo stock (translation review done — not every item mixed).
+func _reset_inventory_empty() -> void:
+	## xu4 SaveGame::init — empty packs; finishInitiateGame then sets reagents/torches.
 	weapons.clear()
 	weapons.resize(16)
 	for i in 16:
 		weapons[i] = 0
-	weapons[2] = 3 ## Dagger (C)
-	weapons[4] = 1 ## Mace (E)
-	weapons[6] = 2 ## Sword (G)
-	weapons[7] = 1 ## Bow (H)
-	weapons[10] = 1 ## Halberd (K)
-	weapons[12] = 1 ## Magic Sword (M)
-	weapons[14] = 1 ## Magic Wand (O)
-
 	armor.clear()
 	armor.resize(8)
 	for i in 8:
 		armor[i] = 0
-	armor[1] = 2 ## Cloth (B)
-	armor[3] = 1 ## Chain (D)
-	armor[5] = 1 ## Magic Chain (F)
-	armor[7] = 1 ## Mystic Robe (H)
-
-	## Always show all eight reagents; some may be zero.
 	reagents.clear()
 	reagents.resize(8)
-	reagents[0] = 12 ## ash
-	reagents[1] = 10 ## ginseng
-	reagents[2] = 8 ## garlic
-	reagents[3] = 6 ## silk
-	reagents[4] = 8 ## moss
-	reagents[5] = 4 ## pearl
-	reagents[6] = 2 ## nightshade
-	reagents[7] = 3 ## mandrake
-
+	for i in 8:
+		reagents[i] = 0
+	reagents[1] = 3 ## ginseng
+	reagents[2] = 4 ## garlic
 	mixtures.clear()
 	mixtures.resize(26)
 	for i in 26:
 		mixtures[i] = 0
-	mixtures[0] = 4 ## Awaken
-	mixtures[2] = 3 ## Cure
-	mixtures[5] = 12 ## Fireball
-	mixtures[7] = 5 ## Heal
-	mixtures[11] = 2 ## Light
-	mixtures[12] = 6 ## Magic Missile
-	mixtures[15] = 2 ## Protection
-	mixtures[18] = 1 ## Sleep
-	mixtures[23] = 2 ## X-it
-	mixtures[25] = 3 ## Z-down
 	_seed_spell_known_from_mixtures()
-	_reset_member_gear()
-	_reset_member_vitals()
+
+
+func _reset_member_arrays_blank() -> void:
+	member_weapons.clear()
+	member_armor.clear()
+	member_hp.clear()
+	member_max_hp.clear()
+	member_mp.clear()
+	member_status.clear()
+	member_str.clear()
+	member_dex.clear()
+	member_int.clear()
+	member_xp.clear()
+	member_weapons.resize(8)
+	member_armor.resize(8)
+	member_hp.resize(8)
+	member_max_hp.resize(8)
+	member_mp.resize(8)
+	member_status.resize(8)
+	member_str.resize(8)
+	member_dex.resize(8)
+	member_int.resize(8)
+	member_xp.resize(8)
+	for i in 8:
+		member_weapons[i] = 0
+		member_armor[i] = 0
+		member_hp[i] = 100
+		member_max_hp[i] = 100
+		member_mp[i] = 0
+		member_status[i] = PartyRoster.Status.OK
+		member_str[i] = 15
+		member_dex[i] = 15
+		member_int[i] = 15
+		member_xp[i] = 0
 
 
 func _seed_spell_known_from_mixtures() -> void:
@@ -290,40 +326,17 @@ func commit_new_mix(spell_id: int, selected_mask: int) -> bool:
 
 
 func _reset_member_vitals() -> void:
-	## Seed from PartyRoster stub tables until savegame load is wired.
-	member_hp.clear()
-	member_max_hp.clear()
-	member_mp.clear()
-	member_status.clear()
-	for i in 8:
-		var st: int = PartyRoster.STUB_STATUS[i]
-		var hp: int = PartyRoster.STUB_HP[i]
-		if st == PartyRoster.Status.DEAD:
-			hp = 0
-		member_status.append(st)
-		member_hp.append(hp)
-		member_max_hp.append(PartyRoster.STUB_MAX_HP[i])
-		## xu4 MP caps at class max (INT-based, ≤99); clamp stub seed.
-		var mx := _max_mp_for_class(i)
-		var mp: int = 0 if st == PartyRoster.Status.DEAD else mini(int(PartyRoster.STUB_MP[i]), mx)
-		member_mp.append(mp)
+	## Legacy hook — new games use apply_virtue_result / _init_party_from_xu4.
+	_reset_member_arrays_blank()
 
 
 func _reset_member_gear() -> void:
-	## Equip stub defaults and pull those items out of party stock (xu4 style).
-	member_weapons.clear()
-	member_weapons.resize(8)
-	member_armor.clear()
-	member_armor.resize(8)
+	## Equip class start gear on each class slot (xu4 player record; not inventory).
+	if member_weapons.size() < 8:
+		_reset_member_arrays_blank()
 	for c in 8:
-		var w: int = DEFAULT_WEAPON[c]
-		var a: int = DEFAULT_ARMOR[c]
-		member_weapons[c] = w
-		member_armor[c] = a
-		if w > 0 and w < weapons.size() and weapons[w] > 0:
-			weapons[w] -= 1
-		if a > 0 and a < armor.size() and armor[a] > 0:
-			armor[a] -= 1
+		member_weapons[c] = CLASS_START_WEAPON[c]
+		member_armor[c] = CLASS_START_ARMOR[c]
 
 
 func weapon_of_class(klass: int) -> int:
@@ -391,14 +404,89 @@ func wear_armor(slot: int, armor_id: int) -> int:
 
 
 func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
+	## xu4 IntroController::initPlayers + finishInitiateGame party setup.
+	klass = clampi(klass, 0, 7)
 	player_class = klass
 	start_pos = Virtues.CLASS_START[klass]
+	is_new_game = true
+	session_loaded_slot = 0
+	session_did_save = false
+	pending_world_save.clear()
+	## Inventory / party supplies (finishInitiateGame).
+	_reset_inventory_empty()
+	food = 30000
+	gold = 200
+	torches = 2
+	gems = 0
+	keys = 0
+	has_sextant = false
+	moves = 0
+	lastcamp = 0
+	ship_hull = 50
+	_init_party_from_xu4(klass, selected_virtues)
+	party_order.clear()
+	party_order.append(klass)
+
+
+func _init_party_from_xu4(avatar_klass: int, selected_virtues: Array[int]) -> void:
+	## Port of xu4 IntroController::initPlayers.
+	_reset_member_arrays_blank()
 	for i in 8:
 		karma[i] = 50
+	var astr := 15
+	var adex := 15
+	var aint := 15
 	for v in selected_virtues:
-		karma[v] = mini(100, karma[v] + 5)
-	is_new_game = true
-	refresh_party_order()
+		var vi := clampi(int(v), 0, 7)
+		karma[vi] = int(karma[vi]) + 5
+		match vi:
+			Virtues.Id.HONESTY:
+				aint += 3
+			Virtues.Id.COMPASSION:
+				adex += 3
+			Virtues.Id.VALOR:
+				astr += 3
+			Virtues.Id.JUSTICE:
+				aint += 1
+				adex += 1
+			Virtues.Id.SACRIFICE:
+				adex += 1
+				astr += 1
+			Virtues.Id.HONOR:
+				aint += 1
+				astr += 1
+			Virtues.Id.SPIRITUALITY:
+				aint += 1
+				adex += 1
+				astr += 1
+			Virtues.Id.HUMILITY:
+				pass
+	## Avatar record.
+	member_str[avatar_klass] = astr
+	member_dex[avatar_klass] = adex
+	member_int[avatar_klass] = aint
+	member_xp[avatar_klass] = CLASS_START_XP[avatar_klass]
+	member_weapons[avatar_klass] = CLASS_START_WEAPON[avatar_klass]
+	member_armor[avatar_klass] = CLASS_START_ARMOR[avatar_klass]
+	member_status[avatar_klass] = PartyRoster.Status.OK
+	var a_level := max_level_for_xp(member_xp[avatar_klass])
+	member_max_hp[avatar_klass] = a_level * 100
+	member_hp[avatar_klass] = member_max_hp[avatar_klass]
+	member_mp[avatar_klass] = max_mp_for_stats(avatar_klass, aint)
+	## Off-party companions (xu4 still writes their SaveGame slots).
+	for i in 8:
+		if i == avatar_klass:
+			continue
+		member_str[i] = COMPANION_STR[i]
+		member_dex[i] = COMPANION_DEX[i]
+		member_int[i] = COMPANION_INT[i]
+		member_xp[i] = CLASS_START_XP[i]
+		member_weapons[i] = CLASS_START_WEAPON[i]
+		member_armor[i] = CLASS_START_ARMOR[i]
+		member_status[i] = PartyRoster.Status.OK
+		member_max_hp[i] = CLASS_START_LEVEL[i] * 100
+		member_hp[i] = member_max_hp[i]
+		member_mp[i] = max_mp_for_stats(i, member_int[i])
 
 
 func party_leader_class() -> int:
@@ -466,13 +554,15 @@ func party_member_display_name(slot: int) -> String:
 
 
 func refresh_party_order() -> void:
-	## Player leads; remaining classes follow in virtue index order.
-	party_order.clear()
+	## Solo avatar by default (xu4 members = 1). Do not invent companions.
 	var lead := player_class if player_class >= 0 else 0
-	party_order.append(lead)
-	for i in 8:
-		if i != lead:
-			party_order.append(i)
+	if party_order.is_empty():
+		party_order.append(lead)
+		return
+	## Keep existing roster; ensure avatar class leads if present.
+	if player_class >= 0 and party_order.has(player_class) and party_order[0] != player_class:
+		party_order.erase(player_class)
+		party_order.insert(0, player_class)
 
 
 func lang_short() -> String:
@@ -604,14 +694,11 @@ func mp_of_class(klass: int) -> int:
 
 
 func max_mp_of_class(klass: int) -> int:
-	return _max_mp_for_class(klass)
+	return max_mp_for_stats(klass, int_of_class(klass))
 
 
-func _max_mp_for_class(klass: int) -> int:
+func max_mp_for_stats(klass: int, intel: int) -> int:
 	## xu4 PartyMember::getMaxMp — INT × class factor, capped at 99.
-	if klass < 0 or klass >= PartyRoster.STUB_INT.size():
-		return 0
-	var intel: int = int(PartyRoster.STUB_INT[klass])
 	var max_mp := 0
 	match klass:
 		0: ## Mage: 200% INT
@@ -627,6 +714,62 @@ func _max_mp_for_class(klass: int) -> int:
 		_:
 			max_mp = 0
 	return mini(max_mp, MP_MAX_CAP)
+
+
+func max_level_for_xp(xp: int) -> int:
+	## xu4 PartyMember::getMaxLevel.
+	var level := 1
+	var next := 100
+	while xp >= next and level < 8:
+		level += 1
+		next <<= 1
+	return level
+
+
+func level_of_class(klass: int) -> int:
+	## xu4 getRealLevel — hpMax / 100.
+	return maxi(1, int(max_hp_of_class(klass) / 100))
+
+
+func xp_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_xp.size():
+		return 0
+	return int(member_xp[klass])
+
+
+func xp_next_of_class(klass: int) -> int:
+	## Absolute XP threshold for the next level (or level-8 gate).
+	var xp := xp_of_class(klass)
+	var level := 1
+	var next := 100
+	while xp >= next and level < 8:
+		level += 1
+		next <<= 1
+	if level >= 8:
+		return 6400
+	return next
+
+
+func str_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_str.size():
+		return 0
+	return int(member_str[klass])
+
+
+func dex_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_dex.size():
+		return 0
+	return int(member_dex[klass])
+
+
+func int_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_int.size():
+		return 0
+	return int(member_int[klass])
+
+
+func _max_mp_for_class(klass: int) -> int:
+	return max_mp_of_class(klass)
 
 
 func is_member_disabled(klass: int) -> bool:
@@ -872,6 +1015,138 @@ func tick_world_clock(on_world_map: bool = true) -> bool:
 	if trammel_phase != old_tram or felucca_phase != old_fel:
 		changed = true
 	return changed
+
+
+func to_save_dict() -> Dictionary:
+	## Snapshot of xu4-aligned party / inventory / clock fields for SaveGame JSON.
+	return {
+		"player_name": player_name,
+		"player_sex": player_sex,
+		"player_class": player_class,
+		"party_order": party_order.duplicate(),
+		"start_pos": {"x": start_pos.x, "y": start_pos.y},
+		"karma": karma.duplicate(),
+		"food": food,
+		"moves": moves,
+		"lastcamp": lastcamp,
+		"ship_hull": ship_hull,
+		"gems": gems,
+		"gold": gold,
+		"keys": keys,
+		"torches": torches,
+		"skull": skull,
+		"has_sextant": has_sextant,
+		"weapons": weapons.duplicate(),
+		"armor": armor.duplicate(),
+		"reagents": reagents.duplicate(),
+		"mixtures": mixtures.duplicate(),
+		"spell_known": spell_known.duplicate(),
+		"member_weapons": member_weapons.duplicate(),
+		"member_armor": member_armor.duplicate(),
+		"member_hp": member_hp.duplicate(),
+		"member_max_hp": member_max_hp.duplicate(),
+		"member_mp": member_mp.duplicate(),
+		"member_status": member_status.duplicate(),
+		"member_str": member_str.duplicate(),
+		"member_dex": member_dex.duplicate(),
+		"member_int": member_int.duplicate(),
+		"member_xp": member_xp.duplicate(),
+		"moon_phase": moon_phase,
+		"trammel_phase": trammel_phase,
+		"felucca_phase": felucca_phase,
+		"wind_dir": wind_dir,
+		"wind_counter": wind_counter,
+		"wind_lock": wind_lock,
+		"language": language,
+	}
+
+
+func apply_save_dict(d: Dictionary) -> void:
+	## Restore from SaveGame JSON `game` object.
+	if d.is_empty():
+		return
+	player_name = str(d.get("player_name", player_name))
+	player_sex = str(d.get("player_sex", player_sex))
+	player_class = int(d.get("player_class", player_class))
+	_apply_int_array(party_order, d.get("party_order", []), 0)
+	var sp: Variant = d.get("start_pos", {})
+	if typeof(sp) == TYPE_DICTIONARY:
+		start_pos = Vector2i(int(sp.get("x", 0)), int(sp.get("y", 0)))
+	_apply_int_array(karma, d.get("karma", []), 8)
+	food = int(d.get("food", food))
+	moves = int(d.get("moves", moves))
+	lastcamp = int(d.get("lastcamp", lastcamp))
+	ship_hull = clampi(int(d.get("ship_hull", ship_hull)), 0, SHIP_HULL_MAX)
+	gems = maxi(0, int(d.get("gems", gems)))
+	gold = maxi(0, int(d.get("gold", gold)))
+	keys = maxi(0, int(d.get("keys", keys)))
+	torches = maxi(0, int(d.get("torches", torches)))
+	skull = maxi(0, int(d.get("skull", skull)))
+	has_sextant = bool(d.get("has_sextant", has_sextant))
+	_apply_int_array(weapons, d.get("weapons", []), 16)
+	_apply_int_array(armor, d.get("armor", []), 8)
+	_apply_int_array(reagents, d.get("reagents", []), 8)
+	_apply_int_array(mixtures, d.get("mixtures", []), 26)
+	_apply_bool_array(spell_known, d.get("spell_known", []), Spells.COUNT)
+	_apply_int_array(member_weapons, d.get("member_weapons", []), 8)
+	_apply_int_array(member_armor, d.get("member_armor", []), 8)
+	_apply_int_array(member_hp, d.get("member_hp", []), 8)
+	_apply_int_array(member_max_hp, d.get("member_max_hp", []), 8)
+	_apply_int_array(member_mp, d.get("member_mp", []), 8)
+	_apply_int_array(member_status, d.get("member_status", []), 8)
+	_apply_int_array(member_str, d.get("member_str", []), 8)
+	_apply_int_array(member_dex, d.get("member_dex", []), 8)
+	_apply_int_array(member_int, d.get("member_int", []), 8)
+	_apply_int_array(member_xp, d.get("member_xp", []), 8)
+	## Older saves without attrs: seed companion/avatar defaults from class tables.
+	if not d.has("member_str"):
+		_seed_stats_from_class_defaults()
+	moon_phase = int(d.get("moon_phase", moon_phase))
+	trammel_phase = clampi(int(d.get("trammel_phase", trammel_phase)), 0, 7)
+	felucca_phase = clampi(int(d.get("felucca_phase", felucca_phase)), 0, 7)
+	wind_dir = posmod(int(d.get("wind_dir", wind_dir)), 8)
+	wind_counter = int(d.get("wind_counter", wind_counter))
+	wind_lock = bool(d.get("wind_lock", wind_lock))
+	if d.has("language"):
+		language = str(d.get("language"))
+	is_new_game = false
+	if party_order.is_empty():
+		refresh_party_order()
+
+
+func _seed_stats_from_class_defaults() -> void:
+	## Best-effort for pre-stat saves: companions table + avatar from XP/HP.
+	if member_str.size() < 8:
+		_reset_member_arrays_blank()
+	for i in 8:
+		if i == player_class:
+			member_str[i] = 15
+			member_dex[i] = 15
+			member_int[i] = 15
+		else:
+			member_str[i] = COMPANION_STR[i]
+			member_dex[i] = COMPANION_DEX[i]
+			member_int[i] = COMPANION_INT[i]
+		if member_xp[i] <= 0:
+			member_xp[i] = CLASS_START_XP[i]
+
+
+func _apply_int_array(dest: Array, src: Variant, min_size: int) -> void:
+	dest.clear()
+	if typeof(src) == TYPE_ARRAY:
+		for v in src:
+			dest.append(int(v))
+	while dest.size() < min_size:
+		dest.append(0)
+
+
+func _apply_bool_array(dest: Array, src: Variant, min_size: int) -> void:
+	dest.clear()
+	if typeof(src) == TYPE_ARRAY:
+		for v in src:
+			dest.append(bool(v))
+	while dest.size() < min_size:
+		dest.append(false)
 
 
 func _probe_u4_data() -> bool:

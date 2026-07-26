@@ -287,6 +287,71 @@ const _T := {
 		"en_us": "Save not wired yet.",
 		"ko": "아직 저장되지 않았다.",
 	},
+	"cmd_saved": {
+		"en_u4": "Saved.",
+		"en_us": "Game saved.",
+		"ko": "저장했다.",
+	},
+	"cmd_save_failed": {
+		"en_u4": "Save failed!",
+		"en_us": "Save failed!",
+		"ko": "저장 실패!",
+	},
+	"save_title": {
+		"en_u4": "Save Game",
+		"en_us": "Save Game",
+		"ko": "게임 저장",
+	},
+	"save_hint": {
+		"en_u4": "↑↓ + Enter, or 1–4. Esc cancels.",
+		"en_us": "↑↓ + Enter, or 1–4. Esc cancels.",
+		"ko": "↑↓ + Enter, 또는 1–4. Esc 취소.",
+	},
+	"load_title": {
+		"en_u4": "Load Game",
+		"en_us": "Load Game",
+		"ko": "게임 불러오기",
+	},
+	"load_hint": {
+		"en_u4": "↑↓ + Enter, or 1–4. Esc cancels.",
+		"en_us": "↑↓ + Enter, or 1–4. Esc cancels.",
+		"ko": "↑↓ + Enter, 또는 1–4. Esc 취소.",
+	},
+	"load_empty": {
+		"en_u4": "Empty!",
+		"en_us": "That slot is empty.",
+		"ko": "빈 슬롯이다!",
+	},
+	"load_none": {
+		"en_u4": "No saved games.",
+		"en_us": "No saved games.",
+		"ko": "저장된 게임이 없다.",
+	},
+	"save_slot_empty": {
+		"en_u4": "%s: (Empty)",
+		"en_us": "%s: (Empty)",
+		"ko": "%s: (비어 있음)",
+	},
+	"save_slot_empty_short": {
+		"en_u4": "(Empty)",
+		"en_us": "(Empty)",
+		"ko": "(비어 있음)",
+	},
+	"save_slot_used": {
+		"en_u4": "%s: %s — %s moves",
+		"en_us": "%s: %s — %s moves",
+		"ko": "%s: %s — %s 턴",
+	},
+	"save_slot_moves": {
+		"en_u4": "%s moves",
+		"en_us": "%s moves",
+		"ko": "%s 턴",
+	},
+	"save_slot_moves_when": {
+		"en_u4": "%s moves  ·  %s",
+		"en_us": "%s moves  ·  %s",
+		"ko": "%s 턴  ·  %s",
+	},
 	"cmd_yes": {
 		"en_u4": "Yes",
 		"en_us": "Yes",

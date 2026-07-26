@@ -663,14 +663,14 @@ static func member_ztats(slot: int) -> Dictionary:
 		"status_code": st,
 		"mp": GameState.mp_of_class(mid),
 		"max_mp": GameState.max_mp_of_class(mid),
-		"level": STUB_LEVELS[mid],
-		"str": STUB_STR[mid],
-		"dex": STUB_DEX[mid],
-		"int": STUB_INT[mid],
+		"level": GameState.level_of_class(mid),
+		"str": GameState.str_of_class(mid),
+		"dex": GameState.dex_of_class(mid),
+		"int": GameState.int_of_class(mid),
 		"hp": GameState.hp_of_class(mid),
 		"max_hp": GameState.max_hp_of_class(mid),
-		"exp": STUB_EXP[mid],
-		"exp_next": STUB_EXP_TO_NEXT[mid],
+		"exp": GameState.xp_of_class(mid),
+		"exp_next": GameState.xp_next_of_class(mid),
 		"weapon": Locale.weapon_name(wid),
 		"armor": Locale.armor_name(aid),
 		"atk": WeaponIcons.damage_of(wid),
@@ -900,7 +900,7 @@ func refresh() -> void:
 			hp = 0
 			mp = 0
 
-		var lv: int = STUB_LEVELS[mid]
+		var lv: int = GameState.level_of_class(mid)
 		_levels[i].text = "Lv.%d" % lv
 		if mid == player_cls:
 			_names[i].text = pname
@@ -923,7 +923,7 @@ func refresh() -> void:
 			_set_bar_empty(_mp_fill[i], _mp_lab[i])
 		else:
 			_set_bar(_mp_fill[i], _mp_lab[i], mp, mmp, &"mp")
-		_set_bar(_exp_fill[i], _exp_lab[i], STUB_EXP[mid], STUB_EXP_TO_NEXT[mid], &"exp")
+		_set_bar(_exp_fill[i], _exp_lab[i], GameState.xp_of_class(mid), GameState.xp_next_of_class(mid), &"exp")
 
 	_apply_compact_visuals()
 	_distribute_rows()
