@@ -1706,6 +1706,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_locate_hud()
 			get_viewport().set_input_as_handled()
 			return
+		## Ctrl+K: dump current virtue karma to the message log.
+		if event.ctrl_pressed and _is_karma_key(event):
+			_do_show_karma()
+			get_viewport().set_input_as_handled()
+			return
 		## Waiting for a direction (A/G/J/O/T or ship Yell) — same line as "Attack: Dir?".
 		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
 			if _is_direction_key(event):
@@ -1851,6 +1856,23 @@ func _ensure_peer_overlay() -> void:
 
 func _is_locate_key(event: InputEventKey) -> bool:
 	return event.keycode == KEY_L or event.physical_keycode == KEY_L
+
+
+func _is_karma_key(event: InputEventKey) -> bool:
+	return event.keycode == KEY_K or event.physical_keycode == KEY_K
+
+
+func _do_show_karma() -> void:
+	## Remake QoL: e.g. H55 C50 V50 J55 S50 H50 S50 H50 (first letter; 0→00).
+	var parts: PackedStringArray = PackedStringArray()
+	for i in 8:
+		var raw := 0
+		if i < GameState.karma.size():
+			raw = int(GameState.karma[i])
+		var name := Virtues.name_of(i, "en")
+		var letter := name.substr(0, 1).to_upper() if not name.is_empty() else "?"
+		parts.append("%s%02d" % [letter, clampi(raw, 0, 99)])
+	_push_message(" ".join(parts), false)
 
 
 func _ensure_locate_hud() -> void:
