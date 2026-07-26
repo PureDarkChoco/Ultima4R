@@ -680,22 +680,46 @@ static func member_ztats(slot: int) -> Dictionary:
 	}
 
 
+## Cached shapes atlas / class tiles for Ztats & save-slot UI (avoid reloading PNG).
+static var _shapes_atlas_img: Image
+static var _class_tile_tex: Array[Texture2D] = []
+
+
 static func _ztats_class_tile(klass: int) -> Texture2D:
 	## Same class tile used in the party roster strip.
 	if klass < 0 or klass >= PORTRAIT_PATHS.size():
 		return null
-	var atlas := Image.new()
-	if atlas.load(SHAPES_PATH) == OK:
-		if atlas.get_format() != Image.FORMAT_RGBA8:
-			atlas.convert(Image.FORMAT_RGBA8)
+	if _class_tile_tex.size() != PORTRAIT_PATHS.size():
+		_class_tile_tex.clear()
+		_class_tile_tex.resize(PORTRAIT_PATHS.size())
+	if _class_tile_tex[klass] != null:
+		return _class_tile_tex[klass]
+	var atlas := _shapes_atlas_image()
+	if atlas != null and not atlas.is_empty():
 		var even: int = CLASS_TILE_EVEN[klass]
 		var max_tid := atlas.get_height() / TILE_SRC - 1
 		if even >= 0 and even <= max_tid:
 			var slice := Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
 			slice.blit_rect(atlas, Rect2i(0, even * TILE_SRC, TILE_SRC, TILE_SRC), Vector2i.ZERO)
 			_key_black_static(slice)
-			return ImageTexture.create_from_image(slice)
-	return _load_texture_file(PORTRAIT_PATHS[klass])
+			var tex := ImageTexture.create_from_image(slice)
+			_class_tile_tex[klass] = tex
+			return tex
+	var fallback := _load_texture_file(PORTRAIT_PATHS[klass])
+	_class_tile_tex[klass] = fallback
+	return fallback
+
+
+static func _shapes_atlas_image() -> Image:
+	if _shapes_atlas_img != null and not _shapes_atlas_img.is_empty():
+		return _shapes_atlas_img
+	var atlas := Image.new()
+	if atlas.load(SHAPES_PATH) != OK:
+		return null
+	if atlas.get_format() != Image.FORMAT_RGBA8:
+		atlas.convert(Image.FORMAT_RGBA8)
+	_shapes_atlas_img = atlas
+	return _shapes_atlas_img
 
 
 static func _ztats_face_portrait(klass: int, is_avatar: bool) -> Texture2D:

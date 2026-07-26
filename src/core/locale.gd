@@ -222,6 +222,46 @@ const _T := {
 		"en_us": "Only on foot!",
 		"ko": "도보로만 가능하다!",
 	},
+	"cmd_enter_what": {
+		"en_u4": "Enter what?",
+		"en_us": "Enter what?",
+		"ko": "어디에 들어가나?",
+	},
+	"cmd_enter_type": {
+		"en_u4": "Enter %s!",
+		"en_us": "Enter %s!",
+		"ko": "%s에 들어간다!",
+	},
+	"cmd_enter_fail": {
+		"en_u4": "Enter failed!",
+		"en_us": "Could not load that map.",
+		"ko": "지도를 열 수 없다!",
+	},
+	"cmd_exit_city": {
+		"en_u4": "Leaving...",
+		"en_us": "Leaving...",
+		"ko": "떠난다...",
+	},
+	"city_kind_castle": {
+		"en_u4": "castle",
+		"en_us": "castle",
+		"ko": "성",
+	},
+	"city_kind_towne": {
+		"en_u4": "towne",
+		"en_us": "town",
+		"ko": "마을",
+	},
+	"city_kind_village": {
+		"en_u4": "village",
+		"en_us": "village",
+		"ko": "촌락",
+	},
+	"city_kind_ruins": {
+		"en_u4": "ruins",
+		"en_us": "ruins",
+		"ko": "폐허",
+	},
 	"cmd_hole_up": {
 		"en_u4": "Hole up & Camp!",
 		"en_us": "Hole up & Camp!",
@@ -388,9 +428,159 @@ const _T := {
 		"ko": "%s 턴",
 	},
 	"save_slot_moves_when": {
+		"en_u4": "%s moves  ·  %s  ·  %s",
+		"en_us": "%s moves  ·  %s  ·  %s",
+		"ko": "%s 턴  ·  %s  ·  %s",
+	},
+	"save_slot_moves_when_noloc": {
 		"en_u4": "%s moves  ·  %s",
 		"en_us": "%s moves  ·  %s",
 		"ko": "%s 턴  ·  %s",
+	},
+	"save_loc_near": {
+		"en_u4": "Near %s",
+		"en_us": "Near %s",
+		"ko": "%s 근처",
+	},
+	"save_loc_in": {
+		"en_u4": "In %s",
+		"en_us": "In %s",
+		"ko": "%s",
+	},
+	"save_loc_dungeon": {
+		"en_u4": "In %s Lv.%s",
+		"en_us": "In %s Lv.%s",
+		"ko": "%s %s층",
+	},
+	"save_loc_sea": {
+		"en_u4": "On the Sea",
+		"en_us": "On the Sea",
+		"ko": "바다 위",
+	},
+	"save_loc_britannia": {
+		"en_u4": "On the Britannia",
+		"en_us": "On the Britannia",
+		"ko": "브리타니아",
+	},
+	"place_lcb": {
+		"en_u4": "Britannia Castle",
+		"en_us": "Britannia Castle",
+		"ko": "브리타니아 성",
+	},
+	"place_britain": {
+		"en_u4": "Britain",
+		"en_us": "Britain",
+		"ko": "브리튼",
+	},
+	"place_yew": {
+		"en_u4": "Yew",
+		"en_us": "Yew",
+		"ko": "유",
+	},
+	"place_paws": {
+		"en_u4": "Paws",
+		"en_us": "Paws",
+		"ko": "포우즈",
+	},
+	"place_trinsic": {
+		"en_u4": "Trinsic",
+		"en_us": "Trinsic",
+		"ko": "트린식",
+	},
+	"place_moonglow": {
+		"en_u4": "Moonglow",
+		"en_us": "Moonglow",
+		"ko": "문글로우",
+	},
+	"place_jhelom": {
+		"en_u4": "Jhelom",
+		"en_us": "Jhelom",
+		"ko": "젤롬",
+	},
+	"place_minoc": {
+		"en_u4": "Minoc",
+		"en_us": "Minoc",
+		"ko": "미녹",
+	},
+	"place_skara": {
+		"en_u4": "Skara Brae",
+		"en_us": "Skara Brae",
+		"ko": "스카라 브레이",
+	},
+	"place_magincia": {
+		"en_u4": "Magincia",
+		"en_us": "Magincia",
+		"ko": "마진시아",
+	},
+	"place_den": {
+		"en_u4": "Buccaneers Den",
+		"en_us": "Buccaneers Den",
+		"ko": "해적굴",
+	},
+	"place_vesper": {
+		"en_u4": "Vesper",
+		"en_us": "Vesper",
+		"ko": "베스퍼",
+	},
+	"place_cove": {
+		"en_u4": "Cove",
+		"en_us": "Cove",
+		"ko": "코브",
+	},
+	"place_lycaeum": {
+		"en_u4": "Lycaeum",
+		"en_us": "Lycaeum",
+		"ko": "리케이엄",
+	},
+	"place_empath": {
+		"en_u4": "Empath Abbey",
+		"en_us": "Empath Abbey",
+		"ko": "엠패스 수도원",
+	},
+	"place_serpent": {
+		"en_u4": "Serpents Hold",
+		"en_us": "Serpents Hold",
+		"ko": "서펜츠 홀드",
+	},
+	"place_shame": {
+		"en_u4": "Shame",
+		"en_us": "Shame",
+		"ko": "수치",
+	},
+	"place_wrong": {
+		"en_u4": "Wrong",
+		"en_us": "Wrong",
+		"ko": "부정",
+	},
+	"place_deceit": {
+		"en_u4": "Deceit",
+		"en_us": "Deceit",
+		"ko": "기만",
+	},
+	"place_despise": {
+		"en_u4": "Despise",
+		"en_us": "Despise",
+		"ko": "경멸",
+	},
+	"place_destard": {
+		"en_u4": "Destard",
+		"en_us": "Destard",
+		"ko": "데스타드",
+	},
+	"place_covetous": {
+		"en_u4": "Covetous",
+		"en_us": "Covetous",
+		"ko": "탐욕",
+	},
+	"place_hythloth": {
+		"en_u4": "Hythloth",
+		"en_us": "Hythloth",
+		"ko": "히슬로스",
+	},
+	"place_abyss": {
+		"en_u4": "the Abyss",
+		"en_us": "the Abyss",
+		"ko": "심연",
 	},
 	"cmd_yes": {
 		"en_u4": "Yes",

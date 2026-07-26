@@ -43,6 +43,8 @@ func go(path: String, fade: bool = false) -> void:
 
 
 func to_menu() -> void:
+	## Title screen always uses the app language pref (not the last loaded slot).
+	GameState.restore_menu_language()
 	go(MAIN_MENU)
 
 

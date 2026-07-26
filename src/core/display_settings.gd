@@ -97,6 +97,7 @@ func _restore_windowed_size() -> void:
 		else:
 			size = Vector2i(1280, 720)
 	size = _size_from_width(size.x)
+	## Oversized saved values are fine — just fit them to the current screen.
 	size = _clamp_to_usable(size, usable.size)
 	_apply_size(size)
 	if usable.size.x > 0:
@@ -205,7 +206,10 @@ func _notification(what: int) -> void:
 func _persist_window_geometry() -> void:
 	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		return
-	var size: Vector2i = get_window().size
+	var win := get_window()
+	if win == null:
+		return
+	var size: Vector2i = win.size
 	if size.x >= MIN_W and size.y >= MIN_H:
 		_config.set_value(SECTION, "width", size.x)
 		_config.set_value(SECTION, "height", size.y)

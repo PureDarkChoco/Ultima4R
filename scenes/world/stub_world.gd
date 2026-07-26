@@ -12,6 +12,8 @@ const _CombatMapData := preload("res://src/map/combat_map_data.gd")
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
 const _EscMenuPanel := preload("res://src/ui/esc_menu_panel.gd")
+const _CityMapData := preload("res://src/map/city_map_data.gd")
+const _WorldPortals := preload("res://src/map/world_portals.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -137,6 +139,9 @@ var _save_panel # SaveSlotPanel
 ## True when the slot picker was opened from the Esc menu (return there after).
 var _slot_from_esc := false
 var _esc_menu # EscMenuPanel
+## City / castle visit (Enter). World position restored on leave.
+var _city_map # CityMapData
+var _city_return_pos := Vector2i.ZERO
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -242,6 +247,7 @@ func _place_temp_transports() -> void:
 
 func _apply_world_save(w: Dictionary) -> void:
 	## Restore position / transport / Tab panels / ship hulls / map overlays.
+	## City saves store world portal as x,y plus city_fname + city_x/y.
 	if w.is_empty() or _map == null:
 		return
 	_tile_pos = Vector2i(int(w.get("x", _tile_pos.x)), int(w.get("y", _tile_pos.y)))
@@ -258,17 +264,67 @@ func _apply_world_save(w: Dictionary) -> void:
 	if typeof(hulls) == TYPE_DICTIONARY:
 		for k in (hulls as Dictionary).keys():
 			_ship_hulls[str(k)] = int((hulls as Dictionary)[k])
-	_map.set_center(_tile_pos)
-	if _transport != Transport.FOOT and _transport_tile >= 0:
-		_map.set_transport_tile(_transport_tile)
-	else:
-		_map.set_transport_tile(-1)
 	## Prefer explicit overlay list (horses + ships on the map). Older saves
 	## without `overlays` fall back to reconstructing ships from hull keys.
 	if w.has("overlays"):
 		_map.set_overlays(_overlays_from_save(w.get("overlays", [])))
 	else:
 		_map.set_overlays(_overlays_from_hull_fallback())
+
+	if bool(w.get("in_city", false)):
+		_restore_city_from_save(w)
+	else:
+		_city_map = null
+		_map.set_center(_tile_pos)
+		if _transport != Transport.FOOT and _transport_tile >= 0:
+			_map.set_transport_tile(_transport_tile)
+		else:
+			_map.set_transport_tile(-1)
+
+
+func _restore_city_from_save(w: Dictionary) -> void:
+	## Re-enter the saved .ULT at city-local coords; x,y are the world portal.
+	var fname := str(w.get("city_fname", ""))
+	var return_pos := Vector2i(
+		int(w.get("city_return_x", w.get("x", _tile_pos.x))),
+		int(w.get("city_return_y", w.get("y", _tile_pos.y)))
+	)
+	if fname.is_empty():
+		var portal := _WorldPortals.portal_at(return_pos)
+		fname = str(portal.get("fname", ""))
+	if fname.is_empty():
+		## Corrupt / old city save — fall back to world portal tile.
+		_tile_pos = return_pos
+		_map.set_center(_tile_pos)
+		if _transport != Transport.FOOT and _transport_tile >= 0:
+			_map.set_transport_tile(_transport_tile)
+		else:
+			_map.set_transport_tile(-1)
+		return
+	## If return coords drifted, recover portal world tile from fname.
+	if _WorldPortals.portal_at(return_pos).is_empty():
+		var by_name := _WorldPortals.portal_for_fname(fname)
+		if not by_name.is_empty() and by_name.has("wx"):
+			return_pos = Vector2i(int(by_name["wx"]), int(by_name["wy"]))
+	var path := _CityMapData.resolve_u4_file(fname)
+	var cmap = _CityMapData.new()
+	if path.is_empty() or not cmap.load_from_path(path):
+		_tile_pos = return_pos
+		_map.set_center(_tile_pos)
+		if _transport != Transport.FOOT and _transport_tile >= 0:
+			_map.set_transport_tile(_transport_tile)
+		else:
+			_map.set_transport_tile(-1)
+		return
+	_city_return_pos = return_pos
+	_city_map = cmap
+	var local := Vector2i(
+		clampi(int(w.get("city_x", 15)), 0, _CityMapData.WIDTH - 1),
+		clampi(int(w.get("city_y", 15)), 0, _CityMapData.HEIGHT - 1)
+	)
+	_tile_pos = local
+	_map.enter_city(cmap, local, _city_return_pos)
+	_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -513,6 +569,18 @@ func _damage_ship_from_grounding(dir: Vector2i) -> void:
 
 func _can_move_to(dest: Vector2i) -> bool:
 	## xu4 terrain rules via TileRules (walk / sail / horse creature-walk).
+	if _is_in_city():
+		if _city_map == null or not _city_map.loaded:
+			return false
+		var c_dest: int = int(_city_map.tile_at(dest.x, dest.y))
+		var c_from: int = int(_city_map.tile_at(_tile_pos.x, _tile_pos.y))
+		var cdir := Vector2i(
+			clampi(dest.x - _tile_pos.x, -1, 1),
+			clampi(dest.y - _tile_pos.y, -1, 1)
+		)
+		return _TileRules.can_avatar_enter(
+			c_dest, c_from, cdir, false, _transport == Transport.HORSE
+		)
 	if _world == null or not _world.loaded:
 		return true
 	var dest_id := _world.tile_at(dest.x, dest.y)
@@ -1299,31 +1367,46 @@ func _process(delta: float) -> void:
 		return
 
 	## xu4 ship: must face the direction before sailing (turn costs the step).
-	if _transport == Transport.SHIP and dir != _ship_facing_dir():
+	if not _is_in_city() and _transport == Transport.SHIP and dir != _ship_facing_dir():
 		_update_transport_facing(dir)
 		_push_message(Locale.t("cmd_turn", [_direction_label(dir, false)]), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 
-	var next := Vector2i(
-		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
-		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
-	)
+	var next: Vector2i
+	if _is_in_city():
+		next = Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
+		## xu4 borderbehavior: exit — leave city when stepping off the map.
+		if (
+			next.x < 0 or next.y < 0
+			or next.x >= _CityMapData.WIDTH
+			or next.y >= _CityMapData.HEIGHT
+		):
+			_exit_city()
+			_finish_party_turn()
+			_arm_hold_after_step(true)
+			return
+	else:
+		next = Vector2i(
+			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+		)
 	if not _can_move_to(next):
 		_push_message(Locale.t("cmd_blocked"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 	## xu4 ship: slowedByWind before the hull moves (into / with wind).
-	if _transport == Transport.SHIP and GameState.ship_slowed_by_wind(dir):
+	if not _is_in_city() and _transport == Transport.SHIP and GameState.ship_slowed_by_wind(dir):
 		_push_message(Locale.t("cmd_slow_progress"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 	## xu4 foot/horse: slowedByTile on the destination (forest/hills/…).
 	if (
-		(_transport == Transport.FOOT or _transport == Transport.HORSE)
+		not _is_in_city()
+		and (_transport == Transport.FOOT or _transport == Transport.HORSE)
 		and _world != null
 		and _TileRules.slowed_by_tile(_world.tile_at(next.x, next.y))
 	):
@@ -1333,7 +1416,7 @@ func _process(delta: float) -> void:
 		return
 	_apply_world_step(next, dir)
 	## xu4 horse gallop: second step after a short beat (same keypress).
-	if _transport == Transport.HORSE and _horse_gallop:
+	if not _is_in_city() and _transport == Transport.HORSE and _horse_gallop:
 		var next2 := Vector2i(
 			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
 			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
@@ -1730,6 +1813,8 @@ func _handle_command(cmd: int) -> void:
 		_do_mix()
 	elif cmd == U4Commands.Id.HOLE_UP:
 		_do_hole_up()
+	elif cmd == U4Commands.Id.ENTER:
+		_do_enter()
 	elif cmd == U4Commands.Id.BOARD:
 		_do_board()
 	elif cmd == U4Commands.Id.XIT:
@@ -2163,7 +2248,8 @@ func _confirm_save_slot(slot_index: int) -> void:
 		_world_save_dict(),
 		GameState.player_name,
 		GameState.moves,
-		GameState.player_class
+		GameState.player_class,
+		_save_location_dict()
 	)
 	if not _SaveGame.write_slot(slot_n, data):
 		_push_message(Locale.t("cmd_save_failed"), false)
@@ -2214,10 +2300,11 @@ func _confirm_load_slot(slot_index: int) -> void:
 
 func _world_save_dict() -> Dictionary:
 	## World / UI bits not stored in GameState (xu4 x,y,transport + Tab panels).
+	## Inside a city: x,y = world portal (exit tile); city_* = .ULT local pos.
 	var hulls := {}
 	for k in _ship_hulls.keys():
 		hulls[str(k)] = int(_ship_hulls[k])
-	return {
+	var d := {
 		"x": _tile_pos.x,
 		"y": _tile_pos.y,
 		"sides_open": _sides_open,
@@ -2228,7 +2315,101 @@ func _world_save_dict() -> Dictionary:
 		"parked_ship_x": _parked_ship_tile.x,
 		"parked_ship_y": _parked_ship_tile.y,
 		"overlays": _overlays_to_save(),
+		"in_city": false,
 	}
+	if _is_in_city():
+		var fname := ""
+		var portal := _WorldPortals.portal_at(_city_return_pos)
+		if not portal.is_empty():
+			fname = str(portal.get("fname", ""))
+		d["in_city"] = true
+		d["x"] = _city_return_pos.x
+		d["y"] = _city_return_pos.y
+		d["city_return_x"] = _city_return_pos.x
+		d["city_return_y"] = _city_return_pos.y
+		d["city_x"] = _tile_pos.x
+		d["city_y"] = _tile_pos.y
+		d["city_fname"] = fname
+	return d
+
+
+func _save_location_dict() -> Dictionary:
+	## Slot subtitle: In / Near place, On the Sea, On the Britannia (dungeon later).
+	if _is_in_city():
+		var portal := _WorldPortals.portal_at(_city_return_pos)
+		if portal.is_empty():
+			var fname := ""
+			## Prefer fname already known from an open city map source path.
+			if _city_map != null:
+				fname = str(_city_map.source_path).get_file()
+			if not fname.is_empty():
+				portal = _WorldPortals.portal_for_fname(fname)
+		var place := _WorldPortals.place_id_for_portal(portal)
+		if place.is_empty():
+			place = "britain"
+		return {"kind": "in", "place": place}
+
+	## Future: dungeon → {"kind":"dungeon","place":"shame","level":2}
+
+	var world_pos := _tile_pos
+	if _world != null and _world.loaded:
+		var tid := _world.tile_at(world_pos.x, world_pos.y)
+		if _TileRules.is_water(tid):
+			return {"kind": "sea"}
+
+	var near := _nearest_visible_settlement(world_pos)
+	if not near.is_empty():
+		return {"kind": "near", "place": near}
+	return {"kind": "britannia"}
+
+
+func _nearest_visible_settlement(origin: Vector2i) -> String:
+	## Among portals inside the explore view, pick closest; LCB wins ties.
+	var half_x := MapView.VIEW_W / 2
+	var half_y := MapView.VIEW_H / 2
+	var best_place := ""
+	var best_dist := 1 << 30
+	var best_lcb := false
+	for portal in _WorldPortals.all_portal_entries():
+		var px := int(portal.get("wx", 0))
+		var py := int(portal.get("wy", 0))
+		var delta := _world_wrap_delta(origin, Vector2i(px, py))
+		if absi(delta.x) > half_x or absi(delta.y) > half_y:
+			continue
+		var dist := delta.x * delta.x + delta.y * delta.y
+		var is_lcb := _WorldPortals.is_lcb_portal(portal)
+		var place := _WorldPortals.place_id_for_portal(portal)
+		if place.is_empty():
+			continue
+		var better := false
+		if dist < best_dist:
+			better = true
+		elif dist == best_dist:
+			## Same distance → Britannia Castle first; else keep current.
+			if is_lcb and not best_lcb:
+				better = true
+		if better:
+			best_dist = dist
+			best_place = place
+			best_lcb = is_lcb
+	return best_place
+
+
+func _world_wrap_delta(from: Vector2i, to: Vector2i) -> Vector2i:
+	## Shortest signed delta on the wrapping world map.
+	var dx := to.x - from.x
+	var dy := to.y - from.y
+	var w := WorldMapData.WIDTH
+	var h := WorldMapData.HEIGHT
+	if dx > w / 2:
+		dx -= w
+	elif dx < -w / 2:
+		dx += w
+	if dy > h / 2:
+		dy -= h
+	elif dy < -h / 2:
+		dy += h
+	return Vector2i(dx, dy)
 
 
 func _overlays_to_save() -> Array:
@@ -3366,12 +3547,70 @@ func _do_hole_up() -> void:
 	_layout_prompt_row()
 
 
+func _do_enter() -> void:
+	## xu4 'e' → usePortalAt(ACTION_ENTER). Cities/castles/villages for now.
+	if _is_in_city():
+		_push_message(Locale.t("cmd_enter_what"), false)
+		return
+	if _transport == Transport.SHIP:
+		_push_message(Locale.t("cmd_only_on_foot"), false)
+		return
+	var portal := _WorldPortals.portal_at(_tile_pos)
+	if portal.is_empty():
+		_push_message(Locale.t("cmd_enter_what"), false)
+		return
+	var fname := str(portal.get("fname", ""))
+	var path := _CityMapData.resolve_u4_file(fname)
+	if path.is_empty():
+		_push_message(Locale.t("cmd_enter_fail"), false)
+		return
+	var cmap = _CityMapData.new()
+	if not cmap.load_from_path(path):
+		_push_message(Locale.t("cmd_enter_fail"), false)
+		return
+	var kind := int(portal.get("kind", _WorldPortals.CityKind.TOWNE))
+	var kind_name := Locale.t(_WorldPortals.kind_locale_key(kind))
+	var city_name := str(portal.get("name", "?"))
+	## xu4: "Enter towne!\n\n" then centered city name — we push both lines.
+	_push_message(Locale.t("cmd_enter_type", [kind_name]), false)
+	_push_message(city_name, false)
+	_city_return_pos = _tile_pos
+	_city_map = cmap
+	var start := Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 15)))
+	_tile_pos = start
+	if _map != null:
+		_map.enter_city(cmap, start, _city_return_pos)
+		## Re-apply mount sprite immediately (enter used to wipe MapView transport).
+		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	## xu4 endTurn = 0 on successful enter — do not finish party turn.
+
+
+func _is_in_city() -> bool:
+	return _city_map != null and _city_map.loaded
+
+
+func _exit_city() -> void:
+	## Leave city back to the world tile we Entered from.
+	if not _is_in_city():
+		return
+	_city_map = null
+	_tile_pos = _city_return_pos
+	if _map != null:
+		_map.exit_city()
+		_map.set_center(_tile_pos, false)
+		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_refresh_locate_hud()
+	_push_message(Locale.t("cmd_exit_city"), false)
+
+
 func _hole_up_deny_message() -> String:
 	## xu4 holeUp():
 	## - !(WORLDMAP|DUNGEON) → "Not here!" (inside towns/castles)
 	## - transport != FOOT → "Only on foot!" (horse / ship / balloon)
 	## On the world map we also reject water and settlement portal tiles
 	## (dungeon/city/castle/town/LCB) — same "Not here!" spirit.
+	if _is_in_city():
+		return Locale.t("cmd_not_here")
 	if _transport != Transport.FOOT:
 		return Locale.t("cmd_only_on_foot")
 	if _world != null and _world.loaded:

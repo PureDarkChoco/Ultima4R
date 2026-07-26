@@ -3,7 +3,7 @@ extends Control
 
 ## Modal 4-slot save/load picker — same layout for both modes.
 ## Row:  N. [face] Lv.N Name          [companions…]
-##       moves · saved_at
+##       moves · location · saved_at
 
 enum Mode { SAVE = 0, LOAD = 1 }
 
@@ -43,13 +43,14 @@ var _class_tiles: Array[Texture2D] = []
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_cache_class_tiles()
 	_build()
 	visible = false
 
 
 func _cache_class_tiles() -> void:
-	## Same shapes.png class tiles as PartyRoster / Ztats.
+	## Lazy + shared with PartyRoster cache (do not reload shapes.png 8× on boot).
+	if _class_tiles.size() == 8:
+		return
 	_class_tiles.clear()
 	for i in 8:
 		_class_tiles.append(PartyRoster._ztats_class_tile(i))
@@ -64,6 +65,7 @@ func mode() -> int:
 
 
 func open_panel(p_mode: int = Mode.SAVE, default_cursor: int = 0) -> void:
+	_cache_class_tiles()
 	_mode = p_mode
 	_cursor = clampi(default_cursor, 0, SLOT_COUNT - 1)
 	_refresh_rows()
@@ -302,11 +304,14 @@ func _fill_slot_row(index: int, slot_n: int, meta: Dictionary) -> void:
 	_fill_companions(index, meta)
 
 	var moves := int(meta.get("moves", 0))
-	var when := str(meta.get("saved_at", ""))
-	if when.is_empty():
+	var when := SaveGame.format_saved_at_display(str(meta.get("saved_at", "")))
+	var loc := SaveGame.format_location(meta.get("location", {}))
+	if when.is_empty() and loc.is_empty():
 		_sub_labs[index].text = Locale.t("save_slot_moves", [str(moves)])
+	elif loc.is_empty():
+		_sub_labs[index].text = Locale.t("save_slot_moves_when_noloc", [str(moves), when])
 	else:
-		_sub_labs[index].text = Locale.t("save_slot_moves_when", [str(moves), when])
+		_sub_labs[index].text = Locale.t("save_slot_moves_when", [str(moves), loc, when])
 
 
 func _fill_companions(index: int, meta: Dictionary) -> void:

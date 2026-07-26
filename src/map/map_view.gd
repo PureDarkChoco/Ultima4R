@@ -102,11 +102,26 @@ var _camp_guard_cd := 0.0
 var _camp_guard_a: Image
 var _camp_guard_b: Image
 var _corpse_slice: Image
+## City / castle / village (.ULT) — replaces world tiles while set.
+var _city_map # CityMapData
+## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
+var _city_out: PackedByteArray = PackedByteArray()
+var _city_out_pad := 0
+var _city_out_stride := 0
+var _city_world_pos := Vector2i.ZERO
+## 8 neighbours of the portal, normalized (NW N NE W E SW S SE).
+var _city_nb: Array[int] = []
+## City-edge of the Enter spawn: 0=N 1=E 2=S 3=W — that outside strip is plains.
+var _city_enter_side := 2
 
 const _TileRulesCamp := preload("res://src/map/tile_rules.gd")
 ## Seconds between random guard steps while Resting…
 const CAMP_GUARD_STEP_MIN := 0.35
 const CAMP_GUARD_STEP_MAX := 0.75
+const _CITY_W := 32
+const _CITY_H := 32
+## Enough pad so a party on the city rim never sees past the baked ring.
+const _CITY_OUT_PAD := 14
 
 
 func _ready() -> void:
@@ -128,6 +143,7 @@ func setup(p_world: WorldMapData, p_atlas: Texture2D) -> void:
 	_horse_rider_class = -999
 	_corpse_slice = null
 	exit_camp()
+	exit_city()
 	if p_atlas != null:
 		atlas_img = p_atlas.get_image()
 		if atlas_img == null or atlas_img.is_empty():
@@ -193,6 +209,38 @@ func is_camping() -> bool:
 	return _camp_map != null
 
 
+func is_in_city() -> bool:
+	return _city_map != null and _city_map.loaded
+
+
+func enter_city(map, start: Vector2i, world_pos: Vector2i = Vector2i(-1, -1)) -> void:
+	## Show .ULT city terrain with party at `start` (city-local coords).
+	## `world_pos` = portal tile on WORLD.MAP — used to paint outside margins.
+	## Keep world horse/ship overlays (same persistence as save); city view ignores them.
+	## Keep mounted transport sprite (horse) — do not reset to foot.
+	exit_camp()
+	_city_map = map
+	_city_world_pos = world_pos
+	_city_enter_side = _city_entrance_side(start)
+	_scroll_frames_left = 0
+	center = start
+	_build_city_outside()
+	_rebuild()
+
+
+func exit_city() -> void:
+	if _city_map == null and _city_out.is_empty():
+		return
+	_city_map = null
+	_city_out = PackedByteArray()
+	_city_out_pad = 0
+	_city_out_stride = 0
+	_city_nb.clear()
+	_city_enter_side = 2
+	_scroll_frames_left = 0
+	_rebuild()
+
+
 func enter_camp(
 	map,
 	sleepers: Array[Vector2i],
@@ -201,6 +249,7 @@ func enter_camp(
 ) -> void:
 	## Show CAMP.CON centered; margins from tiles immediately left/right of party.
 	## U5 watch: optional awake guard who patrols the camp map.
+	exit_city()
 	_camp_map = map
 	_camp_sleepers = sleepers.duplicate()
 	_camp_guard_class = guard_class
@@ -261,13 +310,13 @@ func set_center(tile: Vector2i, animate: bool = true) -> void:
 	if tile == center and _scroll_frames_left == 0:
 		return
 	var step := _unwrap_step(center, tile)
-	if (
+	var can_scroll := (
 		SMOOTH_SCROLL
 		and animate
 		and absi(step.x) + absi(step.y) == 1
-		and world != null
-		and world.loaded
-	):
+		and (is_in_city() or (world != null and world.loaded))
+	)
+	if can_scroll:
 		_scroll_from = center
 		_scroll_dir = step
 		_scroll_frames_left = SCROLL_STEPS
@@ -619,6 +668,10 @@ func _rebuild() -> void:
 		_rebuild_camp()
 		return
 
+	if is_in_city():
+		_rebuild_city()
+		return
+
 	if world == null or not world.loaded:
 		_tex.set_image(_buf)
 		texture = _tex
@@ -665,6 +718,419 @@ func _rebuild() -> void:
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
+
+
+func _rebuild_city() -> void:
+	## Same camera blit as world explore, reading from the .ULT tile grid.
+	## Out-of-bounds cells use the camp-style outside ring (8 portal neighbours).
+	if _city_out.is_empty():
+		_build_city_outside()
+	var cam := _cam_tile()
+	var base := Vector2i(floori(cam.x), floori(cam.y))
+	var frac := cam - Vector2(base)
+	var off := Vector2i(
+		clampi(int(frac.x * float(TILE_SRC)), 0, TILE_SRC - 1),
+		clampi(int(frac.y * float(TILE_SRC)), 0, TILE_SRC - 1)
+	)
+	var max_tid := maxi(atlas_img.get_height() / TILE_SRC - 1, 0)
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for dy in view_h + 1:
+		for dx in view_w + 1:
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			var tid := clampi(_city_tile_or_outside(mx, my), 0, mini(255, max_tid))
+			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+			if tid <= WATER_TILE_MAX:
+				_blit_water_tile(tid, dst)
+			else:
+				_stage.blit_rect(
+					atlas_img,
+					Rect2i(0, tid * TILE_SRC, TILE_SRC, TILE_SRC),
+					dst
+				)
+	_buf.blit_rect(
+		_stage,
+		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
+		Vector2i.ZERO
+	)
+	_paint_party_marker()
+	_tex.set_image(_buf)
+	texture = _tex
+	queue_redraw()
+
+
+func _city_tile_or_outside(x: int, y: int) -> int:
+	if _city_map != null and x >= 0 and y >= 0 and x < _CITY_W and y < _CITY_H:
+		return int(_city_map.tile_at(x, y))
+	return _city_outside_at(x, y)
+
+
+func _city_outside_at(x: int, y: int) -> int:
+	## City-local coords outside [0..32); read baked ring (fallback grass).
+	if _city_out.is_empty() or _city_out_stride < 1:
+		return TILE_GRASS
+	var bx := x + _city_out_pad
+	var by := y + _city_out_pad
+	if bx < 0 or by < 0 or bx >= _city_out_stride or by >= _city_out_stride:
+		## Past the ring: keep extending the nearest zone base.
+		return _city_outside_base_for(x, y)
+	return int(_city_out[by * _city_out_stride + bx])
+
+
+func _build_city_outside() -> void:
+	## Bake a pad around the 32×32 city from the 8 world tiles beside the portal.
+	## Same land / mixed-shore rules as Hole-up camp margins.
+	_sample_city_neighbours()
+	_city_out_pad = _CITY_OUT_PAD
+	_city_out_stride = _CITY_W + _city_out_pad * 2
+	_city_out = PackedByteArray()
+	_city_out.resize(_city_out_stride * _city_out_stride)
+	_city_out.fill(TILE_GRASS)
+
+	## Cardinal strips first, then corner blocks (overwrites corner cells).
+	_paint_city_outside_strip(true, false, false, false, _city_nb_at(3)) ## W
+	_paint_city_outside_strip(false, true, false, false, _city_nb_at(4)) ## E
+	_paint_city_outside_strip(false, false, true, false, _city_nb_at(1)) ## N
+	_paint_city_outside_strip(false, false, false, true, _city_nb_at(6)) ## S
+	_paint_city_outside_strip(true, false, true, false, _city_nb_at(0)) ## NW
+	_paint_city_outside_strip(false, true, true, false, _city_nb_at(2)) ## NE
+	_paint_city_outside_strip(true, false, false, true, _city_nb_at(5)) ## SW
+	_paint_city_outside_strip(false, true, false, true, _city_nb_at(7)) ## SE
+
+	## Soften seams along the city rim (grass/brush bleed + mixed shores).
+	_blend_city_rim_into_outside()
+
+
+func _sample_city_neighbours() -> void:
+	## Eight cells around the world portal (skip the portal itself).
+	_city_nb.clear()
+	_city_nb.resize(8)
+	var offsets: Array[Vector2i] = [
+		Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1),
+		Vector2i(-1, 0), Vector2i(1, 0),
+		Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1),
+	]
+	for i in 8:
+		var tid := TILE_GRASS
+		if world != null and world.loaded and _city_world_pos.x >= 0:
+			var p := Vector2i(
+				posmod(_city_world_pos.x + offsets[i].x, WorldMapData.WIDTH),
+				posmod(_city_world_pos.y + offsets[i].y, WorldMapData.HEIGHT)
+			)
+			tid = _normalize_camp_margin_tile(int(world.tile_at(p.x, p.y)))
+		_city_nb[i] = tid
+	## Gate / Enter side always reads as plains (road approach), not world terrain.
+	_force_entrance_side_plains()
+
+
+func _city_entrance_side(start: Vector2i) -> int:
+	## Which rim the spawn hugs: 0=N 1=E 2=S 3=W.
+	var d_n := start.y
+	var d_s := (_CITY_H - 1) - start.y
+	var d_w := start.x
+	var d_e := (_CITY_W - 1) - start.x
+	var best := mini(mini(d_n, d_s), mini(d_w, d_e))
+	if best == d_w:
+		return 3
+	if best == d_e:
+		return 1
+	if best == d_n:
+		return 0
+	return 2
+
+
+func _force_entrance_side_plains() -> void:
+	## Cardinal + both corners on the Enter edge → grass (camp land style).
+	## nb indices: 0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE
+	if _city_nb.size() < 8:
+		return
+	match _city_enter_side:
+		0: ## N
+			_city_nb[1] = TILE_GRASS
+			_city_nb[0] = TILE_GRASS
+			_city_nb[2] = TILE_GRASS
+		1: ## E
+			_city_nb[4] = TILE_GRASS
+			_city_nb[2] = TILE_GRASS
+			_city_nb[7] = TILE_GRASS
+		3: ## W
+			_city_nb[3] = TILE_GRASS
+			_city_nb[0] = TILE_GRASS
+			_city_nb[5] = TILE_GRASS
+		_: ## S (castles etc.)
+			_city_nb[6] = TILE_GRASS
+			_city_nb[5] = TILE_GRASS
+			_city_nb[7] = TILE_GRASS
+
+
+func _city_nb_at(i: int) -> int:
+	if i < 0 or i >= _city_nb.size():
+		return TILE_GRASS
+	return int(_city_nb[i])
+
+
+func _city_outside_base_for(cx: int, cy: int) -> int:
+	var left := cx < 0
+	var right := cx >= _CITY_W
+	var top := cy < 0
+	var bottom := cy >= _CITY_H
+	if left and top:
+		return _city_nb_at(0)
+	if right and top:
+		return _city_nb_at(2)
+	if left and bottom:
+		return _city_nb_at(5)
+	if right and bottom:
+		return _city_nb_at(7)
+	if left:
+		return _city_nb_at(3)
+	if right:
+		return _city_nb_at(4)
+	if top:
+		return _city_nb_at(1)
+	if bottom:
+		return _city_nb_at(6)
+	return TILE_GRASS
+
+
+func _paint_city_outside_strip(
+	left: bool, right: bool, top: bool, bottom: bool, fill_tid: int
+) -> void:
+	## Fill one outside zone (cardinal strip or corner) with camp-style terrain.
+	var cells: Array[Vector2i] = []
+	for by in _city_out_stride:
+		for bx in _city_out_stride:
+			var cx := bx - _city_out_pad
+			var cy := by - _city_out_pad
+			if cx >= 0 and cy >= 0 and cx < _CITY_W and cy < _CITY_H:
+				continue
+			var is_l := cx < 0
+			var is_r := cx >= _CITY_W
+			var is_t := cy < 0
+			var is_b := cy >= _CITY_H
+			## Exact zone match: corners need both flags; cardinals need only one axis.
+			var want_corner := (left and top) or (right and top) or (left and bottom) or (right and bottom)
+			var in_zone := false
+			if want_corner:
+				in_zone = (is_l == left) and (is_r == right) and (is_t == top) and (is_b == bottom)
+			else:
+				## Cardinal: on that side, not in a corner.
+				if left and is_l and not is_t and not is_b:
+					in_zone = true
+				elif right and is_r and not is_t and not is_b:
+					in_zone = true
+				elif top and is_t and not is_l and not is_r:
+					in_zone = true
+				elif bottom and is_b and not is_l and not is_r:
+					in_zone = true
+			if in_zone:
+				cells.append(Vector2i(bx, by))
+
+	if cells.is_empty():
+		return
+
+	if _camp_margin_uses_mix(fill_tid):
+		_paint_city_mixed_cells(cells, fill_tid, left, right, top, bottom)
+	else:
+		_paint_city_land_cells(cells, fill_tid)
+
+
+func _paint_city_land_cells(cells: Array[Vector2i], base: int) -> void:
+	## Grass / brush: ~85% neighbour terrain, sprinkle plains / brush (camp land).
+	for c in cells:
+		var tid := base
+		if randf() > 0.85:
+			tid = TILE_GRASS if randf() < 0.55 else TILE_BRUSH
+		_city_out[c.y * _city_out_stride + c.x] = tid
+
+
+func _paint_city_mixed_cells(
+	cells: Array[Vector2i],
+	fill_tid: int,
+	left: bool,
+	right: bool,
+	top: bool,
+	bottom: bool
+) -> void:
+	## Dominant fill + soft fingers growing from the city rim (camp mixed shore).
+	for c in cells:
+		_city_out[c.y * _city_out_stride + c.x] = fill_tid
+
+	## Soft clearings near the city edge — depth like camp side margins.
+	for c in cells:
+		var cx := c.x - _city_out_pad
+		var cy := c.y - _city_out_pad
+		var dist := _city_outside_rim_dist(cx, cy, left, right, top, bottom)
+		if dist < 0:
+			continue
+		var shore := 0
+		if randf() < 0.48:
+			shore = 1
+		if randf() < 0.28:
+			shore = maxi(shore, 2)
+		if randf() < 0.10:
+			shore = maxi(shore, 3)
+		if randf() < 0.34:
+			shore = 0
+		if dist < shore and randf() >= 0.28:
+			_city_out[c.y * _city_out_stride + c.x] = _camp_soft_tid(fill_tid)
+
+	## Mild bleed between soft neighbours.
+	for c in cells:
+		var i := c.y * _city_out_stride + c.x
+		if not _camp_is_fill_tid(int(_city_out[i]), fill_tid):
+			continue
+		if not _city_out_has_soft_neighbor(c.x, c.y, fill_tid, cells):
+			continue
+		var cx := c.x - _city_out_pad
+		var cy := c.y - _city_out_pad
+		var dist := _city_outside_rim_dist(cx, cy, left, right, top, bottom)
+		var p_grow := 0.16 * (1.0 / (1.0 + float(maxi(dist, 0))))
+		if randf() < p_grow:
+			_city_out[i] = _camp_soft_tid(fill_tid)
+
+	_prune_floating_city_soft(cells, fill_tid, left, right, top, bottom)
+
+
+func _city_outside_rim_dist(
+	cx: int, cy: int, left: bool, right: bool, top: bool, bottom: bool
+) -> int:
+	## 0 = adjacent to the city block; larger = farther out.
+	if left and right == false and top == false and bottom == false:
+		return -1 - cx
+	if right and left == false and top == false and bottom == false:
+		return cx - _CITY_W
+	if top and left == false and right == false and bottom == false:
+		return -1 - cy
+	if bottom and left == false and right == false and top == false:
+		return cy - _CITY_H
+	## Corner: chebyshev distance past the corner of the city.
+	var dx := 0
+	var dy := 0
+	if left:
+		dx = -1 - cx
+	elif right:
+		dx = cx - _CITY_W
+	if top:
+		dy = -1 - cy
+	elif bottom:
+		dy = cy - _CITY_H
+	return maxi(dx, dy)
+
+
+func _city_out_has_soft_neighbor(
+	bx: int, by: int, fill_tid: int, cells: Array[Vector2i]
+) -> bool:
+	var cell_set: Dictionary = {}
+	for c in cells:
+		cell_set[_camp_cell_key(c.x, c.y)] = true
+	var neighbors: Array[Vector2i] = [
+		Vector2i(bx + 1, by), Vector2i(bx - 1, by),
+		Vector2i(bx, by + 1), Vector2i(bx, by - 1),
+	]
+	for n in neighbors:
+		if not cell_set.has(_camp_cell_key(n.x, n.y)):
+			continue
+		if _camp_is_soft_tid(int(_city_out[n.y * _city_out_stride + n.x]), fill_tid):
+			return true
+	return false
+
+
+func _prune_floating_city_soft(
+	cells: Array[Vector2i],
+	fill_tid: int,
+	left: bool,
+	right: bool,
+	top: bool,
+	bottom: bool
+) -> void:
+	## Keep only soft that 4-connects to the city-adjacent rim (camp prune).
+	var cell_set: Dictionary = {}
+	for c in cells:
+		cell_set[_camp_cell_key(c.x, c.y)] = true
+	var seen: Dictionary = {}
+	var queue: Array[Vector2i] = []
+	for c in cells:
+		var cx := c.x - _city_out_pad
+		var cy := c.y - _city_out_pad
+		if _city_outside_rim_dist(cx, cy, left, right, top, bottom) != 0:
+			continue
+		if _camp_is_soft_tid(int(_city_out[c.y * _city_out_stride + c.x]), fill_tid):
+			queue.append(c)
+			seen[_camp_cell_key(c.x, c.y)] = true
+
+	var qi := 0
+	while qi < queue.size():
+		var cur: Vector2i = queue[qi]
+		qi += 1
+		var neighbors: Array[Vector2i] = [
+			Vector2i(cur.x + 1, cur.y), Vector2i(cur.x - 1, cur.y),
+			Vector2i(cur.x, cur.y + 1), Vector2i(cur.x, cur.y - 1),
+		]
+		for n in neighbors:
+			var key := _camp_cell_key(n.x, n.y)
+			if not cell_set.has(key) or seen.has(key):
+				continue
+			if _camp_is_fill_tid(int(_city_out[n.y * _city_out_stride + n.x]), fill_tid):
+				continue
+			seen[key] = true
+			queue.append(n)
+
+	for c in cells:
+		var i := c.y * _city_out_stride + c.x
+		if _camp_is_fill_tid(int(_city_out[i]), fill_tid):
+			continue
+		if not seen.has(_camp_cell_key(c.x, c.y)):
+			_city_out[i] = fill_tid
+
+
+func _blend_city_rim_into_outside() -> void:
+	## City-edge grass/brush bleeds a few tiles into the outside (camp edge blend).
+	if _city_map == null:
+		return
+	## West / east columns of the city.
+	for y in _CITY_H:
+		_extend_city_rim_cell(-1, y, int(_city_map.tile_at(0, y)), true)
+		_extend_city_rim_cell(_CITY_W, y, int(_city_map.tile_at(_CITY_W - 1, y)), true)
+	## North / south rows.
+	for x in _CITY_W:
+		_extend_city_rim_cell(x, -1, int(_city_map.tile_at(x, 0)), false)
+		_extend_city_rim_cell(x, _CITY_H, int(_city_map.tile_at(x, _CITY_H - 1)), false)
+
+
+func _extend_city_rim_cell(cx: int, cy: int, edge_tid: int, horizontal: bool) -> void:
+	var tid := _normalize_camp_margin_tile(edge_tid)
+	var depth := 0
+	if tid == TILE_BRUSH:
+		depth = 1
+	elif tid == TILE_GRASS:
+		depth = 2 + (1 if randf() < 0.55 else 0)
+	else:
+		return
+	for step in depth:
+		var ox := cx
+		var oy := cy
+		if horizontal:
+			ox = cx + (step if cx >= _CITY_W else -step)
+		else:
+			oy = cy + (step if cy >= _CITY_H else -step)
+		var bx := ox + _city_out_pad
+		var by := oy + _city_out_pad
+		if bx < 0 or by < 0 or bx >= _city_out_stride or by >= _city_out_stride:
+			break
+		var base := _city_outside_base_for(ox, oy)
+		## Mixed outside: sometimes leave the fill so the seam is not a solid wall.
+		if _camp_margin_uses_mix(base):
+			var keep_soft := 0.55 if step == 0 else 0.32
+			if randf() > keep_soft:
+				continue
+		var out_tid := tid
+		if tid == TILE_GRASS and step > 0 and randf() < 0.30:
+			out_tid = TILE_BRUSH
+		elif tid == TILE_BRUSH and step > 0 and randf() < 0.20:
+			out_tid = TILE_GRASS
+		_city_out[by * _city_out_stride + bx] = out_tid
 
 
 func _rebuild_camp() -> void:

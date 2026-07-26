@@ -7,6 +7,9 @@ signal language_changed(lang: String)
 enum Language { EN_U4, EN_US, KO }
 
 const LANG_IDS := ["en_us", "en_u4", "ko"]
+## App-wide prefs (menu language etc.) — separate from per-slot save JSON.
+const SETTINGS_PATH := "user://settings.cfg"
+const SETTINGS_SECTION := "prefs"
 
 ## External Ultima IV DOS data (never committed).
 const U4_DATA_RES := "res://data/u4"
@@ -14,12 +17,33 @@ const U4_DATA_ABS := "/Applications/Ultima IV™.app/Contents/Resources/game"
 
 var u4_data_path: String = U4_DATA_RES
 
-var language: String = "en_us":
+var _language: String = "en_us"
+var language: String:
+	get:
+		return _language
 	set(value):
-		if language == value:
-			return
-		language = value
-		language_changed.emit(language)
+		## Menu / explicit UI changes — also writes settings.cfg.
+		_set_language(value, true)
+
+
+func _set_language(value: String, persist_pref: bool) -> void:
+	var next := normalize_language(value)
+	if _language == next:
+		return
+	_language = next
+	if persist_pref:
+		_persist_language_pref()
+	language_changed.emit(_language)
+
+
+func apply_session_language(lang: String) -> void:
+	## In-game only (e.g. Load slot) — does not touch settings.cfg.
+	_set_language(lang, false)
+
+
+func restore_menu_language() -> void:
+	## Back to title: use settings.cfg again (default en_us if missing).
+	_load_language_pref()
 
 var player_name: String = ""
 var player_sex: String = "male" # "male" | "female"
@@ -127,6 +151,7 @@ enum EquipError {
 
 
 func _ready() -> void:
+	_load_language_pref()
 	reset_party()
 	intro_overlay.load_overlays()
 	u4_data_ok = _probe_u4_data()
@@ -134,6 +159,31 @@ func _ready() -> void:
 		var title_path := u4_data_path.path_join("TITLE.EXE")
 		if not intro_data.load_from_path(title_path):
 			push_warning("GameState: TITLE.EXE intro strings not loaded from %s" % title_path)
+
+
+func normalize_language(lang: String) -> String:
+	## Only LANG_IDS are valid; unknown → en_us.
+	if LANG_IDS.has(lang):
+		return lang
+	return "en_us"
+
+
+func _load_language_pref() -> void:
+	## Boot / return-to-menu: restore app language from settings.cfg.
+	## Missing file → keep English (en_us).
+	var cfg := ConfigFile.new()
+	var saved := "en_us"
+	if cfg.load(SETTINGS_PATH) == OK:
+		saved = str(cfg.get_value(SETTINGS_SECTION, "language", "en_us"))
+	_set_language(saved, false)
+
+
+func _persist_language_pref() -> void:
+	## Survives restart — independent of slot JSON saves.
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH) ## keep other keys if any
+	cfg.set_value(SETTINGS_SECTION, "language", normalize_language(_language))
+	cfg.save(SETTINGS_PATH)
 
 
 func reset_party() -> void:
@@ -1108,7 +1158,8 @@ func apply_save_dict(d: Dictionary) -> void:
 	wind_counter = int(d.get("wind_counter", wind_counter))
 	wind_lock = bool(d.get("wind_lock", wind_lock))
 	if d.has("language"):
-		language = str(d.get("language"))
+		## Slot language for this play session only — menu prefs stay separate.
+		apply_session_language(str(d.get("language")))
 	is_new_game = false
 	if party_order.is_empty():
 		refresh_party_order()

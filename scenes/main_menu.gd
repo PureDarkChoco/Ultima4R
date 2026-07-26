@@ -34,6 +34,8 @@ const HOLD_INTERVAL := 0.10
 
 
 func _ready() -> void:
+	## Ensure title uses settings.cfg language (en_us if no file).
+	GameState.restore_menu_language()
 	UiTheme.apply_root(self)
 	$ColorRect.color = UiTheme.BG
 
@@ -61,7 +63,6 @@ func _ready() -> void:
 	call_deferred("_layout_u4")
 	_btn_journey.grab_focus()
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh_text())
-	_ensure_save_panel()
 
 
 func _style_menu_line(btn: Button) -> void:

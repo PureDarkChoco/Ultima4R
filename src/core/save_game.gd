@@ -9,6 +9,7 @@ const VERSION := 1
 const SLOT_COUNT := 4
 const DIR := "user://saves"
 const PREFS_PATH := "user://saves/prefs.json"
+const _WorldPortals := preload("res://src/map/world_portals.gd")
 
 
 static func slot_path(slot: int) -> String:
@@ -54,6 +55,13 @@ static func read_meta(slot: int) -> Dictionary:
 			meta["party_order"] = game.get("party_order", [])
 		if not meta.has("level"):
 			meta["level"] = _level_from_game(game, int(meta.get("class", -1)))
+	## Older city saves: synthesize a minimal location from world block.
+	if not meta.has("location"):
+		var world_v: Variant = data.get("world", {})
+		if typeof(world_v) == TYPE_DICTIONARY:
+			var loc := location_from_world_fallback(world_v as Dictionary)
+			if not loc.is_empty():
+				meta["location"] = loc
 	return meta
 
 
@@ -62,6 +70,82 @@ static func _level_from_game(game: Dictionary, klass: int) -> int:
 	if typeof(max_hps) == TYPE_ARRAY and klass >= 0 and klass < (max_hps as Array).size():
 		return maxi(1, int((max_hps as Array)[klass]) / 100)
 	return 1
+
+
+static func format_saved_at_now() -> String:
+	## Local datetime without seconds: YYYY-MM-DD HH:MM
+	var dt := Time.get_datetime_dict_from_system()
+	return "%04d-%02d-%02d %02d:%02d" % [
+		int(dt.get("year", 0)),
+		int(dt.get("month", 0)),
+		int(dt.get("day", 0)),
+		int(dt.get("hour", 0)),
+		int(dt.get("minute", 0)),
+	]
+
+
+static func format_saved_at_display(when: String) -> String:
+	## Strip seconds from ISO / spaced timestamps for the slot list.
+	var s := when.strip_edges()
+	if s.is_empty():
+		return ""
+	## 2026-07-26T17:15:30 → 2026-07-26 17:15
+	s = s.replace("T", " ")
+	var parts := s.split(" ")
+	if parts.size() >= 2:
+		var clock := parts[1]
+		var hm := clock.split(":")
+		if hm.size() >= 2:
+			return "%s %s:%s" % [parts[0], hm[0], hm[1]]
+	return s
+
+
+static func location_from_world_fallback(world: Dictionary) -> Dictionary:
+	## Best-effort for pre-location saves that already have in_city / city_fname.
+	if not bool(world.get("in_city", false)):
+		return {}
+	var fname := str(world.get("city_fname", ""))
+	var place := ""
+	if not fname.is_empty():
+		place = _WorldPortals.place_id_for_portal({"fname": fname})
+	if place.is_empty():
+		return {}
+	return {"kind": "in", "place": place}
+
+
+static func format_location(loc: Variant) -> String:
+	## Render save meta.location for the current language.
+	if typeof(loc) != TYPE_DICTIONARY:
+		return ""
+	var d: Dictionary = loc
+	var kind := str(d.get("kind", ""))
+	match kind:
+		"in":
+			return Locale.t("save_loc_in", [_place_display_name(str(d.get("place", "")))])
+		"near":
+			return Locale.t("save_loc_near", [_place_display_name(str(d.get("place", "")))])
+		"dungeon":
+			return Locale.t("save_loc_dungeon", [
+				_place_display_name(str(d.get("place", ""))),
+				str(maxi(1, int(d.get("level", 1)))),
+			])
+		"sea":
+			return Locale.t("save_loc_sea")
+		"britannia", "land":
+			return Locale.t("save_loc_britannia")
+		_:
+			return ""
+
+
+static func _place_display_name(place_id: String) -> String:
+	if place_id.is_empty():
+		return "?"
+	var key := "place_%s" % place_id
+	var labeled := Locale.t(key)
+	## Locale.t returns the key itself when missing — fall back to title case id.
+	if labeled == key or labeled.is_empty():
+		return place_id.capitalize()
+	return labeled
 
 
 static func read_slot(slot: int) -> Dictionary:
@@ -99,27 +183,32 @@ static func build_save(
 	world: Dictionary,
 	player_name: String,
 	moves: int,
-	klass: int
+	klass: int,
+	location: Dictionary = {}
 ) -> Dictionary:
-	var when := Time.get_datetime_string_from_system(false, true)
+	var when := format_saved_at_now()
 	var party: Array = []
 	var order_v: Variant = game.get("party_order", [])
 	if typeof(order_v) == TYPE_ARRAY:
 		for v in order_v as Array:
 			party.append(int(v))
 	var level := _level_from_game(game, klass)
+	var meta := {
+		"player_name": player_name,
+		"player_sex": str(game.get("player_sex", "male")),
+		"moves": int(moves),
+		"class": int(klass),
+		"level": int(level),
+		"party_order": party,
+		"saved_at": when,
+		"language": str(game.get("language", "en_us")),
+	}
+	if not location.is_empty():
+		meta["location"] = location.duplicate()
 	return {
 		"version": VERSION,
 		"saved_at": when,
-		"meta": {
-			"player_name": player_name,
-			"player_sex": str(game.get("player_sex", "male")),
-			"moves": int(moves),
-			"class": int(klass),
-			"level": int(level),
-			"party_order": party,
-			"saved_at": when,
-		},
+		"meta": meta,
 		"game": game,
 		"world": world,
 	}
