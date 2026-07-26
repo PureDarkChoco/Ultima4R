@@ -13,6 +13,11 @@ const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 ## Filenames do not match tip direction (e.g. n.png points south).
 ## Use the east-pointing sprite and rotate so tip == wind_dir compass.
 const WIND_EAST_PATH := "res://assets/ui/wind/w.png" ## visual tip = East
+const HUD_GOLD_PATH := "res://assets/ui/hud/gold.png"
+const HUD_FOOD_PATH := "res://assets/ui/hud/food.png"
+const HUD_KEY_PATH := "res://assets/ui/hud/key.png"
+const HUD_TORCH_PATH := "res://assets/ui/hud/torch.png"
+const HUD_GEM_PATH := "res://assets/ui/hud/gem.png"
 const MOON_CHAR0 := 20 # xu4 MOON_CHAR; phases 0..7
 const GLYPH := 16
 
@@ -24,7 +29,7 @@ const GOLD_FOOD_MAX := 9999
 const ITEM_MAX := 99 # keys / torches / gems
 const STAT_NUM_W := 34.0 # "9999"
 const ITEM_NUM_W := 20.0 # "99"
-const ICON_SZ := 14.0
+const ICON_SZ := 16.0
 
 ## Moons / wind come from GameState world clock (xu4 timerFired).
 var trammel_phase: int = 0
@@ -94,6 +99,26 @@ func _load_tex(path: String) -> Texture2D:
 			img.convert(Image.FORMAT_RGBA8)
 		return ImageTexture.create_from_image(img)
 	return load(path) as Texture2D
+
+
+func _load_hud_icon(path: String) -> Texture2D:
+	## White paper bg → transparent so icons sit on the dark inventory bar.
+	var img := Image.new()
+	if img.load(path) != OK:
+		var loaded := load(path) as Texture2D
+		if loaded == null:
+			return null
+		img = loaded.get_image()
+	if img == null or img.is_empty():
+		return null
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
 
 
 func _load_wind_icons() -> void:
@@ -308,101 +333,20 @@ func refresh() -> void:
 
 
 func _coin_icon() -> Texture2D:
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var gold_c := Color(0.95, 0.78, 0.15, 1)
-	var dark := Color(0.55, 0.4, 0.05, 1)
-	for y in 16:
-		for x in 16:
-			var dx := x - 7.5
-			var dy := y - 7.5
-			var r2 := dx * dx + dy * dy
-			if r2 <= 36.0:
-				img.set_pixel(x, y, gold_c if r2 <= 25.0 else dark)
-	img.set_pixel(7, 6, dark)
-	img.set_pixel(8, 6, dark)
-	img.set_pixel(7, 7, dark)
-	img.set_pixel(7, 8, dark)
-	img.set_pixel(8, 8, dark)
-	return ImageTexture.create_from_image(img)
+	return _load_hud_icon(HUD_GOLD_PATH)
 
 
 func _food_icon() -> Texture2D:
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var crust := Color(0.72, 0.48, 0.18, 1)
-	var crumb := Color(0.92, 0.78, 0.45, 1)
-	for y in range(4, 12):
-		for x in range(3, 13):
-			img.set_pixel(x, y, crust if y == 4 or y == 11 or x == 3 or x == 12 else crumb)
-	return ImageTexture.create_from_image(img)
+	return _load_hud_icon(HUD_FOOD_PATH)
 
 
 func _key_icon() -> Texture2D:
-	## Simple classic key silhouette.
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var metal := Color(0.85, 0.82, 0.55, 1)
-	var dark := Color(0.45, 0.42, 0.22, 1)
-	# bow (ring)
-	for y in range(2, 8):
-		for x in range(2, 8):
-			var dx := x - 4.5
-			var dy := y - 4.5
-			var r2 := dx * dx + dy * dy
-			if r2 <= 9.0 and r2 >= 3.5:
-				img.set_pixel(x, y, metal if r2 <= 7.5 else dark)
-	# shaft
-	for x in range(7, 14):
-		img.set_pixel(x, 4, metal)
-		img.set_pixel(x, 5, dark)
-	# bit
-	img.set_pixel(12, 6, metal)
-	img.set_pixel(13, 6, metal)
-	img.set_pixel(13, 7, metal)
-	return ImageTexture.create_from_image(img)
+	return _load_hud_icon(HUD_KEY_PATH)
 
 
 func _torch_icon() -> Texture2D:
-	## Stick + flame.
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var wood := Color(0.55, 0.32, 0.12, 1)
-	var wood_d := Color(0.35, 0.18, 0.06, 1)
-	var flame := Color(1.0, 0.72, 0.15, 1)
-	var flame_c := Color(1.0, 0.35, 0.08, 1)
-	# shaft
-	for y in range(7, 15):
-		img.set_pixel(7, y, wood)
-		img.set_pixel(8, y, wood_d)
-	# flame
-	for y in range(1, 8):
-		for x in range(5, 11):
-			var dx := absf(x - 7.5)
-			var dy := float(7 - y)
-			if dx <= 2.2 - dy * 0.15 and dy >= 0:
-				img.set_pixel(x, y, flame if dx < 1.2 else flame_c)
-	img.set_pixel(7, 2, Color(1.0, 0.95, 0.55, 1))
-	return ImageTexture.create_from_image(img)
+	return _load_hud_icon(HUD_TORCH_PATH)
 
 
 func _gem_icon() -> Texture2D:
-	## Faceted diamond / gem.
-	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var gem := Color(0.35, 0.85, 0.95, 1)
-	var gem_d := Color(0.15, 0.45, 0.75, 1)
-	var gem_h := Color(0.85, 0.98, 1.0, 1)
-	# diamond outline roughly |◇|
-	for y in range(2, 14):
-		for x in range(3, 13):
-			var dx := absf(x - 7.5)
-			var dy := absf(y - 7.5)
-			if dx + dy <= 5.5:
-				var c := gem
-				if dx + dy > 4.2:
-					c = gem_d
-				elif dx < 1.2 and y < 7:
-					c = gem_h
-				img.set_pixel(x, y, c)
-	return ImageTexture.create_from_image(img)
+	return _load_hud_icon(HUD_GEM_PATH)
