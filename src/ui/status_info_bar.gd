@@ -9,7 +9,6 @@ enum BarKind { FULL, SKY, INVENTORY }
 
 @export var bar_kind: BarKind = BarKind.FULL
 
-const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 ## Filenames do not match tip direction (e.g. n.png points south).
 ## Use the east-pointing sprite and rotate so tip == wind_dir compass.
 const WIND_EAST_PATH := "res://assets/ui/wind/w.png" ## visual tip = East
@@ -18,8 +17,8 @@ const HUD_FOOD_PATH := "res://assets/ui/hud/food.png"
 const HUD_KEY_PATH := "res://assets/ui/hud/key.png"
 const HUD_TORCH_PATH := "res://assets/ui/hud/torch.png"
 const HUD_GEM_PATH := "res://assets/ui/hud/gem.png"
-const MOON_CHAR0 := 20 # xu4 MOON_CHAR; phases 0..7
-const GLYPH := 16
+## DOS Ultima IV CHARSET.EGA moon glyphs (chars 20..27), extracted 8×8.
+const MOON_DIR := "res://assets/ui/moons"
 
 ## Wind: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW
 ## Arrow tip = wind FROM / headwind direction (xu4 windDirection).
@@ -127,26 +126,33 @@ func _load_wind_icons() -> void:
 
 
 func _load_moons() -> void:
+	## 16×16 phase art in assets/ui/moons (xu4 MOON_CHAR order via _phase_char_index).
 	_moon_tex.clear()
-	var img := Image.new()
-	if img.load(CHARSET_PATH) != OK:
-		var tex := load(CHARSET_PATH) as Texture2D
-		if tex:
-			img = tex.get_image()
-	if img == null or img.is_empty():
-		return
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
 	for phase in 8:
-		var cy := (MOON_CHAR0 + phase) * GLYPH
-		var glyph := Image.create(GLYPH, GLYPH, false, Image.FORMAT_RGBA8)
-		glyph.blit_rect(img, Rect2i(0, cy, GLYPH, GLYPH), Vector2i.ZERO)
-		for y in GLYPH:
-			for x in GLYPH:
-				var c := glyph.get_pixel(x, y)
-				if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-					glyph.set_pixel(x, y, Color(0, 0, 0, 0))
-		_moon_tex.append(ImageTexture.create_from_image(glyph))
+		var path := "%s/phase_%d.png" % [MOON_DIR, phase]
+		var img := Image.new()
+		if img.load(path) != OK:
+			var loaded := load(path) as Texture2D
+			if loaded == null:
+				push_warning("StatusInfoBar: missing moon %s" % path)
+				_moon_tex.append(null)
+				continue
+			img = loaded.get_image()
+		if img == null or img.is_empty():
+			_moon_tex.append(null)
+			continue
+		if img.get_format() != Image.FORMAT_RGBA8:
+			img.convert(Image.FORMAT_RGBA8)
+		## Safety: key leftover paper-white if a source still has it.
+		for y in img.get_height():
+			for x in img.get_width():
+				var c := img.get_pixel(x, y)
+				if c.r > 0.94 and c.g > 0.94 and c.b > 0.94:
+					img.set_pixel(x, y, Color(0, 0, 0, 0))
+		var side := int(ICON_SZ)
+		if img.get_width() != side or img.get_height() != side:
+			img.resize(side, side, Image.INTERPOLATE_NEAREST)
+		_moon_tex.append(ImageTexture.create_from_image(img))
 
 
 func _build() -> void:
@@ -262,10 +268,14 @@ func _add_stat(parent: HBoxContainer, icon: Texture2D, num_w: float) -> Label:
 
 func _moon_icon() -> TextureRect:
 	var t := TextureRect.new()
-	t.custom_minimum_size = Vector2(16, 16)
+	## Fixed square — never let the sky HBox stretch a phase into an oval.
+	t.custom_minimum_size = Vector2(ICON_SZ, ICON_SZ)
+	t.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.stretch_mode = TextureRect.STRETCH_KEEP
 	t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return t
 
 
