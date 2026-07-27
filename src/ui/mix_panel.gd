@@ -19,8 +19,9 @@ const COL_ACTION_TEXT := Color(0.95, 0.85, 0.45, 1)
 const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
 
 const FONT_SIZE := 13
+## Source art is 32×32; match Ztats / Ready / Wear display size.
 const INV_ICON := 20
-const INV_ROW_H := 25 ## Match Ztats mixtures list stride.
+const INV_ROW_H := 25 ## Match Ztats / Ready / Wear list stride.
 const INV_LIST_SEP := 3 ## Match Ztats _inv_list separation.
 const INV_QTY_W := 28
 const INV_QTY_TRAIL := 8 ## Breathing room after qty digits.
@@ -32,7 +33,7 @@ const LIST_VISIBLE_ROWS := 7
 const REAGENT_VISIBLE_ROWS := 6
 const LIST_VIEW_H := LIST_VISIBLE_ROWS * INV_ROW_H + (LIST_VISIBLE_ROWS - 1) * INV_LIST_SEP
 const REAGENT_SCROLL_H := REAGENT_VISIBLE_ROWS * INV_ROW_H + (REAGENT_VISIBLE_ROWS - 1) * INV_LIST_SEP
-const STOCK_ICON := 18
+const STOCK_ICON := 20
 const STOCK_QTY_FONT := 11
 const COL_STOCK_ZERO := Color(0.55, 0.55, 0.58, 1)
 ## Known-spell recipe reagents (confirmed) — green.
@@ -867,21 +868,25 @@ func _to_grayscale_tex(src: Texture2D) -> Texture2D:
 
 
 func _keyed_icon(reag_id: int) -> Texture2D:
+	## Near-black bg → transparent (reagent art uses dark backdrops).
 	var path := _ReagentIcons.path_for_id(reag_id)
-	if path.is_empty() or not ResourceLoader.exists(path):
+	if path.is_empty():
 		return null
-	var loaded := load(path) as Texture2D
-	if loaded == null:
-		return null
-	var img := loaded.get_image()
-	if img == null or img.is_empty():
-		return loaded
+	var img := Image.new()
+	var fs := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path
+	if img.load(fs) != OK and img.load(path) != OK:
+		var loaded := load(path) as Texture2D
+		if loaded == null:
+			return null
+		img = loaded.get_image()
+		if img == null or img.is_empty():
+			return loaded
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
 	for y in img.get_height():
 		for x in img.get_width():
 			var c := img.get_pixel(x, y)
-			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+			if c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return ImageTexture.create_from_image(img)
 

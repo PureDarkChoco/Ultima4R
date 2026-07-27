@@ -212,7 +212,8 @@ func _ready() -> void:
 			_apply_world_save(GameState.pending_world_save)
 			GameState.pending_world_save.clear()
 		else:
-			_map.set_center(_tile_pos)
+			## Snap — animate would fire if start is 1 tile from MapView's default center.
+			_map.set_center(_tile_pos, false)
 			_place_temp_transports()
 
 	call_deferred("_fit_explore_map")
@@ -269,7 +270,9 @@ func _apply_world_save(w: Dictionary) -> void:
 		_restore_city_from_save(w)
 	else:
 		_city_map = null
-		_map.set_center(_tile_pos)
+		## Load must snap: MapView defaults to (83,105) next to Britain, so a
+		## nearby save is a 1-tile step and SMOOTH_SCROLL would animate once.
+		_map.set_center(_tile_pos, false)
 		if _transport != Transport.FOOT and _transport_tile >= 0:
 			_map.set_transport_tile(_transport_tile)
 		else:
@@ -289,7 +292,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	if fname.is_empty():
 		## Corrupt / old city save — fall back to world portal tile.
 		_tile_pos = return_pos
-		_map.set_center(_tile_pos)
+		_map.set_center(_tile_pos, false)
 		if _transport != Transport.FOOT and _transport_tile >= 0:
 			_map.set_transport_tile(_transport_tile)
 		else:
@@ -304,7 +307,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	var cmap = _CityMapData.new()
 	if path.is_empty() or not cmap.load_from_path(path):
 		_tile_pos = return_pos
-		_map.set_center(_tile_pos)
+		_map.set_center(_tile_pos, false)
 		if _transport != Transport.FOOT and _transport_tile >= 0:
 			_map.set_transport_tile(_transport_tile)
 		else:
@@ -1619,8 +1622,8 @@ func _on_escape() -> void:
 		return
 	if _esc_menu_is_open():
 		_close_esc_menu()
-	else:
-		_open_esc_menu()
+		return
+	_open_esc_menu()
 
 
 func _input(event: InputEvent) -> void:

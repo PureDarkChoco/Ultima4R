@@ -124,6 +124,8 @@ const POISON_DAMAGE := 2
 const MP_MAX_CAP := 99
 var is_new_game: bool = false
 var u4_data_ok: bool = false
+## True when settings.cfg already had u4_data_path (even if that folder is now empty/missing).
+var u4_data_pref_set: bool = false
 ## Session save/load cursor hints (not written into slot JSON).
 var session_loaded_slot: int = 0 ## 1..4 if Journey loaded a slot this run
 var session_did_save: bool = false
@@ -155,12 +157,15 @@ enum EquipError {
 func _ready() -> void:
 	_load_language_pref()
 	reset_party()
-	intro_overlay.load_overlays()
 	u4_data_ok = _probe_u4_data()
+	## Defer heavier intro I/O so the first frame / menu can appear sooner.
+	call_deferred("_boot_load_intro_assets")
+
+
+func _boot_load_intro_assets() -> void:
+	intro_overlay.load_overlays()
 	if u4_data_ok:
-		var title_path := u4_data_path.path_join("TITLE.EXE")
-		if not intro_data.load_from_path(title_path):
-			push_warning("GameState: TITLE.EXE intro strings not loaded from %s" % title_path)
+		_load_intro_from_u4()
 
 
 func normalize_language(lang: String) -> String:
@@ -1306,18 +1311,113 @@ func _apply_bool_array(dest: Array, src: Variant, min_size: int) -> void:
 		dest.append(false)
 
 
+func _load_intro_from_u4() -> void:
+	var title_path := u4_data_path.path_join("TITLE.EXE")
+	if not intro_data.load_from_path(title_path):
+		push_warning("GameState: TITLE.EXE intro strings not loaded from %s" % title_path)
+
+
+func try_set_u4_data_path(path: String) -> bool:
+	## Validate a user-supplied Ultima IV DOS folder, persist to settings.cfg.
+	var resolved := resolve_u4_data_dir(path)
+	if not is_valid_u4_data_dir(resolved):
+		return false
+	u4_data_path = resolved
+	u4_data_ok = true
+	_persist_u4_data_path()
+	_load_intro_from_u4()
+	return true
+
+
+func resolve_u4_data_dir(path: String) -> String:
+	## Accept a folder, .app bundle, or parent that contains /game.
+	var p := path.strip_edges()
+	if p.begins_with("\"") and p.ends_with("\"") and p.length() >= 2:
+		p = p.substr(1, p.length() - 2).strip_edges()
+	if p.begins_with("'") and p.ends_with("'") and p.length() >= 2:
+		p = p.substr(1, p.length() - 2).strip_edges()
+	if p.begins_with("~"):
+		var home := OS.get_environment("HOME")
+		if home.is_empty():
+			home = OS.get_environment("USERPROFILE")
+		p = home.path_join(p.substr(1).lstrip("/\\"))
+	p = p.replace("\\", "/")
+	if p.is_empty():
+		return ""
+	## Prefer the first candidate that actually contains WORLD.MAP.
+	var candidates: Array[String] = [p]
+	if p.ends_with(".app") or p.ends_with(".app/"):
+		candidates.append(p.path_join("Contents/Resources/game"))
+	candidates.append(p.path_join("Contents/Resources/game"))
+	candidates.append(p.path_join("game"))
+	for cand in candidates:
+		var norm := cand.rstrip("/").simplify_path()
+		if is_valid_u4_data_dir(norm):
+			return norm
+	return p.rstrip("/").simplify_path()
+
+
+func is_valid_u4_data_dir(path: String) -> bool:
+	## Existence + readable size only — do not slurp WORLD.MAP into memory.
+	if path.is_empty():
+		return false
+	var world_path := path.path_join("WORLD.MAP")
+	if not FileAccess.file_exists(world_path):
+		world_path = path.path_join("world.map")
+		if not FileAccess.file_exists(world_path):
+			return false
+	var f := FileAccess.open(world_path, FileAccess.READ)
+	if f == null:
+		return false
+	var sz := f.get_length()
+	f.close()
+	return sz > 0
+
+
+func _load_u4_data_path_pref() -> String:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) != OK:
+		return ""
+	return str(cfg.get_value(SETTINGS_SECTION, "u4_data_path", "")).strip_edges()
+
+
+func _persist_u4_data_path() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH) ## keep language etc.
+	cfg.set_value(SETTINGS_SECTION, "u4_data_path", u4_data_path)
+	cfg.save(SETTINGS_PATH)
+
+
 func _probe_u4_data() -> bool:
-	for path in [U4_DATA_RES, U4_DATA_ABS]:
-		var world_path: String = path.path_join("WORLD.MAP")
-		if FileAccess.file_exists(world_path):
-			# Prefer readable path — res:// symlinks can fail FileAccess.get_file_as_bytes on some setups.
-			var bytes: PackedByteArray = FileAccess.get_file_as_bytes(world_path)
-			if bytes.size() > 0:
-				u4_data_path = path
-				return true
-			# Exists but unreadable via this path — keep trying.
-	# Last resort: absolute even if exists check was odd.
-	if FileAccess.file_exists(U4_DATA_ABS.path_join("WORLD.MAP")):
-		u4_data_path = U4_DATA_ABS
-		return true
+	## If settings already has a path: only verify that location (no hunting).
+	## First run (no key): search known install spots once, then persist or fail.
+	var saved := _load_u4_data_path_pref()
+	if not saved.is_empty():
+		u4_data_pref_set = true
+		var resolved := resolve_u4_data_dir(saved)
+		if is_valid_u4_data_dir(saved):
+			u4_data_path = saved
+			return true
+		if not resolved.is_empty() and resolved != saved and is_valid_u4_data_dir(resolved):
+			u4_data_path = resolved
+			_persist_u4_data_path()
+			return true
+		u4_data_path = saved
+		return false
+
+	u4_data_pref_set = false
+	var candidates: Array[String] = [
+		U4_DATA_RES,
+		U4_DATA_ABS,
+		resolve_u4_data_dir("/Applications/Ultima IV™.app"),
+	]
+	var seen: Dictionary = {}
+	for path in candidates:
+		if path.is_empty() or seen.has(path):
+			continue
+		seen[path] = true
+		if is_valid_u4_data_dir(path):
+			u4_data_path = path
+			_persist_u4_data_path()
+			return true
 	return false

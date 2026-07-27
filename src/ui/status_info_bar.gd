@@ -102,7 +102,7 @@ func _load_tex(path: String) -> Texture2D:
 
 
 func _load_hud_icon(path: String) -> Texture2D:
-	## White paper bg → transparent so icons sit on the dark inventory bar.
+	## Near-black bg → transparent so icons sit on the inventory bar.
 	var img := Image.new()
 	if img.load(path) != OK:
 		var loaded := load(path) as Texture2D
@@ -116,7 +116,7 @@ func _load_hud_icon(path: String) -> Texture2D:
 	for y in img.get_height():
 		for x in img.get_width():
 			var c := img.get_pixel(x, y)
-			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+			if c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return ImageTexture.create_from_image(img)
 

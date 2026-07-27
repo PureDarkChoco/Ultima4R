@@ -45,8 +45,8 @@ const BAR_VALUE_FONT_SIZE := 11
 const SEX_MALE := "♂"
 const SEX_FEMALE := "♀"
 const SEX_FONT_SIZE := FONT_SIZE + 2
-const GEAR_ICON_H := 16
-const GEAR_ICON_W := 26
+## Source art is 32×32; UI displays smaller so list rows stay compact.
+const GEAR_ICON := 20
 const GEAR_ICON_SEP := 3
 const GEAR_KIND_WEAPON := "Weapon: "
 const GEAR_KIND_ARMOR := "Armor: "
@@ -723,7 +723,7 @@ func _make_gear_stat_row(
 	row.add_child(kind)
 
 	var icon := TextureRect.new()
-	icon.custom_minimum_size = Vector2(GEAR_ICON_W, GEAR_ICON_H)
+	icon.custom_minimum_size = Vector2(GEAR_ICON, GEAR_ICON)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -761,7 +761,7 @@ func _make_gear_stat_row(
 
 
 func _keyed_gear_texture(tex: Texture2D) -> Texture2D:
-	## White paper bg → transparent so icons sit on the dark panel.
+	## Key backdrop: white paper (legacy) or near-black (weapon/armor/reagent art).
 	if tex == null:
 		return null
 	var img := tex.get_image()
@@ -769,10 +769,15 @@ func _keyed_gear_texture(tex: Texture2D) -> Texture2D:
 		return tex
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
+	var corner := img.get_pixel(0, 0)
+	var key_white := corner.a > 0.5 and corner.r > 0.85 and corner.g > 0.85 and corner.b > 0.85
 	for y in img.get_height():
 		for x in img.get_width():
 			var c := img.get_pixel(x, y)
-			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+			if key_white:
+				if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+					img.set_pixel(x, y, Color(0, 0, 0, 0))
+			elif c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return ImageTexture.create_from_image(img)
 
@@ -797,7 +802,21 @@ func _localized_item_name(english_name: String) -> String:
 	return translated
 
 
+func _set_gear_icon_id(icon: TextureRect, item_id: int, kind: StringName) -> void:
+	if icon == null:
+		return
+	var path := ""
+	if kind == &"weapon":
+		path = _WeaponIcons.path_for_id(item_id)
+	elif kind == &"armor":
+		path = _ArmorIcons.path_for_id(item_id)
+	## Hands / No Armour have no art — keep the slot, clear texture.
+	icon.texture = _load_keyed_gear_path(path)
+	icon.visible = true
+
+
 func _set_gear_icon(icon: TextureRect, item_name: String, kind: StringName) -> void:
+	## Legacy name lookup (inventory rows still use ids via path_for_id).
 	if icon == null:
 		return
 	var path := ""
@@ -805,7 +824,6 @@ func _set_gear_icon(icon: TextureRect, item_name: String, kind: StringName) -> v
 		path = _WeaponIcons.path_for_name(item_name)
 	elif kind == &"armor":
 		path = _ArmorIcons.path_for_name(item_name)
-	## Keep the slot sized even when missing art (ATK/DEF stay aligned).
 	icon.texture = _load_keyed_gear_path(path)
 	icon.visible = true
 
@@ -814,17 +832,13 @@ func _load_keyed_gear_path(path: String) -> Texture2D:
 	if path.is_empty():
 		return null
 	var img := Image.new()
-	if img.load(path) != OK:
+	var fs := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path
+	if img.load(fs) != OK and img.load(path) != OK:
 		var loaded := load(path) as Texture2D
 		return _keyed_gear_texture(loaded)
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
-	return ImageTexture.create_from_image(img)
+	return _keyed_gear_texture(ImageTexture.create_from_image(img))
 
 
 func _make_gear_label(col_w: float) -> Label:
@@ -1014,16 +1028,23 @@ func _refresh() -> void:
 		_exp_fill, _exp_lab,
 		int(data.get("exp", 0)), int(data.get("exp_next", 0)), COL_EXP
 	)
-	var weapon_key := _title_case_words(str(data.get("weapon", "Hands")))
-	var armor_key := _title_case_words(str(data.get("armor", "No Armour")))
+	var weapon_id := int(data.get("weapon_id", -1))
+	var armor_id := int(data.get("armor_id", -1))
 	if _weapon_kind:
 		_weapon_kind.text = Locale.t("ztats_weapon_kind")
 	if _armor_kind:
 		_armor_kind.text = Locale.t("ztats_armor_kind")
-	_weapon.text = _localized_item_name(weapon_key)
-	_armor.text = _localized_item_name(armor_key)
-	_set_gear_icon(_weapon_icon, weapon_key, &"weapon")
-	_set_gear_icon(_armor_icon, armor_key, &"armor")
+	## Prefer localized names from ids (works in ko/en); fall back to legacy string.
+	if weapon_id >= 0:
+		_weapon.text = Locale.weapon_name(weapon_id)
+	else:
+		_weapon.text = _localized_item_name(_title_case_words(str(data.get("weapon", "Hands"))))
+	if armor_id >= 0:
+		_armor.text = Locale.armor_name(armor_id)
+	else:
+		_armor.text = _localized_item_name(_title_case_words(str(data.get("armor", "No Armour"))))
+	_set_gear_icon_id(_weapon_icon, weapon_id, &"weapon")
+	_set_gear_icon_id(_armor_icon, armor_id, &"armor")
 	_atk_kind.text = Locale.t("ztats_atk")
 	_def_kind.text = Locale.t("ztats_def")
 	_atk.text = str(int(data.get("atk", 0)))

@@ -14,6 +14,7 @@ const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
 
 const FONT_SIZE := 13
+## Source art is 32×32; match Ztats / Ready / Mix display size.
 const INV_ICON := 20
 const INV_ROW_H := 25
 const INV_LIST_SEP := 3
@@ -22,8 +23,7 @@ const INV_STAT_W := 40
 const INV_QTY_W := 28
 const INV_PAD_H := 10
 const INV_PAD_V := 6
-const CUR_ICON_H := 18
-const CUR_ICON_W := 28
+const CUR_ICON := 20
 
 
 var _root: VBoxContainer
@@ -73,7 +73,7 @@ func _ready() -> void:
 	cur_wrap.add_child(cur_row)
 
 	_cur_icon = TextureRect.new()
-	_cur_icon.custom_minimum_size = Vector2(CUR_ICON_W, CUR_ICON_H)
+	_cur_icon.custom_minimum_size = Vector2(CUR_ICON, CUR_ICON)
 	_cur_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_cur_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_cur_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -378,22 +378,25 @@ func _first_usable_index() -> int:
 
 
 func _keyed_icon(armor_id: int) -> Texture2D:
-	## White paper bg → transparent (same as Ztats gear icons).
+	## Near-black bg → transparent (armor art uses dark backdrops).
 	var path := _ArmorIcons.path_for_id(armor_id)
-	if path.is_empty() or not ResourceLoader.exists(path):
+	if path.is_empty():
 		return null
-	var loaded := load(path) as Texture2D
-	if loaded == null:
-		return null
-	var img := loaded.get_image()
-	if img == null or img.is_empty():
-		return loaded
+	var img := Image.new()
+	var fs := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path
+	if img.load(fs) != OK and img.load(path) != OK:
+		var loaded := load(path) as Texture2D
+		if loaded == null:
+			return null
+		img = loaded.get_image()
+		if img == null or img.is_empty():
+			return loaded
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
 	for y in img.get_height():
 		for x in img.get_width():
 			var c := img.get_pixel(x, y)
-			if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
+			if c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return ImageTexture.create_from_image(img)
 

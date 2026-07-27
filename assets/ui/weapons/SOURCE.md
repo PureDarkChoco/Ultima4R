@@ -1,6 +1,7 @@
 # Weapon icons
 
-Ultima IV inventory / Ready-weapon art (65×40 RGB). Looked up via `WeaponIcons` (`src/core/weapon_icons.gd`).
+Ultima IV inventory / Ready-weapon art. Looked up via `WeaponIcons`
+(`src/core/weapon_icons.gd`).
 
 | File | Weapon | xu4 id |
 |------|--------|-------:|
@@ -20,8 +21,4 @@ Ultima IV inventory / Ready-weapon art (65×40 RGB). Looked up via `WeaponIcons`
 | `magic_wand.png` | Magic Wand | 14 |
 | `mystic_sword.png` | Mystic Sword | 15 |
 
-`magic_axe.png` was derived from `axe.png` with the blue outer glow palette from `magic_sword.png`.
-
-`mystic_sword.png` was derived from `sword.png`: ivory blade tones + purple outer glow (same ring style as Magic Sword, purple instead of blue).
-
-Hands (0) has no icon.
+Hands (0) has no icon. Icons are 32×32 RGBA with black keyed to transparent.

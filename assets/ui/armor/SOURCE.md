@@ -1,6 +1,7 @@
 # Armor icons
 
-Ultima IV armor art (65×40 RGB). Looked up via `ArmorIcons` (`src/core/armor_icons.gd`).
+Ultima IV Wear / Ztats armor art. Looked up via `ArmorIcons`
+(`src/core/armor_icons.gd`).
 
 | File | Armor | xu4 id |
 |------|-------|-------:|
@@ -12,8 +13,4 @@ Ultima IV armor art (65×40 RGB). Looked up via `ArmorIcons` (`src/core/armor_ic
 | `magic_plate.png` | Magic Plate | 6 |
 | `mystic_robe.png` | Mystic Robe | 7 |
 
-`magic_chain.png` / `magic_plate.png` were derived from `chain.png` / `plate.png` with the same blue outer glow as Magic weapons.
-
-`mystic_robe.png` uses the mystic purple border (same palette as Mystic Sword).
-
-None (0) has no dedicated icon.
+None (0) has no dedicated icon. Icons are 32×32 RGBA with black keyed to transparent.

@@ -25,6 +25,36 @@ const _T := {
 		"en_us": "Ultima IV data not found. Link GOG files to data/u4.",
 		"ko": "울티마 IV 데이터가 없습니다. data/u4 에 GOG 파일을 연결하세요.",
 	},
+	"boot_path_prompt": {
+		"en_u4": "Choose your Ultima IV (DOS) game folder:",
+		"en_us": "Choose your Ultima IV (DOS) game folder:",
+		"ko": "울티마 IV (DOS) 게임 폴더를 선택하세요:",
+	},
+	"boot_path_hint": {
+		"en_u4": "Folder with WORLD.MAP · or the Ultima IV.app bundle",
+		"en_us": "Folder containing WORLD.MAP, or the Ultima IV.app bundle",
+		"ko": "WORLD.MAP 이 있는 폴더, 또는 Ultima IV.app 번들",
+	},
+	"boot_path_reselect": {
+		"en_u4": "The configured path no longer hath the game files.\nPlease choose the Ultima IV (DOS) folder again.",
+		"en_us": "The configured path is missing game files.\nPlease choose the Ultima IV (DOS) folder again.",
+		"ko": "설정된 경로에 게임 파일이 없습니다.\n울티마 IV (DOS) 폴더를 다시 지정해 주세요.",
+	},
+	"boot_path_choose": {
+		"en_u4": "Choose Folder…",
+		"en_us": "Choose Folder…",
+		"ko": "폴더 선택…",
+	},
+	"boot_path_invalid": {
+		"en_u4": "That folder hath no WORLD.MAP.",
+		"en_us": "WORLD.MAP not found in that folder.",
+		"ko": "선택한 폴더에서 WORLD.MAP 을 찾지 못했습니다.",
+	},
+	"boot_required": {
+		"en_u4": "Ultima IV (DOS) is required to play.\nPress any key to quit.",
+		"en_us": "Ultima IV (DOS) is required to play.\nPress any key to quit.",
+		"ko": "울티마 IV DOS 버전이 필요합니다.\n아무 키나 누르면 종료합니다.",
+	},
 	"menu_tagline": {
 		"en_u4": "In another world, in a time to come.",
 		"en_us": "In another world, in a time to come.",

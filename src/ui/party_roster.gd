@@ -673,6 +673,8 @@ static func member_ztats(slot: int) -> Dictionary:
 		"exp_next": GameState.xp_next_of_class(mid),
 		"weapon": Locale.weapon_name(wid),
 		"armor": Locale.armor_name(aid),
+		"weapon_id": wid,
+		"armor_id": aid,
 		"atk": WeaponIcons.damage_of(wid),
 		"def": ArmorIcons.defense_of(aid),
 		"tile": tile,
