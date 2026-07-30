@@ -29,7 +29,10 @@ const STATUS_PULSE_PERIOD := 1.2
 const HP_CRIT_RATIO := 0.30
 
 const TILE_SIZE := 32
+## Minimum face box; actual height is synced to the INT row bottom.
 const FACE_SIZE := 84
+## Painted portraits are 240×300 (4:5).
+const FACE_ASPECT := 240.0 / 300.0
 ## Top (above name) and bottom (below bars) — keep equal, keep modest so bars fit.
 const OUTER_PAD := 4
 const IDENT_SEP := 6
@@ -84,10 +87,13 @@ var _inv_page: int = InvPage.NONE
 var _inv_saved_scroll: Dictionary = {}
 ## When true, next refresh restores saved scroll instead of starting at top.
 var _inv_keep_scroll := false
+## Cancels in-flight face sync awaits when a newer sync is requested.
+var _face_sync_gen := 0
 var _tile_host: Control
 var _tile: TextureRect
 var _sleep_zz: Label
 var _face: TextureRect
+var _face_slot: Control
 var _sex: Label
 var _meta: Label
 var _status: Label
@@ -130,6 +136,7 @@ func _ready() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_build()
 	_build_inv()
+	resized.connect(_sync_face_to_int_row)
 
 
 func is_open() -> bool:
@@ -150,6 +157,8 @@ func open_member(slot: int) -> void:
 	visible = true
 	move_to_front()
 	set_process(_needs_status_pulse())
+	## First open: layout isn't ready in the same idle as visible=true.
+	_request_face_sync()
 
 
 func open_inventory(page: int, restore_scroll: bool = true) -> void:
@@ -446,22 +455,23 @@ func _build() -> void:
 	info.add_child(_level)
 
 	## Width reserved for portrait; height 0 so head height == zone-1 text only.
-	var face_slot := Control.new()
-	face_slot.custom_minimum_size = Vector2(FACE_SIZE, 0)
-	face_slot.size_flags_horizontal = Control.SIZE_SHRINK_END
-	face_slot.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	face_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	face_slot.clip_contents = false
-	head.add_child(face_slot)
+	## Face itself extends down through STR/DEX/INT (see _sync_face_to_int_row).
+	_face_slot = Control.new()
+	_face_slot.custom_minimum_size = Vector2(FACE_SIZE * FACE_ASPECT, 0)
+	_face_slot.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_face_slot.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_face_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_face_slot.clip_contents = false
+	head.add_child(_face_slot)
 
 	_face = TextureRect.new()
 	_face.position = Vector2.ZERO
-	_face.size = Vector2(FACE_SIZE, FACE_SIZE)
+	_face.size = Vector2(FACE_SIZE * FACE_ASPECT, FACE_SIZE)
 	_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	face_slot.add_child(_face)
+	_face_slot.add_child(_face)
 
 	## (1-2) + (2-3) + (3-4) leftover space split equally → only zones 2 & 3 move.
 	_add_section_spacer(root)
@@ -1059,6 +1069,40 @@ func _relayout_bars() -> void:
 	_apply_fill_width(_hp_fill)
 	_apply_fill_width(_mp_fill)
 	_apply_fill_width(_exp_fill)
+
+
+func _request_face_sync() -> void:
+	## Wait until after visibility + container sort so INT row Y is real.
+	_face_sync_gen += 1
+	_face_sync_after_layout(_face_sync_gen)
+
+
+func _face_sync_after_layout(gen: int) -> void:
+	await get_tree().process_frame
+	if gen != _face_sync_gen:
+		return
+	_sync_face_to_int_row()
+	## Face width change can reflow the head; settle once more.
+	await get_tree().process_frame
+	if gen != _face_sync_gen:
+		return
+	_sync_face_to_int_row()
+
+
+func _sync_face_to_int_row() -> void:
+	## Stretch the portrait so its bottom lines up with the INT attribute row.
+	if _face == null or _face_slot == null or _attr_int == null:
+		return
+	if not is_visible_in_tree() or _char_root == null or not _char_root.visible:
+		return
+	if _attr_int.size.y < 1.0:
+		return
+	var face_top := _face_slot.global_position.y
+	var int_bottom := _attr_int.global_position.y + _attr_int.size.y
+	var h := maxf(float(FACE_SIZE), int_bottom - face_top)
+	var w := h * FACE_ASPECT
+	_face.size = Vector2(w, h)
+	_face_slot.custom_minimum_size = Vector2(w, 0)
 
 
 func _build_inv() -> void:

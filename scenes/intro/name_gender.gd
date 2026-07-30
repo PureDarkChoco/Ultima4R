@@ -1,10 +1,7 @@
 extends Control
 
 ## xu4 initiateNewGame: name + sex before story / virtue questions.
-
-const PORTRAIT_MALE := "res://assets/portraits/companions/avatar_male.png"
-const PORTRAIT_FEMALE := "res://assets/portraits/companions/avatar_female.png"
-const PORTRAIT_H := 160.0
+## Avatar face is not shown here — Ztats uses class+sex art from portraits/avatars.
 
 @onready var _prompt: Label = %Prompt
 @onready var _sex_prompt: Label = %SexPrompt
@@ -19,8 +16,6 @@ const PORTRAIT_H := 160.0
 
 var _sex_group := ButtonGroup.new()
 var _name_editing := false
-var _tex_male: Texture2D
-var _tex_female: Texture2D
 
 
 func _ready() -> void:
@@ -35,12 +30,10 @@ func _ready() -> void:
 	UiTheme.style_button(_continue)
 	UiTheme.style_button(_back)
 
-	_tex_male = load(PORTRAIT_MALE) as Texture2D
-	_tex_female = load(PORTRAIT_FEMALE) as Texture2D
-	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	_portrait.custom_minimum_size = Vector2(PORTRAIT_H * 0.85, PORTRAIT_H)
+	if _portrait:
+		_portrait.visible = false
+		_portrait.texture = null
+		_portrait.custom_minimum_size = Vector2.ZERO
 
 	_name.add_theme_font_size_override("font_size", 20)
 	UiTheme.apply_font(_name)
@@ -192,8 +185,6 @@ func _apply_sex_visuals() -> void:
 	_female.text = ("◀ %s ▶" if not male_on else "%s") % Locale.t("sex_female")
 	UiTheme.style_choice_button(_male, male_on)
 	UiTheme.style_choice_button(_female, not male_on)
-	if _portrait:
-		_portrait.texture = _tex_male if male_on else _tex_female
 
 
 func _on_continue() -> void:

@@ -22,18 +22,21 @@ const PORTRAIT_PATHS := [
 	"res://assets/portraits/classes/07_shepherd.png",
 ]
 ## Painted companion / Avatar faces for Ztats sheet (class index 0..7).
+## Source art is 240×300; ZtatsPanel scales to FACE_SIZE (same on-screen size as before).
 const ZTATS_COMPANION_PATHS := [
-	"res://assets/portraits/companions/00_mariah.png",
-	"res://assets/portraits/companions/01_iolo.png",
-	"res://assets/portraits/companions/02_geoffrey.png",
-	"res://assets/portraits/companions/03_jaana.png",
-	"res://assets/portraits/companions/04_julia.png",
-	"res://assets/portraits/companions/05_dupre.png",
-	"res://assets/portraits/companions/06_shamino.png",
-	"res://assets/portraits/companions/07_katrina.png",
+	"res://assets/portraits/companions/mariah_portrait.png",
+	"res://assets/portraits/companions/iolo_portrait.png",
+	"res://assets/portraits/companions/geoffrey_portrait.png",
+	"res://assets/portraits/companions/jaana_portrait.png",
+	"res://assets/portraits/companions/julia_portrait.png",
+	"res://assets/portraits/companions/dupre_portrait.png",
+	"res://assets/portraits/companions/shamino_portrait.png",
+	"res://assets/portraits/companions/katrina_portrait.png",
 ]
-const ZTATS_AVATAR_MALE := "res://assets/portraits/companions/avatar_male.png"
-const ZTATS_AVATAR_FEMALE := "res://assets/portraits/companions/avatar_female.png"
+## Avatar protagonist face: class + sex under assets/portraits/avatars/.
+const AVATAR_CLASS_NAMES := [
+	"mage", "bard", "fighter", "druid", "tinker", "paladin", "ranger", "shepherd",
+]
 const CORPSE_PATH := "res://assets/portraits/classes/corpse.png"
 
 const COMPANION_NAMES := [
@@ -708,15 +711,21 @@ static func _ztats_class_tile(klass: int) -> Texture2D:
 
 
 static func _ztats_face_portrait(klass: int, is_avatar: bool) -> Texture2D:
-	## Avatar → gender face; companions → painted class portrait.
+	## Avatar → class+sex portrait; companions → painted companion portrait.
 	var path := ""
 	if is_avatar:
-		path = ZTATS_AVATAR_FEMALE if GameState.player_sex == "female" else ZTATS_AVATAR_MALE
+		path = _avatar_portrait_path(klass, GameState.player_sex)
 	elif klass >= 0 and klass < ZTATS_COMPANION_PATHS.size():
 		path = ZTATS_COMPANION_PATHS[klass]
 	if path.is_empty():
 		return null
 	return _load_texture_file(path)
+
+
+static func _avatar_portrait_path(klass: int, sex: String) -> String:
+	var k := clampi(klass, 0, AVATAR_CLASS_NAMES.size() - 1)
+	var sex_key := "female" if sex == "female" else "male"
+	return "res://assets/portraits/avatars/%s_%s.png" % [AVATAR_CLASS_NAMES[k], sex_key]
 
 
 static func _load_texture_file(path: String) -> Texture2D:
