@@ -106,6 +106,11 @@ const _T := {
 		"en_us": "Quit",
 		"ko": "종료",
 	},
+	"quit_confirm": {
+		"en_u4": "Really quit?",
+		"en_us": "Really quit?",
+		"ko": "정말 종료하시겠습니까?",
+	},
 	"menu_copyright": {
 		"en_u4": "© Copyright 1987 Lord British",
 		"en_us": "© Copyright 1987 Lord British",
