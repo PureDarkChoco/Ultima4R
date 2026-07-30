@@ -7,6 +7,9 @@ extends TextureRect
 ## Preload so MapView parses even if global class cache is stale.
 const _CombatMapDataScript := preload("res://src/map/combat_map_data.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
+const _LineOfSightScript := preload("res://src/map/line_of_sight.gd")
+## xu4 invisible cells → solid black (not dimmed fog).
+const _LOS_BLACK := Color(0, 0, 0, 1)
 
 const VIEW_H := 11
 const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
@@ -98,12 +101,18 @@ var center := Vector2i(83, 105)
 ## Visible tile grid (odd so the party sits on a true center tile).
 var view_w: int = VIEW_W
 var view_h: int = VIEW_H
+## xu4 line-of-sight (DOS). Off for combat/camp (`nolineofsight`).
+var los_enabled: bool = true
+## xu4 `c->opacity`: when false (balloon aloft), opaque tiles do not block.
+var los_opacity: bool = true
 
 var _buf: Image
 var _stage: Image ## (view+1) staging buffer for sub-tile scroll
 var _tex: ImageTexture
 var _avatar_a: Image
 var _avatar_b: Image
+## Viewport LOS mask relative to `center` (view_w × view_h, 0/1).
+var _los: PackedByteArray = PackedByteArray()
 ## Temporary world overlays: Vector3i(x, y, tile_id) — horse/ship stubs, etc.
 var _overlays: Array[Vector3i] = []
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
@@ -417,6 +426,37 @@ func set_overlays(items: Array[Vector3i]) -> void:
 
 func get_overlays() -> Array[Vector3i]:
 	return _overlays.duplicate()
+
+
+func set_los_enabled(on: bool) -> void:
+	## Combat / camp maps set this false (xu4 `NO_LINE_OF_SIGHT`).
+	if los_enabled == on:
+		return
+	los_enabled = on
+	_rebuild()
+
+
+func set_los_opacity(on: bool) -> void:
+	## Balloon aloft: `on == false` → see through forests/walls (xu4 opacity).
+	if los_opacity == on:
+		return
+	los_opacity = on
+	_rebuild()
+
+
+func is_tile_visible(wx: int, wy: int) -> bool:
+	## World/city tile visibility from the party (`center`).
+	if not los_enabled:
+		return true
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	var vx := wx - center.x + half_x
+	var vy := wy - center.y + half_y
+	if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
+		return false
+	if _los.is_empty():
+		return true
+	return _los[vy * view_w + vx] != 0
 
 
 func overlay_at(tile: Vector2i) -> int:
@@ -904,6 +944,9 @@ func _rebuild() -> void:
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
 			_blit_terrain_to(_stage, tid, dst)
 
+	_refresh_los()
+	_apply_los_blackout_stage(base)
+
 	_buf.blit_rect(
 		_stage,
 		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
@@ -940,6 +983,10 @@ func _rebuild_city() -> void:
 			var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
 			_blit_terrain_to(_stage, tid, dst)
+
+	_refresh_los()
+	_apply_los_blackout_stage(base)
+
 	_buf.blit_rect(
 		_stage,
 		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
@@ -963,6 +1010,8 @@ func _paint_city_persons(cam: Vector2) -> void:
 	var half_y := view_h / 2
 	for i in _city_map.persons.size():
 		var p: Vector3i = _city_map.persons[i]
+		if not is_tile_visible(int(p.x), int(p.y)):
+			continue
 		var screen := Vector2(p.x, p.y) - cam + Vector2(half_x, half_y)
 		var px := int(round(screen.x * float(TILE_SRC)))
 		var py := int(round(screen.y * float(TILE_SRC)))
@@ -1778,6 +1827,50 @@ func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
 		_U4TileBankScript.blit_to(target, tid, dst)
 
 
+func _refresh_los() -> void:
+	## xu4 screenFindLineOfSight — blocking from front terrain around party `center`.
+	if not los_enabled:
+		_los = _LineOfSightScript.all_visible(view_w, view_h)
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	var blocking := PackedByteArray()
+	blocking.resize(view_w * view_h)
+	for dy in view_h:
+		for dx in view_w:
+			var tid := _terrain_tid_at(center.x - half_x + dx, center.y - half_y + dy)
+			## Balloon aloft (`los_opacity` false): nothing blocks.
+			var opaque := los_opacity and _TileRulesCamp.is_opaque(tid)
+			blocking[dy * view_w + dx] = 1 if opaque else 0
+	_los = _LineOfSightScript.compute_dos(blocking, view_w, view_h)
+
+
+func _terrain_tid_at(wx: int, wy: int) -> int:
+	if is_in_city():
+		return clampi(_city_tile_or_outside(wx, wy), 0, TILE_ID_MAX)
+	if world != null and world.loaded:
+		return clampi(world.tile_at(wx, wy), 0, TILE_ID_MAX)
+	return TILE_GRASS
+
+
+func _apply_los_blackout_stage(base: Vector2i) -> void:
+	## Replace hidden stage cells with black (xu4 draws tile_black).
+	if not los_enabled:
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for dy in view_h + 1:
+		for dx in view_w + 1:
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			if is_tile_visible(mx, my):
+				continue
+			_stage.fill_rect(
+				Rect2i(dx * TILE_SRC, dy * TILE_SRC, TILE_SRC, TILE_SRC),
+				_LOS_BLACK
+			)
+
+
 func _is_y_scroll_tile(tid: int) -> bool:
 	match tid:
 		TILE_FIELD_POISON, TILE_FIELD_ENERGY, TILE_FIELD_FIRE, TILE_FIELD_SLEEP, TILE_LAVA:
@@ -1868,6 +1961,8 @@ func _paint_moongate(cam: Vector2) -> void:
 	if _moongate_tid < 0 or not tiles_ready:
 		return
 	if is_in_city():
+		return
+	if not is_tile_visible(_moongate_pos.x, _moongate_pos.y):
 		return
 	var gh := clampi(_moongate_height_px, 0, TILE_SRC)
 	if gh <= 0:
@@ -2055,6 +2150,8 @@ func _paint_overlays(cam: Vector2) -> void:
 	for item in _overlays:
 		var wx := int(item.x)
 		var wy := int(item.y)
+		if not is_tile_visible(wx, wy):
+			continue
 		var tid := int(item.z)
 		var screen := Vector2(wx, wy) - cam + Vector2(half_x, half_y)
 		var px := int(round(screen.x * float(TILE_SRC)))
@@ -2092,6 +2189,8 @@ func _paint_bridge_near_rails(cam: Vector2) -> void:
 			else:
 				continue
 			if tid != TILE_BRIDGE and tid != TILE_BRIDGE_S:
+				continue
+			if not is_tile_visible(mx, my):
 				continue
 			var screen := Vector2(mx, my) - cam + Vector2(half_x, half_y)
 			var px := int(round(screen.x * float(TILE_SRC)))

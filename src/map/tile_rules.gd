@@ -211,6 +211,16 @@ static func is_water(tile_id: int) -> bool:
 	return is_sailable(tile_id) or is_swimable(tile_id)
 
 
+static func is_opaque(tile_id: int) -> bool:
+	## xu4 Tile::isOpaque — config.b `opaque: square|round` (blocks LOS past the tile).
+	## forest/mountains round; secret_door/brick_wall square. stone_wall is NOT opaque.
+	match clampi(tile_id, 0, 255):
+		6, 8, 73, 127: ## forest, mountains, secret_door, brick_wall
+			return true
+		_:
+			return false
+
+
 static func is_door(tile_id: int) -> bool:
 	## xu4 Tile::isDoor — unlocked door (id 59).
 	return clampi(tile_id, 0, 255) == 59
