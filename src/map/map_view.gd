@@ -1821,7 +1821,8 @@ func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
 		_U4TileBankScript.blit_water_to(target, tid, dst, _water_scroll)
 	elif tid >= TILE_WHITE_SW and tid <= TILE_WHITE_NE:
 		_U4TileBankScript.blit_water_edge_to(target, tid, dst, _water_scroll)
-	elif _U4TileBankScript.frame_count(tid) > 1:
+	elif tid == TILE_SPIT or _U4TileBankScript.frame_count(tid) > 1:
+		## Spit: `075_spit.png` ↔ `075_spit_1.png` (camp, city, world — same path).
 		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	else:
 		_U4TileBankScript.blit_to(target, tid, dst)
