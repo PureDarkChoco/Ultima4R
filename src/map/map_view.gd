@@ -1843,6 +1843,24 @@ func _refresh_los() -> void:
 			var opaque := los_opacity and _TileRulesCamp.is_opaque(tid)
 			blocking[dy * view_w + dx] = 1 if opaque else 0
 	_los = _LineOfSightScript.compute_dos(blocking, view_w, view_h)
+	## Ultima4R: standing in forest (opaque underfoot) still shows the 8 neighbors.
+	if los_opacity and _TileRulesCamp.is_opaque(_terrain_tid_at(center.x, center.y)):
+		_reveal_center_moore_neighbors()
+
+
+func _reveal_center_moore_neighbors() -> void:
+	## Force-visible Moore neighborhood around the party (DOS alone blacks it all out).
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			var vx := half_x + dx
+			var vy := half_y + dy
+			if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
+				continue
+			_los[vy * view_w + vx] = 1
 
 
 func _terrain_tid_at(wx: int, wy: int) -> int:
