@@ -397,6 +397,11 @@ const _T := {
 		"en_us": "Game saved.",
 		"ko": "저장했다.",
 	},
+	"cmd_quick_saved": {
+		"en_u4": "Saved to slot %d.",
+		"en_us": "Saved to slot %d.",
+		"ko": "%d번 슬롯에 저장 했다.",
+	},
 	"cmd_save_failed": {
 		"en_u4": "Save failed!",
 		"en_us": "Save failed!",
@@ -1311,13 +1316,10 @@ func t(key: String, args: Array = []) -> String:
 	var s: String = str(pack.get(GameState.language, pack.get("en_us", key)))
 	if args.is_empty():
 		return s
-	## Prefer scalar `%` for a single arg — clearer than Array packing.
+	## Keep numeric types so `%d` / `%03d` format correctly (do not stringify first).
 	if args.size() == 1:
-		return s % str(args[0])
-	var parts: Array = []
-	for a in args:
-		parts.append(str(a))
-	return s % parts
+		return s % args[0]
+	return s % args
 
 
 func need_dir_prompt(cmd_name: String) -> String:

@@ -1745,6 +1745,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_escape()
 			get_viewport().set_input_as_handled()
 			return
+		## ⌘S / Ctrl+S — quick save to loaded/last slot (or open picker on new game).
+		if _is_quick_save_key(event):
+			_do_quick_save()
+			get_viewport().set_input_as_handled()
+			return
 		## xu4 immobilized (all asleep): no commands until someone wakes.
 		if _is_party_asleep_locked():
 			get_viewport().set_input_as_handled()
@@ -2125,6 +2130,47 @@ func _do_quit_save() -> void:
 	_push_message(Locale.t("cmd_quit_save"), false)
 	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
 	_open_slot_picker(_SaveSlotPanel.Mode.SAVE, false)
+
+
+func _is_quick_save_key(event: InputEventKey) -> bool:
+	## ⌘S (macOS) or Ctrl+S (Windows/Linux).
+	if event.alt_pressed or event.shift_pressed:
+		return false
+	if not (event.ctrl_pressed or event.meta_pressed):
+		return false
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return code == KEY_S or phys == KEY_S
+
+
+func _do_quick_save() -> void:
+	## Cmd/Ctrl+S: overwrite the session slot, or open the picker if never saved/loaded.
+	if _save_stage != 0:
+		return
+	if _esc_menu_is_open():
+		_close_esc_menu()
+	var slot_n := GameState.session_loaded_slot
+	if slot_n < 1 or slot_n > _SaveGame.SLOT_COUNT:
+		## New game — no slot yet → same picker as Q (without quit copy).
+		_push_message(Locale.t("save_title"), false)
+		_open_slot_picker(_SaveSlotPanel.Mode.SAVE, false)
+		return
+	var data := _SaveGame.build_save(
+		GameState.to_save_dict(),
+		_world_save_dict(),
+		GameState.player_name,
+		GameState.moves,
+		GameState.player_class,
+		_save_location_dict()
+	)
+	if not _SaveGame.write_slot(slot_n, data):
+		_push_message(Locale.t("cmd_save_failed"), false)
+		return
+	GameState.session_did_save = true
+	GameState.session_loaded_slot = slot_n
+	## Quick save: moves line, then "N번 슬롯에 저장했다."
+	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
+	_push_message(Locale.t("cmd_quick_saved", [slot_n]), false)
 
 
 func _open_slot_picker(mode: int, from_esc: bool) -> void:
