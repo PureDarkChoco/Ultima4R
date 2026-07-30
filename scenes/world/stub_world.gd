@@ -16,6 +16,7 @@ const _CityMapData := preload("res://src/map/city_map_data.gd")
 const _WorldPortals := preload("res://src/map/world_portals.gd")
 const _CityFloorPortals := preload("res://src/map/city_floor_portals.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
+const _Moongates := preload("res://src/map/moongates.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -107,6 +108,8 @@ var _pending_cmd: int = U4Commands.Id.NONE
 var _pending_cmd_name: String = ""
 ## After a directed command fires, ignore held direction until all dir keys up.
 var _block_dir_until_keyup := false
+## True while moongate travel flash is playing (blocks move/commands).
+var _moongate_busy := false
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
 var _order_stage := 0
 var _order_slot_a := -1
@@ -215,6 +218,7 @@ func _ready() -> void:
 			## Snap — animate would fire if start is 1 tile from MapView's default center.
 			_map.set_center(_tile_pos, false)
 			_place_temp_transports()
+		_sync_moongate(true)
 
 	call_deferred("_fit_explore_map")
 	call_deferred("grab_focus")
@@ -277,6 +281,7 @@ func _apply_world_save(w: Dictionary) -> void:
 			_map.set_transport_tile(_transport_tile)
 		else:
 			_map.set_transport_tile(-1)
+		_sync_moongate(true)
 
 
 func _restore_city_from_save(w: Dictionary) -> void:
@@ -330,6 +335,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	)
 	_map.enter_city(cmap, local, _city_return_pos, spawn)
 	_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_map.clear_moongate()
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -591,8 +597,8 @@ func _can_move_to(dest: Vector2i) -> bool:
 		)
 	if _world == null or not _world.loaded:
 		return true
-	var dest_id := _world.tile_at(dest.x, dest.y)
-	var from_id := _world.tile_at(_tile_pos.x, _tile_pos.y)
+	var dest_id := _effective_world_tid(dest)
+	var from_id := _effective_world_tid(_tile_pos)
 	var dir := Vector2i(
 		dest.x - _tile_pos.x,
 		dest.y - _tile_pos.y
@@ -622,6 +628,17 @@ func _can_move_to(dest: Vector2i) -> bool:
 		_transport == Transport.SHIP,
 		_transport == Transport.HORSE
 	)
+
+
+func _effective_world_tid(pos: Vector2i) -> int:
+	## xu4 tileTypeAt — moongate annotation overrides base WORLD.MAP terrain.
+	if _map != null:
+		var gate := _map.moongate_tile_at(pos)
+		if gate >= 0:
+			return gate
+	if _world != null and _world.loaded:
+		return int(_world.tile_at(pos.x, pos.y))
+	return 4
 
 
 func _update_transport_facing(dir: Vector2i) -> void:
@@ -1271,6 +1288,8 @@ func _process(delta: float) -> void:
 	_tick_cursor(delta)
 	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
 	_tick_world_clock(delta)
+	if _moongate_busy:
+		return
 	## xu4 force pass if no commands within last 20 seconds.
 	_tick_auto_pass(delta)
 
@@ -1424,6 +1443,11 @@ func _process(delta: float) -> void:
 		_arm_hold_after_step(true)
 		return
 	_apply_world_step(next, dir)
+	## xu4 checkMoongates after foot/horse step (before gallop second step).
+	if _try_moongate_travel():
+		_finish_party_turn()
+		_arm_hold_after_step(true)
+		return
 	## xu4 horse gallop: second step after a short beat (same keypress).
 	if not _is_in_city() and _transport == Transport.HORSE and _horse_gallop:
 		var next2 := Vector2i(
@@ -1437,6 +1461,10 @@ func _process(delta: float) -> void:
 				_push_message(Locale.t("cmd_slow_progress"), false)
 			else:
 				_apply_world_step(next2, dir, false)
+				if _try_moongate_travel():
+					_finish_party_turn()
+					_arm_hold_after_step(true)
+					return
 		elif _map != null:
 			## Only one tile cleared — soft bump like ship grounding (FX only).
 			_map.shake_ship()
@@ -1449,9 +1477,7 @@ func _terrain_tid_at(pos: Vector2i) -> int:
 	## Destination terrain for slowedByTile (annotations count like xu4 tileTypeAt).
 	if _is_in_city() and _city_map != null and _city_map.loaded:
 		return int(_city_map.effective_tile_at(pos.x, pos.y))
-	if _world != null and _world.loaded:
-		return int(_world.tile_at(pos.x, pos.y))
-	return 4 ## grass fallback
+	return _effective_world_tid(pos)
 
 
 func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true) -> void:
@@ -1657,6 +1683,9 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Save / Load / Esc menu / New Order.
+	if _moongate_busy:
+		get_viewport().set_input_as_handled()
+		return
 	if _save_stage != 0:
 		if _handle_save_input(event):
 			get_viewport().set_input_as_handled()
@@ -3620,6 +3649,7 @@ func _do_enter() -> void:
 		_map.enter_city(cmap, start, _city_return_pos)
 		## Re-apply mount sprite immediately (enter used to wipe MapView transport).
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+		_map.clear_moongate()
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
 
 
@@ -3684,6 +3714,7 @@ func _use_city_floor_portal(action: int) -> void:
 	if _map != null:
 		_map.enter_city(cmap, start, _city_return_pos, spawn)
 		_map.set_transport_tile(-1)
+		_map.clear_moongate()
 	_finish_party_turn()
 
 
@@ -3701,6 +3732,7 @@ func _exit_city() -> void:
 		_map.exit_city()
 		_map.set_center(_tile_pos, false)
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_sync_moongate(true)
 	_refresh_locate_hud()
 	_push_message(Locale.t("cmd_exit_city"), false)
 
@@ -4490,13 +4522,67 @@ func _tick_world_clock(delta: float) -> void:
 		return
 	_world_clock_accum += delta
 	var sky_changed := false
+	var on_world := not _is_in_city()
 	while _world_clock_accum >= GameState.WORLD_TICK_SEC:
 		_world_clock_accum -= GameState.WORLD_TICK_SEC
-		## Stub world is always the surface map for now.
-		if GameState.tick_world_clock(true):
+		## xu4 updateMoons only on the world map (cities freeze moon advance).
+		var old_tram := GameState.trammel_phase
+		if GameState.tick_world_clock(on_world):
 			sky_changed = true
+		if on_world:
+			_sync_moongate(false, old_tram)
 	if sky_changed and _top_bar != null and _top_bar.has_method("refresh"):
 		_top_bar.refresh()
+
+
+func _sync_moongate(_force: bool = false, _old_tram: int = -1) -> void:
+	## xu4 GameController::updateMoons(showmoongates=true) — annotation frames.
+	if _map == null:
+		return
+	if _is_in_city() or _world == null or not _world.loaded:
+		_map.clear_moongate()
+		return
+	var tram := GameState.trammel_phase
+	var sub := _Moongates.trammel_subphase(GameState.moon_phase)
+	var tid := _Moongates.tile_for_subphase(sub)
+	var gate: Vector2i = _Moongates.coords(tram)
+	_map.set_moongate(gate, tid)
+
+
+func _try_moongate_travel() -> bool:
+	## xu4 checkMoongates — foot/horse only; teleport Trammel → Felucca.
+	if _moongate_busy or _is_in_city():
+		return false
+	if _transport != Transport.FOOT and _transport != Transport.HORSE:
+		return false
+	var dest: Vector2i = _Moongates.try_destination(
+		_tile_pos, GameState.trammel_phase, GameState.felucca_phase
+	)
+	if dest.x < 0:
+		return false
+	_moongate_busy = true
+	_reset_hold_state()
+	_moongate_travel_async(dest)
+	return true
+
+
+func _moongate_travel_async(dest: Vector2i) -> void:
+	## xu4 gameSpellEffect(SOUND_MOONGATE) before and after the hop — held longer here.
+	var flash_sec := MapView.MOONGATE_FLASH_SEC
+	var gap_sec := MapView.MOONGATE_TRAVEL_GAP_SEC
+	if _map != null:
+		await _map.await_spell_flash(flash_sec)
+	if dest != _tile_pos:
+		if gap_sec > 0.0:
+			await get_tree().create_timer(gap_sec).timeout
+		_tile_pos = dest
+		if _map != null:
+			_map.set_center(_tile_pos, false)
+		_refresh_locate_hud()
+		if _map != null:
+			await _map.await_spell_flash(flash_sec)
+	## Spirituality shrine (both moons full) not wired yet — stay at Felucca gate.
+	_moongate_busy = false
 
 
 func _tick_cursor(delta: float) -> void:

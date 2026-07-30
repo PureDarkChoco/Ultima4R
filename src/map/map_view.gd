@@ -73,6 +73,15 @@ const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
 const CAMP_W: int = _CombatMapDataScript.WIDTH
 const CAMP_H: int = _CombatMapDataScript.HEIGHT
 const TILE_CORPSE := 56
+## xu4 moongate annotation tiles (shapes 064–067).
+const TILE_MOONGATE_0 := 64
+const TILE_MOONGATE_OPEN := 67
+## Spell / moongate screen invert duration (xu4 mapArea.highlight).
+## Moongate travel uses a longer flash via await_spell_flash(MOONGATE_FLASH_SEC).
+const SPELL_FLASH_SEC := 0.45
+const MOONGATE_FLASH_SEC := 0.85
+## Beat between departure flash and arrival flash.
+const MOONGATE_TRAVEL_GAP_SEC := 0.35
 
 ## Trial: smooth one-tile camera scroll. Set false to snap instantly again.
 ## Three-frame scroll: 1/3 → 2/3 → arrive (chunky, easy to revert).
@@ -95,6 +104,12 @@ var _avatar_b: Image
 ## Temporary world overlays: Vector3i(x, y, tile_id) — horse/ship stubs, etc.
 var _overlays: Array[Vector3i] = []
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
+## Active Trammel moongate annotation (world map only).
+var _moongate_pos := Vector2i(-1, -1)
+var _moongate_tid := -1
+## xu4 gameSpellEffect invert — white flash over the explore view.
+var _spell_flash_left := 0.0
+var _spell_flash_dur := SPELL_FLASH_SEC
 ## When >= 0, party marker draws this transport tile instead of the walker.
 var _transport_tile := -1
 ## Cached mounted sprites (horse + rider); rebuilt when party leader class changes.
@@ -415,6 +430,44 @@ func add_overlay(tile: Vector2i, tile_id: int) -> void:
 	_rebuild()
 
 
+func set_moongate(tile: Vector2i, tile_id: int) -> void:
+	## xu4 AnnotationList moongate — one active gate on the world map.
+	if _moongate_pos == tile and _moongate_tid == tile_id:
+		return
+	_moongate_pos = tile
+	_moongate_tid = tile_id
+	_rebuild()
+
+
+func clear_moongate() -> void:
+	if _moongate_tid < 0 and _moongate_pos.x < 0:
+		return
+	_moongate_pos = Vector2i(-1, -1)
+	_moongate_tid = -1
+	_rebuild()
+
+
+func moongate_tile_at(tile: Vector2i) -> int:
+	## Active moongate tile id at `tile`, or -1.
+	if _moongate_tid < 0:
+		return -1
+	if tile.x != _moongate_pos.x or tile.y != _moongate_pos.y:
+		return -1
+	return _moongate_tid
+
+
+func play_spell_flash(duration: float = SPELL_FLASH_SEC) -> void:
+	## xu4 mapArea.highlight — brief invert/white flash (non-blocking).
+	_spell_flash_dur = maxf(duration, 0.05)
+	_spell_flash_left = _spell_flash_dur
+	queue_redraw()
+
+
+func await_spell_flash(duration: float = SPELL_FLASH_SEC) -> void:
+	play_spell_flash(duration)
+	await get_tree().create_timer(duration).timeout
+
+
 func set_transport_tile(tile_id: int) -> void:
 	## -1 = walk on foot (class sprite); else horse/ship tile under the party.
 	if _transport_tile == tile_id:
@@ -443,6 +496,16 @@ func _shake_offset() -> Vector2i:
 	var ox := int(round(sin(_shake_left * 38.0) * _shake_amp * fall))
 	var oy := int(round(cos(_shake_left * 29.0) * _shake_amp * 0.25 * fall))
 	return Vector2i(ox, oy)
+
+
+func _draw() -> void:
+	## xu4 mapArea.highlight — bright flash over the explore view.
+	if _spell_flash_left <= 0.0:
+		return
+	var t := clampf(_spell_flash_left / _spell_flash_dur, 0.0, 1.0)
+	## Soft pulse so a longer flash still reads as lightning, not a static white wash.
+	var pulse := 0.55 + 0.45 * absf(sin((1.0 - t) * TAU * 2.0))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(1, 1, 1, (0.28 + 0.52 * t) * pulse))
 
 
 static func is_ship_tile(tile_id: int) -> bool:
@@ -543,6 +606,10 @@ func _process(delta: float) -> void:
 	if _shake_left > 0.0:
 		_shake_left = maxf(0.0, _shake_left - delta)
 		shake_changed = true
+
+	if _spell_flash_left > 0.0:
+		_spell_flash_left = maxf(0.0, _spell_flash_left - delta)
+		queue_redraw()
 
 	if _scroll_frames_left > 0:
 		# Same frame as set_center — keep first pose on screen for one full frame.
@@ -781,6 +848,7 @@ func _rebuild() -> void:
 		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
 		Vector2i.ZERO
 	)
+	_paint_moongate(cam)
 	_paint_overlays(cam)
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
@@ -1732,6 +1800,27 @@ func _camp_guard_can_enter(pos: Vector2i) -> bool:
 		if s == pos:
 			return false
 	return true
+
+
+func _paint_moongate(cam: Vector2) -> void:
+	## Draw Trammel moongate annotation over terrain (under party / transport).
+	if _moongate_tid < 0 or not tiles_ready:
+		return
+	if is_in_city():
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	var screen := Vector2(_moongate_pos) - cam + Vector2(half_x, half_y)
+	var px := int(round(screen.x * float(TILE_SRC)))
+	var py := int(round(screen.y * float(TILE_SRC)))
+	if px <= -TILE_SRC or py <= -TILE_SRC:
+		return
+	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+		return
+	var slice := _overlay_slice(_moongate_tid)
+	if slice == null:
+		return
+	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
 
 
 func _paint_overlays(cam: Vector2) -> void:
