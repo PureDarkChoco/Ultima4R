@@ -82,6 +82,9 @@ const SPELL_FLASH_SEC := 0.45
 const MOONGATE_FLASH_SEC := 0.85
 ## Beat between departure flash and arrival flash.
 const MOONGATE_TRAVEL_GAP_SEC := 0.35
+## Open-gate glow: rectangular rings scroll inward (smooth blue↔white).
+const MOONGATE_SUCK_FRAMES := 24
+const MOONGATE_SUCK_PERIOD := 0.06
 
 ## Trial: smooth one-tile camera scroll. Set false to snap instantly again.
 ## Three-frame scroll: 1/3 → 2/3 → arrive (chunky, easy to revert).
@@ -107,6 +110,19 @@ var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
 ## Active Trammel moongate annotation (world map only).
 var _moongate_pos := Vector2i(-1, -1)
 var _moongate_tid := -1
+## Display height in *source tile* pixels (0..TILE_SRC), not screen pixels.
+## Advances exactly 1 tile-pixel every MOONGATE_PX_STEP_SEC.
+var _moongate_height_px := 0
+var _moongate_height_px_target := 0
+var _moongate_px_cd := 0.0
+## One shapes-tile pixel per step; 32px × (0.52/32)s = 0.52s full rise/fall.
+const MOONGATE_PX_STEP_SEC := 0.52 / 32.0
+## Procedural inward-suck frames for the open gate art (tile 67).
+var _moongate_suck_by_tid: Dictionary = {} ## tid → Array[Image]
+var _moongate_suck_i := 0
+var _moongate_suck_cd := 0.0
+var _moongate_col_blue := Color(0.15, 0.4, 1.0, 1.0)
+var _moongate_col_white := Color(1, 1, 1, 1)
 ## xu4 gameSpellEffect invert — white flash over the explore view.
 var _spell_flash_left := 0.0
 var _spell_flash_dur := SPELL_FLASH_SEC
@@ -194,6 +210,7 @@ func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
 	_horse_rider_class = -999
 	_corpse_slice = null
 	_overlay_slices.clear()
+	_moongate_suck_by_tid.clear()
 	exit_camp()
 	exit_city()
 	tiles_ready = _U4TileBankScript.ensure_loaded()
@@ -394,6 +411,7 @@ func set_overlays(items: Array[Vector3i]) -> void:
 	## World-space transport / object stubs drawn over terrain (under party).
 	_overlays = items.duplicate()
 	_overlay_slices.clear()
+	_moongate_suck_by_tid.clear()
 	_rebuild()
 
 
@@ -430,20 +448,41 @@ func add_overlay(tile: Vector2i, tile_id: int) -> void:
 	_rebuild()
 
 
-func set_moongate(tile: Vector2i, tile_id: int) -> void:
-	## xu4 AnnotationList moongate — one active gate on the world map.
-	if _moongate_pos == tile and _moongate_tid == tile_id:
-		return
+func set_moongate(
+	tile: Vector2i,
+	tile_id: int,
+	height_frac: float = 1.0,
+	snap: bool = false
+) -> void:
+	## `height_frac` → target in source-tile pixels (32 = full gate art).
+	## `snap`: show at target immediately (load / city exit) — no rise/fall tween.
+	var hf := clampf(height_frac, 0.0, 1.0)
+	var target_px := clampi(int(round(float(TILE_SRC) * hf)), 0, TILE_SRC)
+	var same := (
+		_moongate_pos == tile
+		and _moongate_tid == tile_id
+		and _moongate_height_px_target == target_px
+		and (not snap or _moongate_height_px == target_px)
+	)
 	_moongate_pos = tile
 	_moongate_tid = tile_id
+	_moongate_height_px_target = target_px
+	if snap:
+		_moongate_height_px = target_px
+		_moongate_px_cd = 0.0
+	if same:
+		return
 	_rebuild()
 
 
 func clear_moongate() -> void:
-	if _moongate_tid < 0 and _moongate_pos.x < 0:
+	if _moongate_tid < 0 and _moongate_pos.x < 0 and _moongate_height_px <= 0:
 		return
 	_moongate_pos = Vector2i(-1, -1)
 	_moongate_tid = -1
+	_moongate_height_px = 0
+	_moongate_height_px_target = 0
+	_moongate_px_cd = 0.0
 	_rebuild()
 
 
@@ -592,6 +631,28 @@ func _process(delta: float) -> void:
 		_tile_anim_frame += 1
 		tile_anim_changed = true
 
+	var moongate_changed := false
+	if _moongate_tid >= 0 and not is_in_city():
+		## Rise/fall in source-tile pixels only (1 of 32 per step — not screen px).
+		if _moongate_height_px != _moongate_height_px_target:
+			_moongate_px_cd -= delta
+			if _moongate_px_cd <= 0.0:
+				_moongate_px_cd = MOONGATE_PX_STEP_SEC
+				if _moongate_height_px < _moongate_height_px_target:
+					_moongate_height_px += 1
+				else:
+					_moongate_height_px -= 1
+				moongate_changed = true
+		else:
+			_moongate_px_cd = 0.0
+		## Color rotation while any part of the gate is visible.
+		if _moongate_height_px > 0:
+			_moongate_suck_cd -= delta
+			if _moongate_suck_cd <= 0.0:
+				_moongate_suck_cd = MOONGATE_SUCK_PERIOD
+				_moongate_suck_i = (_moongate_suck_i + 1) % MOONGATE_SUCK_FRAMES
+				moongate_changed = true
+
 	var npc_changed := false
 	if is_in_city() and not _npc_frame_cd.is_empty():
 		if _tick_npc_frames(delta):
@@ -615,14 +676,14 @@ func _process(delta: float) -> void:
 		# Same frame as set_center — keep first pose on screen for one full frame.
 		if _scroll_skip_process:
 			_scroll_skip_process = false
-			if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed:
+			if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed or moongate_changed:
 				_rebuild()
 			return
 		_scroll_frames_left -= 1
 		_rebuild()
 		return
 
-	if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed:
+	if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed or moongate_changed:
 		_rebuild()
 
 
@@ -1803,10 +1864,13 @@ func _camp_guard_can_enter(pos: Vector2i) -> bool:
 
 
 func _paint_moongate(cam: Vector2) -> void:
-	## Draw Trammel moongate annotation over terrain (under party / transport).
+	## Sprout like the intro gate: top of the art rises; bottom of the cell stays planted.
 	if _moongate_tid < 0 or not tiles_ready:
 		return
 	if is_in_city():
+		return
+	var gh := clampi(_moongate_height_px, 0, TILE_SRC)
+	if gh <= 0:
 		return
 	var half_x := view_w / 2
 	var half_y := view_h / 2
@@ -1817,10 +1881,169 @@ func _paint_moongate(cam: Vector2) -> void:
 		return
 	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
 		return
-	var slice := _overlay_slice(_moongate_tid)
+	## Always paint from open-gate art + color rotation; height wipe does the rise/fall.
+	var slice := _moongate_draw_slice()
 	if slice == null:
 		return
-	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+	## Source = top `gh` rows (gate crown leads); dest bottom-aligned in the tile.
+	var src := Rect2i(0, 0, TILE_SRC, gh)
+	var dst := Vector2i(px, py + TILE_SRC - gh)
+	_buf.blend_rect(slice, src, dst)
+
+
+func _moongate_draw_slice() -> Image:
+	## Full open-gate tile with blue↔white inward rotation (cropped by height when painting).
+	var frames := _ensure_moongate_suck_frames_for(TILE_MOONGATE_OPEN)
+	if not frames.is_empty():
+		return frames[_moongate_suck_i % frames.size()]
+	return _overlay_slice(TILE_MOONGATE_OPEN)
+
+
+func _ensure_moongate_suck_frames_for(tid: int) -> Array[Image]:
+	if _moongate_suck_by_tid.has(tid):
+		var cached: Array[Image] = _moongate_suck_by_tid[tid]
+		return cached
+	var base := _overlay_slice(tid)
+	var frames: Array[Image] = []
+	if base == null:
+		_moongate_suck_by_tid[tid] = frames
+		return frames
+	_moongate_pick_glow_colors(base)
+	for i in MOONGATE_SUCK_FRAMES:
+		var phase := float(i) / float(MOONGATE_SUCK_FRAMES)
+		frames.append(_build_moongate_suck_frame(base, phase))
+	_moongate_suck_by_tid[tid] = frames
+	return frames
+
+
+func _moongate_pick_glow_colors(src: Image) -> void:
+	## Average the tile's own blue rim / white core so the wash matches the art.
+	var sum_b := Color(0, 0, 0, 0)
+	var sum_w := Color(0, 0, 0, 0)
+	var nb := 0
+	var nw := 0
+	var w := src.get_width()
+	var h := src.get_height()
+	for y in h:
+		for x in w:
+			var c := src.get_pixel(x, y)
+			if not _moongate_is_glow(c):
+				continue
+			var lum := c.r * 0.3 + c.g * 0.59 + c.b * 0.11
+			if lum > 0.78:
+				sum_w += c
+				nw += 1
+			elif c.b > c.r + 0.1:
+				sum_b += c
+				nb += 1
+	if nb > 0:
+		_moongate_col_blue = sum_b / float(nb)
+		_moongate_col_blue.a = 1.0
+	if nw > 0:
+		_moongate_col_white = sum_w / float(nw)
+		_moongate_col_white.a = 1.0
+
+
+func _build_moongate_suck_frame(src: Image, phase: float) -> Image:
+	## Nested rectangles collapse inward at equal aspect ratio.
+	## Color eases blue → white → blue (no hard jump) as rings flow in.
+	var w := src.get_width()
+	var h := src.get_height()
+	var out := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.copy_from(src)
+	var min_x := w
+	var min_y := h
+	var max_x := -1
+	var max_y := -1
+	for y in h:
+		for x in w:
+			if not _moongate_is_glow(src.get_pixel(x, y)):
+				continue
+			min_x = mini(min_x, x)
+			min_y = mini(min_y, y)
+			max_x = maxi(max_x, x)
+			max_y = maxi(max_y, y)
+	if max_x < min_x:
+		return out
+	var cx := (float(min_x) + float(max_x)) * 0.5
+	var cy := (float(min_y) + float(max_y)) * 0.5
+	var half_w := maxf((float(max_x) - float(min_x)) * 0.5, 1.0)
+	var half_h := maxf((float(max_y) - float(min_y)) * 0.5, 1.0)
+	var scroll := fposmod(phase, 1.0)
+	for y in h:
+		for x in w:
+			var base := src.get_pixel(x, y)
+			if not _moongate_is_glow(base):
+				continue
+			var nx := (float(x) - cx) / half_w
+			var ny := (float(y) - cy) / half_h
+			var d := maxf(absf(nx), absf(ny))
+			var ux := 0.0
+			var uy := 0.0
+			if d > 0.0001:
+				ux = nx / d
+				uy = ny / d
+			else:
+				ux = 1.0
+				uy = 0.0
+			var sample_d := fposmod(d + scroll, 1.0)
+			var sx := cx + ux * sample_d * half_w
+			var sy := cy + uy * sample_d * half_h
+			var sampled := _moongate_sample_glow(src, sx, sy, base)
+			## Smooth cycle along the flowing ring: blue → white → blue.
+			var ring_t := fposmod(d + scroll, 1.0)
+			var white_amt := 0.5 - 0.5 * cos(ring_t * TAU)
+			## Ease ends a bit more so blue lingers, white blooms in the middle.
+			white_amt = smoothstep(0.0, 1.0, white_amt)
+			var flowed := _moongate_col_blue.lerp(_moongate_col_white, white_amt)
+			## Mostly the soft wash; keep a hint of warped source for depth.
+			var mixed := flowed.lerp(sampled, 0.28)
+			mixed.a = base.a
+			out.set_pixel(x, y, mixed)
+	return out
+
+
+func _moongate_sample_glow(src: Image, fx: float, fy: float, fallback: Color) -> Color:
+	## Bilinear sample; if a corner isn't glow, fall back so grass doesn't leak in.
+	var w := src.get_width()
+	var h := src.get_height()
+	fx = clampf(fx, 0.0, float(w - 1))
+	fy = clampf(fy, 0.0, float(h - 1))
+	var x0 := mini(floori(fx), w - 1)
+	var y0 := mini(floori(fy), h - 1)
+	var x1 := mini(x0 + 1, w - 1)
+	var y1 := mini(y0 + 1, h - 1)
+	var tx := fx - float(x0)
+	var ty := fy - float(y0)
+	var c00 := src.get_pixel(x0, y0)
+	var c10 := src.get_pixel(x1, y0)
+	var c01 := src.get_pixel(x0, y1)
+	var c11 := src.get_pixel(x1, y1)
+	if not _moongate_is_glow(c00):
+		c00 = fallback
+	if not _moongate_is_glow(c10):
+		c10 = fallback
+	if not _moongate_is_glow(c01):
+		c01 = fallback
+	if not _moongate_is_glow(c11):
+		c11 = fallback
+	var top := c00.lerp(c10, tx)
+	var bot := c01.lerp(c11, tx)
+	var mixed := top.lerp(bot, ty)
+	mixed.a = fallback.a
+	return mixed
+
+
+func _moongate_is_glow(c: Color) -> bool:
+	## Keep speckled grass/stars; only scroll blue/white portal pixels.
+	if c.a < 0.15:
+		return false
+	var lum := c.r * 0.3 + c.g * 0.59 + c.b * 0.11
+	if lum > 0.72 and c.b > 0.65:
+		return true ## white / pale core
+	if c.b > 0.40 and c.b > c.r + 0.12 and c.b > c.g + 0.08:
+		return true ## blue rim
+	return false
 
 
 func _paint_overlays(cam: Vector2) -> void:

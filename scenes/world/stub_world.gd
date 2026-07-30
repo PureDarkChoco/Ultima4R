@@ -4544,9 +4544,11 @@ func _sync_moongate(_force: bool = false, _old_tram: int = -1) -> void:
 		return
 	var tram := GameState.trammel_phase
 	var sub := _Moongates.trammel_subphase(GameState.moon_phase)
+	var hf := _Moongates.height_frac(sub)
 	var tid := _Moongates.tile_for_subphase(sub)
 	var gate: Vector2i = _Moongates.coords(tram)
-	_map.set_moongate(gate, tid)
+	## Load / city exit (`force`): already-open gates appear fully risen, no sprout.
+	_map.set_moongate(gate, tid, hf, _force)
 
 
 func _try_moongate_travel() -> bool:

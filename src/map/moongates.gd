@@ -1,15 +1,19 @@
 class_name Moongates
 extends RefCounted
 
-## xu4 maps.b moongate positions + updateMoons tile sequence (tiles 64–67).
+## xu4 maps.b moongate positions; rise/fall is a bottom-anchored height wipe
+## (intro-style: top of the art rises up). Color rotation is separate.
 
-const TILE_OPENING_0 := 64 ## moongate0 — solid
+const TILE_OPENING_0 := 64 ## solid stand-in while rising/falling
 const TILE_OPENING_1 := 65
 const TILE_OPENING_2 := 66
 const TILE_OPEN := 67 ## fully open — walkable
 
 ## One subphase cycle per Trammel phase: 4s × 4 Hz × 3 Felucca steps = 48 ticks.
-const SUBPHASE_CYCLE := 48 ## MOON_SECONDS_PER_PHASE * GAME_CYCLES * 3
+const SUBPHASE_CYCLE := 48
+## Time budget for full sprout (~0.52s). MapView: 32 tile-px × step sec.
+const RISE_TICKS := 3
+const FALL_TICKS := 3
 
 ## Phase 0..7 → world coordinates (Moonglow … Magincia).
 const COORDS: Array[Vector2i] = [
@@ -33,24 +37,24 @@ static func trammel_subphase(moon_phase: int) -> int:
 	return posmod(moon_phase, SUBPHASE_CYCLE)
 
 
-static func tile_for_subphase(sub: int) -> int:
-	## Visual annotation tile for the active Trammel gate.
+static func height_frac(sub: int) -> float:
+	## Target only: 0 while falling/hidden, 1 while risen/rising.
+	## Actual sprouting is 1 source-tile pixel / 0.1s in MapView (not screen pixels).
 	var s := posmod(sub, SUBPHASE_CYCLE)
-	if s == 0:
+	if s >= SUBPHASE_CYCLE - FALL_TICKS:
+		return 0.0
+	## From the moment the gate should exist, climb to full tile height in MapView.
+	return 1.0
+
+
+static func tile_for_subphase(sub: int) -> int:
+	## Walkable only after the rise time budget (≈32×0.1s); solid while sprouting/falling.
+	var s := posmod(sub, SUBPHASE_CYCLE)
+	if s >= SUBPHASE_CYCLE - FALL_TICKS:
 		return TILE_OPENING_0
-	if s == 1:
-		return TILE_OPENING_1
-	if s == 2:
-		return TILE_OPENING_2
-	if s == 3:
-		return TILE_OPEN
-	if s < SUBPHASE_CYCLE - 3:
-		return TILE_OPEN
-	if s == SUBPHASE_CYCLE - 3:
-		return TILE_OPENING_2
-	if s == SUBPHASE_CYCLE - 2:
-		return TILE_OPENING_1
-	return TILE_OPENING_0
+	if s < RISE_TICKS:
+		return TILE_OPENING_0
+	return TILE_OPEN
 
 
 static func is_moongate_tile(tid: int) -> bool:
@@ -59,7 +63,6 @@ static func is_moongate_tile(tid: int) -> bool:
 
 static func try_destination(at: Vector2i, trammel: int, felucca: int) -> Vector2i:
 	## If standing on the active Trammel gate, return Felucca destination; else (-1,-1).
-	## xu4 activeMoongateAt — position only (open/closed frames use walk rules separately).
 	if at != coords(trammel):
 		return Vector2i(-1, -1)
 	return coords(felucca)
