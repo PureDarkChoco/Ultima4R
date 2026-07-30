@@ -55,6 +55,9 @@ func _ready() -> void:
 
 	_male.pressed.connect(func() -> void: _set_sex("male"))
 	_female.pressed.connect(func() -> void: _set_sex("female"))
+	## Arrow / focus move selects immediately — no Enter needed.
+	_male.focus_entered.connect(func() -> void: _set_sex("male"))
+	_female.focus_entered.connect(func() -> void: _set_sex("female"))
 	_continue.pressed.connect(_on_continue)
 	_back.pressed.connect(func() -> void: SceneRouter.to_menu("new"))
 
@@ -181,8 +184,8 @@ func _refresh() -> void:
 
 func _apply_sex_visuals() -> void:
 	var male_on := GameState.player_sex == "male"
-	_male.text = ("◀ %s ▶" if male_on else "%s") % Locale.t("sex_male")
-	_female.text = ("◀ %s ▶" if not male_on else "%s") % Locale.t("sex_female")
+	_male.text = Locale.t("sex_male")
+	_female.text = Locale.t("sex_female")
 	UiTheme.style_choice_button(_male, male_on)
 	UiTheme.style_choice_button(_female, not male_on)
 
