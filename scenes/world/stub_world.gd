@@ -132,8 +132,18 @@ var _combat_active := false
 var _combat_resolving := false
 ## Gap after each unit acts (xu4 screenWait≈42ms is snappy; keep readable).
 const COMBAT_TURN_GAP := 0.28
+const COMBAT_HIT_FLASH_SEC := 0.14
 var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
+## U5-style Attack aim: A → move cursor → A/Enter strike; Esc cancels.
+var _combat_aiming := false
+var _combat_aim_pos := Vector2i.ZERO
+var _combat_aim_from := Vector2i.ZERO
+var _combat_aim_weapon := 0
+## party_slot → last attacked foe creatureTable slot (−1 / missing = none).
+var _combat_last_aim_foe: Dictionary = {}
+## foe_index → { klass: damage_dealt } for combat XP assist shares.
+var _combat_foe_dmg: Dictionary = {}
 ## Pirate shots queued during moveObjects (animated after AI step).
 var _pending_pirate_shots: Array[Dictionary] = []
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
@@ -1059,6 +1069,8 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_exchange")
 	if _order_stage == 2:
 		return MSG_PROMPT + Locale.t("cmd_with")
+	if _combat_aiming:
+		return MSG_PROMPT + Locale.t("cmd_attack_aim")
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
 		return MSG_PROMPT + Locale.need_dir_prompt(_pending_cmd_name)
 	if _ship_yell_await_dir:
@@ -2873,7 +2885,12 @@ func _cannon_apply_impact(info: Dictionary) -> void:
 		"overlay":
 			if _map != null:
 				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
-				_map.remove_overlay_at(pos)
+				var otid := _map.overlay_at(pos)
+				if MapView.is_ship_tile(otid):
+					## Parked / captured frigates: hull damage (10/hit), not one-shot.
+					_damage_map_ship_overlay(pos)
+				else:
+					_map.remove_overlay_at(pos)
 		"creature":
 			if _world_creatures != null:
 				## Progressive HP (bar under sprite) — ~4 cannon hits to sink.
@@ -2883,6 +2900,19 @@ func _cannon_apply_impact(info: Dictionary) -> void:
 				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
 		_:
 			pass
+
+
+func _damage_map_ship_overlay(pos: Vector2i) -> void:
+	## Empty world-map ships (incl. captured pirate frigates): 10 hull/shot → sink.
+	var key := _ship_hull_key(pos)
+	var hull := int(_ship_hulls.get(key, GameState.SHIP_HULL_MAX))
+	hull = maxi(0, hull - 10)
+	if hull <= 0:
+		_ship_hulls.erase(key)
+		if _map != null:
+			_map.remove_overlay_at(pos)
+	else:
+		_store_ship_hull_at(pos, hull)
 
 
 func _apply_cannon_hit_on_party() -> void:
@@ -5222,6 +5252,7 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	_reset_hold_state()
 	_clear_pending_dir()
 	_stop_ship_cruise()
+	_combat_foe_dmg.clear()
 	if _world_creatures != null:
 		_world_creatures.clear_hp_bars()
 	_combat_foe = foe.duplicate(true)
@@ -5311,6 +5342,7 @@ func _end_combat_stub() -> void:
 	## (win, flee/loss, or party wipe); never put back on the map.
 	if not _combat_active:
 		return
+	_combat_clear_aim_state()
 	_combat_resolving = false
 	if _map != null:
 		_map.exit_combat()
@@ -5328,23 +5360,89 @@ func _end_combat_stub() -> void:
 	_stamp_command_time()
 
 
+func _combat_clear_aim_state() -> void:
+	## End of combat — wipe aim UI and sticky targets.
+	_combat_aiming = false
+	_combat_aim_weapon = 0
+	_combat_aim_pos = Vector2i.ZERO
+	_combat_aim_from = Vector2i.ZERO
+	_combat_last_aim_foe.clear()
+	_combat_foe_dmg.clear()
+	if _map:
+		_map.clear_combat_aim_cursor()
+		_map.clear_combat_range_shade()
+
+
+func _end_combat_won() -> void:
+	## xu4 endCombat when isWon — Victory! + KA_KILLED_EVIL + awardLoot (pirate → ship).
+	if not _combat_active:
+		return
+	_combat_clear_aim_state()
+	_combat_resolving = false
+	var engaged_tid := int(_combat_foe.get("tile", 0))
+	var foe_pos := Vector2i(
+		int(_combat_foe.get("x", _tile_pos.x)),
+		int(_combat_foe.get("y", _tile_pos.y))
+	)
+	var foe_facing := int(_combat_foe.get("facing", 0))
+	if _map != null:
+		_map.exit_combat()
+	_combat_active = false
+	_combat_foe = {}
+	if _foe_roster:
+		_foe_roster.clear()
+	if _roster:
+		_roster.clear_order_selection()
+	_sides_open = _combat_saved_sides_open
+	_layout_side_panels(false)
+	_sync_creatures_to_map()
+	_refresh_locate_hud()
+	_push_message(Locale.t("cmd_victory"), false)
+	if _WorldCreaturesScript.is_pirate_ship(engaged_tid):
+		_place_captured_pirate_ship(foe_pos, foe_facing)
+	if _WorldCreaturesScript.is_evil(engaged_tid):
+		GameState.adjust_karma_killed_evil()
+	_refresh_party()
+	_stamp_command_time()
+
+
+func _place_captured_pirate_ship(pos: Vector2i, facing: int) -> void:
+	## xu4 CombatController::awardLoot — pirate ship becomes a boardable frigate.
+	if _map == null or _is_in_city():
+		return
+	## Pirate / ship frames share WNES order (0=W … 3=S).
+	var ship_tid := MapView.TILE_SHIP_W + clampi(facing, 0, 3)
+	_map.add_overlay(pos, ship_tid)
+	_store_ship_hull_at(pos, GameState.SHIP_HULL_MAX)
+
+
 func _handle_combat_input(event: InputEvent) -> bool:
-	## xu4 CombatController::keyPressed — move / Pass; Esc leaves (stub).
+	## Combat: move / Pass / Attack aim (U5 cursor); Esc leaves (stub) or cancels aim.
 	## No idle auto-pass. Blocked / Slowed still end the member's turn.
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if not (event is InputEventKey):
 		return false
 	var k := event as InputEventKey
+	## Swallow other keys while foe turns / gaps / strike FX play out.
+	if _combat_resolving and not _combat_aiming:
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			return true
+		return true
+	if _combat_aiming:
+		return _handle_combat_aim_input(k)
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		_end_combat_stub()
 		return true
-	## Swallow other keys while foe turns / gaps play out.
 	if _combat_resolving:
 		return true
 	if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
 		_push_message(Locale.t("cmd_pass"), false)
 		_combat_finish_member_turn()
+		return true
+	## A — enter U5 aim mode (ranged free cursor / melee 8-adjacent).
+	if _is_key(k, KEY_A):
+		_combat_begin_aim()
 		return true
 	var dir := _combat_dir_from_key(k)
 	if dir == Vector2i.ZERO:
@@ -5353,8 +5451,388 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	return true
 
 
+func _is_key(k: InputEventKey, code: int) -> bool:
+	return k.keycode == code or k.physical_keycode == code
+
+
+func _handle_combat_aim_input(k: InputEventKey) -> bool:
+	if _is_key(k, KEY_ESCAPE):
+		_combat_cancel_aim()
+		return true
+	if _is_key(k, KEY_A) or _is_key(k, KEY_ENTER) or _is_key(k, KEY_KP_ENTER):
+		_combat_confirm_aim()
+		return true
+	var dir := _combat_dir_from_key(k)
+	if dir == Vector2i.ZERO:
+		return true ## swallow other keys while aiming
+	_combat_move_aim(dir)
+	return true
+
+
+func _combat_begin_aim() -> void:
+	if _map == null or not _map.is_in_combat() or _combat_resolving:
+		return
+	var from := _map.get_combat_focus_pos()
+	if from.x < 0:
+		return
+	var klass := _map.get_combat_focus_klass()
+	var party_slot := _map.get_combat_focus_party_slot()
+	var wid := GameState.weapon_of_class(klass)
+	_combat_aiming = true
+	_combat_aim_from = from
+	_combat_aim_weapon = wid
+	## Sticky last target: same foe while alive and still in this weapon's range.
+	_combat_aim_pos = _combat_sticky_aim_pos(from, wid, party_slot)
+	var pname := GameState.party_member_display_name(party_slot) if party_slot >= 0 else ""
+	if pname.is_empty():
+		pname = U4Commands.label(U4Commands.Id.ATTACK, GameState.lang_short())
+	_push_message(
+		Locale.t("cmd_attack_with", [pname, Locale.weapon_name(wid)]),
+		false
+	)
+	if _map:
+		_map.set_combat_range_shade(from, wid)
+		_map.set_combat_aim_cursor(_combat_aim_pos)
+	_layout_prompt_row()
+
+
+func _combat_sticky_aim_pos(from: Vector2i, wid: int, party_slot: int) -> Vector2i:
+	## Resume last attacked foe, else attacker tile. Clears sticky if dead / OOR.
+	if party_slot < 0 or _map == null:
+		return from
+	if not _combat_last_aim_foe.has(party_slot):
+		return from
+	var foe_slot := int(_combat_last_aim_foe[party_slot])
+	var foe_i := _map.combat_foe_index_by_slot(foe_slot)
+	if foe_i < 0:
+		_combat_last_aim_foe.erase(party_slot)
+		return from
+	var foe := _map.get_combat_foe_at(foe_i)
+	var pos := Vector2i(int(foe.get("x", from.x)), int(foe.get("y", from.y)))
+	if _map == null or not _map.combat_can_strike(wid, from, pos):
+		_combat_last_aim_foe.erase(party_slot)
+		return from
+	return pos
+
+
+func _combat_remember_aim_target(_klass: int, foe_i: int) -> void:
+	## Sticky aim follows the creatureTable slot of the foe just struck at.
+	if _map == null or foe_i < 0:
+		return
+	var party_slot := _map.get_combat_focus_party_slot()
+	if party_slot < 0:
+		return
+	var foe := _map.get_combat_foe_at(foe_i)
+	var foe_slot := int(foe.get("slot", -1))
+	if foe_slot < 0:
+		return
+	_combat_last_aim_foe[party_slot] = foe_slot
+
+
+func _combat_clear_sticky_aim() -> void:
+	## Clear this member's sticky aim (intentional empty-tile attack).
+	if _map == null:
+		return
+	var party_slot := _map.get_combat_focus_party_slot()
+	if party_slot < 0:
+		return
+	_combat_last_aim_foe.erase(party_slot)
+
+
+func _combat_forget_aim_foe_index(foe_i: int) -> void:
+	## Drop sticky aims pointing at a slain foe (all party members).
+	if _map == null or foe_i < 0:
+		return
+	var foe := _map.get_combat_foe_at(foe_i)
+	var foe_slot := int(foe.get("slot", -1))
+	if foe_slot < 0:
+		return
+	var drop: Array = []
+	for k in _combat_last_aim_foe.keys():
+		if int(_combat_last_aim_foe[k]) == foe_slot:
+			drop.append(k)
+	for k in drop:
+		_combat_last_aim_foe.erase(k)
+
+
+func _combat_cancel_aim() -> void:
+	## Esc cancels aim UI only — keeps sticky target from a prior attack.
+	## Never-attacked members have no sticky entry, so nothing is retained.
+	_combat_aiming = false
+	_combat_aim_weapon = 0
+	if _map:
+		_map.clear_combat_aim_cursor()
+		_map.clear_combat_range_shade()
+	_push_message(Locale.t("cmd_cancelled"), false)
+	_layout_prompt_row()
+
+
+func _combat_move_aim(dir: Vector2i) -> void:
+	if _map == null or not _combat_aiming:
+		return
+	var next := _combat_aim_pos + dir
+	if next.x < 0 or next.y < 0 or next.x >= _CombatMapData.WIDTH or next.y >= _CombatMapData.HEIGHT:
+		return
+	if not WeaponIcons.aim_cursor_allows(_combat_aim_weapon, _combat_aim_from, next):
+		return
+	_combat_aim_pos = next
+	_map.set_combat_aim_cursor(_combat_aim_pos)
+
+
+func _combat_confirm_aim() -> void:
+	## Strike the aimed tile, then end the member's turn (xu4 attack already spent).
+	if not _combat_aiming or _map == null:
+		return
+	var target := _combat_aim_pos
+	var from := _combat_aim_from
+	var wid := _combat_aim_weapon
+	var klass := _map.get_combat_focus_klass()
+	_combat_aiming = false
+	if _map:
+		_map.clear_combat_aim_cursor()
+		_map.clear_combat_range_shade()
+	_layout_prompt_row()
+	_combat_resolve_attack(klass, wid, from, target)
+
+
+func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector2i) -> void:
+	_combat_resolving = true
+	_stamp_command_time()
+	var dist := WeaponIcons.aim_distance(from, target)
+	var valid_cell := _map.combat_can_strike(wid, from, target)
+	## Self tile: unstrikeable (no shade). Allies and foes are valid targets.
+	var aim_foe_i := -1
+	var aim_ally_i := -1
+	if valid_cell:
+		aim_foe_i = _map.combat_foe_index_at(target)
+		if aim_foe_i < 0:
+			aim_ally_i = _map.combat_party_index_at(target)
+			## Never count the attacker as an ally target on their own tile
+			## (blocked by aim_strike_allows anyway).
+	var found_foe := aim_foe_i >= 0
+	var found_ally := aim_ally_i >= 0
+	var found_target := found_foe or found_ally
+	if found_foe:
+		_combat_remember_aim_target(klass, aim_foe_i)
+	elif not found_ally and target != from:
+		## Aimed empty space (not scatter, not self) — drop sticky.
+		_combat_clear_sticky_aim()
+
+	## Projectiles for non-melee strikes that leave the adjacent ortho step.
+	var use_proj := (
+		not WeaponIcons.is_melee(wid)
+		and from != target
+		and (WeaponIcons.is_absolute_range(wid) or dist > 1)
+	)
+	if use_proj:
+		await _combat_resolve_ranged_attack(klass, from, target, aim_foe_i, aim_ally_i)
+	else:
+		await _combat_resolve_melee_attack(klass, target, aim_foe_i, aim_ally_i, found_target)
+
+	## xu4: lose when used (oil), or loseWhenRanged when !foundTarget || distance > 1.
+	var spent := WeaponIcons.loses_when_used(wid) or (
+		WeaponIcons.loses_when_ranged(wid) and (not found_target or dist > 1)
+	)
+	if spent and klass >= 0:
+		var kept := GameState.lose_ready_weapon(klass)
+		_refresh_party()
+		if not kept:
+			_push_message(Locale.t("cmd_last_one"), false)
+
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_won():
+		_end_combat_won()
+		return
+	## Finish turn without the usual entry guard (we already set resolving).
+	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_lost():
+		_end_combat_lost()
+		return
+	var still_party := _map.advance_combat_focus()
+	if still_party:
+		_sync_combat_focus_roster()
+		_refresh_party()
+		_combat_resolving = false
+		return
+	await _combat_run_foe_phase()
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_lost():
+		_end_combat_lost()
+		return
+	if _map.is_combat_won():
+		_end_combat_won()
+		return
+	_map.set_combat_focus(0)
+	_refresh_foe_roster()
+	_sync_combat_focus_roster()
+	_refresh_party()
+	_combat_resolving = false
+
+
+func _combat_resolve_melee_attack(
+	klass: int,
+	target: Vector2i,
+	foe_i: int,
+	ally_i: int,
+	found_target: bool
+) -> void:
+	if not found_target:
+		_push_message(Locale.t("cmd_missed"), false)
+		if _map != null and target != Vector2i(-1, -1):
+			await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+		return
+	if foe_i >= 0:
+		if not GameState.party_attack_hits(klass):
+			_push_message(Locale.t("cmd_missed"), false)
+			await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+			return
+		await _combat_apply_foe_hit(klass, foe_i, target)
+		return
+	## Friendly fire — vs party armor defense.
+	var ally := _map.get_combat_party_unit(ally_i)
+	var def_klass := int(ally.get("klass", -1))
+	var defense := GameState.party_member_defense(def_klass)
+	if not GameState.party_attack_hits_defense(klass, defense):
+		_push_message(Locale.t("cmd_missed"), false)
+		await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+		return
+	await _combat_apply_ally_hit(klass, ally_i, target)
+
+
+func _combat_resolve_ranged_attack(
+	klass: int, from: Vector2i, target: Vector2i, aim_foe_i: int, aim_ally_i: int
+) -> void:
+	## xu4 hit roll first. On miss: "명중 미스" or "빗나감" (8-adj, 50% if unit).
+	const SCATTER_HIT_CHANCE := 0.5
+	if aim_foe_i < 0 and aim_ally_i < 0:
+		await _map.await_combat_projectile(from, target)
+		_push_message(Locale.t("cmd_missed"), false)
+		await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+		return
+
+	var hits := false
+	if aim_foe_i >= 0:
+		hits = GameState.party_attack_hits(klass)
+	else:
+		var ally0 := _map.get_combat_party_unit(aim_ally_i)
+		var def0 := int(ally0.get("klass", -1))
+		hits = GameState.party_attack_hits_defense(klass, GameState.party_member_defense(def0))
+
+	if hits:
+		await _map.await_combat_projectile(from, target)
+		if aim_foe_i >= 0:
+			await _combat_apply_foe_hit(klass, aim_foe_i, target)
+		else:
+			await _combat_apply_ally_hit(klass, aim_ally_i, target)
+		return
+
+	var scatter_miss := randf() < GameState.miss_scatter_chance(klass)
+	if scatter_miss:
+		var scatter := _combat_pick_scatter_tile(target)
+		if scatter.x < 0:
+			scatter = target
+		await _map.await_combat_projectile(from, scatter)
+		var scatter_foe := _map.combat_foe_index_at(scatter)
+		var scatter_ally := _map.combat_party_index_at(scatter) if scatter_foe < 0 else -1
+		if scatter_foe >= 0 or scatter_ally >= 0:
+			if randf() < SCATTER_HIT_CHANCE:
+				if scatter_foe >= 0:
+					await _combat_apply_foe_hit(klass, scatter_foe, scatter)
+					_combat_remember_aim_target(klass, scatter_foe)
+				else:
+					await _combat_apply_ally_hit(klass, scatter_ally, scatter)
+			else:
+				_push_message(Locale.t("cmd_missed"), false)
+				await _map.await_flash_combat_tile(scatter, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+		else:
+			_push_message(Locale.t("cmd_missed"), false)
+			await _map.await_flash_combat_tile(scatter, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+		return
+
+	## 명중 미스 — shot reaches the aimed tile but does not connect.
+	await _map.await_combat_projectile(from, target)
+	_push_message(Locale.t("cmd_missed"), false)
+	await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
+
+
+func _combat_pick_scatter_tile(center: Vector2i) -> Vector2i:
+	## One of the 8 neighbors (in-bounds). Empty Vector2i(-1,-1) if none.
+	var opts: Array[Vector2i] = []
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			var p := Vector2i(center.x + dx, center.y + dy)
+			if p.x < 0 or p.y < 0 or p.x >= _CombatMapData.WIDTH or p.y >= _CombatMapData.HEIGHT:
+				continue
+			opts.append(p)
+	if opts.is_empty():
+		return Vector2i(-1, -1)
+	return opts[randi() % opts.size()]
+
+
+func _combat_record_foe_damage(foe_i: int, klass: int, dealt: int) -> void:
+	## Accumulate applied HP damage per party class for XP assist shares.
+	if foe_i < 0 or klass < 0 or dealt <= 0:
+		return
+	var by: Dictionary = _combat_foe_dmg.get(foe_i, {})
+	by[klass] = int(by.get(klass, 0)) + dealt
+	_combat_foe_dmg[foe_i] = by
+
+
+func _combat_apply_foe_hit(klass: int, foe_i: int, at: Vector2i) -> void:
+	if _map == null or foe_i < 0:
+		return
+	var dmg := GameState.party_attack_damage(klass)
+	var result := _map.damage_combat_foe(foe_i, dmg)
+	var killed := bool(result.get("killed", false))
+	var foe_tile := int(result.get("tile", 0))
+	var xp := int(result.get("xp", 0))
+	var dealt := int(result.get("dealt", 0))
+	_combat_record_foe_damage(foe_i, klass, dealt)
+	await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+	if killed:
+		var nm := _WorldCreaturesScript.display_name(foe_tile)
+		_push_message(Locale.t("cmd_killed", [nm]), false)
+		if xp > 0:
+			var contrib: Dictionary = _combat_foe_dmg.get(foe_i, {})
+			GameState.award_combat_kill_xp(klass, contrib, xp)
+		_combat_foe_dmg.erase(foe_i)
+		_combat_forget_aim_foe_index(foe_i)
+	_refresh_foe_roster()
+
+
+func _combat_apply_ally_hit(attacker_klass: int, ally_i: int, at: Vector2i) -> void:
+	## Friendly fire — damage a party member on the arena.
+	if _map == null or ally_i < 0:
+		return
+	var ally := _map.get_combat_party_unit(ally_i)
+	var def_klass := int(ally.get("klass", -1))
+	if def_klass < 0:
+		return
+	var dmg := GameState.party_attack_damage(attacker_klass)
+	GameState.apply_member_damage(def_klass, dmg)
+	await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+	if GameState.status_of_class(def_klass) == PartyRoster.Status.DEAD:
+		var slot := int(ally.get("party_slot", -1))
+		var nm := GameState.party_member_display_name(slot) if slot >= 0 else Virtues.class_name_of(
+			def_klass, GameState.lang_short()
+		)
+		_push_message(Locale.t("cmd_killed", [nm]), false)
+		_map.remove_combat_party_at(ally_i)
+	_refresh_party()
+	_sync_combat_focus_roster()
+
+
 func _combat_dir_from_key(k: InputEventKey) -> Vector2i:
-	## Orthogonal only (xu4 combat arrows).
+	## Orthogonal only (xu4 combat arrows). Aim mode also uses these for U5 cursor.
 	var code := k.keycode
 	var phys := k.physical_keycode
 	if code == KEY_UP or phys == KEY_UP:
@@ -5466,6 +5944,7 @@ func _end_combat_lost() -> void:
 	## World creature already removed at engage; karma from engaged foe alignment.
 	if not _combat_active:
 		return
+	_combat_clear_aim_state()
 	_combat_resolving = false
 	var engaged_tid := int(_combat_foe.get("tile", 0))
 	var evil := _WorldCreaturesScript.is_evil(engaged_tid)

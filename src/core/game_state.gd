@@ -527,6 +527,7 @@ func armor_of_slot(slot: int) -> int:
 
 func ready_weapon(slot: int, weapon_id: int) -> int:
 	## xu4 PartyMember::setWeapon — swap inventory ↔ equipped.
+	## Flaming Oil stays in the inventory count while readied (consumable stack).
 	var klass := party_member_at(slot)
 	if klass < 0:
 		return EquipError.NONE_LEFT
@@ -535,18 +536,42 @@ func ready_weapon(slot: int, weapon_id: int) -> int:
 	var old := weapon_of_class(klass)
 	if old == weapon_id:
 		return EquipError.SUCCEEDED
-	if weapon_id != 0 and weapons[weapon_id] < 1:
+	var oil := WeaponIcons.Id.FLAMING_OIL
+	if weapon_id == oil:
+		## Need a free flask in the party pool (qty > members already wielding oil).
+		if int(weapons[oil]) <= _party_wielding_weapon_count(oil):
+			return EquipError.NONE_LEFT
+	elif weapon_id != 0 and weapons[weapon_id] < 1:
 		return EquipError.NONE_LEFT
 	if not WeaponIcons.can_ready(weapon_id, klass):
 		return EquipError.CLASS_RESTRICTED
-	if old != 0 and old < weapons.size():
+	if old != 0 and old < weapons.size() and old != oil:
 		weapons[old] += 1
 		mark_weapon_known(old)
-	if weapon_id != 0:
+	if weapon_id != 0 and weapon_id != oil:
 		weapons[weapon_id] -= 1
 		mark_weapon_known(weapon_id)
+	elif weapon_id == oil:
+		mark_weapon_known(oil)
 	member_weapons[klass] = weapon_id
 	return EquipError.SUCCEEDED
+
+
+func _party_wielding_weapon_count(weapon_id: int) -> int:
+	var n := 0
+	for slot in party_order.size():
+		var mid := party_member_at(slot)
+		if mid >= 0 and weapon_of_class(mid) == weapon_id:
+			n += 1
+	return n
+
+
+func flaming_oil_can_ready() -> bool:
+	## True if a free flask remains for another party member to ready.
+	var oil := WeaponIcons.Id.FLAMING_OIL
+	if oil >= weapons.size():
+		return false
+	return int(weapons[oil]) > _party_wielding_weapon_count(oil)
 
 
 func wear_armor(slot: int, armor_id: int) -> int:
@@ -1188,9 +1213,130 @@ func award_xp_leader(amount: int) -> void:
 	if amount <= 0:
 		return
 	var klass := party_leader_class()
+	award_xp_class(klass, amount)
+
+
+func award_xp_class(klass: int, amount: int) -> void:
+	## xu4 PartyMember::awardXp for a class-indexed member. Cap 9999.
+	if amount <= 0:
+		return
 	if klass < 0 or klass >= member_xp.size():
 		return
 	member_xp[klass] = mini(9999, int(member_xp[klass]) + amount)
+
+
+func award_combat_kill_xp(killer_klass: int, dmg_by_klass: Dictionary, total_xp: int) -> void:
+	## Killer 70%; remaining 30% split equally among all who damaged the foe
+	## (killer included). Integer shares only; leftover 1s go to random members
+	## so the party total never exceeds `total_xp`.
+	if total_xp <= 0:
+		return
+	var killer_xp := (total_xp * 70) / 100
+	var assist_pool := total_xp - killer_xp
+	var attackers: Array[int] = []
+	for k in dmg_by_klass.keys():
+		var klass := int(k)
+		if klass < 0 or int(dmg_by_klass[k]) <= 0:
+			continue
+		if not attackers.has(klass):
+			attackers.append(klass)
+	if killer_klass >= 0 and not attackers.has(killer_klass):
+		attackers.append(killer_klass)
+	var awards: Dictionary = {}
+	if killer_klass >= 0 and killer_xp > 0:
+		awards[killer_klass] = killer_xp
+	if assist_pool > 0 and not attackers.is_empty():
+		var n := attackers.size()
+		var base := assist_pool / n
+		var rem := assist_pool % n
+		for klass in attackers:
+			if base > 0:
+				awards[klass] = int(awards.get(klass, 0)) + base
+		if rem > 0:
+			## Equal fractions (0.5 / 0.33 / 0.25…): pick rem members at random for +1.
+			var picks: Array[int] = attackers.duplicate()
+			for i in range(picks.size() - 1, 0, -1):
+				var j := randi() % (i + 1)
+				var tmp: int = picks[i]
+				picks[i] = picks[j]
+				picks[j] = tmp
+			for i in rem:
+				var klass: int = picks[i]
+				awards[klass] = int(awards.get(klass, 0)) + 1
+	for k in awards.keys():
+		award_xp_class(int(k), int(awards[k]))
+
+
+func lose_ready_weapon(klass: int) -> bool:
+	## Consume a thrown/spent ready weapon.
+	## Flaming Oil: qty is the inventory stack — keep oil ready while qty remains
+	## after the throw; at 0 auto-switch to Hands.
+	## Other lose-weapons (dagger): xu4 — spend a spare from inventory, else Hands.
+	if klass < 0 or klass >= member_weapons.size():
+		return false
+	var wid := int(member_weapons[klass])
+	if wid <= 0 or wid >= weapons.size():
+		return false
+	if wid == WeaponIcons.Id.FLAMING_OIL:
+		if int(weapons[wid]) > 0:
+			weapons[wid] = int(weapons[wid]) - 1
+		if int(weapons[wid]) > 0:
+			member_weapons[klass] = wid ## keep oil
+			return true
+		member_weapons[klass] = 0 ## Hands — flasks depleted
+		return false
+	if int(weapons[wid]) > 0:
+		weapons[wid] = int(weapons[wid]) - 1
+		return true
+	member_weapons[klass] = 0 ## Hands
+	return false
+
+
+func adjust_karma_killed_evil() -> void:
+	## xu4 KA_KILLED_EVIL — Valor +1 half the time.
+	if (randi() % 2) != 0:
+		adjust_karma_virtue(Virtues.Id.VALOR, 1)
+
+
+func party_attack_damage(klass: int) -> int:
+	## xu4 PartyMember::getDamage — random(weapon.damage + str), capped 255.
+	var wid := weapon_of_class(klass)
+	var max_dmg := WeaponIcons.damage_of(wid) + str_of_class(klass)
+	max_dmg = mini(255, max_dmg)
+	if max_dmg <= 0:
+		return 0
+	return randi() % max_dmg
+
+
+func party_attack_roll(klass: int) -> int:
+	## xu4 attackValue = random(0x100) + attackBonus (dex, or 255 if always-hit).
+	var dex := dex_of_class(klass)
+	var bonus := 255 if dex >= 40 else dex
+	return (randi() % 0x100) + bonus
+
+
+func party_attack_hits(klass: int) -> bool:
+	## xu4 CombatController::attackHit vs creature defense 128.
+	return party_attack_hits_defense(klass, 128)
+
+
+func party_attack_hits_defense(klass: int, defense: int) -> bool:
+	## xu4 attackHit with an arbitrary defense (armor for party, 128 for foes).
+	return party_attack_roll(klass) > defense
+
+
+func party_member_defense(klass: int) -> int:
+	## xu4 PartyMember::getDefense — equipped armor defense.
+	return ArmorIcons.defense_of(armor_of_class(klass))
+
+
+func miss_scatter_chance(klass: int) -> float:
+	## Among xu4 misses: chance the shot scatters to an adjacent tile.
+	## Level 1 → 50%, level 6+ → 0% (linear); from 6 only aim-miss remains.
+	var level := clampi(level_of_class(klass), 1, 8)
+	if level >= 6:
+		return 0.0
+	return 0.5 * float(6 - level) / 5.0
 
 
 func mark_lastreagent() -> void:

@@ -221,6 +221,36 @@ static func is_opaque(tile_id: int) -> bool:
 			return false
 
 
+static func blocks_weapon_shot(tile_id: int) -> bool:
+	## Combat aim LOF: walls and ship pillars stop projectiles past them.
+	## column 48, shipmast 53, stone_wall 57, brick_wall 127.
+	match clampi(tile_id, 0, 255):
+		48, 53, 57, 127:
+			return true
+		_:
+			return false
+
+
+static func cells_on_line(a: Vector2i, b: Vector2i) -> Array[Vector2i]:
+	## Straight grid line (orthogonal / diagonal), including both endpoints.
+	var cells: Array[Vector2i] = []
+	var dx := b.x - a.x
+	var dy := b.y - a.y
+	var steps := maxi(absi(dx), absi(dy))
+	if steps <= 0:
+		cells.append(a)
+		return cells
+	for i in steps + 1:
+		var t := float(i) / float(steps)
+		var p := Vector2i(
+			int(round(float(a.x) + float(dx) * t)),
+			int(round(float(a.y) + float(dy) * t))
+		)
+		if cells.is_empty() or cells[cells.size() - 1] != p:
+			cells.append(p)
+	return cells
+
+
 static func is_door(tile_id: int) -> bool:
 	## xu4 Tile::isDoor — unlocked door (id 59).
 	return clampi(tile_id, 0, 255) == 59

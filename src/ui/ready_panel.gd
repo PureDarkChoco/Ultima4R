@@ -247,9 +247,16 @@ func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
 	var nm := "%s. %s" % [letter, Locale.weapon_name(weapon_id)]
 	var qty := 0 if is_hands else int(GameState.weapons[weapon_id])
 	## Selectable only with stock (Hands always). Qty 0 stays visible but skipped.
+	## Oil: shared flask stack — keep choosable if already equipped, else need a free flask.
 	var class_ok := _WeaponIcons.can_ready(weapon_id, _klass)
-	var ok := class_ok and (is_hands or qty > 0)
 	var equipped := weapon_id == _current_id
+	var ok := class_ok and (is_hands or qty > 0 or equipped)
+	if (
+		not is_hands
+		and weapon_id == _WeaponIcons.Id.FLAMING_OIL
+		and not equipped
+	):
+		ok = class_ok and GameState.flaming_oil_can_ready()
 	var name_col := COL_TEXT if (ok or equipped) else COL_DIM
 
 	var wrap := Control.new()

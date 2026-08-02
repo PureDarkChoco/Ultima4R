@@ -196,5 +196,6 @@ static func place_foes_from_table(
 			"max_hp": int(vitals["max_hp"]),
 			"slot": i,
 			"priority": i,
+			"show_hp": false,
 		})
 	return foes

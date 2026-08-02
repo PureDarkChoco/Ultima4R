@@ -270,6 +270,38 @@ const _T := {
 		"en_us": "Battle is lost!",
 		"ko": "전투에서 패배했다!",
 	},
+	## xu4 CombatController::endCombat — all foes slain
+	"cmd_victory": {
+		"en_u4": "Victory!",
+		"en_us": "Victory!",
+		"ko": "승리!",
+	},
+	## xu4 combat attack miss / kill
+	"cmd_missed": {
+		"en_u4": "Missed!",
+		"en_us": "Missed!",
+		"ko": "빗나갔다!",
+	},
+	"cmd_killed": {
+		"en_u4": "%s killed!",
+		"en_us": "%s killed!",
+		"ko": "%s 처치!",
+	},
+	"cmd_attack_aim": {
+		"en_u4": "Aim: ",
+		"en_us": "Aim: ",
+		"ko": "조준: ",
+	},
+	"cmd_last_one": {
+		"en_u4": "Last One!",
+		"en_us": "Last One!",
+		"ko": "마지막 하나!",
+	},
+	"cmd_attack_with": {
+		"en_u4": "%s with %s",
+		"en_us": "%s with %s",
+		"ko": "%s — %s",
+	},
 	"cmd_jimmy_what": {
 		"en_u4": "Jimmy what?",
 		"en_us": "Jimmy what?",

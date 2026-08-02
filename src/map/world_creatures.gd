@@ -292,6 +292,11 @@ static func is_evil(tile_or_base: int) -> bool:
 	return not is_good(tile_or_base)
 
 
+static func is_pirate_ship(tile_or_base: int) -> bool:
+	## Wilderness pirate frigate (base 128 / facing 128–131).
+	return _base_tile(tile_or_base) == TILE_PIRATE
+
+
 func apply_cannon_damage_at(tile: Vector2i) -> Dictionary:
 	## Player cannon hit — ~1/4 max HP per shot so the bar reads ~4 hits to kill.
 	for i in creatures.size():

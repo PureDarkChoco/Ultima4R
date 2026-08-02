@@ -9,8 +9,12 @@ const _CombatMapDataScript := preload("res://src/map/combat_map_data.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _LineOfSightScript := preload("res://src/map/line_of_sight.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
+const _WeaponIconsScript := preload("res://src/core/weapon_icons.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
+## Out-of-range combat aim shade — dither between two translucent blacks.
+const COMBAT_RANGE_SHADE_A := Color(0, 0, 0, 0.55)
+const COMBAT_RANGE_SHADE_B := Color(0, 0, 0, 0.78)
 
 const VIEW_H := 11
 const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
@@ -213,6 +217,19 @@ const COMBAT_MOVE_SLOWED := 2
 const COMBAT_MOVE_FLED := 3
 ## Last unit removed by fleeing off the .CON edge (for karma).
 var _combat_last_fled: Dictionary = {}
+## U5-style attack aim cursor (combat-local tile), or (−1,−1) when off.
+var _combat_aim_pos := Vector2i(-1, -1)
+var _combat_aim_cursor: Image
+const COMBAT_AIM_CURSOR_PATH := "res://assets/ui/combat/target_cursor.png"
+## Combat-local tile flashes: { x, y, tid, left } in .CON coords.
+var _combat_tile_flashes: Array[Dictionary] = []
+## Ranged weapon missile in combat-local float tile space (tile centers).
+var _combat_proj: Dictionary = {}
+## Out-of-range shade while Attack aim is open.
+var _combat_range_shade := false
+var _combat_range_from := Vector2i.ZERO
+var _combat_range_weapon := 0
+var _combat_range_shade_img: Image
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -434,6 +451,11 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_combat_focus = 0 if not _combat_party.is_empty() else -1
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
+	_combat_aim_pos = Vector2i(-1, -1)
+	_combat_tile_flashes.clear()
+	_combat_proj.clear()
+	_clear_combat_range_shade_state()
+	_ensure_combat_aim_cursor()
 	_combat_focus_on = true
 	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
 	_build_camp_background()
@@ -450,6 +472,10 @@ func exit_combat() -> void:
 	_combat_focus = -1
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
+	_combat_aim_pos = Vector2i(-1, -1)
+	_combat_tile_flashes.clear()
+	_combat_proj.clear()
+	_clear_combat_range_shade_state()
 	_rebuild()
 
 
@@ -540,6 +566,240 @@ func get_combat_foes() -> Array:
 			continue
 		out.append(d.duplicate(true))
 	return out
+
+
+func get_combat_focus_pos() -> Vector2i:
+	if _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return Vector2i(-1, -1)
+	var u: Dictionary = _combat_party[_combat_focus]
+	return Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+
+
+func get_combat_focus_klass() -> int:
+	if _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return -1
+	return int(_combat_party[_combat_focus].get("klass", -1))
+
+
+func is_combat_won() -> bool:
+	## xu4 CombatController::isWon — no living foes remain.
+	if _combat_map == null:
+		return false
+	for u in _combat_foes:
+		if int(u.get("hp", 1)) > 0:
+			return false
+	return true
+
+
+func set_combat_aim_cursor(pos: Vector2i) -> void:
+	## Show U5 L-bracket aim cursor at combat-local tile (−1,−1 clears).
+	if pos == _combat_aim_pos:
+		return
+	_combat_aim_pos = pos
+	## Same blink cadence as unit focus — restart visible on place/move.
+	if pos.x >= 0:
+		_combat_focus_on = true
+		_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
+	if _combat_map != null:
+		_rebuild()
+
+
+func clear_combat_aim_cursor() -> void:
+	set_combat_aim_cursor(Vector2i(-1, -1))
+
+
+func get_combat_aim_cursor() -> Vector2i:
+	return _combat_aim_pos
+
+
+func set_combat_range_shade(from: Vector2i, weapon_id: int) -> void:
+	## Dim tiles the current weapon cannot strike from `from`.
+	_combat_range_shade = true
+	_combat_range_from = from
+	_combat_range_weapon = weapon_id
+	_ensure_combat_range_shade_img()
+	if _combat_map != null:
+		_rebuild()
+
+
+func clear_combat_range_shade() -> void:
+	if not _combat_range_shade:
+		return
+	_clear_combat_range_shade_state()
+	if _combat_map != null:
+		_rebuild()
+
+
+func _clear_combat_range_shade_state() -> void:
+	_combat_range_shade = false
+	_combat_range_weapon = 0
+	_combat_range_from = Vector2i.ZERO
+
+
+func combat_can_strike(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
+	## Range/melee rules plus wall/mast line-of-fire from the attacker.
+	if not _WeaponIconsScript.aim_strike_allows(weapon_id, from, to):
+		return false
+	if _WeaponIconsScript.is_melee(weapon_id):
+		return true
+	if _WeaponIconsScript.attacks_through_objects(weapon_id):
+		return true
+	return combat_shot_line_clear(from, to)
+
+
+func combat_shot_line_clear(from: Vector2i, to: Vector2i) -> bool:
+	## Straight line from attacker; walls / ship mast block tiles beyond.
+	if _combat_map == null or from == to:
+		return true
+	## Solid blocker on the target cell itself is not a valid strike tile.
+	if _TileRulesCamp.blocks_weapon_shot(_combat_map.tile_at(to.x, to.y)):
+		return false
+	var cells: Array[Vector2i] = _TileRulesCamp.cells_on_line(from, to)
+	## Skip attacker and destination — only intermediate obstacles matter for "past".
+	for i in range(1, cells.size() - 1):
+		var c: Vector2i = cells[i]
+		if _TileRulesCamp.blocks_weapon_shot(_combat_map.tile_at(c.x, c.y)):
+			return false
+	return true
+
+
+func combat_foe_index_at(pos: Vector2i) -> int:
+	for i in _combat_foes.size():
+		var f: Dictionary = _combat_foes[i]
+		if int(f.get("hp", 1)) <= 0:
+			continue
+		if int(f.get("x", -99)) == pos.x and int(f.get("y", -99)) == pos.y:
+			return i
+	return -1
+
+
+func combat_party_index_at(pos: Vector2i) -> int:
+	## Living party unit at combat tile (includes the focused attacker).
+	for i in _combat_party.size():
+		var u: Dictionary = _combat_party[i]
+		if int(u.get("x", -99)) == pos.x and int(u.get("y", -99)) == pos.y:
+			return i
+	return -1
+
+
+func get_combat_party_unit(index: int) -> Dictionary:
+	if index < 0 or index >= _combat_party.size():
+		return {}
+	return (_combat_party[index] as Dictionary).duplicate(true)
+
+
+func remove_combat_party_at(index: int) -> Dictionary:
+	## Remove a fallen / fled party unit. Returns the removed dict.
+	if index < 0 or index >= _combat_party.size():
+		return {}
+	var removed: Dictionary = _combat_party[index]
+	_combat_party.remove_at(index)
+	if _combat_focus == index:
+		_combat_focus = mini(index, _combat_party.size() - 1)
+	elif _combat_focus > index:
+		_combat_focus -= 1
+	if _combat_map != null:
+		_rebuild()
+	return removed.duplicate(true)
+
+
+func combat_foe_index_by_slot(slot: int) -> int:
+	## Living foe with creatureTable `slot`, or −1.
+	if slot < 0:
+		return -1
+	for i in _combat_foes.size():
+		var f: Dictionary = _combat_foes[i]
+		if int(f.get("slot", -1)) != slot:
+			continue
+		if int(f.get("hp", 1)) <= 0:
+			return -1
+		return i
+	return -1
+
+
+func get_combat_foe_at(index: int) -> Dictionary:
+	if index < 0 or index >= _combat_foes.size():
+		return {}
+	return (_combat_foes[index] as Dictionary).duplicate(true)
+
+
+func damage_combat_foe(index: int, damage: int) -> Dictionary:
+	## Apply damage. Returns { hit, killed, hp, max_hp, tile, xp, dealt }.
+	var out := {
+		"hit": false, "killed": false, "hp": 0, "max_hp": 0, "tile": 0, "xp": 0, "dealt": 0
+	}
+	if index < 0 or index >= _combat_foes.size():
+		return out
+	var f: Dictionary = _combat_foes[index]
+	var hp := int(f.get("hp", 0))
+	if hp <= 0:
+		return out
+	var before := hp
+	hp = maxi(0, hp - maxi(0, damage))
+	f["hp"] = hp
+	## Same as wilderness cannon hits — bar under feet until death.
+	f["show_hp"] = true
+	_combat_foes[index] = f
+	out["hit"] = true
+	out["dealt"] = before - hp
+	out["hp"] = hp
+	out["max_hp"] = int(f.get("max_hp", hp))
+	out["tile"] = int(f.get("tile", 0))
+	## xu4 creature exp ≈ basehp / 16 (config.b exp column roughly).
+	out["xp"] = maxi(1, int(f.get("max_hp", 64)) / 16)
+	if hp <= 0:
+		out["killed"] = true
+	if _combat_map != null:
+		_rebuild()
+	return out
+
+
+func flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12) -> void:
+	_combat_tile_flashes.append({
+		"x": pos.x,
+		"y": pos.y,
+		"tid": tile_id,
+		"left": maxf(duration, 0.04),
+	})
+	if _combat_map != null:
+		_rebuild()
+
+
+func await_flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12) -> void:
+	var dur := maxf(duration, 0.04)
+	flash_combat_tile(pos, tile_id, dur)
+	var tree := get_tree()
+	if tree != null:
+		await tree.create_timer(dur).timeout
+
+
+func await_combat_projectile(from: Vector2i, to: Vector2i) -> void:
+	## Cannon-style flight in combat-local coords (straight line, any angle).
+	if from == to:
+		return
+	var delta := to - from
+	var steps := maxi(absi(delta.x), absi(delta.y))
+	if steps <= 0:
+		return
+	var duration := float(steps) * CANNON_SEC_PER_TILE
+	var start := Vector2(from) + Vector2(0.5, 0.5)
+	var finish := Vector2(to) + Vector2(0.5, 0.5)
+	_combat_proj = {"x": start.x, "y": start.y}
+	_rebuild()
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
+	tween.tween_method(_set_combat_proj_pos, start, finish, duration)
+	await tween.finished
+	_combat_proj.clear()
+	_rebuild()
+
+
+func _set_combat_proj_pos(pos: Vector2) -> void:
+	if _combat_proj.is_empty():
+		return
+	_combat_proj["x"] = pos.x
+	_combat_proj["y"] = pos.y
+	_rebuild()
 
 
 func try_move_combat_focus(dir: Vector2i) -> int:
@@ -1127,7 +1387,9 @@ func _process(delta: float) -> void:
 			npc_changed = true
 
 	var combat_focus_changed := false
-	if _combat_map != null and (_combat_focus >= 0 or _combat_foe_focus >= 0):
+	if _combat_map != null and (
+		_combat_focus >= 0 or _combat_foe_focus >= 0 or _combat_aim_pos.x >= 0
+	):
 		_combat_focus_cd -= delta
 		if _combat_focus_cd <= 0.0:
 			_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
@@ -1153,6 +1415,19 @@ func _process(delta: float) -> void:
 			flash_changed = true
 		_tile_flashes = kept
 
+	if not _combat_tile_flashes.is_empty():
+		var ckept: Array[Dictionary] = []
+		for f in _combat_tile_flashes:
+			var cleft := float(f.get("left", 0.0)) - delta
+			if cleft > 0.0:
+				f["left"] = cleft
+				ckept.append(f)
+			else:
+				flash_changed = true
+		if ckept.size() != _combat_tile_flashes.size():
+			flash_changed = true
+		_combat_tile_flashes = ckept
+
 	if _spell_flash_left > 0.0:
 		_spell_flash_left = maxf(0.0, _spell_flash_left - delta)
 		queue_redraw()
@@ -1167,6 +1442,7 @@ func _process(delta: float) -> void:
 				or shake_changed or moongate_changed or flash_changed
 				or not _tile_flashes.is_empty()
 				or not _cannon_proj.is_empty()
+				or not _combat_proj.is_empty()
 			):
 				_rebuild()
 			return
@@ -1179,7 +1455,9 @@ func _process(delta: float) -> void:
 		or combat_focus_changed
 		or shake_changed or moongate_changed or flash_changed
 		or not _tile_flashes.is_empty()
+		or not _combat_tile_flashes.is_empty()
 		or not _cannon_proj.is_empty()
+		or not _combat_proj.is_empty()
 	):
 		_rebuild()
 
@@ -2023,7 +2301,11 @@ func _rebuild_combat() -> void:
 
 	_paint_combat_foes(origin_x, origin_y)
 	_paint_combat_party(origin_x, origin_y)
+	_paint_combat_range_shade(origin_x, origin_y)
 	_paint_combat_focus(origin_x, origin_y)
+	_paint_combat_tile_flashes(origin_x, origin_y)
+	_paint_combat_projectile(origin_x, origin_y)
+	_paint_combat_aim_cursor(origin_x, origin_y)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -2052,6 +2334,8 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 
 func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 	for u in _combat_foes:
+		if int(u.get("hp", 1)) <= 0:
+			continue
 		var tid := int(u.get("tile", 0))
 		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
 		var sx := origin_x + pos.x
@@ -2066,10 +2350,17 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 			continue
 		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
 		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+		if bool(u.get("show_hp", false)):
+			_paint_creature_hp_bar(
+				dst.x, dst.y, int(u.get("hp", 0)), int(u.get("max_hp", 0))
+			)
 
 
 func _paint_combat_focus(origin_x: int, origin_y: int) -> void:
 	## xu4 TileView::drawFocus — blinking white rectangle around the active unit.
+	## Hidden while the U5 aim cursor is up so the two do not stack.
+	if _combat_aim_pos.x >= 0:
+		return
 	if not _combat_focus_on:
 		return
 	var pos := Vector2i(-1, -1)
@@ -2095,6 +2386,123 @@ func _paint_combat_focus(origin_x: int, origin_y: int) -> void:
 	_buf.fill_rect(Rect2i(px, py, TILE_SRC, e), white)
 	_buf.fill_rect(Rect2i(px + TILE_SRC - e, py, e, TILE_SRC), white)
 	_buf.fill_rect(Rect2i(px, py + TILE_SRC - e, TILE_SRC, e), white)
+
+
+func _ensure_combat_aim_cursor() -> void:
+	if _combat_aim_cursor != null and not _combat_aim_cursor.is_empty():
+		return
+	_combat_aim_cursor = _load_image_path(COMBAT_AIM_CURSOR_PATH)
+
+
+func _ensure_combat_range_shade_img() -> void:
+	## 2×2 Bayer-style dither between current shade and a darker tint.
+	if _combat_range_shade_img == null or _combat_range_shade_img.is_empty():
+		_combat_range_shade_img = Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
+	for y in TILE_SRC:
+		for x in TILE_SRC:
+			## Threshold matrix: 0 2 / 3 1 — alternate A/B for a soft dither.
+			var cell := (x & 1) + ((y & 1) << 1)
+			var dark := cell == 1 or cell == 2
+			_combat_range_shade_img.set_pixel(
+				x, y, COMBAT_RANGE_SHADE_B if dark else COMBAT_RANGE_SHADE_A
+			)
+
+
+func _paint_combat_range_shade(origin_x: int, origin_y: int) -> void:
+	## Translucent black on tiles outside strike range. Attacker's own tile
+	## stays unshaded (still unstrikeable).
+	if not _combat_range_shade:
+		return
+	_ensure_combat_range_shade_img()
+	if _combat_range_shade_img == null:
+		return
+	for cy in CAMP_H:
+		for cx in CAMP_W:
+			var cell := Vector2i(cx, cy)
+			if cell == _combat_range_from:
+				continue
+			if combat_can_strike(_combat_range_weapon, _combat_range_from, cell):
+				continue
+			var sx := origin_x + cx
+			var sy := origin_y + cy
+			if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+				continue
+			_buf.blend_rect(
+				_combat_range_shade_img,
+				Rect2i(0, 0, TILE_SRC, TILE_SRC),
+				Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+			)
+
+
+func _paint_combat_aim_cursor(origin_x: int, origin_y: int) -> void:
+	## Ultima V: four L brackets framing the aimed tile (blinks with focus cadence).
+	if _combat_aim_pos.x < 0 or _combat_aim_pos.y < 0:
+		return
+	if not _combat_focus_on:
+		return
+	_ensure_combat_aim_cursor()
+	var sx := origin_x + _combat_aim_pos.x
+	var sy := origin_y + _combat_aim_pos.y
+	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+		return
+	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+	if _combat_aim_cursor != null and not _combat_aim_cursor.is_empty():
+		_buf.blend_rect(
+			_combat_aim_cursor,
+			Rect2i(0, 0, _combat_aim_cursor.get_width(), _combat_aim_cursor.get_height()),
+			dst
+		)
+		return
+	## Procedural fallback if the PNG failed to load.
+	var px := dst.x
+	var py := dst.y
+	var arm := 8
+	var t := 2
+	var col := Color(1.0, 0.925, 0.47, 1.0)
+	_buf.fill_rect(Rect2i(px + 1, py + 1, arm, t), col)
+	_buf.fill_rect(Rect2i(px + 1, py + 1, t, arm), col)
+	_buf.fill_rect(Rect2i(px + TILE_SRC - 1 - arm, py + 1, arm, t), col)
+	_buf.fill_rect(Rect2i(px + TILE_SRC - 1 - t, py + 1, t, arm), col)
+	_buf.fill_rect(Rect2i(px + 1, py + TILE_SRC - 1 - t, arm, t), col)
+	_buf.fill_rect(Rect2i(px + 1, py + TILE_SRC - 1 - arm, t, arm), col)
+	_buf.fill_rect(Rect2i(px + TILE_SRC - 1 - arm, py + TILE_SRC - 1 - t, arm, t), col)
+	_buf.fill_rect(Rect2i(px + TILE_SRC - 1 - t, py + TILE_SRC - 1 - arm, t, arm), col)
+
+
+func _paint_combat_tile_flashes(origin_x: int, origin_y: int) -> void:
+	if _combat_tile_flashes.is_empty() or not tiles_ready:
+		return
+	for f in _combat_tile_flashes:
+		var cx := int(f.get("x", 0))
+		var cy := int(f.get("y", 0))
+		var sx := origin_x + cx
+		var sy := origin_y + cy
+		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+			continue
+		var tid := int(f.get("tid", TILE_MISS_FLASH))
+		var slice := _overlay_slice(tid)
+		if slice == null:
+			continue
+		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+
+
+func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
+	## Missile tile (77) flying in combat-local float space.
+	if _combat_proj.is_empty() or not tiles_ready:
+		return
+	var slice := _overlay_slice(TILE_MISS_FLASH)
+	if slice == null:
+		return
+	var cx := float(_combat_proj.get("x", 0.0))
+	var cy := float(_combat_proj.get("y", 0.0))
+	var px := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC)))
+	var py := int(round((float(origin_y) + cy - 0.5) * float(TILE_SRC)))
+	if px <= -TILE_SRC or py <= -TILE_SRC:
+		return
+	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+		return
+	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
 
 
 func _build_camp_background() -> void:

@@ -75,6 +75,42 @@ const DAMAGE: Array[int] = [
 	8, 16, 24, 32, 40, 48, 64, 40, 56, 64, 96, 96, 128, 80, 160, 255,
 ]
 
+## Combat aim range by id (−1 = unlimited magic ranged).
+## Sling 8, Oil 6, Bow 7, Crossbow 8; Magic Axe/Bow/Wand unlimited.
+const RANGE: Array[int] = [
+	1, 1, 10, 8, 1, 1, 1, 7, 8, 6, 2, -1, 1, -1, -1, 1,
+]
+
+## xu4 WEAP_ABSOLUTERANGE — only hits at exact distance (Halberd).
+const ABSOLUTE_RANGE: Array[bool] = [
+	false, false, false, false, false, false, false, false, false, false,
+	true, false, false, false, false, false,
+]
+
+## xu4 WEAP_ATTACKTHROUGHOBJECTS — Halberd ignores solid blockers.
+const ATTACK_THROUGH: Array[bool] = [
+	false, false, false, false, false, false, false, false, false, false,
+	true, false, false, false, false, false,
+]
+
+## Magic ranged — no max distance on the combat map.
+const UNLIMITED_RANGE: Array[bool] = [
+	false, false, false, false, false, false, false, false, false, false,
+	false, true, false, true, true, false,
+]
+
+## xu4 WEAP_LOSEWHENRANGED — consumed when used beyond melee (Dagger).
+const LOSE_WHEN_RANGED: Array[bool] = [
+	false, false, true, false, false, false, false, false, false, false,
+	false, false, false, false, false, false,
+]
+
+## xu4 WEAP_LOSE — always consumed on use (Flaming Oil).
+const LOSE_WHEN_USED: Array[bool] = [
+	false, false, false, false, false, false, false, false, false, true,
+	false, false, false, false, false, false,
+]
+
 ## xu4 config.b canuse bitmask per ClassId (bit N = class N may ready).
 ## Derived from not/only lists in module/Ultima-IV/config.b.
 const CANUSE: Array[int] = [
@@ -101,6 +137,97 @@ static func damage_of(weapon_id: int) -> int:
 	if weapon_id < 0 or weapon_id >= DAMAGE.size():
 		return 0
 	return DAMAGE[weapon_id]
+
+
+static func range_of(weapon_id: int) -> int:
+	## Max aim distance; huge sentinel for unlimited magic ranged.
+	if is_unlimited_range(weapon_id):
+		return 99
+	if weapon_id < 0 or weapon_id >= RANGE.size():
+		return 1
+	return maxi(1, RANGE[weapon_id])
+
+
+static func is_unlimited_range(weapon_id: int) -> bool:
+	if weapon_id < 0 or weapon_id >= UNLIMITED_RANGE.size():
+		return false
+	return UNLIMITED_RANGE[weapon_id]
+
+
+static func is_melee(weapon_id: int) -> bool:
+	## Range-1 non-absolute weapons: U5-style 8-direction adjacent aim.
+	if is_unlimited_range(weapon_id) or is_absolute_range(weapon_id):
+		return false
+	if weapon_id < 0 or weapon_id >= RANGE.size():
+		return true
+	return RANGE[weapon_id] <= 1
+
+
+static func is_absolute_range(weapon_id: int) -> bool:
+	if weapon_id < 0 or weapon_id >= ABSOLUTE_RANGE.size():
+		return false
+	return ABSOLUTE_RANGE[weapon_id]
+
+
+static func attacks_through_objects(weapon_id: int) -> bool:
+	if weapon_id < 0 or weapon_id >= ATTACK_THROUGH.size():
+		return false
+	return ATTACK_THROUGH[weapon_id]
+
+
+static func loses_when_ranged(weapon_id: int) -> bool:
+	if weapon_id < 0 or weapon_id >= LOSE_WHEN_RANGED.size():
+		return false
+	return LOSE_WHEN_RANGED[weapon_id]
+
+
+static func loses_when_used(weapon_id: int) -> bool:
+	if weapon_id < 0 or weapon_id >= LOSE_WHEN_USED.size():
+		return false
+	return LOSE_WHEN_USED[weapon_id]
+
+
+static func chebyshev(a: Vector2i, b: Vector2i) -> int:
+	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+
+
+static func aim_distance(a: Vector2i, b: Vector2i) -> int:
+	## Orthogonal = 1, diagonal = 1.5, then round to nearest int.
+	var dx := absi(a.x - b.x)
+	var dy := absi(a.y - b.y)
+	var raw := float(maxi(dx, dy)) + 0.5 * float(mini(dx, dy))
+	return int(round(raw))
+
+
+static func aim_cursor_allows(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
+	## Where the U5 aim cursor may sit (self allowed as a hub / cancel rest).
+	if to == from:
+		return true
+	if is_melee(weapon_id):
+		return chebyshev(from, to) == 1
+	if is_unlimited_range(weapon_id):
+		return true
+	var dist := aim_distance(from, to)
+	var rng := range_of(weapon_id)
+	if is_absolute_range(weapon_id):
+		## Cursor may travel through tiles up to the absolute ring.
+		return dist <= rng
+	return dist <= rng
+
+
+static func aim_strike_allows(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
+	## Confirm-attack cell validity (self never strikes).
+	if to == from:
+		return false
+	if is_melee(weapon_id):
+		return chebyshev(from, to) == 1
+	if is_unlimited_range(weapon_id):
+		return true
+	var dist := aim_distance(from, to)
+	var rng := range_of(weapon_id)
+	if is_absolute_range(weapon_id):
+		return dist == rng
+	return dist >= 1 and dist <= rng
 
 
 static func can_ready(weapon_id: int, klass: int) -> bool:
