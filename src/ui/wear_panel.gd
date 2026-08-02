@@ -192,6 +192,7 @@ func nudge_cursor(step: int) -> void:
 func _refresh_current() -> void:
 	_cur_icon.texture = _keyed_icon(_current_id)
 	_cur_name.text = Locale.armor_name(_current_id)
+	_cur_name.add_theme_color_override("font_color", COL_TEXT)
 	_cur_def.text = str(_current_def)
 
 
@@ -200,21 +201,33 @@ func _rebuild_list() -> void:
 	_ids.clear()
 	_usable.clear()
 	_row_wraps.clear()
-	## No Armour always; owned stock only (equipped is not in inventory).
+	## No Armour always; once-owned armor (qty 0 while worn still listed).
 	_add_armor_row(0, true)
 	for a in range(1, GameState.armor.size()):
-		if int(GameState.armor[a]) <= 0:
+		if not GameState.is_armor_known(a) and int(GameState.armor[a]) <= 0:
 			continue
 		_add_armor_row(a, false)
 
 
+func can_select_armor(armor_id: int) -> bool:
+	## Qty 0 (except No Armor) and class-restricted rows are not selectable.
+	for i in _ids.size():
+		if int(_ids[i]) == armor_id:
+			return bool(_usable[i])
+	return false
+
+
 func _add_armor_row(armor_id: int, is_none: bool) -> void:
-	var ok := _ArmorIcons.can_wear(armor_id, _klass)
 	var defense := _ArmorIcons.defense_of(armor_id)
 	var delta := defense - _current_def
 	var letter := String.chr(65 + armor_id)
 	var nm := "%s. %s" % [letter, Locale.armor_name(armor_id)]
 	var qty := 0 if is_none else int(GameState.armor[armor_id])
+	## Selectable only with stock (No Armor always). Qty 0 stays visible but skipped.
+	var class_ok := _ArmorIcons.can_wear(armor_id, _klass)
+	var ok := class_ok and (is_none or qty > 0)
+	var equipped := armor_id == _current_id
+	var name_col := COL_TEXT if (ok or equipped) else COL_DIM
 
 	var wrap := Control.new()
 	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
@@ -251,7 +264,7 @@ func _add_armor_row(armor_id: int, is_none: bool) -> void:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	icon.texture = tex
-	icon.modulate = Color.WHITE if ok else COL_DIM
+	icon.modulate = Color.WHITE if (ok or equipped) else COL_DIM
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
 
@@ -260,7 +273,7 @@ func _add_armor_row(armor_id: int, is_none: bool) -> void:
 	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	name_lab.add_theme_color_override("font_color", COL_TEXT if ok else COL_DIM)
+	name_lab.add_theme_color_override("font_color", name_col)
 	UiTheme.apply_font(name_lab)
 	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(name_lab)

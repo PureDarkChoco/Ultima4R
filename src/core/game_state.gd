@@ -143,6 +143,9 @@ var reagents: Array[int] = [] ## 8
 var mixtures: Array[int] = [] ## 26 — spells A..Z
 ## Spells successfully mixed at least once (kept even if qty returns to 0).
 var spell_known: Array[bool] = []
+## Weapons / armor owned at least once (list at qty 0; never-owned stay hidden).
+var weapon_known: Array[bool] = [] ## 16 — index 0 Hands unused
+var armor_known: Array[bool] = [] ## 8 — index 0 No Armor unused
 ## Equipped gear by class id 0..7 (xu4 SaveGamePlayerRecord weapon/armor).
 var member_weapons: Array[int] = []
 var member_armor: Array[int] = []
@@ -292,6 +295,18 @@ func _reset_inventory_empty() -> void:
 	for i in 26:
 		mixtures[i] = 0
 	_seed_spell_known_from_mixtures()
+	_reset_gear_known_empty()
+
+
+func _reset_gear_known_empty() -> void:
+	weapon_known.clear()
+	weapon_known.resize(16)
+	for i in 16:
+		weapon_known[i] = false
+	armor_known.clear()
+	armor_known.resize(8)
+	for i in 8:
+		armor_known[i] = false
 
 
 func _reset_member_arrays_blank() -> void:
@@ -350,6 +365,54 @@ func mark_spell_known(spell_id: int) -> void:
 	if spell_known.size() < Spells.COUNT:
 		_seed_spell_known_from_mixtures()
 	spell_known[spell_id] = true
+
+
+func is_weapon_known(weapon_id: int) -> bool:
+	if weapon_id <= 0 or weapon_id >= weapon_known.size():
+		return false
+	return bool(weapon_known[weapon_id])
+
+
+func is_armor_known(armor_id: int) -> bool:
+	if armor_id <= 0 or armor_id >= armor_known.size():
+		return false
+	return bool(armor_known[armor_id])
+
+
+func mark_weapon_known(weapon_id: int) -> void:
+	if weapon_id <= 0:
+		return
+	if weapon_known.size() < 16:
+		_reset_gear_known_empty()
+	if weapon_id < weapon_known.size():
+		weapon_known[weapon_id] = true
+
+
+func mark_armor_known(armor_id: int) -> void:
+	if armor_id <= 0:
+		return
+	if armor_known.size() < 8:
+		_reset_gear_known_empty()
+	if armor_id < armor_known.size():
+		armor_known[armor_id] = true
+
+
+func _mark_gear_known_from_stock_and_party() -> void:
+	## Pack qty > 0 or equipped on a current party member → known.
+	if weapon_known.size() < 16 or armor_known.size() < 8:
+		_reset_gear_known_empty()
+	for w in range(1, weapons.size()):
+		if int(weapons[w]) > 0:
+			weapon_known[w] = true
+	for a in range(1, armor.size()):
+		if int(armor[a]) > 0:
+			armor_known[a] = true
+	for slot in party_order.size():
+		var klass := party_member_at(slot)
+		if klass < 0:
+			continue
+		mark_weapon_known(weapon_of_class(klass))
+		mark_armor_known(armor_of_class(klass))
 
 
 func known_spell_ids() -> Array[int]:
@@ -478,8 +541,10 @@ func ready_weapon(slot: int, weapon_id: int) -> int:
 		return EquipError.CLASS_RESTRICTED
 	if old != 0 and old < weapons.size():
 		weapons[old] += 1
+		mark_weapon_known(old)
 	if weapon_id != 0:
 		weapons[weapon_id] -= 1
+		mark_weapon_known(weapon_id)
 	member_weapons[klass] = weapon_id
 	return EquipError.SUCCEEDED
 
@@ -500,8 +565,10 @@ func wear_armor(slot: int, armor_id: int) -> int:
 		return EquipError.CLASS_RESTRICTED
 	if old != 0 and old < armor.size():
 		armor[old] += 1
+		mark_armor_known(old)
 	if armor_id != 0:
 		armor[armor_id] -= 1
+		mark_armor_known(armor_id)
 	member_armor[klass] = armor_id
 	return EquipError.SUCCEEDED
 
@@ -597,6 +664,9 @@ func _init_party_from_xu4(avatar_klass: int, selected_virtues: Array[int]) -> vo
 		member_max_hp[i] = CLASS_START_LEVEL[i] * 100
 		member_hp[i] = member_max_hp[i]
 		member_mp[i] = max_mp_for_stats(i, member_int[i])
+	## Starter gear counts as once-owned (pack qty is 0 while equipped).
+	mark_weapon_known(CLASS_START_WEAPON[avatar_klass])
+	mark_armor_known(CLASS_START_ARMOR[avatar_klass])
 
 
 func party_leader_class() -> int:
@@ -632,6 +702,8 @@ func add_party_member(klass: int) -> bool:
 	if party_order.size() >= 8:
 		return false
 	party_order.append(klass)
+	mark_weapon_known(weapon_of_class(klass))
+	mark_armor_known(armor_of_class(klass))
 	return true
 
 
@@ -1151,6 +1223,7 @@ func grant_mystic_weapon() -> void:
 	adjust_karma_found_item()
 	if weapons.size() > WeaponIcons.Id.MYSTIC_SWORD:
 		weapons[WeaponIcons.Id.MYSTIC_SWORD] = int(weapons[WeaponIcons.Id.MYSTIC_SWORD]) + 8
+		mark_weapon_known(WeaponIcons.Id.MYSTIC_SWORD)
 	mark_lastreagent()
 
 
@@ -1160,6 +1233,7 @@ func grant_mystic_armor() -> void:
 	adjust_karma_found_item()
 	if armor.size() > ArmorIcons.Id.MYSTIC_ROBE:
 		armor[ArmorIcons.Id.MYSTIC_ROBE] = int(armor[ArmorIcons.Id.MYSTIC_ROBE]) + 8
+		mark_armor_known(ArmorIcons.Id.MYSTIC_ROBE)
 	mark_lastreagent()
 
 
@@ -1491,6 +1565,8 @@ func to_save_dict() -> Dictionary:
 		"reagents": reagents.duplicate(),
 		"mixtures": mixtures.duplicate(),
 		"spell_known": spell_known.duplicate(),
+		"weapon_known": weapon_known.duplicate(),
+		"armor_known": armor_known.duplicate(),
 		"member_weapons": member_weapons.duplicate(),
 		"member_armor": member_armor.duplicate(),
 		"member_hp": member_hp.duplicate(),
@@ -1524,29 +1600,37 @@ func apply_save_dict(d: Dictionary) -> void:
 	if typeof(sp) == TYPE_DICTIONARY:
 		start_pos = Vector2i(int(sp.get("x", 0)), int(sp.get("y", 0)))
 	_apply_int_array(karma, d.get("karma", []), 8)
-	food = int(d.get("food", food))
-	moves = int(d.get("moves", moves))
-	lastcamp = int(d.get("lastcamp", lastcamp))
-	ship_hull = clampi(int(d.get("ship_hull", ship_hull)), 0, SHIP_HULL_MAX)
-	gems = maxi(0, int(d.get("gems", gems)))
-	gold = maxi(0, int(d.get("gold", gold)))
-	keys = maxi(0, int(d.get("keys", keys)))
-	torches = maxi(0, int(d.get("torches", torches)))
-	skull = maxi(0, int(d.get("skull", skull)))
-	items = maxi(0, int(d.get("items", items)))
-	stones = maxi(0, int(d.get("stones", stones)))
-	runes = maxi(0, int(d.get("runes", runes)))
-	lastreagent = maxi(0, int(d.get("lastreagent", lastreagent)))
+	## Missing keys must use schema defaults (0/false), never the previous session —
+	## older slots omit items/stones/runes/lastreagent and would otherwise leak loot.
+	food = int(d.get("food", 0))
+	moves = int(d.get("moves", 0))
+	lastcamp = int(d.get("lastcamp", 0))
+	ship_hull = clampi(int(d.get("ship_hull", 0)), 0, SHIP_HULL_MAX)
+	gems = maxi(0, int(d.get("gems", 0)))
+	gold = maxi(0, int(d.get("gold", 0)))
+	keys = maxi(0, int(d.get("keys", 0)))
+	torches = maxi(0, int(d.get("torches", 0)))
+	skull = maxi(0, int(d.get("skull", 0)))
+	items = maxi(0, int(d.get("items", 0)))
+	stones = maxi(0, int(d.get("stones", 0)))
+	runes = maxi(0, int(d.get("runes", 0)))
+	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
 	## Legacy saves stored only `skull` count — promote into the items bitfield.
 	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
 		items |= ITEM_SKULL
 	skull = 1 if (items & ITEM_SKULL) != 0 else 0
-	has_sextant = bool(d.get("has_sextant", has_sextant))
+	has_sextant = bool(d.get("has_sextant", false))
 	_apply_int_array(weapons, d.get("weapons", []), 16)
 	_apply_int_array(armor, d.get("armor", []), 8)
 	_apply_int_array(reagents, d.get("reagents", []), 8)
 	_apply_int_array(mixtures, d.get("mixtures", []), 26)
 	_apply_bool_array(spell_known, d.get("spell_known", []), Spells.COUNT)
+	if d.has("weapon_known") or d.has("armor_known"):
+		_apply_bool_array(weapon_known, d.get("weapon_known", []), 16)
+		_apply_bool_array(armor_known, d.get("armor_known", []), 8)
+	else:
+		## Older saves: infer after member arrays are restored.
+		_reset_gear_known_empty()
 	_apply_int_array(member_weapons, d.get("member_weapons", []), 8)
 	_apply_int_array(member_armor, d.get("member_armor", []), 8)
 	_apply_int_array(member_hp, d.get("member_hp", []), 8)
@@ -1577,6 +1661,8 @@ func apply_save_dict(d: Dictionary) -> void:
 	is_new_game = false
 	if party_order.is_empty():
 		refresh_party_order()
+	## Ensure pack / equipped gear are marked (also migrates pre-known saves).
+	_mark_gear_known_from_stock_and_party()
 
 
 func _seed_stats_from_class_defaults() -> void:

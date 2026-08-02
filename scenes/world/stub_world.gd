@@ -3435,6 +3435,9 @@ func _confirm_ready_cursor() -> void:
 func _try_ready_weapon(weapon_id: int) -> void:
 	if _ready_slot < 0:
 		return
+	## Qty 0 / restricted — ignore letter keys (no "None left!" spam).
+	if _ready_panel and not _ready_panel.can_select_weapon(weapon_id):
+		return
 	var err := GameState.ready_weapon(_ready_slot, weapon_id)
 	match err:
 		GameState.EquipError.NONE_LEFT:
@@ -3683,6 +3686,9 @@ func _confirm_wear_cursor() -> void:
 
 func _try_wear_armor(armor_id: int) -> void:
 	if _wear_slot < 0:
+		return
+	## Qty 0 / restricted — ignore letter keys (no "None left!" spam).
+	if _wear_panel and not _wear_panel.can_select_armor(armor_id):
 		return
 	var err := GameState.wear_armor(_wear_slot, armor_id)
 	match err:

@@ -200,6 +200,14 @@ func index_of_letter(letter_code: int) -> int:
 	return -1
 
 
+func can_select_weapon(weapon_id: int) -> bool:
+	## Qty 0 (except Hands) and class-restricted rows are not selectable.
+	for i in _ids.size():
+		if int(_ids[i]) == weapon_id:
+			return bool(_usable[i])
+	return false
+
+
 func weapon_id_at(list_index: int) -> int:
 	if list_index < 0 or list_index >= _ids.size():
 		return -1
@@ -215,6 +223,7 @@ func is_usable_at(list_index: int) -> bool:
 func _refresh_current() -> void:
 	_cur_icon.texture = _keyed_icon(_current_id)
 	_cur_name.text = Locale.weapon_name(_current_id)
+	_cur_name.add_theme_color_override("font_color", COL_TEXT)
 	_cur_atk.text = str(_current_dmg)
 
 
@@ -223,21 +232,25 @@ func _rebuild_list() -> void:
 	_ids.clear()
 	_usable.clear()
 	_row_wraps.clear()
-	## Hands always; owned stock only (equipped is not in inventory).
+	## Hands always; once-owned weapons (qty 0 while equipped still listed).
 	_add_weapon_row(0, true)
 	for w in range(1, GameState.weapons.size()):
-		if int(GameState.weapons[w]) <= 0:
+		if not GameState.is_weapon_known(w) and int(GameState.weapons[w]) <= 0:
 			continue
 		_add_weapon_row(w, false)
 
 
 func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
-	var ok := _WeaponIcons.can_ready(weapon_id, _klass)
 	var dmg := _WeaponIcons.damage_of(weapon_id)
 	var delta := dmg - _current_dmg
 	var letter := String.chr(65 + weapon_id)
 	var nm := "%s. %s" % [letter, Locale.weapon_name(weapon_id)]
 	var qty := 0 if is_hands else int(GameState.weapons[weapon_id])
+	## Selectable only with stock (Hands always). Qty 0 stays visible but skipped.
+	var class_ok := _WeaponIcons.can_ready(weapon_id, _klass)
+	var ok := class_ok and (is_hands or qty > 0)
+	var equipped := weapon_id == _current_id
+	var name_col := COL_TEXT if (ok or equipped) else COL_DIM
 
 	var wrap := Control.new()
 	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
@@ -274,7 +287,7 @@ func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	icon.texture = tex
-	icon.modulate = Color.WHITE if ok else COL_DIM
+	icon.modulate = Color.WHITE if (ok or equipped) else COL_DIM
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
 
@@ -283,7 +296,7 @@ func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
 	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name_lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	name_lab.add_theme_color_override("font_color", COL_TEXT if ok else COL_DIM)
+	name_lab.add_theme_color_override("font_color", name_col)
 	UiTheme.apply_font(name_lab)
 	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(name_lab)

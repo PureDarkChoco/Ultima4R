@@ -1191,9 +1191,10 @@ func _fill_gear_page() -> void:
 	_add_inv_section(Locale.t("ztats_page_weapons"))
 	_add_gear_header(Locale.t("ztats_col_damage"))
 	for w in range(1, GameState.weapons.size()): ## skip Hands
-		var qty := int(GameState.weapons[w])
-		if qty <= 0:
+		## Once-owned stay listed at qty 0; never-owned stay hidden.
+		if not GameState.is_weapon_known(w) and int(GameState.weapons[w]) <= 0:
 			continue
+		var qty := int(GameState.weapons[w])
 		var wname := "%s. %s" % [String.chr(65 + w), Locale.weapon_name(w)]
 		_add_gear_item_row(
 			_load_keyed_gear_path(_WeaponIcons.path_for_id(w)),
@@ -1204,9 +1205,9 @@ func _fill_gear_page() -> void:
 	_add_inv_section(Locale.t("ztats_page_armor"))
 	_add_gear_header(Locale.t("ztats_col_defense"))
 	for a in range(1, GameState.armor.size()): ## skip No Armor
-		var qty2 := int(GameState.armor[a])
-		if qty2 <= 0:
+		if not GameState.is_armor_known(a) and int(GameState.armor[a]) <= 0:
 			continue
+		var qty2 := int(GameState.armor[a])
 		var aname := "%s. %s" % [String.chr(65 + a), Locale.armor_name(a)]
 		_add_gear_item_row(
 			_load_keyed_gear_path(_ArmorIcons.path_for_id(a)),
