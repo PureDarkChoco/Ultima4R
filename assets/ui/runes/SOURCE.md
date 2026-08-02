@@ -1,6 +1,6 @@
 # Virtue rune icons
 
-Ultima IV virtue runes (65×40 RGB). Looked up via `RuneIcons` (`src/core/rune_icons.gd`).
+Ultima IV virtue runes (32×32 RGBA). Looked up via `RuneIcons` (`src/core/rune_icons.gd`).
 Indices match `Virtues.Id`.
 
 | File | Virtue | id |
