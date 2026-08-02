@@ -117,6 +117,10 @@ var _moongate_busy := false
 var _cannon_busy := false
 ## True while Search is pausing on "Searching..." (blocks move/commands).
 var _search_busy := false
+## True while xu4 death sequence runs (blocks move/commands).
+var _death_busy := false
+## Map-pane blackout during death cutscene (xu4 VIEW_CUTSCENE / eraseMapArea).
+var _death_blackout: ColorRect
 ## Pirate shots queued during moveObjects (animated after AI step).
 var _pending_pirate_shots: Array[Dictionary] = []
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
@@ -157,6 +161,11 @@ var _immobilized_pending := false
 const CAMP_REST_SEC := 10.0
 ## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
 const IMMOBILIZED_SLEEP_SEC := 0.166
+## xu4 death.cpp — DeathController interval + revive coords.
+const DEATH_PAUSE_SEC := 5.0
+const DEATH_NAME_WIDTH := 16 ## xu4 TEXT_AREA_W for centered avatar name
+const DEATH_REVIVE_CASTLE := Vector2i(19, 8) ## lcb_2 throne room
+const DEATH_LCB_WORLD := Vector2i(86, 107)
 ## Remake QoL: brief pause after "Searching..." so S can't be mashed.
 ## xu4 has no Search-specific delay (only finishTurn screenWait(1)).
 const SEARCH_PAUSE_SEC := 0.45
@@ -1333,7 +1342,7 @@ func _process(delta: float) -> void:
 	_tick_cursor(delta)
 	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
 	_tick_world_clock(delta)
-	if _moongate_busy or _cannon_busy or _search_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		return
 	## xu4 force pass if no commands within last 20 seconds.
 	_tick_auto_pass(delta)
@@ -1706,6 +1715,9 @@ func _on_escape() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _death_busy:
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
 		## Peer gem: only Esc / Space / Enter dismiss; swallow everything else.
@@ -1738,7 +1750,7 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / New Order.
-	if _moongate_busy or _cannon_busy or _search_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		get_viewport().set_input_as_handled()
 		return
 	if _save_stage != 0:
@@ -2852,10 +2864,13 @@ func _apply_cannon_hit_on_party() -> void:
 			_push_message(Locale.t("cmd_ship_sinks"), false)
 			GameState.kill_party()
 			_refresh_party()
+			## xu4 gameKillParty → deathStart(5).
+			_start_death_sequence(DEATH_PAUSE_SEC)
 		return
 	var flash := GameState.damage_party_cannon(10, 25)
 	_refresh_party()
 	_flash_party_damage(flash)
+	## Foot hits: finishTurn's isDead → deathStart(0) via `_maybe_continue_immobilized`.
 
 
 func _update_world_creatures() -> void:
@@ -4753,9 +4768,10 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 
 func _maybe_continue_immobilized() -> void:
 	## xu4: while isImmobilized && !isDead → "Zzzzzz" then another finishTurn.
+	## xu4 finishTurn: isDead → deathStart(0).
 	if GameState.is_party_dead():
 		_immobilized_pending = false
-		## Death sequence not wired yet — stop the sleep loop.
+		_start_death_sequence(0.0)
 		return
 	if not GameState.is_party_immobilized():
 		_immobilized_pending = false
@@ -4778,11 +4794,235 @@ func _on_immobilized_timer() -> void:
 	_immobilized_pending = false
 	if not is_inside_tree():
 		return
-	if GameState.is_party_dead() or not GameState.is_party_immobilized():
+	if _death_busy:
+		return
+	if GameState.is_party_dead():
+		_start_death_sequence(0.0)
+		return
+	if not GameState.is_party_immobilized():
 		_refresh_party()
 		return
 	await _run_party_turn_once(false)
 	_maybe_continue_immobilized()
+
+
+func _start_death_sequence(delay_sec: float = 0.0) -> void:
+	## xu4 deathStart — fade music (n/a), hide cursor, optional delay, messages, revive.
+	if _death_busy or not GameState.is_party_dead():
+		return
+	_death_busy = true
+	_immobilized_pending = false
+	_reset_hold_state()
+	_clear_pending_dir()
+	_clear_ship_yell_await()
+	_stop_ship_cruise()
+	_run_death_sequence_async(delay_sec)
+
+
+func _run_death_sequence_async(delay_sec: float) -> void:
+	## xu4 DeathController — 5s between messages, then deathRevive.
+	_close_ui_for_death()
+	if _msg_cursor:
+		_msg_cursor.visible = false
+	## Keep the message panel open so lines stay readable during the cutscene.
+	if not _sides_open:
+		_toggle_side_panels()
+	if delay_sec > 0.0:
+		await _death_wait(delay_sec)
+	if not is_inside_tree() or not _death_busy:
+		_abort_death_sequence()
+		return
+	## First timer tick also waits PAUSE_SEC before message 0.
+	await _death_wait(DEATH_PAUSE_SEC)
+	if not is_inside_tree() or not _death_busy:
+		_abort_death_sequence()
+		return
+	_set_death_blackout(true)
+	_push_death_blank_lines(3)
+	_push_message(Locale.t("death_all_is_dark"), false)
+
+	var steps: Array = [
+		{"blanks": 1, "key": "death_but_wait"},
+		{"blanks": 0, "key": "death_where_am_i"},
+		{"blanks": 0, "key": "death_am_i_dead"},
+		{"blanks": 0, "key": "death_afterlife"},
+		{"blanks": 0, "key": "death_you_hear", "name": true},
+		{"blanks": 0, "key": "death_i_feel_motion"},
+		{"blanks": 1, "key": "death_lord_british", "prompt": true},
+	]
+	for step in steps:
+		await _death_wait(DEATH_PAUSE_SEC)
+		if not is_inside_tree() or not _death_busy:
+			_abort_death_sequence()
+			return
+		var blanks := int(step.get("blanks", 0))
+		if blanks > 0:
+			_push_death_blank_lines(blanks)
+		_push_message(Locale.t(str(step.get("key", ""))), false)
+		if bool(step.get("name", false)):
+			_push_message(_death_centered_name(), false)
+		if bool(step.get("prompt", false)):
+			## xu4 ends the LB line with CHARSET_PROMPT.
+			_layout_prompt_row()
+			if _msg_cursor:
+				_msg_cursor.visible = true
+	_death_revive()
+
+
+func _death_wait(sec: float) -> void:
+	## Always-process timer so a paused tree / busy _process cannot stall death.
+	if sec <= 0.0:
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var t := tree.create_timer(sec, true, false, true)
+	await t.timeout
+
+
+func _abort_death_sequence() -> void:
+	## Never leave the player on a permanent black map pane.
+	_set_death_blackout(false)
+	_death_busy = false
+	if _msg_cursor:
+		_msg_cursor.visible = true
+	_layout_prompt_row()
+
+
+func _push_death_blank_lines(count: int) -> void:
+	for _i in count:
+		## `_push_message` rejects empty strings — space keeps a blank row.
+		_msg_lines.append(" ")
+	while _msg_lines.size() > MSG_KEEP:
+		_msg_lines.remove_at(0)
+	_refresh_message_view()
+
+
+func _death_centered_name() -> String:
+	## xu4: pad avatar name to TEXT_AREA_W (16) centered.
+	var name := GameState.party_member_display_name(0)
+	if name.length() >= DEATH_NAME_WIDTH:
+		return name
+	var spaces := int((DEATH_NAME_WIDTH - name.length()) / 2)
+	var pad := ""
+	for _i in spaces:
+		pad += " "
+	return pad + name
+
+
+func _set_death_blackout(on: bool) -> void:
+	## xu4 screenEraseMapArea — black over the map, UNDER message/roster panes.
+	## (MapPane children draw in tree order; never move_to_front or msgs vanish.)
+	if _map_pane == null or _map == null:
+		return
+	if on:
+		if _death_blackout == null or not is_instance_valid(_death_blackout):
+			_death_blackout = ColorRect.new()
+			_death_blackout.name = "DeathBlackout"
+			_death_blackout.color = Color.BLACK
+			_death_blackout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_death_blackout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			_map_pane.add_child(_death_blackout)
+		## Sit immediately above MapView; Left/Right panes stay later → on top.
+		var idx := _map.get_index() + 1
+		_map_pane.move_child(_death_blackout, clampi(idx, 0, _map_pane.get_child_count() - 1))
+		_death_blackout.visible = true
+	elif _death_blackout != null and is_instance_valid(_death_blackout):
+		_death_blackout.visible = false
+
+
+func _close_ui_for_death() -> void:
+	## Drop modal UIs so the message log owns the sequence.
+	## Avoid helpers that call `_finish_party_turn` (would re-enter death).
+	if _peer_overlay != null and _peer_overlay.is_open():
+		_peer_overlay.close_peer()
+	_close_ztats(false)
+	_close_ready(false)
+	_close_wear(false)
+	_mix_stage = 0
+	if _mix_panel:
+		_mix_panel.close_panel()
+	if _save_stage != 0:
+		_close_save(false)
+	if _esc_menu_is_open():
+		_close_esc_menu()
+	_camp_stage = 0
+	_camp_guard_klass = -1
+	_camp_rest_left = 0.0
+	_camp_map = null
+	if _map != null and _map.is_camping():
+		_map.exit_camp()
+	_chest_open_stage = 0
+	_telescope_stage = 0
+	_order_stage = 0
+	_ready_stage = 0
+	_wear_stage = 0
+	if _roster:
+		_roster.visible = true
+	_layout_prompt_row()
+
+
+func _death_revive() -> void:
+	## xu4 deathRevive — unwind to world, enter LCB-2 at throne, reviveParty.
+	## Always clear blackout/busy even if a later step fails.
+	_set_death_blackout(false)
+	## Leave city / camp without printing exit chatter.
+	if _map != null and _map.is_camping():
+		_map.exit_camp()
+	_camp_stage = 0
+	_camp_map = null
+	if _is_in_city():
+		_stash_emptied_city_chests()
+		_city_map = null
+		if _map != null:
+			_map.exit_city()
+	var portal := _WorldPortals.portal_for_fname("lcb_1.ult")
+	var world_pos := DEATH_LCB_WORLD
+	if not portal.is_empty() and portal.has("wx"):
+		world_pos = Vector2i(int(portal["wx"]), int(portal["wy"]))
+	_city_return_pos = world_pos
+	_tile_pos = world_pos
+	if _map != null:
+		_map.set_center(_tile_pos, false)
+		_map.clear_moongate()
+	## xu4 setTransport(avatar) — always on foot after revive.
+	_transport = Transport.FOOT
+	_transport_tile = -1
+	_horse_gallop = false
+	_ship_cruise_dir = Vector2i.ZERO
+	if _map != null:
+		_map.set_transport_tile(-1)
+	var path := _CityMapData.resolve_u4_file("lcb_2.ult")
+	var cmap = _CityMapData.new()
+	var entered := false
+	if not path.is_empty() and cmap.load_from_path(path):
+		_city_map = cmap
+		var start := DEATH_REVIVE_CASTLE
+		_tile_pos = start
+		var spawn := Vector2i(
+			int(portal.get("sx", 15)),
+			int(portal.get("sy", 30))
+		)
+		if _map != null:
+			_map.enter_city(cmap, start, world_pos, spawn)
+			_map.set_transport_tile(-1)
+			_map.clear_moongate()
+		entered = true
+	else:
+		push_warning("death revive: cannot load lcb_2.ult — staying at world LCB gate")
+	GameState.revive_party()
+	_refresh_party()
+	_refresh_inventory_bars()
+	_refresh_ship_hull_hud()
+	_sync_creatures_to_map()
+	_refresh_locate_hud()
+	_stamp_command_time()
+	_death_busy = false
+	if _msg_cursor:
+		_msg_cursor.visible = true
+	_layout_prompt_row()
+	if not entered and _map != null:
+		_map.set_center(_tile_pos, false)
 
 
 func _move_city_persons() -> void:
@@ -4833,7 +5073,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return false
-	if _moongate_busy or _cannon_busy or _search_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false
@@ -4846,6 +5086,9 @@ func _can_auto_pass() -> bool:
 
 func _is_party_asleep_locked() -> bool:
 	## xu4 immobilized party — waiting on Zzzzzz turn pump.
+	## All-dead also immobilizes; death sequence owns that state via `_death_busy`.
+	if _death_busy:
+		return true
 	return _immobilized_pending or GameState.is_party_immobilized()
 
 
@@ -5260,10 +5503,69 @@ func _push_message(line: String, with_prompt: bool = true) -> void:
 		return
 	if with_prompt and not line.begins_with(MSG_PROMPT):
 		line = MSG_PROMPT + line
-	_msg_lines.append(line)
+	## Labels are single-line + clip_text — wrap like xu4 screenMessage (panel width).
+	for part in _wrap_msg_text(line):
+		_msg_lines.append(part)
 	while _msg_lines.size() > MSG_KEEP:
 		_msg_lines.remove_at(0)
 	_refresh_message_view()
+
+
+func _msg_line_max_width() -> float:
+	## Usable width of a history Label inside the message block.
+	if _msg_block != null and _msg_block.size.x > 1.0:
+		return maxf(_msg_block.size.x - 2.0, 8.0)
+	if _msg_rw > 1.0:
+		return maxf(_msg_rw - float(MSG_INSET_X) * 2.0, 8.0)
+	return 220.0
+
+
+func _msg_font_size() -> int:
+	return clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE) if _msg_pitch > 0.0 else MSG_FONT_SIZE
+
+
+func _msg_text_width(text: String, font: Font, font_sz: int) -> float:
+	if font == null:
+		return float(text.length()) * float(font_sz) * 0.55
+	return font.get_string_size(
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
+	).x
+
+
+func _wrap_msg_text(text: String) -> PackedStringArray:
+	## Soft-wrap to the message pane (prefer spaces; else break mid-token / CJK).
+	var out: PackedStringArray = PackedStringArray()
+	if text.is_empty():
+		return out
+	var max_w := _msg_line_max_width()
+	var font := UiTheme.font()
+	var font_sz := _msg_font_size()
+	if _msg_text_width(text, font, font_sz) <= max_w:
+		out.append(text)
+		return out
+	var remaining := text
+	while not remaining.is_empty():
+		if _msg_text_width(remaining, font, font_sz) <= max_w:
+			out.append(remaining)
+			break
+		var fit := 0
+		for i in remaining.length():
+			if _msg_text_width(remaining.substr(0, i + 1), font, font_sz) > max_w:
+				break
+			fit = i + 1
+		if fit <= 0:
+			fit = 1
+		var chunk := remaining.substr(0, fit)
+		## Prefer last space so English wraps on words (xu4 screenMessage).
+		var sp := chunk.rfind(" ")
+		if sp > 0:
+			chunk = remaining.substr(0, sp)
+			remaining = remaining.substr(sp + 1)
+		else:
+			remaining = remaining.substr(fit)
+		if not chunk.is_empty():
+			out.append(chunk)
+	return out
 
 
 func _tick_world_clock(delta: float) -> void:

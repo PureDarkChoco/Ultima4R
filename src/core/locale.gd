@@ -751,6 +751,47 @@ const _T := {
 		"en_us": "Thy ship sinks!",
 		"ko": "배가 가라앉는다!",
 	},
+	## xu4 death.cpp — party wipe sequence (DeathController).
+	"death_all_is_dark": {
+		"en_u4": "All is Dark...",
+		"en_us": "All is Dark...",
+		"ko": "모든 것이 어둡다...",
+	},
+	"death_but_wait": {
+		"en_u4": "But wait...",
+		"en_us": "But wait...",
+		"ko": "그런데...",
+	},
+	"death_where_am_i": {
+		"en_u4": "Where am I?...",
+		"en_us": "Where am I?...",
+		"ko": "여긴 어디지?...",
+	},
+	"death_am_i_dead": {
+		"en_u4": "Am I dead?...",
+		"en_us": "Am I dead?...",
+		"ko": "내가 죽은 건가?...",
+	},
+	"death_afterlife": {
+		"en_u4": "Afterlife?...",
+		"en_us": "Afterlife?...",
+		"ko": "저승인가?...",
+	},
+	"death_you_hear": {
+		"en_u4": "You hear:",
+		"en_us": "You hear:",
+		"ko": "목소리가 들린다:",
+	},
+	"death_i_feel_motion": {
+		"en_u4": "I feel motion...",
+		"en_us": "I feel motion...",
+		"ko": "움직임이 느껴진다...",
+	},
+	"death_lord_british": {
+		"en_u4": "Lord British says: I have pulled thy spirit and some possessions from the void.  Be more careful in the future!",
+		"en_us": "Lord British says: I have pulled thy spirit and some possessions from the void.  Be more careful in the future!",
+		"ko": "로드 브리티시가 말한다: 허공에서 그대의 영혼과 일부 소지품을 끌어냈다. 앞으로는 더 조심하라!",
+	},
 	## xu4 Search (S) — game.cpp / item.cpp
 	"cmd_searching": {
 		"en_u4": "Searching...",

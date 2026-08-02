@@ -1412,7 +1412,7 @@ func damage_party_cannon(min_damage: int = 10, max_damage: int = 25) -> int:
 
 
 func kill_party() -> void:
-	## xu4 gameKillParty — all members HP 0 / DEAD (death sequence later).
+	## xu4 gameKillParty — all members HP 0 / DEAD (death sequence follows).
 	for i in party_size():
 		var mid := party_member_at(i)
 		if mid < 0:
@@ -1421,6 +1421,28 @@ func kill_party() -> void:
 			member_hp[mid] = 0
 		if mid < member_status.size():
 			member_status[mid] = PartyRoster.Status.DEAD
+		_set_poisoned(mid, false)
+
+
+func revive_party() -> void:
+	## xu4 Party::reviveParty — after death sequence at Lord British.
+	## Full HP / Good; pack weapons & armor wiped; food 200.99; gold 200.
+	## Equipped gear, karma, reagents, mixtures, quest items stay.
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0:
+			continue
+		_set_poisoned(mid, false)
+		if mid < member_status.size():
+			member_status[mid] = PartyRoster.Status.OK
+		if mid < member_hp.size() and mid < member_max_hp.size():
+			member_hp[mid] = int(member_max_hp[mid])
+	for w in range(1, weapons.size()):
+		weapons[w] = 0
+	for a in range(1, armor.size()):
+		armor[a] = 0
+	food = 20099
+	gold = 200
 
 
 func living_party_count() -> int:
