@@ -1,30 +1,27 @@
 extends Node
 
-## Allow only one Ultima4R process in release exports. Binds a localhost UDP
-## port for this node's lifetime. Editor / debug / headless never hard-quit on
-## a busy lock (stale agent/editor Godot processes often hold the port).
+## Allow only one GUI process. Exclusive localhost TCP bind for this node's life.
+## Headless (CI / --script) skips the lock.
 
 const LOCK_PORT := 47144
 const LOCK_ADDR := "127.0.0.1"
 
-var _sock: PacketPeerUDP
+var _server: TCPServer
 
 
 func _enter_tree() -> void:
-	if OS.has_feature("editor") or DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless":
 		return
-	_sock = PacketPeerUDP.new()
-	var err := _sock.bind(LOCK_PORT, LOCK_ADDR)
+	_server = TCPServer.new()
+	var err := _server.listen(LOCK_PORT, LOCK_ADDR)
 	if err == OK:
 		return
-	var msg := (
-		"Ultima4R is already running (single-instance lock on %s:%d, error %s)."
+	var title := str(ProjectSettings.get_setting("application/config/name", "Ultima IV++"))
+	var msg := "%s is already running.\n%s는 이미 실행 중입니다." % [title, title]
+	push_error(
+		"Single-instance lock busy on %s:%d (%s)."
 		% [LOCK_ADDR, LOCK_PORT, error_string(err)]
 	)
-	# Release export only — otherwise a leftover Godot makes the game "start then die".
-	if OS.has_feature("release") and OS.has_feature("template"):
-		push_error(msg)
-		get_tree().quit()
-		return
-	push_warning(msg + " Continuing anyway (non-release).")
-	_sock = null
+	OS.alert(msg, title)
+	get_tree().quit()
+	_server = null
