@@ -1256,6 +1256,38 @@ func _on_sides_opened() -> void:
 	_refresh_message_view()
 
 
+func _await_side_tween() -> void:
+	## Wait out an in-flight side-panel open/close tween (if any).
+	if _side_tween != null and is_instance_valid(_side_tween) and _side_tween.is_running():
+		await _side_tween.finished
+
+
+func _open_sides_for_combat() -> void:
+	## If panels were closed, animate open before the arena appears.
+	_combat_saved_sides_open = _sides_open
+	_order_opened_roster = false
+	var need_anim := not _sides_open
+	_sides_open = true
+	if need_anim:
+		_refresh_party()
+		_layout_side_panels(true)
+		await _await_side_tween()
+	else:
+		_layout_side_panels(false)
+
+
+func _restore_sides_after_combat() -> void:
+	## After the world map is back: snap open, or animate closed if that was the prior state.
+	_order_opened_roster = false
+	if _combat_saved_sides_open:
+		_sides_open = true
+		_layout_side_panels(false)
+	else:
+		_sides_open = false
+		_layout_side_panels(true)
+		await _await_side_tween()
+
+
 func _toggle_side_panels() -> void:
 	_cancel_order_roster_close()
 	_order_opened_roster = false
@@ -2963,7 +2995,7 @@ func _update_world_creatures() -> void:
 		if foe.is_empty():
 			foe = attacker
 		_sync_creatures_to_map()
-		_begin_combat(foe, false)
+		await _begin_combat(foe, false)
 		return
 	if _world_creatures.cleanup(_tile_pos):
 		changed = true
@@ -5195,7 +5227,7 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	var result := ""
 	match cmd:
 		U4Commands.Id.ATTACK:
-			result = _do_attack(dir)
+			result = await _do_attack(dir)
 			## Engaging combat replaces finishTurn (xu4 CombatController push).
 			if _combat_active:
 				if not result.is_empty():
@@ -5241,7 +5273,7 @@ func _do_attack(dir: Vector2i) -> String:
 	if foe.is_empty():
 		return Locale.t("cmd_nothing_to_attack")
 	_sync_creatures_to_map()
-	_begin_combat(foe, true)
+	await _begin_combat(foe, true)
 	return ""
 
 
@@ -5277,11 +5309,10 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 			_sync_creatures_to_map()
 		_push_message(Locale.t("cmd_nothing_to_attack"), false)
 		return
-	## Force both side panels open; restore on exit.
-	_combat_saved_sides_open = _sides_open
-	_sides_open = true
-	_order_opened_roster = false
-	_layout_side_panels(false)
+	## Lock input; open side panels first when they were closed, then swap the map.
+	_combat_active = true
+	_combat_resolving = true
+	await _open_sides_for_combat()
 	## Place living party on .CON player_start slots.
 	var party_units: Array = []
 	for i in GameState.party_size():
@@ -5325,7 +5356,6 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 		_map.enter_combat(cmap, party_units, foe_units)
 		## First living party member has the turn (xu4 beginCombat focus).
 		_map.set_combat_focus(0 if not party_units.is_empty() else -1)
-	_combat_active = true
 	if not initiated_by_party:
 		var nm := _WorldCreaturesScript.display_name(foe_tid)
 		_push_message(Locale.t("cmd_attacked_by", [nm]), false)
@@ -5334,6 +5364,7 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	_refresh_foe_roster()
 	_sync_combat_focus_roster()
 	_stamp_command_time()
+	_combat_resolving = false
 
 
 func _end_combat_stub() -> void:
@@ -5343,20 +5374,20 @@ func _end_combat_stub() -> void:
 	if not _combat_active:
 		return
 	_combat_clear_aim_state()
-	_combat_resolving = false
+	_combat_resolving = true
 	if _map != null:
 		_map.exit_combat()
-	_combat_active = false
 	_combat_foe = {}
 	if _foe_roster:
 		_foe_roster.clear()
 	if _roster:
 		_roster.clear_order_selection()
-	_sides_open = _combat_saved_sides_open
-	_layout_side_panels(false)
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
 	_push_message(Locale.t("cmd_combat_stub_leave"), false)
+	await _restore_sides_after_combat()
+	_combat_active = false
+	_combat_resolving = false
 	_stamp_command_time()
 
 
@@ -5378,7 +5409,7 @@ func _end_combat_won() -> void:
 	if not _combat_active:
 		return
 	_combat_clear_aim_state()
-	_combat_resolving = false
+	_combat_resolving = true
 	var engaged_tid := int(_combat_foe.get("tile", 0))
 	var foe_pos := Vector2i(
 		int(_combat_foe.get("x", _tile_pos.x)),
@@ -5387,14 +5418,11 @@ func _end_combat_won() -> void:
 	var foe_facing := int(_combat_foe.get("facing", 0))
 	if _map != null:
 		_map.exit_combat()
-	_combat_active = false
 	_combat_foe = {}
 	if _foe_roster:
 		_foe_roster.clear()
 	if _roster:
 		_roster.clear_order_selection()
-	_sides_open = _combat_saved_sides_open
-	_layout_side_panels(false)
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
 	_push_message(Locale.t("cmd_victory"), false)
@@ -5403,6 +5431,9 @@ func _end_combat_won() -> void:
 	if _WorldCreaturesScript.is_evil(engaged_tid):
 		GameState.adjust_karma_killed_evil()
 	_refresh_party()
+	await _restore_sides_after_combat()
+	_combat_active = false
+	_combat_resolving = false
 	_stamp_command_time()
 
 
@@ -5435,6 +5466,11 @@ func _handle_combat_input(event: InputEvent) -> bool:
 		_end_combat_stub()
 		return true
 	if _combat_resolving:
+		return true
+	## Sleeping / dead focus — auto-pass (wake checked when focus lands).
+	var focus_klass := _map.get_combat_focus_klass() if _map != null else -1
+	if focus_klass >= 0 and GameState.is_member_disabled(focus_klass):
+		_combat_finish_member_turn()
 		return true
 	if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
 		_push_message(Locale.t("cmd_pass"), false)
@@ -5581,10 +5617,15 @@ func _combat_move_aim(dir: Vector2i) -> void:
 
 func _combat_confirm_aim() -> void:
 	## Strike the aimed tile, then end the member's turn (xu4 attack already spent).
+	## Self-tile confirm: reject and keep aiming.
 	if not _combat_aiming or _map == null:
 		return
 	var target := _combat_aim_pos
 	var from := _combat_aim_from
+	if target == from:
+		_push_message(Locale.t("cmd_cannot_attack"), false)
+		_layout_prompt_row()
+		return
 	var wid := _combat_aim_weapon
 	var klass := _map.get_combat_focus_klass()
 	_combat_aiming = false
@@ -5625,7 +5666,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		and (WeaponIcons.is_absolute_range(wid) or dist > 1)
 	)
 	if use_proj:
-		await _combat_resolve_ranged_attack(klass, from, target, aim_foe_i, aim_ally_i)
+		await _combat_resolve_ranged_attack(klass, wid, from, target, aim_foe_i, aim_ally_i)
 	else:
 		await _combat_resolve_melee_attack(klass, target, aim_foe_i, aim_ally_i, found_target)
 
@@ -5643,7 +5684,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		_combat_resolving = false
 		return
 	if _map.is_combat_won():
-		_end_combat_won()
+		await _end_combat_won()
 		return
 	## Finish turn without the usual entry guard (we already set resolving).
 	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
@@ -5651,7 +5692,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		_combat_resolving = false
 		return
 	if _map.is_combat_lost():
-		_end_combat_lost()
+		await _end_combat_lost()
 		return
 	var still_party := _map.advance_combat_focus()
 	if still_party:
@@ -5664,10 +5705,10 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		_combat_resolving = false
 		return
 	if _map.is_combat_lost():
-		_end_combat_lost()
+		await _end_combat_lost()
 		return
 	if _map.is_combat_won():
-		_end_combat_won()
+		await _end_combat_won()
 		return
 	_map.set_combat_focus(0)
 	_refresh_foe_roster()
@@ -5685,13 +5726,10 @@ func _combat_resolve_melee_attack(
 ) -> void:
 	if not found_target:
 		_push_message(Locale.t("cmd_missed"), false)
-		if _map != null and target != Vector2i(-1, -1):
-			await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 		return
 	if foe_i >= 0:
 		if not GameState.party_attack_hits(klass):
 			_push_message(Locale.t("cmd_missed"), false)
-			await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 			return
 		await _combat_apply_foe_hit(klass, foe_i, target)
 		return
@@ -5701,20 +5739,23 @@ func _combat_resolve_melee_attack(
 	var defense := GameState.party_member_defense(def_klass)
 	if not GameState.party_attack_hits_defense(klass, defense):
 		_push_message(Locale.t("cmd_missed"), false)
-		await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 		return
 	await _combat_apply_ally_hit(klass, ally_i, target)
 
 
 func _combat_resolve_ranged_attack(
-	klass: int, from: Vector2i, target: Vector2i, aim_foe_i: int, aim_ally_i: int
+	klass: int,
+	wid: int,
+	from: Vector2i,
+	target: Vector2i,
+	aim_foe_i: int,
+	aim_ally_i: int
 ) -> void:
-	## xu4 hit roll first. On miss: "명중 미스" or "빗나감" (8-adj, 50% if unit).
+	## xu4 hit roll first. On miss: projectile still flies; no miss-flash VFX.
 	const SCATTER_HIT_CHANCE := 0.5
 	if aim_foe_i < 0 and aim_ally_i < 0:
-		await _map.await_combat_projectile(from, target)
+		await _map.await_combat_projectile(from, target, wid)
 		_push_message(Locale.t("cmd_missed"), false)
-		await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 		return
 
 	var hits := false
@@ -5726,7 +5767,7 @@ func _combat_resolve_ranged_attack(
 		hits = GameState.party_attack_hits_defense(klass, GameState.party_member_defense(def0))
 
 	if hits:
-		await _map.await_combat_projectile(from, target)
+		await _map.await_combat_projectile(from, target, wid)
 		if aim_foe_i >= 0:
 			await _combat_apply_foe_hit(klass, aim_foe_i, target)
 		else:
@@ -5735,12 +5776,18 @@ func _combat_resolve_ranged_attack(
 
 	var scatter_miss := randf() < GameState.miss_scatter_chance(klass)
 	if scatter_miss:
-		var scatter := _combat_pick_scatter_tile(target)
+		## Never scatter onto the shooter (common when foe is adjacent).
+		var scatter := _combat_pick_scatter_tile(target, from)
 		if scatter.x < 0:
 			scatter = target
-		await _map.await_combat_projectile(from, scatter)
+		await _map.await_combat_projectile(from, scatter, wid)
 		var scatter_foe := _map.combat_foe_index_at(scatter)
 		var scatter_ally := _map.combat_party_index_at(scatter) if scatter_foe < 0 else -1
+		## Defensive: ignore self even if somehow selected.
+		if scatter_ally >= 0:
+			var ally_u := _map.get_combat_party_unit(scatter_ally)
+			if int(ally_u.get("klass", -1)) == klass or scatter == from:
+				scatter_ally = -1
 		if scatter_foe >= 0 or scatter_ally >= 0:
 			if randf() < SCATTER_HIT_CHANCE:
 				if scatter_foe >= 0:
@@ -5750,20 +5797,17 @@ func _combat_resolve_ranged_attack(
 					await _combat_apply_ally_hit(klass, scatter_ally, scatter)
 			else:
 				_push_message(Locale.t("cmd_missed"), false)
-				await _map.await_flash_combat_tile(scatter, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 		else:
 			_push_message(Locale.t("cmd_missed"), false)
-			await _map.await_flash_combat_tile(scatter, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 		return
 
-	## 명중 미스 — shot reaches the aimed tile but does not connect.
-	await _map.await_combat_projectile(from, target)
+	## 명중 미스 — shot reaches the tile; text only (no miss flash).
+	await _map.await_combat_projectile(from, target, wid)
 	_push_message(Locale.t("cmd_missed"), false)
-	await _map.await_flash_combat_tile(target, MapView.TILE_MISS_FLASH, COMBAT_HIT_FLASH_SEC)
 
 
-func _combat_pick_scatter_tile(center: Vector2i) -> Vector2i:
-	## One of the 8 neighbors (in-bounds). Empty Vector2i(-1,-1) if none.
+func _combat_pick_scatter_tile(center: Vector2i, exclude: Vector2i = Vector2i(-999, -999)) -> Vector2i:
+	## One of the 8 neighbors (in-bounds), never `exclude` (usually the shooter).
 	var opts: Array[Vector2i] = []
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
@@ -5771,6 +5815,8 @@ func _combat_pick_scatter_tile(center: Vector2i) -> Vector2i:
 				continue
 			var p := Vector2i(center.x + dx, center.y + dy)
 			if p.x < 0 or p.y < 0 or p.x >= _CombatMapData.WIDTH or p.y >= _CombatMapData.HEIGHT:
+				continue
+			if p == exclude:
 				continue
 			opts.append(p)
 	if opts.is_empty():
@@ -5894,11 +5940,13 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		_combat_resolving = false
 		return
 	if _map.is_combat_lost():
-		_end_combat_lost()
+		await _end_combat_lost()
 		return
 	var still_party := (
 		_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
 	)
+	if still_party:
+		still_party = await _combat_focus_able_member(false)
 	if still_party:
 		_sync_combat_focus_roster()
 		_refresh_party()
@@ -5909,23 +5957,69 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	if not _combat_active or _map == null or not _map.is_in_combat():
 		_combat_resolving = false
 		return
+	if _map.is_combat_won():
+		await _end_combat_won()
+		return
 	if _map.is_combat_lost():
-		_end_combat_lost()
+		await _end_combat_lost()
 		return
 	_map.set_combat_focus(0)
+	if not await _combat_focus_able_member(true):
+		## Entire party disabled — foes act again.
+		await _combat_run_foe_phase()
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			_combat_resolving = false
+			return
+		if _map.is_combat_won():
+			await _end_combat_won()
+			return
+		if _map.is_combat_lost():
+			await _end_combat_lost()
+			return
+		_map.set_combat_focus(0)
 	_refresh_foe_roster()
 	_sync_combat_focus_roster()
 	_refresh_party()
 	_combat_resolving = false
 
 
+func _combat_focus_able_member(from_start: bool) -> bool:
+	## Skip sleeping/dead focus; 1/8 wake chance (xu4 sleep). false = no able member.
+	if _map == null or not _map.is_in_combat():
+		return false
+	var guard := 16
+	while guard > 0:
+		guard -= 1
+		var klass := _map.get_combat_focus_klass()
+		if klass < 0:
+			return false
+		if GameState.status_of_class(klass) == PartyRoster.Status.SLEEPING:
+			if (randi() % 8) == 0:
+				GameState.wake_member(klass)
+		if not GameState.is_member_disabled(klass):
+			return true
+		## Disabled — pass this member (no message spam).
+		if from_start:
+			if not _map.advance_combat_focus():
+				return false
+		else:
+			if not _map.advance_combat_focus():
+				return false
+		from_start = false
+	return false
+
+
 func _combat_run_foe_phase() -> void:
-	## Each living foe: show focus → act → gap (xu4 act + screenWait per creature).
+	## Each living foe: show focus → act (melee/ranged/flee/advance) → gap.
 	if _map == null:
 		return
 	var indices: Array[int] = _map.living_combat_foe_indices()
 	for i in indices:
 		if not _combat_active or _map == null:
+			return
+		if _map.is_combat_lost():
+			return
+		if _map.is_combat_won():
 			return
 		_map.set_combat_foe_focus(i)
 		if _roster:
@@ -5933,10 +6027,145 @@ func _combat_run_foe_phase() -> void:
 		await get_tree().create_timer(COMBAT_TURN_GAP * 0.55).timeout
 		if not _combat_active or _map == null:
 			return
-		_map.move_combat_creature_at(i)
+		var plan: Dictionary = _map.act_combat_creature_at(i)
+		await _combat_resolve_foe_act(plan)
+		_refresh_foe_roster()
+		_refresh_party()
+		if not _combat_active or _map == null:
+			return
+		if _map.is_combat_won() or _map.is_combat_lost():
+			return
 		await get_tree().create_timer(COMBAT_TURN_GAP).timeout
 	if _map != null:
 		_map.clear_combat_foe_focus()
+
+
+func _combat_resolve_foe_act(plan: Dictionary) -> void:
+	## Animate / apply results from MapView.act_combat_creature_at.
+	if _map == null or plan.is_empty():
+		return
+	var action := str(plan.get("action", "none"))
+	match action:
+		"melee":
+			await _combat_resolve_foe_melee(plan)
+		"ranged":
+			await _combat_resolve_foe_ranged(plan)
+		"cast_sleep":
+			await _combat_resolve_foe_cast_sleep()
+		"fled":
+			_combat_resolve_foe_fled(plan)
+		_:
+			pass
+
+
+func _combat_resolve_foe_melee(plan: Dictionary) -> void:
+	var party_i := int(plan.get("party_i", -1))
+	var klass := int(plan.get("klass", -1))
+	var at: Vector2i = plan.get("to", Vector2i.ZERO)
+	var tid := int(plan.get("tile", 0))
+	var base_hp := int(plan.get("base_hp", 64))
+	if party_i < 0 or klass < 0:
+		return
+	## Re-resolve in case the unit fled/died earlier this phase.
+	var unit := _map.get_combat_party_unit(party_i)
+	if unit.is_empty():
+		return
+	klass = int(unit.get("klass", klass))
+	at = Vector2i(int(unit.get("x", at.x)), int(unit.get("y", at.y)))
+	var defense := GameState.party_member_defense(klass)
+	var hits := _WorldCreaturesScript.creature_attack_hits(defense)
+	if hits:
+		var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
+		GameState.apply_member_damage(klass, dmg)
+		await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+		if _WorldCreaturesScript.steals_gold(tid) and (randi() % 4) == 0:
+			GameState.adjust_gold(-(randi() % 0x3f))
+		if _WorldCreaturesScript.steals_food(tid):
+			GameState.adjust_food(-2500)
+		if GameState.status_of_class(klass) == PartyRoster.Status.DEAD:
+			var slot := int(unit.get("party_slot", -1))
+			var nm := (
+				GameState.party_member_display_name(slot)
+				if slot >= 0
+				else Virtues.class_name_of(klass, GameState.lang_short())
+			)
+			_push_message(Locale.t("cmd_killed", [nm]), false)
+			_map.remove_combat_party_at(party_i)
+	else:
+		_push_message(Locale.t("cmd_missed"), false)
+	_refresh_party()
+	_sync_combat_focus_roster()
+
+
+func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
+	## Free-aim shot (same LOF / projectile as party ranged); xu4 monsters never miss.
+	var from: Vector2i = plan.get("from", Vector2i.ZERO)
+	var to: Vector2i = plan.get("to", Vector2i.ZERO)
+	var party_i := int(plan.get("party_i", -1))
+	var klass := int(plan.get("klass", -1))
+	var base_hp := int(plan.get("base_hp", 64))
+	var effect := str(plan.get("effect", "damage"))
+	if party_i < 0 or klass < 0:
+		return
+	var unit := _map.get_combat_party_unit(party_i)
+	if unit.is_empty():
+		return
+	klass = int(unit.get("klass", klass))
+	to = Vector2i(int(unit.get("x", to.x)), int(unit.get("y", to.y)))
+	await _map.await_combat_projectile(from, to)
+	await _map.await_flash_combat_tile(to, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+	match effect:
+		"poison":
+			if GameState.try_poison_class(klass):
+				_push_message(Locale.t("cmd_poisoned"), false)
+		"sleep":
+			if GameState.try_sleep_class(klass):
+				_push_message(Locale.t("cmd_combat_sleep"), false)
+		_:
+			## damage / energy — always connect (xu4 rangedAttack).
+			var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
+			GameState.apply_member_damage(klass, dmg)
+			if GameState.status_of_class(klass) == PartyRoster.Status.DEAD:
+				var slot := int(unit.get("party_slot", -1))
+				var nm := (
+					GameState.party_member_display_name(slot)
+					if slot >= 0
+					else Virtues.class_name_of(klass, GameState.lang_short())
+				)
+				_push_message(Locale.t("cmd_killed", [nm]), false)
+				_map.remove_combat_party_at(party_i)
+	_refresh_party()
+	_sync_combat_focus_roster()
+
+
+func _combat_resolve_foe_cast_sleep() -> void:
+	## xu4 CA_CAST_SLEEP — 50% each living non-disabled member (poisoned immune).
+	_push_message(Locale.t("cmd_combat_sleep"), false)
+	if _map == null:
+		return
+	var n := _map.combat_party_count()
+	for i in range(n - 1, -1, -1):
+		var unit := _map.get_combat_party_unit(i)
+		var klass := int(unit.get("klass", -1))
+		if klass < 0:
+			continue
+		if GameState.is_member_disabled(klass):
+			continue
+		if GameState.status_of_class(klass) == PartyRoster.Status.POISONED:
+			continue
+		GameState.try_sleep_class(klass)
+	_refresh_party()
+	_sync_combat_focus_roster()
+	await get_tree().create_timer(COMBAT_HIT_FLASH_SEC).timeout
+
+
+func _combat_resolve_foe_fled(plan: Dictionary) -> void:
+	var tid := int(plan.get("tile", 0))
+	var nm := _WorldCreaturesScript.display_name(tid)
+	_push_message(Locale.t("cmd_foe_flees", [nm]), false)
+	if _WorldCreaturesScript.is_good(tid):
+		GameState.adjust_karma_spared_good()
+	_refresh_party()
 
 
 func _end_combat_lost() -> void:
@@ -5945,20 +6174,17 @@ func _end_combat_lost() -> void:
 	if not _combat_active:
 		return
 	_combat_clear_aim_state()
-	_combat_resolving = false
+	_combat_resolving = true
 	var engaged_tid := int(_combat_foe.get("tile", 0))
 	var evil := _WorldCreaturesScript.is_evil(engaged_tid)
 	var good := _WorldCreaturesScript.is_good(engaged_tid)
 	if _map != null:
 		_map.exit_combat()
-	_combat_active = false
 	_combat_foe = {}
 	if _foe_roster:
 		_foe_roster.clear()
 	if _roster:
 		_roster.clear_order_selection()
-	_sides_open = _combat_saved_sides_open
-	_layout_side_panels(false)
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
 	if evil:
@@ -5966,8 +6192,11 @@ func _end_combat_lost() -> void:
 		GameState.adjust_karma_fled_evil()
 	elif good:
 		GameState.adjust_karma_fled_good()
-	_stamp_command_time()
 	_refresh_party()
+	await _restore_sides_after_combat()
+	_combat_active = false
+	_combat_resolving = false
+	_stamp_command_time()
 
 
 func _is_in_combat() -> bool:

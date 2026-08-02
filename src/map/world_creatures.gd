@@ -297,6 +297,88 @@ static func is_pirate_ship(tile_or_base: int) -> bool:
 	return _base_tile(tile_or_base) == TILE_PIRATE
 
 
+## xu4 config.b `ranged: true` wilderness creatures (combat free-aim).
+const _RANGED_TILES := {
+	132: true, ## Nixie
+	134: true, ## Giant Squid
+	136: true, ## Sea Serpent
+	138: true, ## Seahorse
+	152: true, ## Spider
+	164: true, ## Troll
+	172: true, ## Mimic
+	176: true, ## Reaper
+	184: true, ## Gazer
+	204: true, ## Python
+	208: true, ## Ettin
+	216: true, ## Cyclops
+	224: true, ## Evil Mage
+	228: true, ## Liche
+	232: true, ## Lava Lizard
+	240: true, ## Daemon
+	244: true, ## Hydra
+	248: true, ## Dragon
+	252: true, ## Balron
+}
+
+## Ranged hit effect: damage | poison | sleep | energy (all deal damage except status fields).
+const _RANGED_EFFECT := {
+	134: "energy", ## Squid — energy field
+	152: "poison", ## Spider
+	172: "poison", ## Mimic
+	176: "sleep", ## Reaper (random fields → treat as sleep/cast kit)
+	184: "sleep", ## Gazer
+	204: "poison", ## Python
+	252: "sleep", ## Balron
+}
+
+const _STEALS_GOLD := {200: true} ## Rogue
+const _STEALS_FOOD := {168: true} ## Gremlin
+const _CASTS_SLEEP := {176: true, 252: true} ## Reaper, Balron
+
+## xu4 Creature::getState — flee when current HP drops below this.
+const FLEE_HP := 24
+## Combat free-aim range (covers 11×11 .CON; player-style aim_distance).
+const COMBAT_RANGED_RANGE := 11
+
+
+static func is_ranged(tile_or_base: int) -> bool:
+	return bool(_RANGED_TILES.get(_base_tile(tile_or_base), false))
+
+
+static func ranged_effect(tile_or_base: int) -> String:
+	## damage (default), poison, sleep, energy.
+	return str(_RANGED_EFFECT.get(_base_tile(tile_or_base), "damage"))
+
+
+static func steals_gold(tile_or_base: int) -> bool:
+	return bool(_STEALS_GOLD.get(_base_tile(tile_or_base), false))
+
+
+static func steals_food(tile_or_base: int) -> bool:
+	return bool(_STEALS_FOOD.get(_base_tile(tile_or_base), false))
+
+
+static func casts_sleep(tile_or_base: int) -> bool:
+	return bool(_CASTS_SLEEP.get(_base_tile(tile_or_base), false))
+
+
+static func is_fleeing_hp(hp: int) -> bool:
+	## xu4 MSTAT_FLEEING — all creatures (not humanoid-only).
+	return hp > 0 and hp < FLEE_HP
+
+
+static func creature_attack_damage(base_hp: int) -> int:
+	## xu4 Creature::getDamage — random(basehp/4) → tens*10 + ones.
+	var bh := maxi(1, base_hp)
+	var x := randi() % maxi(1, bh >> 2)
+	return (x >> 4) * 10 + (x % 10)
+
+
+static func creature_attack_hits(defense: int) -> bool:
+	## xu4 attackHit — creature attackBonus 0 vs party armor defense.
+	return (randi() % 0x100) > defense
+
+
 func apply_cannon_damage_at(tile: Vector2i) -> Dictionary:
 	## Player cannon hit — ~1/4 max HP per shot so the bar reads ~4 hits to kill.
 	for i in creatures.size():

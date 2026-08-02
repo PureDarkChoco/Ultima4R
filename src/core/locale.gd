@@ -287,10 +287,30 @@ const _T := {
 		"en_us": "%s killed!",
 		"ko": "%s 처치!",
 	},
+	"cmd_foe_flees": {
+		"en_u4": "%s Flees!",
+		"en_us": "%s Flees!",
+		"ko": "%s 도망친다!",
+	},
+	"cmd_combat_sleep": {
+		"en_u4": "Sleep!",
+		"en_us": "Sleep!",
+		"ko": "수면!",
+	},
+	"cmd_poisoned": {
+		"en_u4": "Poisoned!",
+		"en_us": "Poisoned!",
+		"ko": "중독!",
+	},
 	"cmd_attack_aim": {
 		"en_u4": "Aim: ",
 		"en_us": "Aim: ",
 		"ko": "조준: ",
+	},
+	"cmd_cannot_attack": {
+		"en_u4": "Cannot!",
+		"en_us": "Cannot!",
+		"ko": "공격 불가!",
 	},
 	"cmd_last_one": {
 		"en_u4": "Last One!",

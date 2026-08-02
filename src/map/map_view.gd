@@ -89,6 +89,8 @@ const HORSE_RIDER_W_PATH := "res://assets/tiles/horse_rider_w.png"
 const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
 ## Cannonball: black_pearl ~12×12, centered on transparent 32×32.
 const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
+## Sling stone — source art scaled to 1/4 (8×8 from 32×32).
+const SLING_MISSILE_PATH := "res://assets/ui/weapons/sling_missile.png"
 ## Camp map / sleeping corpse (shapes index — graphics.b tile_corpse).
 const CAMP_W: int = _CombatMapDataScript.WIDTH
 const CAMP_H: int = _CombatMapDataScript.HEIGHT
@@ -140,6 +142,7 @@ var _tile_flashes: Array[Dictionary] = []
 ## Flying cannonball in unwrapped tile-space (center): { x, y } or empty.
 var _cannon_proj: Dictionary = {}
 var _cannonball_img: Image
+var _sling_missile_img: Image
 ## Active Trammel moongate annotation (world map only).
 var _moongate_pos := Vector2i(-1, -1)
 var _moongate_tid := -1
@@ -215,6 +218,9 @@ const COMBAT_MOVE_OK := 0
 const COMBAT_MOVE_BLOCKED := 1
 const COMBAT_MOVE_SLOWED := 2
 const COMBAT_MOVE_FLED := 3
+const _DIRS_COMBAT: Array[Vector2i] = [
+	Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0),
+]
 ## Last unit removed by fleeing off the .CON edge (for karma).
 var _combat_last_fled: Dictionary = {}
 ## U5-style attack aim cursor (combat-local tile), or (−1,−1) when off.
@@ -267,6 +273,7 @@ func _ready() -> void:
 	_ensure_buffers()
 	_load_horse_rider_assets()
 	_cannonball_img = _load_image_path(CANNONBALL_PATH)
+	_sling_missile_img = _load_image_path(SLING_MISSILE_PATH)
 	texture = _tex
 
 
@@ -773,8 +780,9 @@ func await_flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12
 		await tree.create_timer(dur).timeout
 
 
-func await_combat_projectile(from: Vector2i, to: Vector2i) -> void:
+func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> void:
 	## Cannon-style flight in combat-local coords (straight line, any angle).
+	## `weapon_id` selects a custom missile sprite (e.g. sling stone).
 	if from == to:
 		return
 	var delta := to - from
@@ -784,7 +792,7 @@ func await_combat_projectile(from: Vector2i, to: Vector2i) -> void:
 	var duration := float(steps) * CANNON_SEC_PER_TILE
 	var start := Vector2(from) + Vector2(0.5, 0.5)
 	var finish := Vector2(to) + Vector2(0.5, 0.5)
-	_combat_proj = {"x": start.x, "y": start.y}
+	_combat_proj = {"x": start.x, "y": start.y, "wid": weapon_id}
 	_rebuild()
 	var tween := create_tween()
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
@@ -859,23 +867,131 @@ func refocus_after_flee() -> bool:
 	return true
 
 
-func move_combat_creature_at(index: int) -> bool:
-	## xu4 Creature::act CA_ADVANCE for one foe (no attack yet).
-	if _combat_map == null or _combat_party.is_empty():
-		return false
+func remove_combat_foe_at(index: int) -> Dictionary:
+	## Flee / death — mark foe dead so living_* / is_combat_won ignore it.
 	if index < 0 or index >= _combat_foes.size():
+		return {}
+	var f: Dictionary = _combat_foes[index]
+	f["hp"] = 0
+	_combat_foes[index] = f
+	if _combat_map != null:
+		_rebuild()
+	return f.duplicate(true)
+
+
+func act_combat_creature_at(index: int) -> Dictionary:
+	## xu4 Creature::act — decide + apply movement. Melee/ranged need FX then resolve.
+	## Returns { action, index, from, to, party_i, klass, tile, base_hp, effect }.
+	var out := {
+		"action": "none",
+		"index": index,
+		"from": Vector2i.ZERO,
+		"to": Vector2i.ZERO,
+		"party_i": -1,
+		"klass": -1,
+		"tile": 0,
+		"base_hp": 0,
+		"effect": "damage",
+	}
+	if _combat_map == null or _combat_party.is_empty():
+		return out
+	if index < 0 or index >= _combat_foes.size():
+		return out
+	var foe: Dictionary = _combat_foes[index]
+	var hp := int(foe.get("hp", 1))
+	if hp <= 0:
+		return out
+	var from := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
+	var tid := int(foe.get("tile", 0))
+	var base_hp := maxi(1, int(foe.get("max_hp", _WorldCreaturesScript.base_hp_for(tid))))
+	out["from"] = from
+	out["tile"] = tid
+	out["base_hp"] = base_hp
+	## 1/4: free-aim ranged (player-style target + LOF), if capable.
+	if (
+		_WorldCreaturesScript.is_ranged(tid)
+		and (randi() % 4) == 0
+	):
+		var ranged := _combat_pick_ranged_target(from)
+		if ranged.party_i >= 0:
+			out["action"] = "ranged"
+			out["to"] = ranged.pos
+			out["party_i"] = ranged.party_i
+			out["klass"] = ranged.klass
+			out["effect"] = _WorldCreaturesScript.ranged_effect(tid)
+			return out
+	## 1/4: cast sleep (Reaper / Balron) when not ranging.
+	if _WorldCreaturesScript.casts_sleep(tid) and (randi() % 4) == 0:
+		out["action"] = "cast_sleep"
+		return out
+	## Low HP — flee toward map edge (xu4 MSTAT_FLEEING, all species).
+	if _WorldCreaturesScript.is_fleeing_hp(hp):
+		var away := _nearest_combat_party(from)
+		if away.x < 0:
+			return out
+		return _combat_apply_flee_step(index, from, away, out)
+	## Default: melee at Chebyshev 1 (8-adjacent, same as party), else advance.
+	var near := _nearest_combat_party_info(from, true)
+	if near.party_i < 0:
+		return out
+	if _WeaponIconsScript.chebyshev(from, near.pos) == 1:
+		out["action"] = "melee"
+		out["to"] = near.pos
+		out["party_i"] = near.party_i
+		out["klass"] = near.klass
+		return out
+	if _combat_apply_advance_step(index, from, near.pos):
+		out["action"] = "advance"
+		out["to"] = Vector2i(int(_combat_foes[index].get("x", from.x)), int(_combat_foes[index].get("y", from.y)))
+	return out
+
+
+func move_combat_creature_at(index: int) -> bool:
+	## Advance-only step (prefer act_combat_creature_at for full AI).
+	if index < 0 or index >= _combat_foes.size() or _combat_party.is_empty():
 		return false
 	var foe: Dictionary = _combat_foes[index]
 	if int(foe.get("hp", 1)) <= 0:
 		return false
 	var from := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
-	var target := _nearest_combat_party(from)
-	if target.x < 0:
+	var near := _nearest_combat_party_info(from, true)
+	if near.party_i < 0:
 		return false
-	## xu4: do not leave the arena while advancing.
+	return _combat_apply_advance_step(index, from, near.pos)
+
+
+func _combat_pick_ranged_target(from: Vector2i) -> Dictionary:
+	## Player-style free aim: any living party in range with clear LOF; prefer nearest.
+	var best := {"party_i": -1, "klass": -1, "pos": Vector2i(-1, -1), "dist": 1_000_000}
+	for i in _combat_party.size():
+		var p: Dictionary = _combat_party[i]
+		var klass := int(p.get("klass", -1))
+		if klass >= 0 and GameState.is_class_dead(klass):
+			continue
+		var pos := Vector2i(int(p.get("x", 0)), int(p.get("y", 0)))
+		if pos == from:
+			continue
+		var dist := _WeaponIconsScript.aim_distance(from, pos)
+		if dist < 1 or dist > _WorldCreaturesScript.COMBAT_RANGED_RANGE:
+			continue
+		if not combat_shot_line_clear(from, pos):
+			continue
+		var better := dist < int(best.dist)
+		if dist == int(best.dist) and (randi() % 2) == 0:
+			better = true
+		if better:
+			best = {"party_i": i, "klass": klass, "pos": pos, "dist": dist}
+	return best
+
+
+func _combat_apply_advance_step(index: int, from: Vector2i, target: Vector2i) -> bool:
+	## One ortho step closer for 8-way melee: minimize Chebyshev first so a
+	## diagonal neighbor (cheb==1) is a valid end state — not only side-hugs.
 	var dirs := _combat_advance_dirs(from)
 	var best := Vector2i.ZERO
-	var best_dist := _combat_manhattan(from, target)
+	var best_cheb := _WeaponIconsScript.chebyshev(from, target)
+	var best_manh := _combat_manhattan(from, target)
+	var improved := false
 	for d in dirs:
 		var dest := from + d
 		if not _combat_in_bounds(dest):
@@ -884,21 +1000,303 @@ func move_combat_creature_at(index: int) -> bool:
 			continue
 		if _combat_occupied(dest, -1, index):
 			continue
-		var dist := _combat_manhattan(dest, target)
-		if dist < best_dist:
-			best_dist = dist
+		var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+		if _TileRulesCamp.slowed_by_tile(dest_tid):
+			continue
+		var cheb := _WeaponIconsScript.chebyshev(dest, target)
+		var manh := _combat_manhattan(dest, target)
+		if cheb < best_cheb or (cheb == best_cheb and manh < best_manh):
+			best_cheb = cheb
+			best_manh = manh
 			best = d
-	if best == Vector2i.ZERO:
+			improved = true
+		elif (
+			improved
+			and cheb == best_cheb
+			and manh == best_manh
+			and (randi() % 2) == 0
+		):
+			best = d
+	if not improved:
 		return false
 	var dest2 := from + best
-	var dest_tid := int(_combat_map.tile_at(dest2.x, dest2.y))
-	if _TileRulesCamp.slowed_by_tile(dest_tid):
-		return false
+	var foe: Dictionary = _combat_foes[index]
 	foe["x"] = dest2.x
 	foe["y"] = dest2.y
 	_combat_foes[index] = foe
 	_rebuild()
 	return true
+
+
+func _combat_is_land_tile(tid: int) -> bool:
+	## Shore land in ship/shore .CON maps (not plank deck, not water/hull).
+	match tid:
+		3, 4, 5, 6, 7, 8, 55: ## swamp, grass, scrub, forest, hill, mountain, rocks
+			return true
+		_:
+			return false
+
+
+func _combat_flee_cell_walkable(pos: Vector2i) -> bool:
+	## Static walkability for BFS (creature-walkable terrain).
+	if _combat_map == null or not _combat_in_bounds(pos):
+		return false
+	var tid := int(_combat_map.tile_at(pos.x, pos.y))
+	return _TileRulesCamp.is_creature_walkable(tid)
+
+
+func _combat_flee_cell_passable(pos: Vector2i, skip_foe: int) -> bool:
+	## Walkable and not occupied (self `skip_foe` ignored).
+	return _combat_flee_cell_walkable(pos) and not _combat_occupied(pos, -1, skip_foe)
+
+
+func _combat_land_path_dists(skip_foe: int) -> PackedInt32Array:
+	## BFS distance to nearest shore-land tile, routing around other units.
+	var dist := PackedInt32Array()
+	dist.resize(CAMP_W * CAMP_H)
+	dist.fill(9999)
+	if _combat_map == null:
+		return dist
+	var q: Array[Vector2i] = []
+	for y in CAMP_H:
+		for x in CAMP_W:
+			var p := Vector2i(x, y)
+			if not _combat_is_land_tile(int(_combat_map.tile_at(x, y))):
+				continue
+			## Land goals may be occupied — still a valid "reached land" target
+			## for deck pathing; mover steps onto free land beside blockers.
+			var i := y * CAMP_W + x
+			dist[i] = 0
+			q.append(p)
+	var head := 0
+	while head < q.size():
+		var c: Vector2i = q[head]
+		head += 1
+		var cd := int(dist[c.y * CAMP_W + c.x])
+		for d in _DIRS_COMBAT:
+			var n := c + d
+			if not _combat_flee_cell_passable(n, skip_foe):
+				continue
+			var ni := n.y * CAMP_W + n.x
+			if int(dist[ni]) <= cd + 1:
+				continue
+			dist[ni] = cd + 1
+			q.append(n)
+	return dist
+
+
+func _combat_map_has_shore_land() -> bool:
+	if _combat_map == null:
+		return false
+	for y in CAMP_H:
+		for x in CAMP_W:
+			if _combat_is_land_tile(int(_combat_map.tile_at(x, y))):
+				return true
+	return false
+
+
+func _combat_exit_path_dists(land_only: bool, skip_foe: int) -> PackedInt32Array:
+	## BFS distance to a cell that can step off the arena (OOB flee).
+	## Routes around party/foes; `land_only` never paths back onto the ship.
+	var dist := PackedInt32Array()
+	dist.resize(CAMP_W * CAMP_H)
+	dist.fill(9999)
+	if _combat_map == null:
+		return dist
+	var q: Array[Vector2i] = []
+	for y in CAMP_H:
+		for x in CAMP_W:
+			var p := Vector2i(x, y)
+			if not _combat_flee_cell_passable(p, skip_foe):
+				continue
+			var tid := int(_combat_map.tile_at(x, y))
+			if land_only and not _combat_is_land_tile(tid):
+				continue
+			var at_edge := false
+			for d in _DIRS_COMBAT:
+				if not _combat_in_bounds(p + d):
+					at_edge = true
+					break
+			if not at_edge:
+				continue
+			var i := y * CAMP_W + x
+			dist[i] = 0
+			q.append(p)
+	var head := 0
+	while head < q.size():
+		var c: Vector2i = q[head]
+		head += 1
+		var cd := int(dist[c.y * CAMP_W + c.x])
+		for d in _DIRS_COMBAT:
+			var n := c + d
+			if not _combat_flee_cell_passable(n, skip_foe):
+				continue
+			if land_only and not _combat_is_land_tile(int(_combat_map.tile_at(n.x, n.y))):
+				continue
+			var ni := n.y * CAMP_W + n.x
+			if int(dist[ni]) <= cd + 1:
+				continue
+			dist[ni] = cd + 1
+			q.append(n)
+	return dist
+
+
+func _combat_pick_flee_progress(
+	index: int,
+	from: Vector2i,
+	goal_dist: PackedInt32Array,
+	from_score: int,
+	land_only: bool,
+	allow_oob: bool
+) -> Dictionary:
+	## One step that strictly lowers `goal_dist` (or leaves via OOB when score==0).
+	## Returns {dest, leaves}; dest==from if stuck.
+	var best_score := from_score
+	var opts: Array[Dictionary] = []
+	for d in _DIRS_COMBAT:
+		var dest := from + d
+		var is_oob := not _combat_in_bounds(dest)
+		if is_oob:
+			## Rim cell (goal score 0) — step off the arena.
+			if allow_oob and from_score <= 0:
+				var oob_score := -1
+				if oob_score < best_score:
+					best_score = oob_score
+					opts = [{"dest": dest, "leaves": true, "score": oob_score}]
+				elif oob_score == best_score:
+					opts.append({"dest": dest, "leaves": true, "score": oob_score})
+			continue
+		if not _combat_can_walk(from, dest, d):
+			continue
+		if _combat_occupied(dest, -1, index):
+			continue
+		var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+		if land_only and not _combat_is_land_tile(dest_tid):
+			continue
+		var score := int(goal_dist[dest.y * CAMP_W + dest.x])
+		if score < best_score:
+			best_score = score
+			opts = [{"dest": dest, "leaves": false, "score": score}]
+		elif score == best_score and score < from_score:
+			opts.append({"dest": dest, "leaves": false, "score": score})
+	if opts.is_empty():
+		return {"dest": from, "leaves": false}
+	return opts[randi() % opts.size()]
+
+
+func _combat_apply_flee_step(
+	index: int, from: Vector2i, away_from: Vector2i, out: Dictionary
+) -> Dictionary:
+	## Shore-ship flee (SHORSHIP etc.):
+	## 1) On deck → BFS down the gangplank onto land (around blockers).
+	## 2) On land → BFS to nearest map-edge exit; never re-board the ship.
+	## 3) Other maps → BFS to nearest OOB edge.
+	var from_tid := int(_combat_map.tile_at(from.x, from.y)) if _combat_map != null else 4
+	var on_land := _combat_is_land_tile(from_tid)
+	var shore := _combat_map_has_shore_land()
+	var land_dist := _combat_land_path_dists(index)
+	var from_land_d := (
+		int(land_dist[from.y * CAMP_W + from.x]) if _combat_in_bounds(from) else 9999
+	)
+	## Reachable land via plank (occupation-aware). Unreachable → treat as open flee.
+	var on_deck := shore and not on_land and from_land_d < 9999
+
+	var pick: Dictionary
+	if on_deck:
+		pick = _combat_pick_flee_progress(
+			index, from, land_dist, from_land_d, false, false
+		)
+	else:
+		var land_only := shore and on_land
+		var exit_dist := _combat_exit_path_dists(land_only, index)
+		var from_exit := (
+			int(exit_dist[from.y * CAMP_W + from.x]) if _combat_in_bounds(from) else 0
+		)
+		pick = _combat_pick_flee_progress(
+			index, from, exit_dist, from_exit, land_only, true
+		)
+		## Rim fallback if BFS score missing but an OOB step exists.
+		if bool(pick.get("leaves", false)) == false and Vector2i(pick.get("dest", from)) == from:
+			for d in _DIRS_COMBAT:
+				var dest := from + d
+				if _combat_in_bounds(dest):
+					continue
+				if land_only or not shore:
+					pick = {"dest": dest, "leaves": true}
+					break
+
+	var best_dest: Vector2i = pick.get("dest", from)
+	var leaves := bool(pick.get("leaves", false))
+	## Last resort: any free step that increases separation (or OOB).
+	if best_dest == from and not leaves:
+		var land_only2 := shore and on_land
+		var cur_sep := _combat_manhattan(from, away_from)
+		var nudge: Array[Vector2i] = []
+		for d in _DIRS_COMBAT:
+			var dest := from + d
+			if not _combat_in_bounds(dest):
+				if land_only2 or not shore or not on_deck:
+					best_dest = dest
+					leaves = true
+					nudge.clear()
+					break
+				continue
+			if not _combat_can_walk(from, dest, d):
+				continue
+			if _combat_occupied(dest, -1, index):
+				continue
+			if land_only2 and not _combat_is_land_tile(int(_combat_map.tile_at(dest.x, dest.y))):
+				continue
+			if on_deck:
+				## Still try to get closer to land even if BFS was tied.
+				var ld := int(land_dist[dest.y * CAMP_W + dest.x])
+				if ld <= from_land_d:
+					nudge.append(dest)
+			elif _combat_manhattan(dest, away_from) >= cur_sep:
+				nudge.append(dest)
+		if not leaves and not nudge.is_empty():
+			best_dest = nudge[randi() % nudge.size()]
+
+	if best_dest == from:
+		out["action"] = "flee"
+		out["to"] = from
+		return out
+	out["to"] = best_dest
+	if leaves:
+		out["action"] = "fled"
+		remove_combat_foe_at(index)
+		return out
+	var foe: Dictionary = _combat_foes[index]
+	foe["x"] = best_dest.x
+	foe["y"] = best_dest.y
+	_combat_foes[index] = foe
+	_rebuild()
+	out["action"] = "flee"
+	return out
+
+
+func _nearest_combat_party_info(from: Vector2i, use_chebyshev: bool) -> Dictionary:
+	## Nearest living party by Chebyshev (8-way melee) or Manhattan.
+	var best := {
+		"party_i": -1, "klass": -1, "pos": Vector2i(-1, -1), "dist": 1_000_000
+	}
+	for i in _combat_party.size():
+		var p: Dictionary = _combat_party[i]
+		var klass := int(p.get("klass", -1))
+		if klass >= 0 and GameState.is_class_dead(klass):
+			continue
+		var pos := Vector2i(int(p.get("x", 0)), int(p.get("y", 0)))
+		var d := (
+			_WeaponIconsScript.chebyshev(from, pos)
+			if use_chebyshev
+			else _combat_manhattan(from, pos)
+		)
+		var better := d < int(best.dist)
+		if d == int(best.dist) and (randi() % 2) == 0:
+			better = true
+		if better:
+			best = {"party_i": i, "klass": klass, "pos": pos, "dist": d}
+	return best
 
 
 func _combat_in_bounds(pos: Vector2i) -> bool:
@@ -2488,21 +2886,37 @@ func _paint_combat_tile_flashes(origin_x: int, origin_y: int) -> void:
 
 
 func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
-	## Missile tile (77) flying in combat-local float space.
+	## Missile flying in combat-local float space (sling stone or tile 77).
 	if _combat_proj.is_empty() or not tiles_ready:
+		return
+	var cx := float(_combat_proj.get("x", 0.0))
+	var cy := float(_combat_proj.get("y", 0.0))
+	var wid := int(_combat_proj.get("wid", -1))
+	if (
+		wid == _WeaponIconsScript.Id.SLING
+		and _sling_missile_img != null
+		and not _sling_missile_img.is_empty()
+	):
+		var iw := _sling_missile_img.get_width()
+		var ih := _sling_missile_img.get_height()
+		var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - float(iw) * 0.5))
+		var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - float(ih) * 0.5))
+		if px <= -iw or py <= -ih:
+			return
+		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+			return
+		_buf.blend_rect(_sling_missile_img, Rect2i(0, 0, iw, ih), Vector2i(px, py))
 		return
 	var slice := _overlay_slice(TILE_MISS_FLASH)
 	if slice == null:
 		return
-	var cx := float(_combat_proj.get("x", 0.0))
-	var cy := float(_combat_proj.get("y", 0.0))
-	var px := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC)))
-	var py := int(round((float(origin_y) + cy - 0.5) * float(TILE_SRC)))
-	if px <= -TILE_SRC or py <= -TILE_SRC:
+	var px2 := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC)))
+	var py2 := int(round((float(origin_y) + cy - 0.5) * float(TILE_SRC)))
+	if px2 <= -TILE_SRC or py2 <= -TILE_SRC:
 		return
-	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+	if px2 >= view_w * TILE_SRC or py2 >= view_h * TILE_SRC:
 		return
-	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px2, py2))
 
 
 func _build_camp_background() -> void:

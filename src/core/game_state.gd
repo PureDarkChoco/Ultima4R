@@ -1208,6 +1208,36 @@ func adjust_karma_fled_good() -> void:
 	adjust_karma_virtue(Virtues.Id.JUSTICE, 2)
 
 
+func adjust_karma_spared_good() -> void:
+	## xu4 KA_SPARED_GOOD — good creature flees the arena.
+	adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
+	adjust_karma_virtue(Virtues.Id.JUSTICE, 2)
+
+
+func try_poison_class(klass: int) -> bool:
+	## Combat ranged poison field — 50% if currently healthy.
+	if klass < 0 or is_class_dead(klass):
+		return false
+	if status_of_class(klass) == PartyRoster.Status.POISONED:
+		return false
+	if status_of_class(klass) == PartyRoster.Status.SLEEPING:
+		return false
+	if (randi() % 2) != 0:
+		return false
+	_set_poisoned(klass, true)
+	member_status[klass] = PartyRoster.Status.POISONED
+	return true
+
+
+func try_sleep_class(klass: int) -> bool:
+	## Combat ranged sleep / cast sleep — 50%; clears poison (field-style).
+	if klass < 0 or is_member_disabled(klass):
+		return false
+	if (randi() % 2) != 0:
+		return false
+	return put_member_to_sleep(klass, true)
+
+
 func award_xp_leader(amount: int) -> void:
 	## xu4 PartyMember::awardXp on party member 0 (leader). Cap 9999.
 	if amount <= 0:
