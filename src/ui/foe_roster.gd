@@ -19,12 +19,16 @@ const COL_TEXT := Color(0.95, 0.9, 0.72, 1)
 const COL_BAR_TEXT := Color(0.95, 0.95, 0.95, 1)
 const COL_TRACK := Color(0.22, 0.22, 0.22, 1)
 const COL_HP := Color(0.82, 0.22, 0.2, 1)
+## Attack-aim hover (party order cursor, but red).
+const COL_AIM_CURSOR := Color(0.72, 0.18, 0.16, 0.55)
+const COL_AIM_CURSOR_EDGE := Color(1.0, 0.42, 0.35, 0.95)
 
 var _icons: Array[TextureRect] = []
 var _names: Array[Label] = []
 var _hp_track: Array[Control] = []
 var _hp_fill: Array[ColorRect] = []
 var _hp_lab: Array[Label] = []
+var _row_panels: Array[PanelContainer] = []
 var _rows: Array[Control] = []
 var _foes: Array[Dictionary] = []
 var _anim_tick: int = 0
@@ -32,6 +36,8 @@ var _anim_cd: float = 0.0
 var _tile_aspect: float = 1.0
 var _open_outer_h: float = 0.0
 var _relayouting: bool = false
+## creatureTable slot under the aim cursor (−1 = none).
+var _aim_slot := -1
 
 
 func _ready() -> void:
@@ -89,8 +95,25 @@ func set_open_panel_height(outer_h: float) -> void:
 
 func clear() -> void:
 	_foes.clear()
+	_aim_slot = -1
 	_apply_foes_to_rows()
+	_apply_aim_highlight()
 	visible = false
+
+
+func set_aim_highlight_slot(slot: int) -> void:
+	## Highlight the roster row for this creatureTable slot (red aim cursor).
+	if _aim_slot == slot:
+		return
+	_aim_slot = slot
+	_apply_aim_highlight()
+
+
+func clear_aim_highlight() -> void:
+	if _aim_slot < 0:
+		return
+	_aim_slot = -1
+	_apply_aim_highlight()
 
 
 func set_foes(foes: Array) -> void:
@@ -125,11 +148,13 @@ func set_foes(foes: Array) -> void:
 	_apply_foes_to_rows()
 	visible = not _foes.is_empty()
 	relayout()
+	_apply_aim_highlight()
 
 
 func refresh() -> void:
 	_apply_foes_to_rows()
 	relayout()
+	_apply_aim_highlight()
 
 
 func relayout() -> void:
@@ -154,16 +179,23 @@ func _build_slots() -> void:
 	_hp_track.clear()
 	_hp_fill.clear()
 	_hp_lab.clear()
+	_row_panels.clear()
 	_rows.clear()
 
 	for i in MAX_FOES:
+		var panel := PanelContainer.new()
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.visible = false
+		panel.add_theme_stylebox_override("panel", _aim_row_style(-1, i))
+
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 5)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.alignment = BoxContainer.ALIGNMENT_BEGIN
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.visible = false
 
 		var portrait := Control.new()
 		portrait.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
@@ -198,9 +230,11 @@ func _build_slots() -> void:
 		row.add_child(name)
 		row.add_child(name_gap)
 		row.add_child(bar["track"])
-		add_child(row)
+		panel.add_child(row)
+		add_child(panel)
 
-		_rows.append(row)
+		_row_panels.append(panel)
+		_rows.append(panel)
 		_icons.append(icon)
 		_names.append(name)
 		_hp_track.append(bar["track"])
@@ -352,3 +386,39 @@ func _eight_slot_metrics(content_h: float) -> Dictionary:
 func _icon_for_row(row_h: float) -> Vector2:
 	var fit_h := minf(maxf(row_h - 2.0, 12.0), float(ICON_SIZE))
 	return Vector2(fit_h * _tile_aspect, fit_h)
+
+
+func _aim_row_style(highlight_i: int, index: int) -> StyleBoxFlat:
+	## Same shape as party New Order cursor; red fill / edge for aim hover.
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 2
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	sb.border_width_left = 0
+	sb.border_width_top = 0
+	sb.border_width_right = 0
+	sb.border_width_bottom = 0
+	sb.bg_color = Color(0, 0, 0, 0)
+	if index == highlight_i:
+		sb.bg_color = COL_AIM_CURSOR
+		sb.border_color = COL_AIM_CURSOR_EDGE
+		sb.border_width_left = 3
+	return sb
+
+
+func _apply_aim_highlight() -> void:
+	var highlight_i := -1
+	if _aim_slot >= 0:
+		for i in _foes.size():
+			var d: Dictionary = _foes[i]
+			var slot := int(d.get("slot", d.get("priority", -1)))
+			if slot == _aim_slot:
+				highlight_i = i
+				break
+	for i in _row_panels.size():
+		var panel := _row_panels[i]
+		if panel == null:
+			continue
+		panel.add_theme_stylebox_override("panel", _aim_row_style(highlight_i, i))

@@ -5402,6 +5402,7 @@ func _combat_clear_aim_state() -> void:
 	if _map:
 		_map.clear_combat_aim_cursor()
 		_map.clear_combat_range_shade()
+	_sync_combat_aim_foe_roster()
 
 
 func _end_combat_won() -> void:
@@ -5529,6 +5530,7 @@ func _combat_begin_aim() -> void:
 	if _map:
 		_map.set_combat_range_shade(from, wid)
 		_map.set_combat_aim_cursor(_combat_aim_pos)
+	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
 
 
@@ -5599,6 +5601,7 @@ func _combat_cancel_aim() -> void:
 	if _map:
 		_map.clear_combat_aim_cursor()
 		_map.clear_combat_range_shade()
+	_sync_combat_aim_foe_roster()
 	_push_message(Locale.t("cmd_cancelled"), false)
 	_layout_prompt_row()
 
@@ -5613,6 +5616,7 @@ func _combat_move_aim(dir: Vector2i) -> void:
 		return
 	_combat_aim_pos = next
 	_map.set_combat_aim_cursor(_combat_aim_pos)
+	_sync_combat_aim_foe_roster()
 
 
 func _combat_confirm_aim() -> void:
@@ -5632,6 +5636,7 @@ func _combat_confirm_aim() -> void:
 	if _map:
 		_map.clear_combat_aim_cursor()
 		_map.clear_combat_range_shade()
+	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
 	_combat_resolve_attack(klass, wid, from, target)
 
@@ -6540,6 +6545,26 @@ func _refresh_foe_roster() -> void:
 		_foe_roster.clear()
 		return
 	_foe_roster.set_foes(_map.get_combat_foes())
+	_sync_combat_aim_foe_roster()
+
+
+func _sync_combat_aim_foe_roster() -> void:
+	## While aiming: red-highlight the left-panel foe under the aim cursor.
+	if _foe_roster == null:
+		return
+	if not _combat_aiming or _map == null or not _map.is_in_combat():
+		_foe_roster.clear_aim_highlight()
+		return
+	var foe_i := _map.combat_foe_index_at(_combat_aim_pos)
+	if foe_i < 0:
+		_foe_roster.clear_aim_highlight()
+		return
+	var foe := _map.get_combat_foe_at(foe_i)
+	var slot := int(foe.get("slot", -1))
+	if slot < 0:
+		_foe_roster.clear_aim_highlight()
+	else:
+		_foe_roster.set_aim_highlight_slot(slot)
 
 
 func _sync_combat_focus_roster() -> void:
