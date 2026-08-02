@@ -1166,6 +1166,23 @@ func adjust_karma_found_item() -> void:
 	adjust_karma_virtue(Virtues.Id.HONOR, 5)
 
 
+func adjust_karma_fled_evil() -> void:
+	## xu4 KA_FLED_EVIL — Valor −2 (battle lost vs evil).
+	adjust_karma_virtue(Virtues.Id.VALOR, -2)
+
+
+func adjust_karma_healthy_fled_evil() -> void:
+	## xu4 KA_HEALTHY_FLED_EVIL — Valor & Sacrifice −2 (full-HP member flees evil).
+	adjust_karma_virtue(Virtues.Id.VALOR, -2)
+	adjust_karma_virtue(Virtues.Id.SACRIFICE, -2)
+
+
+func adjust_karma_fled_good() -> void:
+	## xu4 KA_FLED_GOOD — Compassion & Justice +2 (battle lost vs good).
+	adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
+	adjust_karma_virtue(Virtues.Id.JUSTICE, 2)
+
+
 func award_xp_leader(amount: int) -> void:
 	## xu4 PartyMember::awardXp on party member 0 (leader). Cap 9999.
 	if amount <= 0:

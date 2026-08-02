@@ -271,6 +271,27 @@ static func display_name(tile_or_base: int) -> String:
 	return str(_DISPLAY_NAMES.get(base, "Creature"))
 
 
+## xu4 config.b `good: true` wilderness / water creatures (else evil for karma).
+const _GOOD_TILES := {
+	138: true, ## Seahorse
+	144: true, ## Rat
+	148: true, ## Bat
+	152: true, ## Spider
+	180: true, ## Insect Swarm
+	204: true, ## Python
+}
+
+
+static func is_good(tile_or_base: int) -> bool:
+	## xu4 Creature::isGood — config `good` flag.
+	return bool(_GOOD_TILES.get(_base_tile(tile_or_base), false))
+
+
+static func is_evil(tile_or_base: int) -> bool:
+	## xu4 Creature::isEvil — not good (engaged wilderness foes).
+	return not is_good(tile_or_base)
+
+
 func apply_cannon_damage_at(tile: Vector2i) -> Dictionary:
 	## Player cannon hit — ~1/4 max HP per shot so the bar reads ~4 hits to kill.
 	for i in creatures.size():

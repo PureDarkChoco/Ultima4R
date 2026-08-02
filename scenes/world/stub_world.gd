@@ -128,6 +128,10 @@ var _death_busy := false
 var _death_blackout: ColorRect
 ## Combat arena session (battlefield open; turn loop later).
 var _combat_active := false
+## True while pacing delays / foe turns run — blocks combat input.
+var _combat_resolving := false
+## Gap after each unit acts (xu4 screenWait≈42ms is snappy; keep readable).
+const COMBAT_TURN_GAP := 0.28
 var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## Pirate shots queued during moveObjects (animated after AI step).
@@ -1360,10 +1364,10 @@ func _process(delta: float) -> void:
 	_tick_world_clock(delta)
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		return
-	## Combat arena: block world cruise / move (stub — Esc leaves).
+	## Combat arena: turn input is key-driven (no world cruise / no auto-pass).
 	if _combat_active:
 		return
-	## xu4 force pass if no commands within last 20 seconds.
+	## xu4 force pass if no commands within last 20 seconds (explore only).
 	_tick_auto_pass(delta)
 
 	_move_cd = maxf(0.0, _move_cd - delta)
@@ -1738,7 +1742,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _combat_active:
-		## Esc/Space leave via _unhandled_input; only block Tab panel toggle here.
+		## Combat keys handled in _unhandled_input; block Tab panel toggle.
 		if event is InputEventKey and event.pressed and not event.echo:
 			var ck := event as InputEventKey
 			if ck.keycode == KEY_TAB or ck.physical_keycode == KEY_TAB:
@@ -1780,7 +1784,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _combat_active:
-		if _handle_combat_stub_input(event):
+		if _handle_combat_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -5257,7 +5261,12 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 			cmap.player_start[i] if i < cmap.player_start.size()
 			else Vector2i(5, 5)
 		)
-		party_units.append({"x": start.x, "y": start.y, "klass": mid})
+		party_units.append({
+			"x": start.x,
+			"y": start.y,
+			"klass": mid,
+			"party_slot": i,
+		})
 	## xu4 fillCreatureTable — random count, leaders, slot placement.
 	var table: Array[int] = _CombatEncounter.fill_creature_table(
 		foe_tid, GameState.party_size()
@@ -5283,6 +5292,8 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 		})
 	if _map != null:
 		_map.enter_combat(cmap, party_units, foe_units)
+		## First living party member has the turn (xu4 beginCombat focus).
+		_map.set_combat_focus(0 if not party_units.is_empty() else -1)
 	_combat_active = true
 	if not initiated_by_party:
 		var nm := _WorldCreaturesScript.display_name(foe_tid)
@@ -5290,6 +5301,7 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	_push_message(Locale.t("cmd_combat"), false)
 	_refresh_party()
 	_refresh_foe_roster()
+	_sync_combat_focus_roster()
 	_stamp_command_time()
 
 
@@ -5299,12 +5311,15 @@ func _end_combat_stub() -> void:
 	## (win, flee/loss, or party wipe); never put back on the map.
 	if not _combat_active:
 		return
+	_combat_resolving = false
 	if _map != null:
 		_map.exit_combat()
 	_combat_active = false
 	_combat_foe = {}
 	if _foe_roster:
 		_foe_roster.clear()
+	if _roster:
+		_roster.clear_order_selection()
 	_sides_open = _combat_saved_sides_open
 	_layout_side_panels(false)
 	_sync_creatures_to_map()
@@ -5313,20 +5328,167 @@ func _end_combat_stub() -> void:
 	_stamp_command_time()
 
 
-func _handle_combat_stub_input(event: InputEvent) -> bool:
-	## Until the turn loop exists: Esc / Space leave the arena.
+func _handle_combat_input(event: InputEvent) -> bool:
+	## xu4 CombatController::keyPressed — move / Pass; Esc leaves (stub).
+	## No idle auto-pass. Blocked / Slowed still end the member's turn.
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if not (event is InputEventKey):
 		return false
 	var k := event as InputEventKey
-	if (
-		k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
-		or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
-	):
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		_end_combat_stub()
 		return true
-	return false
+	## Swallow other keys while foe turns / gaps play out.
+	if _combat_resolving:
+		return true
+	if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
+		_push_message(Locale.t("cmd_pass"), false)
+		_combat_finish_member_turn()
+		return true
+	var dir := _combat_dir_from_key(k)
+	if dir == Vector2i.ZERO:
+		return false
+	_combat_try_move(dir)
+	return true
+
+
+func _combat_dir_from_key(k: InputEventKey) -> Vector2i:
+	## Orthogonal only (xu4 combat arrows).
+	var code := k.keycode
+	var phys := k.physical_keycode
+	if code == KEY_UP or phys == KEY_UP:
+		return Vector2i(0, -1)
+	if code == KEY_DOWN or phys == KEY_DOWN:
+		return Vector2i(0, 1)
+	if code == KEY_LEFT or phys == KEY_LEFT:
+		return Vector2i(-1, 0)
+	if code == KEY_RIGHT or phys == KEY_RIGHT:
+		return Vector2i(1, 0)
+	return Vector2i.ZERO
+
+
+func _combat_try_move(dir: Vector2i) -> void:
+	if _map == null or not _map.is_in_combat() or _combat_resolving:
+		return
+	var result := _map.try_move_combat_focus(dir)
+	var after_flee := false
+	match result:
+		MapView.COMBAT_MOVE_OK:
+			_push_message(_direction_label(dir, true), false)
+		MapView.COMBAT_MOVE_SLOWED:
+			_push_message(Locale.t("cmd_slow_progress"), false)
+		MapView.COMBAT_MOVE_FLED:
+			## xu4: direction message + SOUND_FLEE; unit already off the arena.
+			_push_message(_direction_label(dir, true), false)
+			_combat_apply_healthy_fled_karma(_map.get_combat_last_fled())
+			after_flee = true
+		_:
+			_push_message(Locale.t("cmd_blocked"), false)
+	## xu4: move (incl. blocked/slowed/flee) ends the active member's turn.
+	_combat_finish_member_turn(after_flee)
+
+
+func _combat_apply_healthy_fled_karma(fled: Dictionary) -> void:
+	## xu4 movePartyMember — full-HP flee from evil → KA_HEALTHY_FLED_EVIL.
+	if fled.is_empty():
+		return
+	var engaged_tid := int(_combat_foe.get("tile", 0))
+	if not _WorldCreaturesScript.is_evil(engaged_tid):
+		return
+	var klass := int(fled.get("klass", -1))
+	if klass < 0:
+		return
+	if GameState.hp_of_class(klass) != GameState.max_hp_of_class(klass):
+		return
+	GameState.adjust_karma_healthy_fled_evil()
+
+
+func _combat_finish_member_turn(after_flee: bool = false) -> void:
+	## xu4 finishTurn — pace, next party member; after last, foes act one-by-one.
+	## Fleeing the last member → isLost → endCombat (Battle is lost + karma).
+	if _map == null or not _map.is_in_combat() or _combat_resolving:
+		return
+	_combat_resolving = true
+	_stamp_command_time()
+	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_lost():
+		_end_combat_lost()
+		return
+	var still_party := (
+		_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
+	)
+	if still_party:
+		_sync_combat_focus_roster()
+		_refresh_party()
+		_combat_resolving = false
+		return
+	## Party round done — creatures in placement order (xu4 moveCreatures).
+	await _combat_run_foe_phase()
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_lost():
+		_end_combat_lost()
+		return
+	_map.set_combat_focus(0)
+	_refresh_foe_roster()
+	_sync_combat_focus_roster()
+	_refresh_party()
+	_combat_resolving = false
+
+
+func _combat_run_foe_phase() -> void:
+	## Each living foe: show focus → act → gap (xu4 act + screenWait per creature).
+	if _map == null:
+		return
+	var indices: Array[int] = _map.living_combat_foe_indices()
+	for i in indices:
+		if not _combat_active or _map == null:
+			return
+		_map.set_combat_foe_focus(i)
+		if _roster:
+			_roster.clear_order_selection()
+		await get_tree().create_timer(COMBAT_TURN_GAP * 0.55).timeout
+		if not _combat_active or _map == null:
+			return
+		_map.move_combat_creature_at(i)
+		await get_tree().create_timer(COMBAT_TURN_GAP).timeout
+	if _map != null:
+		_map.clear_combat_foe_focus()
+
+
+func _end_combat_lost() -> void:
+	## xu4 endCombat when !isWon — all fled the arena (or later: wiped).
+	## World creature already removed at engage; karma from engaged foe alignment.
+	if not _combat_active:
+		return
+	_combat_resolving = false
+	var engaged_tid := int(_combat_foe.get("tile", 0))
+	var evil := _WorldCreaturesScript.is_evil(engaged_tid)
+	var good := _WorldCreaturesScript.is_good(engaged_tid)
+	if _map != null:
+		_map.exit_combat()
+	_combat_active = false
+	_combat_foe = {}
+	if _foe_roster:
+		_foe_roster.clear()
+	if _roster:
+		_roster.clear_order_selection()
+	_sides_open = _combat_saved_sides_open
+	_layout_side_panels(false)
+	_sync_creatures_to_map()
+	_refresh_locate_hud()
+	if evil:
+		_push_message(Locale.t("cmd_battle_lost"), false)
+		GameState.adjust_karma_fled_evil()
+	elif good:
+		GameState.adjust_karma_fled_good()
+	_stamp_command_time()
+	_refresh_party()
 
 
 func _is_in_combat() -> bool:
@@ -5670,6 +5832,17 @@ func _refresh_foe_roster() -> void:
 		_foe_roster.clear()
 		return
 	_foe_roster.set_foes(_map.get_combat_foes())
+
+
+func _sync_combat_focus_roster() -> void:
+	## Mirror map focus onto the right-hand party list.
+	if _roster == null or _map == null or not _combat_active:
+		return
+	var slot := _map.get_combat_focus_party_slot()
+	if slot < 0:
+		_roster.clear_order_selection()
+	else:
+		_roster.set_order_selection(slot, -1)
 
 
 func _push_move_message(dir: Vector2i) -> void:

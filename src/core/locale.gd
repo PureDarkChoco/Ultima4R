@@ -258,6 +258,18 @@ const _T := {
 		"en_us": "Combat ends (stub).",
 		"ko": "전투 종료 (임시).",
 	},
+	## xu4 combat.cpp keyPressed Space
+	"cmd_pass": {
+		"en_u4": "Pass",
+		"en_us": "Pass",
+		"ko": "패스",
+	},
+	## xu4 CombatController::endCombat — all party fled / wiped from arena
+	"cmd_battle_lost": {
+		"en_u4": "Battle is lost!",
+		"en_us": "Battle is lost!",
+		"ko": "전투에서 패배했다!",
+	},
 	"cmd_jimmy_what": {
 		"en_u4": "Jimmy what?",
 		"en_us": "Jimmy what?",

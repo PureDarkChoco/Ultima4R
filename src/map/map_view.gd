@@ -194,10 +194,25 @@ var _camp_guard_b: Image
 var _corpse_slice: Image
 ## Combat arena — same 11×11 centered layout as camp; units painted on top.
 var _combat_map # CombatMapData
-## Each: { "x", "y", "klass" } — living party members.
+## Each: { "x", "y", "klass", "party_slot"? } — living party members.
 var _combat_party: Array[Dictionary] = []
 ## Each: { "x", "y", "tile" } — foes on the arena.
 var _combat_foes: Array[Dictionary] = []
+## Index into `_combat_party` for xu4 TileView::drawFocus (blinking white box).
+var _combat_focus := -1
+## Index into `_combat_foes` while that creature acts (−1 = party phase).
+var _combat_foe_focus := -1
+var _combat_focus_on := true
+var _combat_focus_cd := 0.0
+const COMBAT_FOCUS_BLINK_SEC := 0.25
+const COMBAT_FOCUS_EDGE := 2
+## try_move_combat_focus results (xu4 MoveResult subset).
+const COMBAT_MOVE_OK := 0
+const COMBAT_MOVE_BLOCKED := 1
+const COMBAT_MOVE_SLOWED := 2
+const COMBAT_MOVE_FLED := 3
+## Last unit removed by fleeing off the .CON edge (for karma).
+var _combat_last_fled: Dictionary = {}
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -415,6 +430,12 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	for u in foe_units:
 		if typeof(u) == TYPE_DICTIONARY:
 			_combat_foes.append((u as Dictionary).duplicate(true))
+	## xu4 beginCombat — focus first placeable party member.
+	_combat_focus = 0 if not _combat_party.is_empty() else -1
+	_combat_foe_focus = -1
+	_combat_last_fled = {}
+	_combat_focus_on = true
+	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
 	_build_camp_background()
 	_scroll_frames_left = 0
 	_rebuild()
@@ -426,7 +447,86 @@ func exit_combat() -> void:
 	_combat_map = null
 	_combat_party.clear()
 	_combat_foes.clear()
+	_combat_focus = -1
+	_combat_foe_focus = -1
+	_combat_last_fled = {}
 	_rebuild()
+
+
+func set_combat_focus(index: int) -> void:
+	## Active party combatant index in `_combat_party` (−1 clears).
+	var next := index
+	if next >= _combat_party.size():
+		next = -1
+	var had_foe := _combat_foe_focus >= 0
+	_combat_foe_focus = -1
+	if next == _combat_focus and not had_foe:
+		return
+	_combat_focus = next
+	_combat_focus_on = true
+	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
+	if _combat_map != null:
+		_rebuild()
+
+
+func set_combat_foe_focus(index: int) -> void:
+	## Active foe while creatures act one-by-one (xu4 moveCreatures loop).
+	var next := index
+	if next < 0 or next >= _combat_foes.size():
+		next = -1
+	elif int(_combat_foes[next].get("hp", 1)) <= 0:
+		next = -1
+	_combat_focus = -1
+	_combat_foe_focus = next
+	_combat_focus_on = true
+	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
+	if _combat_map != null:
+		_rebuild()
+
+
+func clear_combat_foe_focus() -> void:
+	if _combat_foe_focus < 0:
+		return
+	_combat_foe_focus = -1
+	if _combat_map != null:
+		_rebuild()
+
+
+func get_combat_focus() -> int:
+	return _combat_focus
+
+
+func get_combat_foe_focus() -> int:
+	return _combat_foe_focus
+
+
+func get_combat_focus_party_slot() -> int:
+	## Party-order slot for the focused combat unit, or −1.
+	if _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return -1
+	return int(_combat_party[_combat_focus].get("party_slot", -1))
+
+
+func living_combat_foe_indices() -> Array[int]:
+	## Foe turn order = creatureTable / placement order (xu4 getCreatures index).
+	var out: Array[int] = []
+	for i in _combat_foes.size():
+		if int(_combat_foes[i].get("hp", 1)) > 0:
+			out.append(i)
+	return out
+
+
+func combat_party_count() -> int:
+	return _combat_party.size()
+
+
+func is_combat_lost() -> bool:
+	## xu4 CombatController::isLost — no party members left on the arena.
+	return _combat_map != null and _combat_party.is_empty()
+
+
+func get_combat_last_fled() -> Dictionary:
+	return _combat_last_fled.duplicate(true)
 
 
 func get_combat_foes() -> Array:
@@ -439,6 +539,172 @@ func get_combat_foes() -> Array:
 		if int(d.get("hp", 1)) <= 0:
 			continue
 		out.append(d.duplicate(true))
+	return out
+
+
+func try_move_combat_focus(dir: Vector2i) -> int:
+	## Move the focused party unit one orthogonal step (xu4 movePartyMember).
+	## OOB → flee (remove unit). Occupied / unwalkable → BLOCKED. Slowed → SLOWED.
+	_combat_last_fled = {}
+	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return COMBAT_MOVE_BLOCKED
+	if dir == Vector2i.ZERO or (dir.x != 0 and dir.y != 0):
+		return COMBAT_MOVE_BLOCKED
+	var u: Dictionary = _combat_party[_combat_focus]
+	var from := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+	var dest := from + dir
+	if not _combat_in_bounds(dest):
+		## xu4 MAP_IS_OOB — leave combat map (flee).
+		_combat_last_fled = u.duplicate(true)
+		_combat_party.remove_at(_combat_focus)
+		## Index now points at the next member (or past end = round over).
+		if _combat_focus >= _combat_party.size():
+			_combat_focus = _combat_party.size()
+		_rebuild()
+		return COMBAT_MOVE_FLED
+	if not _combat_can_walk(from, dest, dir):
+		return COMBAT_MOVE_BLOCKED
+	if _combat_occupied(dest, _combat_focus, -1):
+		return COMBAT_MOVE_BLOCKED
+	var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+	if _TileRulesCamp.slowed_by_tile(dest_tid):
+		return COMBAT_MOVE_SLOWED
+	u["x"] = dest.x
+	u["y"] = dest.y
+	_combat_party[_combat_focus] = u
+	_rebuild()
+	return COMBAT_MOVE_OK
+
+
+func advance_combat_focus() -> bool:
+	## Next party unit. false = party round done (caller runs foe phase, then focus 0).
+	if _combat_party.is_empty():
+		_combat_focus = -1
+		return false
+	var next := _combat_focus + 1
+	if next >= _combat_party.size():
+		return false
+	set_combat_focus(next)
+	return true
+
+
+func refocus_after_flee() -> bool:
+	## After OOB flee removed focus unit: same index is next, or round over.
+	if _combat_party.is_empty():
+		_combat_focus = -1
+		return false
+	if _combat_focus >= _combat_party.size():
+		return false
+	set_combat_focus(_combat_focus)
+	return true
+
+
+func move_combat_creature_at(index: int) -> bool:
+	## xu4 Creature::act CA_ADVANCE for one foe (no attack yet).
+	if _combat_map == null or _combat_party.is_empty():
+		return false
+	if index < 0 or index >= _combat_foes.size():
+		return false
+	var foe: Dictionary = _combat_foes[index]
+	if int(foe.get("hp", 1)) <= 0:
+		return false
+	var from := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
+	var target := _nearest_combat_party(from)
+	if target.x < 0:
+		return false
+	## xu4: do not leave the arena while advancing.
+	var dirs := _combat_advance_dirs(from)
+	var best := Vector2i.ZERO
+	var best_dist := _combat_manhattan(from, target)
+	for d in dirs:
+		var dest := from + d
+		if not _combat_in_bounds(dest):
+			continue
+		if not _combat_can_walk(from, dest, d):
+			continue
+		if _combat_occupied(dest, -1, index):
+			continue
+		var dist := _combat_manhattan(dest, target)
+		if dist < best_dist:
+			best_dist = dist
+			best = d
+	if best == Vector2i.ZERO:
+		return false
+	var dest2 := from + best
+	var dest_tid := int(_combat_map.tile_at(dest2.x, dest2.y))
+	if _TileRulesCamp.slowed_by_tile(dest_tid):
+		return false
+	foe["x"] = dest2.x
+	foe["y"] = dest2.y
+	_combat_foes[index] = foe
+	_rebuild()
+	return true
+
+
+func _combat_in_bounds(pos: Vector2i) -> bool:
+	return pos.x >= 0 and pos.y >= 0 and pos.x < CAMP_W and pos.y < CAMP_H
+
+
+func _combat_can_walk(from: Vector2i, dest: Vector2i, dir: Vector2i) -> bool:
+	## xu4 walking creature / combat party: walkon + walkoff + creatureWalkable.
+	if _combat_map == null:
+		return false
+	var from_tid := int(_combat_map.tile_at(from.x, from.y))
+	var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+	if not _TileRulesCamp.can_walk_on(dest_tid, dir):
+		return false
+	if not _TileRulesCamp.can_walk_off(from_tid, dir):
+		return false
+	if not _TileRulesCamp.is_creature_walkable(dest_tid):
+		return false
+	return true
+
+
+func _combat_occupied(pos: Vector2i, skip_party: int, skip_foe: int) -> bool:
+	for i in _combat_party.size():
+		if i == skip_party:
+			continue
+		var p: Dictionary = _combat_party[i]
+		if int(p.get("x", -1)) == pos.x and int(p.get("y", -1)) == pos.y:
+			return true
+	for i in _combat_foes.size():
+		if i == skip_foe:
+			continue
+		var f: Dictionary = _combat_foes[i]
+		if int(f.get("hp", 1)) <= 0:
+			continue
+		if int(f.get("x", -1)) == pos.x and int(f.get("y", -1)) == pos.y:
+			return true
+	return false
+
+
+func _nearest_combat_party(from: Vector2i) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_d := 1_000_000
+	for p in _combat_party:
+		var pos := Vector2i(int(p.get("x", 0)), int(p.get("y", 0)))
+		var d := _combat_manhattan(from, pos)
+		if d < best_d:
+			best_d = d
+			best = pos
+	return best
+
+
+func _combat_manhattan(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+func _combat_advance_dirs(from: Vector2i) -> Array[Vector2i]:
+	## Orthogonal dirs that do not step off the .CON edge (xu4 CA_ADVANCE mask).
+	var out: Array[Vector2i] = []
+	if from.y > 0:
+		out.append(Vector2i(0, -1))
+	if from.y < CAMP_H - 1:
+		out.append(Vector2i(0, 1))
+	if from.x > 0:
+		out.append(Vector2i(-1, 0))
+	if from.x < CAMP_W - 1:
+		out.append(Vector2i(1, 0))
 	return out
 
 
@@ -860,6 +1126,14 @@ func _process(delta: float) -> void:
 			_npc_rebuild_cd = NPC_REBUILD_PERIOD
 			npc_changed = true
 
+	var combat_focus_changed := false
+	if _combat_map != null and (_combat_focus >= 0 or _combat_foe_focus >= 0):
+		_combat_focus_cd -= delta
+		if _combat_focus_cd <= 0.0:
+			_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
+			_combat_focus_on = not _combat_focus_on
+			combat_focus_changed = true
+
 	var shake_changed := false
 	if _shake_left > 0.0:
 		_shake_left = maxf(0.0, _shake_left - delta)
@@ -889,6 +1163,7 @@ func _process(delta: float) -> void:
 			_scroll_skip_process = false
 			if (
 				frame_changed or water_changed or tile_anim_changed or npc_changed
+				or combat_focus_changed
 				or shake_changed or moongate_changed or flash_changed
 				or not _tile_flashes.is_empty()
 				or not _cannon_proj.is_empty()
@@ -901,6 +1176,7 @@ func _process(delta: float) -> void:
 
 	if (
 		frame_changed or water_changed or tile_anim_changed or npc_changed
+		or combat_focus_changed
 		or shake_changed or moongate_changed or flash_changed
 		or not _tile_flashes.is_empty()
 		or not _cannon_proj.is_empty()
@@ -1747,6 +2023,7 @@ func _rebuild_combat() -> void:
 
 	_paint_combat_foes(origin_x, origin_y)
 	_paint_combat_party(origin_x, origin_y)
+	_paint_combat_focus(origin_x, origin_y)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -1789,6 +2066,35 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 			continue
 		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
 		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+
+
+func _paint_combat_focus(origin_x: int, origin_y: int) -> void:
+	## xu4 TileView::drawFocus — blinking white rectangle around the active unit.
+	if not _combat_focus_on:
+		return
+	var pos := Vector2i(-1, -1)
+	if _combat_foe_focus >= 0 and _combat_foe_focus < _combat_foes.size():
+		var f: Dictionary = _combat_foes[_combat_foe_focus]
+		if int(f.get("hp", 1)) > 0:
+			pos = Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+	elif _combat_focus >= 0 and _combat_focus < _combat_party.size():
+		var u: Dictionary = _combat_party[_combat_focus]
+		pos = Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+	if pos.x < 0:
+		return
+	var sx := origin_x + pos.x
+	var sy := origin_y + pos.y
+	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+		return
+	var px := sx * TILE_SRC
+	var py := sy * TILE_SRC
+	var e := COMBAT_FOCUS_EDGE
+	var white := Color(1, 1, 1, 1)
+	## left / top / right / bottom
+	_buf.fill_rect(Rect2i(px, py, e, TILE_SRC), white)
+	_buf.fill_rect(Rect2i(px, py, TILE_SRC, e), white)
+	_buf.fill_rect(Rect2i(px + TILE_SRC - e, py, e, TILE_SRC), white)
+	_buf.fill_rect(Rect2i(px, py + TILE_SRC - e, TILE_SRC, e), white)
 
 
 func _build_camp_background() -> void:
