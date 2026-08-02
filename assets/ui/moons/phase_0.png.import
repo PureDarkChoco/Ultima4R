@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4dvxkdcercve"
-path="res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"
+uid="uid://bymlg56xtw0h4"
+path="res://.godot/imported/phase_0.png-d22890a211621e87dd82b7b7b4fa419a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/sacrifice.png"
-dest_files=["res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"]
+source_file="res://assets/ui/moons/phase_0.png"
+dest_files=["res://.godot/imported/phase_0.png-d22890a211621e87dd82b7b7b4fa419a.ctex"]
 
 [params]
 

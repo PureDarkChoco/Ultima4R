@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4dvxkdcercve"
-path="res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"
+uid="uid://cx2icag0j2cum"
+path="res://.godot/imported/stone_white.png-e9d685f51d39c5f30a94bd48f26d5809.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/sacrifice.png"
-dest_files=["res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"]
+source_file="res://assets/ui/special_items/stone_white.png"
+dest_files=["res://.godot/imported/stone_white.png-e9d685f51d39c5f30a94bd48f26d5809.ctex"]
 
 [params]
 

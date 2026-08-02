@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4dvxkdcercve"
-path="res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"
+uid="uid://jv6p11wfnljv"
+path="res://.godot/imported/wheel.png-02822bc8085b2b18e6259a07b1dfe14f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/sacrifice.png"
-dest_files=["res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"]
+source_file="res://assets/ui/special_items/wheel.png"
+dest_files=["res://.godot/imported/wheel.png-02822bc8085b2b18e6259a07b1dfe14f.ctex"]
 
 [params]
 

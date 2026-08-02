@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4dvxkdcercve"
-path="res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"
+uid="uid://cdrq2sh240gn7"
+path="res://.godot/imported/horn.png-d5e5f77d246557eb3a943315c002447b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/sacrifice.png"
-dest_files=["res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"]
+source_file="res://assets/ui/special_items/horn.png"
+dest_files=["res://.godot/imported/horn.png-d5e5f77d246557eb3a943315c002447b.ctex"]
 
 [params]
 

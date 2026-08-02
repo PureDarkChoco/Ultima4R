@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://4dvxkdcercve"
-path="res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"
+uid="uid://eg8jnm3e6juh"
+path="res://.godot/imported/bell.png-01f830734c88dac834153817bed5357c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/sacrifice.png"
-dest_files=["res://.godot/imported/sacrifice.png-73dfee34456274bdb779736e0a2e55b8.ctex"]
+source_file="res://assets/ui/special_items/bell.png"
+dest_files=["res://.godot/imported/bell.png-01f830734c88dac834153817bed5357c.ctex"]
 
 [params]
 

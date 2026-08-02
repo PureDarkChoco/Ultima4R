@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://m360jpc78oro"
-path="res://.godot/imported/justice.png-3f6f653f0bc902b4e25e48218433531e.ctex"
+path="res://.godot/imported/justice.png-9f20f3b7a11397f53ccb466993ec0196.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/ui/special_items/justice.png"
-dest_files=["res://.godot/imported/justice.png-3f6f653f0bc902b4e25e48218433531e.ctex"]
+dest_files=["res://.godot/imported/justice.png-9f20f3b7a11397f53ccb466993ec0196.ctex"]
 
 [params]
 
