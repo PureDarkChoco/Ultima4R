@@ -53,6 +53,10 @@ var source_path: String = ""
 ## xu4 Map::annotations — temporary overlays (open doors, etc.).
 ## Each: { "x": int, "y": int, "tid": int, "ttl": int }  ttl -1 = permanent.
 var annotations: Array[Dictionary] = []
+## Ultima4R open chests (city only). Key `"x,y"` →
+## { "x", "y", "icon_shown", "icon_total" }.
+## Open flips the art + gold icon + trap. Get rolls gold and steals karma.
+var opened_chests: Dictionary = {}
 
 
 func clear() -> void:
@@ -63,6 +67,7 @@ func clear() -> void:
 	person_prev.clear()
 	person_move.clear()
 	annotations.clear()
+	opened_chests.clear()
 	loaded = false
 	source_path = ""
 
@@ -127,6 +132,57 @@ func pass_annotation_turns() -> bool:
 			changed = true
 		i += 1
 	return changed
+
+
+static func chest_key(x: int, y: int) -> String:
+	return "%d,%d" % [x, y]
+
+
+func is_chest_open(x: int, y: int) -> bool:
+	return opened_chests.has(chest_key(x, y))
+
+
+func open_chest_at(x: int, y: int) -> Dictionary:
+	## Open the lid and show a single gold icon (trap resolved by caller on Open).
+	## Get later: gold roll + KA_STOLE_CHEST.
+	var key := chest_key(x, y)
+	if opened_chests.has(key):
+		return opened_chests[key] as Dictionary
+	var data := {
+		"x": x,
+		"y": y,
+		"icon_total": 1,
+		"icon_shown": 1,
+	}
+	opened_chests[key] = data
+	return data
+
+
+func chest_has_loot(x: int, y: int) -> bool:
+	var key := chest_key(x, y)
+	if not opened_chests.has(key):
+		return false
+	return int((opened_chests[key] as Dictionary).get("icon_shown", 0)) > 0
+
+
+func take_chest_loot(x: int, y: int) -> bool:
+	## Clear the gold icon after a successful Get.
+	var key := chest_key(x, y)
+	if not opened_chests.has(key):
+		return false
+	var d: Dictionary = opened_chests[key]
+	if int(d.get("icon_shown", 0)) <= 0:
+		return false
+	d["icon_shown"] = 0
+	opened_chests[key] = d
+	return true
+
+
+func chest_icon_shown(x: int, y: int) -> int:
+	var key := chest_key(x, y)
+	if not opened_chests.has(key):
+		return 0
+	return int((opened_chests[key] as Dictionary).get("icon_shown", 0))
 
 
 func person_tile_at(x: int, y: int) -> int:

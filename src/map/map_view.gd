@@ -46,9 +46,15 @@ const TILE_FIELD_ENERGY := 69
 const TILE_FIELD_FIRE := 70
 const TILE_FIELD_SLEEP := 71
 const TILE_SPIT := 75 ## campfire spit — 2-frame fire flicker (`075_spit_1.png`)
+const TILE_CHEST := 60 ## closed chest; open art is frame 1 (`060_chest_1.png`)
 const TILE_LAVA := 76
 ## Multi-frame terrain flip period (spit, etc.).
 const TILE_ANIM_PERIOD := 0.20
+## Open chest cavity in `060_chest_1.png` is 18×2 (x=7..24, y=14..15);
+## outer chest ~22×23. Icon sized to cavity width (16) and centered on that mouth.
+const CHEST_LOOT_ICON_SIZE := 16
+const CHEST_CAVITY_CENTER := Vector2i(16, 19) ## open mouth + 4px down
+const GOLD_HUD_PATH := "res://assets/ui/hud/gold.png"
 ## Temporary transport sprites (shapes tile indices).
 const TILE_SHIP_W := 16
 const TILE_SHIP_N := 17
@@ -157,6 +163,7 @@ var _water_scroll := 0
 var _water_cd := WATER_SCROLL_PERIOD
 var _tile_anim_frame := 0
 var _tile_anim_cd := TILE_ANIM_PERIOD
+var _gold_loot_icon: Image
 ## Ship grounding jolt — party/ship sprite offset while > 0.
 var _shake_left := 0.0
 var _shake_dur := 0.0
@@ -389,6 +396,11 @@ func finish_scroll() -> void:
 
 func refresh() -> void:
 	## Force a redraw (e.g. after city NPCs move on a party turn).
+	_rebuild()
+
+
+func begin_chest_loot_reveal() -> void:
+	## After Open: redraw open lid + full-tile gold overlay (Get handles gold/karma).
 	_rebuild()
 
 
@@ -982,7 +994,15 @@ func _rebuild_city() -> void:
 			var my := base.y - half_y + dy
 			var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			_blit_terrain_to(_stage, tid, dst)
+			if (
+				tid == TILE_CHEST
+				and _city_map != null
+				and _city_map.has_method("is_chest_open")
+				and _city_map.is_chest_open(mx, my)
+			):
+				_U4TileBankScript.blit_to(_stage, TILE_CHEST, dst, 1)
+			else:
+				_blit_terrain_to(_stage, tid, dst)
 
 	_refresh_los()
 	_apply_los_blackout_stage(base)
@@ -992,6 +1012,8 @@ func _rebuild_city() -> void:
 		Rect2i(off.x, off.y, view_w * TILE_SRC, view_h * TILE_SRC),
 		Vector2i.ZERO
 	)
+	## Objects under people: chest loot before townsfolk / party.
+	_paint_chest_loot(cam)
 	_paint_city_persons(cam)
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
@@ -1027,6 +1049,73 @@ func _paint_city_persons(cam: Vector2) -> void:
 		if slice == null:
 			continue
 		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+
+
+func _paint_chest_loot(cam: Vector2) -> void:
+	## Gold sized to open-chest cavity width, centered on the mouth (Get clears it).
+	if _city_map == null or not tiles_ready:
+		return
+	if not _city_map.has_method("is_chest_open"):
+		return
+	var opened: Dictionary = _city_map.opened_chests
+	if opened.is_empty():
+		return
+	var icon := _ensure_gold_loot_icon()
+	if icon == null or icon.is_empty():
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	var iw := icon.get_width()
+	var ih := icon.get_height()
+	var ox := CHEST_CAVITY_CENTER.x - iw / 2
+	var oy := CHEST_CAVITY_CENTER.y - ih / 2
+	for v in opened.values():
+		var d: Dictionary = v
+		var n := int(d.get("icon_shown", 0))
+		if n <= 0:
+			continue
+		var wx := int(d.get("x", -1))
+		var wy := int(d.get("y", -1))
+		if not is_tile_visible(wx, wy):
+			continue
+		var screen := Vector2(wx, wy) - cam + Vector2(half_x, half_y)
+		var base_px := int(round(screen.x * float(TILE_SRC))) + ox
+		var base_py := int(round(screen.y * float(TILE_SRC))) + oy
+		if base_px <= -iw or base_py <= -ih:
+			continue
+		if base_px >= view_w * TILE_SRC or base_py >= view_h * TILE_SRC:
+			continue
+		## Stack with a 2px nudge so piles read as layered.
+		for i in n:
+			var px := base_px + i * 2
+			var py := base_py - i * 2
+			_buf.blend_rect(icon, Rect2i(0, 0, iw, ih), Vector2i(px, py))
+
+
+func _ensure_gold_loot_icon() -> Image:
+	if (
+		_gold_loot_icon != null
+		and not _gold_loot_icon.is_empty()
+		and _gold_loot_icon.get_width() == CHEST_LOOT_ICON_SIZE
+		and _gold_loot_icon.get_height() == CHEST_LOOT_ICON_SIZE
+	):
+		return _gold_loot_icon
+	if not ResourceLoader.exists(GOLD_HUD_PATH):
+		return null
+	var src := Image.new()
+	if src.load(GOLD_HUD_PATH) != OK:
+		return null
+	if src.get_format() != Image.FORMAT_RGBA8:
+		src.convert(Image.FORMAT_RGBA8)
+	## Key near-black so the open chest shows through.
+	for y in src.get_height():
+		for x in src.get_width():
+			var c := src.get_pixel(x, y)
+			if c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
+				src.set_pixel(x, y, Color(0, 0, 0, 0))
+	src.resize(CHEST_LOOT_ICON_SIZE, CHEST_LOOT_ICON_SIZE, Image.INTERPOLATE_NEAREST)
+	_gold_loot_icon = src
+	return _gold_loot_icon
 
 
 func _npc_frame_tile(tid: int, prev: int, person_i: int) -> int:
@@ -1821,8 +1910,13 @@ func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
 		_U4TileBankScript.blit_water_to(target, tid, dst, _water_scroll)
 	elif tid >= TILE_WHITE_SW and tid <= TILE_WHITE_NE:
 		_U4TileBankScript.blit_water_edge_to(target, tid, dst, _water_scroll)
-	elif tid == TILE_SPIT or _U4TileBankScript.frame_count(tid) > 1:
+	elif tid == TILE_SPIT:
 		## Spit: `075_spit.png` ↔ `075_spit_1.png` (camp, city, world — same path).
+		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
+	elif tid == TILE_CHEST:
+		## Closed chest only here; open frame is chosen in `_rebuild_city`.
+		_U4TileBankScript.blit_to(target, tid, dst, 0)
+	elif _U4TileBankScript.frame_count(tid) > 1:
 		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	else:
 		_U4TileBankScript.blit_to(target, tid, dst)

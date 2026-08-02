@@ -231,6 +231,11 @@ static func is_locked_door(tile_id: int) -> bool:
 	return clampi(tile_id, 0, 255) == 58
 
 
+static func is_chest(tile_id: int) -> bool:
+	## xu4 Tile::isChest — id 60.
+	return clampi(tile_id, 0, 255) == 60
+
+
 static func can_walk_on(tile_id: int, dir: Vector2i) -> bool:
 	var bit := dir_mask(dir)
 	return bit != 0 and (walk_on(tile_id) & bit) != 0

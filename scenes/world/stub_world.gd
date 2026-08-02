@@ -136,6 +136,10 @@ var _camp_rest_left := 0.0
 var _camp_map # CombatMapData
 var _camp_guard_klass := -1
 var _camp_guard_cursor := 0
+## City chest Open: 0 = idle, 1 = Who opens? (digit / list Enter).
+var _chest_open_stage := 0
+var _chest_open_target := Vector2i(-1, -1)
+var _chest_open_cursor := 0
 ## True while xu4 immobilized (all asleep) auto-turns are queued.
 var _immobilized_pending := false
 ## xu4 settings campTime default (Resting… animation seconds).
@@ -976,6 +980,8 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_camp_set_watch")
 	if _camp_stage == 3:
 		return MSG_PROMPT + Locale.t("cmd_camp_who_guards")
+	if _chest_open_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_chest_who_opens")
 	if _save_stage == 1:
 		return MSG_PROMPT + Locale.t("save_title")
 	if _save_stage == 2:
@@ -1309,7 +1315,7 @@ func _process(delta: float) -> void:
 	if _is_party_asleep_locked():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open():
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1321,7 +1327,7 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1552,6 +1558,8 @@ func _tick_select_cursor() -> void:
 		_nudge_mix_cursor(step)
 	elif _camp_stage == 3:
 		_nudge_camp_guard_cursor(step)
+	elif _chest_open_stage == 1:
+		_nudge_chest_open_cursor(step)
 	elif _save_stage == 1 or _save_stage == 2:
 		_nudge_save_cursor(step)
 	elif _esc_menu_is_open():
@@ -1628,6 +1636,9 @@ func _on_escape() -> void:
 	if _camp_stage == 2 or _camp_stage == 3:
 		_cancel_camp(true)
 		return
+	if _chest_open_stage != 0:
+		_cancel_chest_open(true)
+		return
 	if _ready_stage != 0:
 		_close_ready(true)
 		return
@@ -1671,6 +1682,7 @@ func _input(event: InputEvent) -> void:
 				or _mix_stage != 0
 				or _camp_stage == 2
 				or _camp_stage == 3
+				or _chest_open_stage != 0
 				or _save_stage != 0
 				or _esc_menu_is_open()
 			):
@@ -1682,7 +1694,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / Mix / Camp / Save / Load / Esc menu / New Order.
+	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Save / Load / Esc menu / New Order.
 	if _moongate_busy:
 		get_viewport().set_input_as_handled()
 		return
@@ -1700,6 +1712,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _camp_stage != 0:
 		if _handle_camp_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _chest_open_stage != 0:
+		if _handle_chest_open_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -1833,6 +1851,7 @@ func _handle_command(cmd: int) -> void:
 		_close_wear(false)
 		_close_mix(false)
 		_close_camp(false)
+		_cancel_chest_open(false)
 		_close_save(false)
 		_push_message(Locale.t("cmd_fire_what"), false)
 		return
@@ -1844,6 +1863,7 @@ func _handle_command(cmd: int) -> void:
 		_close_wear(false)
 		_close_mix(false)
 		_close_camp(false)
+		_cancel_chest_open(false)
 		_close_save(false)
 		_pending_cmd = cmd
 		_pending_cmd_name = name
@@ -1856,6 +1876,7 @@ func _handle_command(cmd: int) -> void:
 	_close_wear(false)
 	_close_mix(false)
 	_close_camp(false)
+	_cancel_chest_open(false)
 	_close_save(false)
 	if cmd == U4Commands.Id.PEER:
 		_do_peer()
@@ -4378,7 +4399,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false
@@ -4423,16 +4444,22 @@ func _finish_directed_command(dir: Vector2i) -> void:
 			result = _do_open(dir)
 		U4Commands.Id.JIMMY:
 			result = _do_jimmy(dir)
+		U4Commands.Id.GET_CHEST:
+			result = _do_get_chest(dir)
 		_:
 			result = _directed_result_message(cmd)
 	if not result.is_empty():
 		_push_message(result, false)
+	## Chest Open waits on "Who opens?" — turn finishes after the pick.
+	if _chest_open_stage != 0:
+		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	_finish_party_turn()
 
 
 func _do_open(dir: Vector2i) -> String:
 	## xu4 opendoor / openAt — unlocked door → brick floor annotation, ttl 4.
+	## Ultima4R: city chests ask Who opens? then trap; Get only loots.
 	const TILE_BRICK_FLOOR := 62
 	const DOOR_OPEN_TTL := 4
 	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
@@ -4446,6 +4473,13 @@ func _do_open(dir: Vector2i) -> String:
 		):
 			return Locale.t("cmd_nothing_to_open")
 		var tid := int(_city_map.effective_tile_at(target.x, target.y))
+		if _TileRules.is_chest(tid):
+			if _city_map.is_chest_open(target.x, target.y):
+				return Locale.t("cmd_chest_already_open")
+			if _living_party_slot_count() < 1:
+				return Locale.t("cmd_cant")
+			_begin_chest_open_who(target)
+			return ""
 		if _TileRules.is_locked_door(tid):
 			return Locale.t("cmd_cant")
 		if not _TileRules.is_door(tid):
@@ -4454,7 +4488,7 @@ func _do_open(dir: Vector2i) -> String:
 		if _map != null and _map.has_method("refresh"):
 			_map.refresh()
 		return Locale.t("cmd_opened")
-	## World map: doors are rare; same rules if a door tile is present.
+	## World map: doors are rare; chests only open in cities.
 	if _world == null or not _world.loaded:
 		return Locale.t("cmd_nothing_to_open")
 	var wtid := int(_world.tile_at(
@@ -4467,6 +4501,223 @@ func _do_open(dir: Vector2i) -> String:
 		## No world annotation system yet — treat as not here outdoors.
 		return Locale.t("cmd_nothing_to_open")
 	return Locale.t("cmd_nothing_to_open")
+
+
+func _begin_chest_open_who(target: Vector2i) -> void:
+	## Solo party: skip "Who opens?" and open immediately.
+	_chest_open_target = target
+	if GameState.party_size() <= 1:
+		_complete_chest_open(_first_living_party_slot(), false)
+		return
+	## Roster + digits, same affordances as camp "Who will guard?".
+	_chest_open_cursor = _first_living_party_slot()
+	_chest_open_stage = 1
+	_open_order_roster()
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_sync_chest_open_selection()
+	_layout_prompt_row()
+
+
+func _handle_chest_open_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_cancel_chest_open(true)
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_cancel_chest_open(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_cancel_chest_open(true)
+		return true
+	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
+		_cancel_chest_open(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_chest_open_slot(_chest_open_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_chest_open_slot(_chest_open_cursor)
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var dig := _player_digit_index_from_key(ke)
+		if dig >= 0:
+			if dig >= GameState.party_size():
+				_push_message(Locale.t("cmd_who"), false)
+				_layout_prompt_row()
+				return true
+			_chest_open_cursor = dig
+			_sync_chest_open_selection()
+			_accept_chest_open_slot(dig)
+			return true
+		if _is_digit_key(ke):
+			_push_message(Locale.t("cmd_who"), false)
+			_layout_prompt_row()
+			return true
+	return true
+
+
+func _nudge_chest_open_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	var slot := _chest_open_cursor
+	for _i in n:
+		slot = posmod(slot + delta, n)
+		if _camp_guard_slot_eligible(slot):
+			_chest_open_cursor = slot
+			_sync_chest_open_selection()
+			return
+
+
+func _sync_chest_open_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_chest_open_cursor, -1)
+
+
+func _accept_chest_open_slot(slot: int) -> void:
+	## Number key or list Enter — dead/sleeping rejected like xu4 gameGetPlayer(false).
+	var n := GameState.party_size()
+	if slot < 0 or slot >= n:
+		_push_message(Locale.t("cmd_who"), false)
+		_layout_prompt_row()
+		return
+	if not _camp_guard_slot_eligible(slot):
+		_push_message(Locale.t("cmd_cant"), false)
+		_layout_prompt_row()
+		return
+	_push_message(GameState.party_member_display_name(slot), false)
+	_complete_chest_open(slot, true)
+
+
+func _complete_chest_open(slot: int, finish_turn: bool) -> void:
+	## Shared by Who-pick and solo auto-open. Solo leaves turn to _finish_directed_command.
+	var target := _chest_open_target
+	var opener_klass := GameState.party_member_at(slot)
+	_clear_chest_open_ui()
+	if _city_map == null or not _city_map.loaded:
+		if finish_turn:
+			_finish_party_turn()
+		return
+	if _city_map.is_chest_open(target.x, target.y):
+		_push_message(Locale.t("cmd_chest_already_open"), false)
+		if finish_turn:
+			_finish_party_turn()
+		return
+	_city_map.open_chest_at(target.x, target.y)
+	if _map != null and _map.has_method("begin_chest_loot_reveal"):
+		_map.begin_chest_loot_reveal()
+	elif _map != null and _map.has_method("refresh"):
+		_map.refresh()
+	_push_message(Locale.t("cmd_opened"), false)
+	_resolve_chest_trap(slot, opener_klass)
+	if finish_turn:
+		_finish_party_turn()
+
+
+func _cancel_chest_open(show_none: bool) -> void:
+	var was := _chest_open_stage
+	_clear_chest_open_ui()
+	if show_none and was != 0:
+		_push_message(Locale.t("cmd_none"), false)
+
+
+func _clear_chest_open_ui() -> void:
+	_chest_open_stage = 0
+	_chest_open_target = Vector2i(-1, -1)
+	_chest_open_cursor = 0
+	_clear_order_selection()
+	if not _sides_open:
+		_close_order_roster()
+	_layout_prompt_row()
+
+
+func _do_get_chest(dir: Vector2i) -> String:
+	## Ultima4R: Get after Open — gold + KA_STOLE_CHEST (trap already resolved on Open).
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return Locale.t("cmd_not_here")
+	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
+	if (
+		target.x < 0 or target.y < 0
+		or target.x >= _CityMapData.WIDTH
+		or target.y >= _CityMapData.HEIGHT
+	):
+		return Locale.t("cmd_not_here")
+	var tid := int(_city_map.effective_tile_at(target.x, target.y))
+	if not _TileRules.is_chest(tid):
+		return Locale.t("cmd_not_here")
+	if not _city_map.is_chest_open(target.x, target.y):
+		return Locale.t("cmd_not_here")
+	if not _city_map.chest_has_loot(target.x, target.y):
+		return Locale.t("cmd_not_here")
+
+	var gold := GameState.take_chest_gold()
+	GameState.adjust_karma_stole_chest()
+	_city_map.take_chest_loot(target.x, target.y)
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+	_refresh_inventory_bars()
+	_push_message(Locale.t("cmd_chest_holds", [gold]), false)
+	return ""
+
+
+func _resolve_chest_trap(opener_slot: int, opener_klass: int) -> void:
+	## Trap on Open. Acid/poison/sleep: opener DEX evade, else hit opener only.
+	## Bomb: no party-wide evade — each living member rolls their own DEX evade.
+	var roll: Dictionary = GameState.roll_chest_trap_u4dos()
+	if not bool(roll.get("sprung", false)):
+		return
+	var trap_type := int(roll.get("trap_type", TileRules.Effect.NONE))
+	match trap_type:
+		TileRules.Effect.FIRE:
+			_push_message(Locale.t("cmd_chest_trap_acid"), false)
+		TileRules.Effect.POISON:
+			_push_message(Locale.t("cmd_chest_trap_poison"), false)
+		TileRules.Effect.SLEEP:
+			_push_message(Locale.t("cmd_chest_trap_sleep"), false)
+		TileRules.Effect.LAVA:
+			_push_message(Locale.t("cmd_chest_trap_bomb"), false)
+			_apply_chest_bomb_per_member()
+			return
+		_:
+			return
+	if GameState.chest_trap_evaded(opener_klass):
+		_push_message(Locale.t("cmd_chest_trap_evaded"), false)
+		return
+	var flash := GameState.apply_effect(trap_type, opener_slot)
+	_refresh_party()
+	_flash_party_damage(flash)
+
+
+func _apply_chest_bomb_per_member() -> void:
+	## Ultima4R: bomb blast — each member evades with their own DEX or takes damage.
+	var flash := 0
+	var any_hit := false
+	for i in GameState.party_size():
+		var mid := GameState.party_member_at(i)
+		if mid < 0 or GameState.is_class_dead(mid):
+			continue
+		if GameState.chest_trap_evaded(mid):
+			continue
+		any_hit = true
+		flash |= GameState.apply_effect(TileRules.Effect.LAVA, i)
+	if not any_hit:
+		_push_message(Locale.t("cmd_chest_trap_evaded"), false)
+		return
+	_refresh_party()
+	_flash_party_damage(flash)
+
+
+func _flash_party_damage(flash: int) -> void:
+	if flash == 0:
+		return
+	if _roster and _roster.has_method("flash_players"):
+		_roster.flash_players(flash)
+	if _compact_roster and _compact_roster.has_method("flash_players"):
+		_compact_roster.flash_players(flash)
 
 
 func _do_jimmy(dir: Vector2i) -> String:

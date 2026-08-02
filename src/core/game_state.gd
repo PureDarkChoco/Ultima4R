@@ -1004,29 +1004,110 @@ func apply_camp_rest(exclude_klass: int = -1) -> bool:
 	return healed
 
 
+func adjust_gold(delta: int) -> int:
+	## xu4 Party::adjustGold — gold clamped to 0..9999. Returns amount actually applied.
+	var before := gold
+	gold = clampi(gold + delta, 0, 9999)
+	return gold - before
+
+
+func take_chest_gold() -> int:
+	## xu4 Party::getChest — roll + add gold; return amount rolled (for the message).
+	var amount := (randi() % 50) + (randi() % 8) + 10
+	adjust_gold(amount)
+	return amount
+
+
+func adjust_karma_virtue(virtue: int, delta: int) -> void:
+	## xu4 Party::adjustVirtues for one virtue index.
+	if virtue < 0 or virtue >= karma.size() or delta == 0:
+		return
+	var level := int(karma[virtue])
+	if delta > 0:
+		if level == 0:
+			return ## enlightened — no further gain
+		level = mini(99, level + delta)
+	else:
+		if level == 0:
+			level = 99 ## lost eighth
+		level = maxi(1, level + delta)
+	karma[virtue] = level
+
+
+func adjust_karma_stole_chest() -> void:
+	## xu4 KA_STOLE_CHEST — Honesty / Justice / Honor −1 (city map tile chests).
+	adjust_karma_virtue(Virtues.Id.HONESTY, -1)
+	adjust_karma_virtue(Virtues.Id.JUSTICE, -1)
+	adjust_karma_virtue(Virtues.Id.HONOR, -1)
+
+
+func roll_chest_trap_u4dos() -> Dictionary:
+	## xu4 getChestTrapHandler rolls (u4dos path); Ultima4R springs this on Open.
+	## Returns { sprung, trap_type }. Trap type only meaningful when sprung.
+	var rand_num := randi() % 4
+	## u4dos: only even randNum passes → acid(0) or poison(2) as the seed pair.
+	if (rand_num & 1) != 0:
+		return {"sprung": false, "trap_type": TileRules.Effect.NONE}
+	var pick := rand_num & (randi() % 4)
+	var trap_type := TileRules.Effect.FIRE
+	match pick:
+		0:
+			trap_type = TileRules.Effect.FIRE ## acid
+		1:
+			trap_type = TileRules.Effect.SLEEP
+		2:
+			trap_type = TileRules.Effect.POISON
+		3:
+			trap_type = TileRules.Effect.LAVA ## bomb
+		_:
+			trap_type = TileRules.Effect.FIRE
+	return {"sprung": true, "trap_type": trap_type}
+
+
+func chest_trap_evaded(opener_klass: int) -> bool:
+	## xu4: evade when NOT (dex + 25 < random(100)).
+	var dex := dex_of_class(opener_klass)
+	return not (dex + 25 < (randi() % 100))
+
+
 func apply_tile_effect(effect: int) -> int:
 	## xu4 Party::applyEffect(ALL_PLAYERS) — returns flash mask (party slots).
+	return apply_effect(effect, -1)
+
+
+func apply_effect(effect: int, party_slot: int = -1) -> int:
+	## xu4 Party::applyEffect. party_slot < 0 → ALL_PLAYERS (50%/20% rolls).
+	## party_slot >= 0 → that member only (always applies when eligible).
+	var always := party_slot >= 0
 	match effect:
 		TileRules.Effect.POISON, TileRules.Effect.POISONFIELD:
-			return _apply_poison_tile_effect()
+			return _apply_poison_effect(party_slot, always)
 		TileRules.Effect.SLEEP:
-			return _apply_sleep_tile_effect()
+			return _apply_sleep_effect(party_slot, always)
+		TileRules.Effect.FIRE, TileRules.Effect.LAVA:
+			return _apply_fire_effect(party_slot, always)
 		_:
 			return 0
 
 
-func _apply_poison_tile_effect() -> int:
-	## xu4: living, not-already-poisoned — xu4_random(5) == 0 → 20%.
-	## Sleeping members can gain the poison bit (getStatus is still SLEEPING).
+func _effect_slot_range(party_slot: int) -> Vector2i:
+	## Inclusive start, exclusive end over party slots.
+	if party_slot < 0:
+		return Vector2i(0, party_size())
+	return Vector2i(party_slot, party_slot + 1)
+
+
+func _apply_poison_effect(party_slot: int, always: bool) -> int:
+	## xu4 EFFECT_POISON: skip dead / status==POISONED; always or 1/5.
 	var flash_mask := 0
-	for i in party_size():
+	var r := _effect_slot_range(party_slot)
+	for i in range(r.x, r.y):
 		var mid := party_member_at(i)
 		if mid < 0 or is_class_dead(mid):
 			continue
-		## xu4 skips only when getStatus()==POISONED (sleep+poison bit can re-flash).
 		if status_of_class(mid) == PartyRoster.Status.POISONED:
 			continue
-		if (randi() % 5) != 0:
+		if not always and (randi() % 5) != 0:
 			continue
 		_set_poisoned(mid, true)
 		if member_status[mid] != PartyRoster.Status.SLEEPING:
@@ -1035,16 +1116,33 @@ func _apply_poison_tile_effect() -> int:
 	return flash_mask
 
 
-func _apply_sleep_tile_effect() -> int:
-	## xu4 EFFECT_SLEEP: skip disabled; 50% putToSleep; clears poison.
+func _apply_sleep_effect(party_slot: int, always: bool) -> int:
+	## xu4 EFFECT_SLEEP: skip disabled; always or 50%; clears poison.
 	var flash_mask := 0
-	for i in party_size():
+	var r := _effect_slot_range(party_slot)
+	for i in range(r.x, r.y):
 		var mid := party_member_at(i)
 		if mid < 0 or is_member_disabled(mid):
 			continue
-		if (randi() % 2) != 0:
+		if not always and (randi() % 2) != 0:
 			continue
 		if put_member_to_sleep(mid, true):
+			flash_mask |= 1 << i
+	return flash_mask
+
+
+func _apply_fire_effect(party_slot: int, always: bool) -> int:
+	## xu4 EFFECT_FIRE / EFFECT_LAVA: 16+random(32); always or 50%.
+	var flash_mask := 0
+	var r := _effect_slot_range(party_slot)
+	for i in range(r.x, r.y):
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if not always and (randi() % 2) != 0:
+			continue
+		var dmg := 16 + (randi() % 32)
+		if apply_member_damage(mid, dmg):
 			flash_mask |= 1 << i
 	return flash_mask
 
