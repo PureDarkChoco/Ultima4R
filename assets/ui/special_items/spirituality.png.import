@@ -10,7 +10,7 @@ metadata={
 
 [deps]
 
-source_file="res://assets/ui/runes/spirituality.png"
+source_file="res://assets/ui/special_items/spirituality.png"
 dest_files=["res://.godot/imported/spirituality.png-20b4bb4f57fca237fccb63e38120034e.ctex"]
 
 [params]

@@ -10,7 +10,7 @@ metadata={
 
 [deps]
 
-source_file="res://assets/ui/runes/sacrifice.png"
+source_file="res://assets/ui/special_items/sacrifice.png"
 dest_files=["res://.godot/imported/sacrifice.png-87acd7343661a3f0e01bf16e541bb769.ctex"]
 
 [params]

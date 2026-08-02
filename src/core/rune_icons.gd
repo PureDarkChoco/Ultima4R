@@ -2,7 +2,7 @@ class_name RuneIcons
 extends Object
 
 ## Virtue rune icons (same order as Virtues.Id / xu4).
-## Art lives in `res://assets/ui/runes/`.
+## Art lives in `res://assets/ui/special_items/`.
 
 enum Id {
 	HONESTY = 0,
@@ -15,7 +15,7 @@ enum Id {
 	HUMILITY = 7,
 }
 
-const DIR := "res://assets/ui/runes/"
+const DIR := "res://assets/ui/special_items/"
 
 const PATHS := {
 	Id.HONESTY: DIR + "honesty.png",

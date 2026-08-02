@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://m360jpc78oro"
-path="res://.godot/imported/justice.png-3f6f653f0bc902b4e25e48218433531e.ctex"
+uid="uid://bsdrf4b7pcnmq"
+path="res://.godot/imported/valor.png-dcc808ee59d62c638fe6b8157fbd6c6a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/runes/justice.png"
-dest_files=["res://.godot/imported/justice.png-3f6f653f0bc902b4e25e48218433531e.ctex"]
+source_file="res://assets/ui/special_items/valor.png"
+dest_files=["res://.godot/imported/valor.png-dcc808ee59d62c638fe6b8157fbd6c6a.ctex"]
 
 [params]
 

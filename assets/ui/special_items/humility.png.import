@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bsdrf4b7pcnmq"
-path="res://.godot/imported/valor.png-dcc808ee59d62c638fe6b8157fbd6c6a.ctex"
+uid="uid://dpjeoqddavgsv"
+path="res://.godot/imported/humility.png-e36df376ed7b37b7c2fbc011a2ec3ec6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/runes/valor.png"
-dest_files=["res://.godot/imported/valor.png-dcc808ee59d62c638fe6b8157fbd6c6a.ctex"]
+source_file="res://assets/ui/special_items/humility.png"
+dest_files=["res://.godot/imported/humility.png-e36df376ed7b37b7c2fbc011a2ec3ec6.ctex"]
 
 [params]
 
