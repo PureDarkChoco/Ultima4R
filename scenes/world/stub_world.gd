@@ -19,6 +19,10 @@ const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _Moongates := preload("res://src/map/moongates.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _SearchItems := preload("res://src/core/search_items.gd")
+const _CombatMaps := preload("res://src/map/combat_maps.gd")
+const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
+## Preload — bare class_name can miss the global class cache (black screen).
+const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -30,6 +34,7 @@ const _SearchItems := preload("res://src/core/search_items.gd")
 @onready var _compact_pane: Control = %CompactPane
 @onready var _roster: PartyRoster = %PartyRoster
 @onready var _compact_roster: PartyRoster = %CompactRoster
+@onready var _foe_roster: VBoxContainer = %FoeRoster
 @onready var _msg_block: Control = %MsgBlock
 
 var _peer_overlay: PeerGemOverlay
@@ -121,6 +126,10 @@ var _search_busy := false
 var _death_busy := false
 ## Map-pane blackout during death cutscene (xu4 VIEW_CUTSCENE / eraseMapArea).
 var _death_blackout: ColorRect
+## Combat arena session (battlefield open; turn loop later).
+var _combat_active := false
+var _combat_saved_sides_open := false
+var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## Pirate shots queued during moveObjects (animated after AI step).
 var _pending_pirate_shots: Array[Dictionary] = []
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
@@ -747,7 +756,7 @@ func _style_bars() -> void:
 func _style_side_panels() -> void:
 	if _left_pane is PanelContainer:
 		(_left_pane as PanelContainer).add_theme_stylebox_override(
-			"panel", _make_edge_panel(4, 0, 0, 2, 0)
+			"panel", _make_edge_panel(_FoeRosterScript.ROSTER_STYLE_PAD, 0, 0, 2, 0)
 		)
 	if _right_top is PanelContainer:
 		## Open panel chrome (reference): style pad + MarginContainer pad.
@@ -766,6 +775,9 @@ func _style_side_panels() -> void:
 	var top_margin := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as MarginContainer
 	if _roster and top_margin:
 		_roster.apply_shared_pad_to_margins(top_margin)
+	var left_margin := get_node_or_null("RootCol/MapPane/LeftPane/LeftTopMargin") as MarginContainer
+	if _foe_roster and left_margin:
+		_foe_roster.apply_shared_pad_to_margins(left_margin)
 	if _compact_roster:
 		_compact_roster.apply_pad_offsets()
 
@@ -808,6 +820,8 @@ func _side_geom() -> Dictionary:
 		_compact_roster.set_tile_size(tile_size)
 	if _roster:
 		_roster.set_tile_size(tile_size)
+	if _foe_roster:
+		_foe_roster.set_tile_size(tile_size)
 	var tile_h := tile_size.y
 	var center_w := float(MapView.VIEW_H) * tile_w
 	var overflow := maxf(pane_sz.x - center_w, 0.0)
@@ -835,6 +849,8 @@ func _side_geom() -> Dictionary:
 		_compact_roster.set_open_panel_height(top_h)
 	if _roster:
 		_roster.set_open_panel_height(top_h)
+	if _foe_roster:
+		_foe_roster.set_open_panel_height(top_h)
 	var party_n := clampi(GameState.party_size(), 1, 8)
 	var compact_h := top_h
 	if _compact_roster:
@@ -1344,6 +1360,9 @@ func _process(delta: float) -> void:
 	_tick_world_clock(delta)
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		return
+	## Combat arena: block world cruise / move (stub — Esc leaves).
+	if _combat_active:
+		return
 	## xu4 force pass if no commands within last 20 seconds.
 	_tick_auto_pass(delta)
 
@@ -1718,6 +1737,13 @@ func _input(event: InputEvent) -> void:
 	if _death_busy:
 		get_viewport().set_input_as_handled()
 		return
+	if _combat_active:
+		## Esc/Space leave via _unhandled_input; only block Tab panel toggle here.
+		if event is InputEventKey and event.pressed and not event.echo:
+			var ck := event as InputEventKey
+			if ck.keycode == KEY_TAB or ck.physical_keycode == KEY_TAB:
+				get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
 		## Peer gem: only Esc / Space / Enter dismiss; swallow everything else.
@@ -1752,6 +1778,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		get_viewport().set_input_as_handled()
+		return
+	if _combat_active:
+		if _handle_combat_stub_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
 		return
 	if _save_stage != 0:
 		if _handle_save_input(event):
@@ -2875,19 +2907,30 @@ func _apply_cannon_hit_on_party() -> void:
 
 func _update_world_creatures() -> void:
 	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures.
-	if _is_in_city() or _world == null or not _world.loaded:
+	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
 		return
 	if _world_creatures == null:
 		return
 	_pending_pirate_shots.clear()
-	var changed := _world_creatures.move_all(
+	var moved: Dictionary = _world_creatures.move_all(
 		_world,
 		_tile_pos,
 		_creature_spawn_blocked,
 		_on_pirate_cannon_fire
 	)
+	var changed := bool(moved.get("changed", false))
 	for shot in _pending_pirate_shots:
 		await _fire_cannon_along_async(shot["from"], shot["dir"], false)
+	## xu4: adjacent attacker → engage immediately (skip cleanup/spawn this turn).
+	var attacker: Dictionary = moved.get("attacker", {})
+	if typeof(attacker) == TYPE_DICTIONARY and not (attacker as Dictionary).is_empty():
+		var apos := Vector2i(int(attacker.get("x", 0)), int(attacker.get("y", 0)))
+		var foe := _world_creatures.take_at(apos)
+		if foe.is_empty():
+			foe = attacker
+		_sync_creatures_to_map()
+		_begin_combat(foe, false)
+		return
 	if _world_creatures.cleanup(_tile_pos):
 		changed = true
 	if _world_creatures.try_random_spawn(
@@ -5073,7 +5116,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return false
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false
@@ -5117,6 +5160,13 @@ func _finish_directed_command(dir: Vector2i) -> void:
 		_push_message(Locale.t("cmd_dir_done", [cmd_name, dir_name]))
 	var result := ""
 	match cmd:
+		U4Commands.Id.ATTACK:
+			result = _do_attack(dir)
+			## Engaging combat replaces finishTurn (xu4 CombatController push).
+			if _combat_active:
+				if not result.is_empty():
+					_push_message(result, false)
+				return
 		U4Commands.Id.OPEN:
 			result = _do_open(dir)
 		U4Commands.Id.JIMMY:
@@ -5136,6 +5186,151 @@ func _finish_directed_command(dir: Vector2i) -> void:
 		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	await _finish_party_turn()
+
+
+func _do_attack(dir: Vector2i) -> String:
+	## xu4 attackAt — adjacent wilderness creature → engage combat map.
+	if _combat_active:
+		return Locale.t("cmd_nothing_to_attack")
+	if _is_in_city() or (_map != null and _map.is_camping()):
+		return Locale.t("cmd_nothing_to_attack")
+	if _world_creatures == null or _world == null or not _world.loaded:
+		return Locale.t("cmd_nothing_to_attack")
+	## Cardinal / diagonal 1-step (remake dirs); wrap on world torus.
+	var target := Vector2i(
+		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+	)
+	if _world_creatures.creature_at(target) < 0:
+		return Locale.t("cmd_nothing_to_attack")
+	var foe := _world_creatures.take_at(target)
+	if foe.is_empty():
+		return Locale.t("cmd_nothing_to_attack")
+	_sync_creatures_to_map()
+	_begin_combat(foe, true)
+	return ""
+
+
+func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
+	## Open the .CON battlefield (placement only — turn loop later).
+	if _combat_active or foe.is_empty():
+		return
+	_reset_hold_state()
+	_clear_pending_dir()
+	_stop_ship_cruise()
+	if _world_creatures != null:
+		_world_creatures.clear_hp_bars()
+	_combat_foe = foe.duplicate(true)
+	var foe_tid := int(foe.get("tile", 0))
+	var foe_pos := Vector2i(int(foe.get("x", _tile_pos.x)), int(foe.get("y", _tile_pos.y)))
+	var ground_tid := 4
+	if _world != null and _world.loaded:
+		ground_tid = int(_world.tile_at(_tile_pos.x, _tile_pos.y))
+	var foe_ground := ground_tid
+	if _world != null and _world.loaded:
+		foe_ground = int(_world.tile_at(foe_pos.x, foe_pos.y))
+	var cmap = _CombatMaps.load_for_encounter(
+		ground_tid,
+		foe_tid,
+		_transport == Transport.SHIP,
+		_TileRules.is_water(foe_ground)
+	)
+	if cmap == null:
+		## Put the foe back if the arena failed to load.
+		if _world_creatures != null:
+			_world_creatures.creatures.append(foe)
+			_sync_creatures_to_map()
+		_push_message(Locale.t("cmd_nothing_to_attack"), false)
+		return
+	## Force both side panels open; restore on exit.
+	_combat_saved_sides_open = _sides_open
+	_sides_open = true
+	_order_opened_roster = false
+	_layout_side_panels(false)
+	## Place living party on .CON player_start slots.
+	var party_units: Array = []
+	for i in GameState.party_size():
+		var mid := GameState.party_member_at(i)
+		if mid < 0 or GameState.is_class_dead(mid):
+			continue
+		var start: Vector2i = (
+			cmap.player_start[i] if i < cmap.player_start.size()
+			else Vector2i(5, 5)
+		)
+		party_units.append({"x": start.x, "y": start.y, "klass": mid})
+	## xu4 fillCreatureTable — random count, leaders, slot placement.
+	var table: Array[int] = _CombatEncounter.fill_creature_table(
+		foe_tid, GameState.party_size()
+	)
+	var foe_units: Array = _CombatEncounter.place_foes_from_table(
+		table, cmap.creature_start
+	)
+	if foe_units.is_empty():
+		## Safety: at least the engaged creature.
+		var foe_start: Vector2i = (
+			cmap.creature_start[0] if cmap.creature_start.size() > 0
+			else Vector2i(5, 2)
+		)
+		var vitals: Dictionary = _CombatEncounter.initial_hp_for(foe_tid)
+		foe_units.append({
+			"x": foe_start.x,
+			"y": foe_start.y,
+			"tile": foe_tid,
+			"hp": int(vitals["hp"]),
+			"max_hp": int(vitals["max_hp"]),
+			"slot": 0,
+			"priority": 0,
+		})
+	if _map != null:
+		_map.enter_combat(cmap, party_units, foe_units)
+	_combat_active = true
+	if not initiated_by_party:
+		var nm := _WorldCreaturesScript.display_name(foe_tid)
+		_push_message(Locale.t("cmd_attacked_by", [nm]), false)
+	_push_message(Locale.t("cmd_combat"), false)
+	_refresh_party()
+	_refresh_foe_roster()
+	_stamp_command_time()
+
+
+func _end_combat_stub() -> void:
+	## Temporary leave — restores explore UI; full victory/flee later.
+	## xu4 CombatController::endCombat — world creature is always removed
+	## (win, flee/loss, or party wipe); never put back on the map.
+	if not _combat_active:
+		return
+	if _map != null:
+		_map.exit_combat()
+	_combat_active = false
+	_combat_foe = {}
+	if _foe_roster:
+		_foe_roster.clear()
+	_sides_open = _combat_saved_sides_open
+	_layout_side_panels(false)
+	_sync_creatures_to_map()
+	_refresh_locate_hud()
+	_push_message(Locale.t("cmd_combat_stub_leave"), false)
+	_stamp_command_time()
+
+
+func _handle_combat_stub_input(event: InputEvent) -> bool:
+	## Until the turn loop exists: Esc / Space leave the arena.
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if not (event is InputEventKey):
+		return false
+	var k := event as InputEventKey
+	if (
+		k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
+		or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
+	):
+		_end_combat_stub()
+		return true
+	return false
+
+
+func _is_in_combat() -> bool:
+	return _combat_active or (_map != null and _map.is_in_combat())
 
 
 func _do_open(dir: Vector2i) -> String:
@@ -5465,6 +5660,16 @@ func _refresh_party() -> void:
 		_roster.refresh()
 	if _compact_roster:
 		_compact_roster.refresh()
+	_refresh_foe_roster()
+
+
+func _refresh_foe_roster() -> void:
+	if _foe_roster == null:
+		return
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_foe_roster.clear()
+		return
+	_foe_roster.set_foes(_map.get_combat_foes())
 
 
 func _push_move_message(dir: Vector2i) -> void:

@@ -242,6 +242,22 @@ const _T := {
 		"en_us": "Nothing to Attack!",
 		"ko": "공격할 대상이 없다!",
 	},
+	## xu4 combat.cpp beginCombat / gameCreatureAttack
+	"cmd_combat": {
+		"en_u4": "**** COMBAT ****",
+		"en_us": "**** COMBAT ****",
+		"ko": "**** 전투 ****",
+	},
+	"cmd_attacked_by": {
+		"en_u4": "Attacked by %s!",
+		"en_us": "Attacked by %s!",
+		"ko": "%s의 습격!",
+	},
+	"cmd_combat_stub_leave": {
+		"en_u4": "Combat ends (stub).",
+		"en_us": "Combat ends (stub).",
+		"ko": "전투 종료 (임시).",
+	},
 	"cmd_jimmy_what": {
 		"en_u4": "Jimmy what?",
 		"en_us": "Jimmy what?",

@@ -192,6 +192,12 @@ var _camp_guard_cd := 0.0
 var _camp_guard_a: Image
 var _camp_guard_b: Image
 var _corpse_slice: Image
+## Combat arena — same 11×11 centered layout as camp; units painted on top.
+var _combat_map # CombatMapData
+## Each: { "x", "y", "klass" } — living party members.
+var _combat_party: Array[Dictionary] = []
+## Each: { "x", "y", "tile" } — foes on the arena.
+var _combat_foes: Array[Dictionary] = []
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -242,6 +248,7 @@ func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
 	_corpse_slice = null
 	_overlay_slices.clear()
 	_moongate_suck_by_tid.clear()
+	exit_combat()
 	exit_camp()
 	exit_city()
 	tiles_ready = _U4TileBankScript.ensure_loaded()
@@ -297,6 +304,10 @@ func is_camping() -> bool:
 	return _camp_map != null
 
 
+func is_in_combat() -> bool:
+	return _combat_map != null
+
+
 func is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 
@@ -313,6 +324,7 @@ func enter_city(
 	## `start` — load may place the party mid-city far from the gate.
 	## Keep world horse/ship overlays (same persistence as save); city view ignores them.
 	## Keep mounted transport sprite (horse) — do not reset to foot.
+	exit_combat()
 	exit_camp()
 	_city_map = map
 	_city_world_pos = world_pos
@@ -352,6 +364,7 @@ func enter_camp(
 ) -> void:
 	## Show CAMP.CON centered; margins from tiles immediately left/right of party.
 	## U5 watch: optional awake guard who patrols the camp map.
+	exit_combat()
 	exit_city()
 	_camp_map = map
 	_camp_sleepers = sleepers.duplicate()
@@ -386,6 +399,47 @@ func exit_camp() -> void:
 	_camp_guard_a = null
 	_camp_guard_b = null
 	_rebuild()
+
+
+func enter_combat(map, party_units: Array, foe_units: Array) -> void:
+	## Show a .CON arena centered in the explore view (xu4 CombatMap).
+	## `party_units` / `foe_units`: {x,y,klass?} / {x,y,tile}.
+	exit_camp()
+	exit_city()
+	_combat_map = map
+	_combat_party.clear()
+	for u in party_units:
+		if typeof(u) == TYPE_DICTIONARY:
+			_combat_party.append((u as Dictionary).duplicate(true))
+	_combat_foes.clear()
+	for u in foe_units:
+		if typeof(u) == TYPE_DICTIONARY:
+			_combat_foes.append((u as Dictionary).duplicate(true))
+	_build_camp_background()
+	_scroll_frames_left = 0
+	_rebuild()
+
+
+func exit_combat() -> void:
+	if _combat_map == null and _combat_party.is_empty() and _combat_foes.is_empty():
+		return
+	_combat_map = null
+	_combat_party.clear()
+	_combat_foes.clear()
+	_rebuild()
+
+
+func get_combat_foes() -> Array:
+	## Living combat foes for the left-panel roster (caller sorts by priority).
+	var out: Array = []
+	for u in _combat_foes:
+		if typeof(u) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = u
+		if int(d.get("hp", 1)) <= 0:
+			continue
+		out.append(d.duplicate(true))
+	return out
 
 
 func tick_camp_guard(delta: float) -> void:
@@ -1036,6 +1090,10 @@ func _rebuild() -> void:
 		queue_redraw()
 		return
 
+	if _combat_map != null:
+		_rebuild_combat()
+		return
+
 	if _camp_map != null:
 		_rebuild_camp()
 		return
@@ -1662,6 +1720,75 @@ func _rebuild_camp() -> void:
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
+
+
+func _rebuild_combat() -> void:
+	## 11×11 combat .CON centered (same margins as camp).
+	var camp_w := CAMP_W
+	var camp_h := CAMP_H
+	var origin_x := (view_w - camp_w) / 2
+	var origin_y := (view_h - camp_h) / 2
+	if _camp_bg.size() != view_w * view_h:
+		_build_camp_background()
+
+	for dy in view_h:
+		for dx in view_w:
+			var tid := 4
+			var cx := dx - origin_x
+			var cy := dy - origin_y
+			if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+				tid = clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+			else:
+				var bi := dy * view_w + dx
+				if bi >= 0 and bi < _camp_bg.size():
+					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
+			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+			_blit_terrain_to(_buf, tid, dst)
+
+	_paint_combat_foes(origin_x, origin_y)
+	_paint_combat_party(origin_x, origin_y)
+	_tex.set_image(_buf)
+	texture = _tex
+	queue_redraw()
+
+
+func _paint_combat_party(origin_x: int, origin_y: int) -> void:
+	for u in _combat_party:
+		var klass := int(u.get("klass", -1))
+		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+		var sx := origin_x + pos.x
+		var sy := origin_y + pos.y
+		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+			continue
+		var img: Image = null
+		if klass >= 0 and klass < CLASS_TILE_EVEN.size():
+			var even: int = CLASS_TILE_EVEN[klass]
+			var tid := even + (1 if _avatar_frame == 1 else 0)
+			img = _slice_keyed_tile(tid)
+			if img == null:
+				img = _slice_keyed_tile(even)
+		if img == null or img.is_empty():
+			continue
+		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+
+
+func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
+	for u in _combat_foes:
+		var tid := int(u.get("tile", 0))
+		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+		var sx := origin_x + pos.x
+		var sy := origin_y + pos.y
+		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+			continue
+		## 2-frame flip for non-pirate wilderness tiles (pirate keeps facing).
+		if tid >= 132 and (_avatar_frame % 2) == 1:
+			tid += 1
+		var img := _slice_keyed_tile(tid)
+		if img == null or img.is_empty():
+			continue
+		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
 
 
 func _build_camp_background() -> void:

@@ -66,6 +66,45 @@ const _CREATURE_BASES: Array[Vector2i] = [
 	Vector2i(252, 4), ## balron
 ]
 
+## Labels for combat engage messages (xu4 creature names, short form).
+const _DISPLAY_NAMES := {
+	128: "Pirates",
+	132: "Nixie",
+	134: "Giant Squid",
+	136: "Sea Serpent",
+	138: "Seahorse",
+	140: "Whirlpool",
+	142: "Twister",
+	144: "Rat",
+	148: "Bat",
+	152: "Spider",
+	156: "Ghost",
+	160: "Slime",
+	164: "Troll",
+	168: "Gremlin",
+	172: "Mimic",
+	176: "Reaper",
+	180: "Insects",
+	184: "Gazer",
+	188: "Phantom",
+	192: "Orc",
+	196: "Skeleton",
+	200: "Rogue",
+	204: "Python",
+	208: "Ettin",
+	212: "Headless",
+	216: "Cyclops",
+	220: "Wisp",
+	224: "Mage",
+	228: "Liche",
+	232: "Lava Lizard",
+	236: "Zorn",
+	240: "Daemon",
+	244: "Hydra",
+	248: "Dragon",
+	252: "Balron",
+}
+
 ## xu4 config.b basehp by creature base tile (pirate has none → 100).
 const _BASE_HP := {
 	128: 100,
@@ -199,6 +238,24 @@ func creature_at(tile: Vector2i) -> int:
 	return -1
 
 
+func creature_dict_at(tile: Vector2i) -> Dictionary:
+	## Copy of the creature record at `tile`, or {}.
+	for c in creatures:
+		if int(c["x"]) == tile.x and int(c["y"]) == tile.y:
+			return (c as Dictionary).duplicate(true)
+	return {}
+
+
+func take_at(tile: Vector2i) -> Dictionary:
+	## Remove and return the creature at `tile` (for combat engage).
+	for i in creatures.size():
+		var c: Dictionary = creatures[i]
+		if int(c["x"]) == tile.x and int(c["y"]) == tile.y:
+			creatures.remove_at(i)
+			return c.duplicate(true)
+	return {}
+
+
 func remove_at(tile: Vector2i) -> bool:
 	for i in creatures.size():
 		var c: Dictionary = creatures[i]
@@ -206,6 +263,12 @@ func remove_at(tile: Vector2i) -> bool:
 			creatures.remove_at(i)
 			return true
 	return false
+
+
+static func display_name(tile_or_base: int) -> String:
+	## Short English label for messages (Attacked by …).
+	var base := _base_tile(tile_or_base)
+	return str(_DISPLAY_NAMES.get(base, "Creature"))
 
 
 func apply_cannon_damage_at(tile: Vector2i) -> Dictionary:
@@ -261,11 +324,14 @@ func move_all(
 	avatar: Vector2i,
 	blocked: Callable = Callable(),
 	on_pirate_fire: Callable = Callable()
-) -> bool:
-	## xu4 Map::moveObjects — specialAction (pirate cannon) then move.
+) -> Dictionary:
+	## xu4 Map::moveObjects — specialAction then move.
+	## Returns { "changed": bool, "attacker": Dictionary } — attacker still on map.
+	var out := {"changed": false, "attacker": {}}
 	if world == null or not world.loaded:
-		return false
+		return out
 	var changed := false
+	var attacker: Dictionary = {}
 	for i in creatures.size():
 		var c: Dictionary = creatures[i]
 		var pos := Vector2i(int(c["x"]), int(c["y"]))
@@ -274,13 +340,17 @@ func move_all(
 			int(c.get("movement", MOVE_ATTACK)) == MOVE_ATTACK
 			and _ortho_adjacent(pos, avatar)
 		):
+			if attacker.is_empty():
+				attacker = c.duplicate(true)
 			continue
 		if _try_pirate_cannon(i, avatar, on_pirate_fire):
 			changed = true
 			continue
 		if _move_one(i, world, avatar, blocked):
 			changed = true
-	return changed
+	out["changed"] = changed
+	out["attacker"] = attacker
+	return out
 
 
 func _try_pirate_cannon(index: int, avatar: Vector2i, on_fire: Callable) -> bool:
