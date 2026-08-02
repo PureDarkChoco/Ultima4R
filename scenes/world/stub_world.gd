@@ -2604,7 +2604,7 @@ func _sync_creatures_to_map() -> void:
 	if _map == null or _world_creatures == null:
 		return
 	if _is_in_city():
-		_map.set_creatures([] as Array[Vector3i])
+		_map.set_creatures([])
 		return
 	_map.set_creatures(_world_creatures.as_paint_items())
 
@@ -2652,7 +2652,7 @@ func _fire_cannon_along_async(origin: Vector2i, dir: Vector2i, from_avatar: bool
 	if _map != null:
 		await _map.await_cannonball(origin, impact_pos, dir)
 	if not impact.is_empty():
-		_cannon_apply_impact(impact)
+		await _cannon_apply_impact(impact)
 	_cannon_busy = false
 
 
@@ -2691,23 +2691,26 @@ func _cannon_probe(pos: Vector2i, from_avatar: bool) -> Dictionary:
 
 
 func _cannon_apply_impact(info: Dictionary) -> void:
+	## Await hit FX so the target tile stays put until the flash ends (then AI moves).
 	var pos: Vector2i = info.get("pos", Vector2i.ZERO)
 	var kind := str(info.get("kind", ""))
+	const HIT_SEC := 0.36
 	match kind:
 		"avatar":
 			if _map != null:
-				_map.flash_world_tile(pos, MapView.TILE_HIT_FLASH, 0.36)
+				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
 			_apply_cannon_hit_on_party()
 		"overlay":
 			if _map != null:
-				_map.flash_world_tile(pos, MapView.TILE_HIT_FLASH, 0.36)
+				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
 				_map.remove_overlay_at(pos)
 		"creature":
-			if _map != null:
-				_map.flash_world_tile(pos, MapView.TILE_HIT_FLASH, 0.36)
-			if (randi() % 4) == 0 and _world_creatures != null:
-				_world_creatures.remove_at(pos)
+			if _world_creatures != null:
+				## Progressive HP (bar under sprite) — ~4 cannon hits to sink.
+				_world_creatures.apply_cannon_damage_at(pos)
 				_sync_creatures_to_map()
+			if _map != null:
+				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
 		_:
 			pass
 

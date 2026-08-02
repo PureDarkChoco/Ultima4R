@@ -129,8 +129,8 @@ var _los: PackedByteArray = PackedByteArray()
 ## Temporary world overlays: Vector3i(x, y, tile_id) — horse/ship stubs, etc.
 var _overlays: Array[Vector3i] = []
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
-## Wilderness monsters: Vector3i(x, y, base_tile_id). Drawn with tile animation.
-var _creatures: Array[Vector3i] = []
+## Wilderness monsters: { x, y, tid, hp, max_hp }. Drawn with tile animation + HP bar.
+var _creatures: Array = []
 ## Brief world-tile FX: { x, y, tid, left }.
 var _tile_flashes: Array[Dictionary] = []
 ## Flying cannonball in unwrapped tile-space (center): { x, y } or empty.
@@ -455,14 +455,14 @@ func get_overlays() -> Array[Vector3i]:
 	return _overlays.duplicate()
 
 
-func set_creatures(items: Array[Vector3i]) -> void:
+func set_creatures(items: Array) -> void:
 	## Wilderness monsters (world map only). Empty while exploring a city.
-	_creatures = items.duplicate()
+	_creatures = items.duplicate(true)
 	_rebuild()
 
 
-func get_creatures() -> Array[Vector3i]:
-	return _creatures.duplicate()
+func get_creatures() -> Array:
+	return _creatures.duplicate(true)
 
 
 func set_los_enabled(on: bool) -> void:
@@ -605,6 +605,15 @@ func flash_world_tile(pos: Vector2i, tile_id: int, duration: float = 0.10) -> vo
 		"left": maxf(duration, 0.04),
 	})
 	_rebuild()
+
+
+func await_flash_world_tile(pos: Vector2i, tile_id: int, duration: float = 0.10) -> void:
+	## flashTile + wait so the target does not move under the FX.
+	var dur := maxf(duration, 0.04)
+	flash_world_tile(pos, tile_id, dur)
+	var tree := get_tree()
+	if tree != null:
+		await tree.create_timer(dur).timeout
 
 
 func await_cannonball(from_tile: Vector2i, to_tile: Vector2i, dir: Vector2i) -> void:
@@ -2391,7 +2400,7 @@ func _paint_overlays(cam: Vector2) -> void:
 
 
 func _paint_creatures(cam: Vector2) -> void:
-	## Wilderness monsters — `z` is base (or pirate facing); animate consecutive tiles.
+	## Wilderness monsters — animate tiles; HP bar under feet when damaged.
 	if _creatures.is_empty() or not tiles_ready:
 		return
 	if is_in_city():
@@ -2399,11 +2408,17 @@ func _paint_creatures(cam: Vector2) -> void:
 	var half_x := view_w / 2
 	var half_y := view_h / 2
 	for item in _creatures:
-		var wx := int(item.x)
-		var wy := int(item.y)
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = item
+		var wx := int(d.get("x", 0))
+		var wy := int(d.get("y", 0))
 		if not is_tile_visible(wx, wy):
 			continue
-		var tid: int = _WorldCreaturesScript.resolve_paint_tile(int(item.z), _tile_anim_frame)
+		var tid: int = _WorldCreaturesScript.resolve_paint_tile(
+			int(d.get("tid", d.get("z", 0))),
+			_tile_anim_frame
+		)
 		var screen := Vector2(wx, wy) - cam + Vector2(half_x, half_y)
 		var px := int(round(screen.x * float(TILE_SRC)))
 		var py := int(round(screen.y * float(TILE_SRC)))
@@ -2415,6 +2430,29 @@ func _paint_creatures(cam: Vector2) -> void:
 		if slice == null:
 			continue
 		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+		if bool(d.get("show_hp", false)):
+			_paint_creature_hp_bar(px, py, int(d.get("hp", 0)), int(d.get("max_hp", 0)))
+
+
+func _paint_creature_hp_bar(tile_px: int, tile_py: int, hp: int, max_hp: int) -> void:
+	## Red bar under the sprite — after a cannon hit, until death / combat.
+	if max_hp <= 0 or hp < 0:
+		return
+	const BAR_W := 28
+	const BAR_H := 2
+	var bx := tile_px + (TILE_SRC - BAR_W) / 2
+	var by := tile_py + TILE_SRC - BAR_H - 1
+	if bx + BAR_W <= 0 or by + BAR_H <= 0:
+		return
+	if bx >= view_w * TILE_SRC or by >= view_h * TILE_SRC:
+		return
+	## Match PartyRoster HP bar: COL_TRACK / COL_HP_OK.
+	const COL_TRACK := Color(0.22, 0.22, 0.22, 1)
+	const COL_HP := Color(0.82, 0.22, 0.2, 1)
+	_buf.fill_rect(Rect2i(bx, by, BAR_W, BAR_H), COL_TRACK)
+	var fill_w := int(round(float(BAR_W) * float(clampi(hp, 0, max_hp)) / float(max_hp)))
+	if fill_w > 0:
+		_buf.fill_rect(Rect2i(bx, by, fill_w, BAR_H), COL_HP)
 
 
 func _paint_tile_flashes(cam: Vector2) -> void:

@@ -66,7 +66,46 @@ const _CREATURE_BASES: Array[Vector2i] = [
 	Vector2i(252, 4), ## balron
 ]
 
-## Entries: { x, y, tile (base), facing (0..3 pirate), movement }
+## xu4 config.b basehp by creature base tile (pirate has none → 100).
+const _BASE_HP := {
+	128: 100,
+	132: 64,
+	134: 96,
+	136: 128,
+	138: 128,
+	140: 255,
+	142: 255,
+	144: 48,
+	148: 48,
+	152: 64,
+	156: 80,
+	160: 48,
+	164: 96,
+	168: 48,
+	172: 192,
+	176: 255,
+	180: 48,
+	184: 240,
+	188: 128,
+	192: 80,
+	196: 48,
+	200: 80,
+	204: 48,
+	208: 112,
+	212: 64,
+	216: 128,
+	220: 64,
+	224: 176,
+	228: 192,
+	232: 96,
+	236: 240,
+	240: 112,
+	244: 208,
+	248: 224,
+	252: 255,
+}
+
+## Entries: { x, y, tile, facing, movement, hp, max_hp, show_hp }
 var creatures: Array[Dictionary] = []
 
 
@@ -86,6 +125,9 @@ func to_save() -> Array:
 			"y": int(c.get("y", 0)),
 			"t": int(c.get("tile", 0)),
 			"f": int(c.get("facing", 0)),
+			"hp": int(c.get("hp", 0)),
+			"mh": int(c.get("max_hp", 0)),
+			"sh": bool(c.get("show_hp", false)),
 		})
 	return out
 
@@ -105,18 +147,35 @@ func from_save(raw: Variant) -> void:
 		var facing := int(d.get("f", d.get("facing", 0)))
 		if base == TILE_PIRATE and tid >= TILE_PIRATE and tid < TILE_PIRATE + 4:
 			facing = tid - TILE_PIRATE
-		creatures.append(_make_creature(int(d.get("x", 0)), int(d.get("y", 0)), base, facing))
+		var c := _make_creature(int(d.get("x", 0)), int(d.get("y", 0)), base, facing)
+		var mh := int(d.get("mh", d.get("max_hp", 0)))
+		var hp := int(d.get("hp", 0))
+		if mh > 0:
+			c["max_hp"] = mh
+			c["hp"] = clampi(hp, 0, mh) if hp > 0 else mh
+		if d.has("sh") or d.has("show_hp"):
+			c["show_hp"] = bool(d.get("sh", d.get("show_hp", false)))
+		elif mh > 0 and int(c["hp"]) < mh:
+			c["show_hp"] = true
+		creatures.append(c)
 
 
-func as_paint_items() -> Array[Vector3i]:
-	## z = base tile, or pirate facing tile (128..131). MapView animates other bases.
-	var out: Array[Vector3i] = []
+func as_paint_items() -> Array:
+	## { x, y, tid, hp, max_hp } — MapView animates tid and draws HP bars.
+	var out: Array = []
 	for c in creatures:
 		var base := int(c.get("tile", 0))
 		var tid := base
 		if base == TILE_PIRATE:
 			tid = base + clampi(int(c.get("facing", 0)), 0, 3)
-		out.append(Vector3i(int(c["x"]), int(c["y"]), tid))
+		out.append({
+			"x": int(c["x"]),
+			"y": int(c["y"]),
+			"tid": tid,
+			"hp": int(c.get("hp", 0)),
+			"max_hp": int(c.get("max_hp", 1)),
+			"show_hp": bool(c.get("show_hp", false)),
+		})
 	return out
 
 
@@ -147,6 +206,42 @@ func remove_at(tile: Vector2i) -> bool:
 			creatures.remove_at(i)
 			return true
 	return false
+
+
+func apply_cannon_damage_at(tile: Vector2i) -> Dictionary:
+	## Player cannon hit — ~1/4 max HP per shot so the bar reads ~4 hits to kill.
+	for i in creatures.size():
+		var c: Dictionary = creatures[i]
+		if int(c["x"]) != tile.x or int(c["y"]) != tile.y:
+			continue
+		var max_hp := maxi(1, int(c.get("max_hp", base_hp_for(int(c.get("tile", 0))))))
+		var hp := int(c.get("hp", max_hp))
+		var dmg := maxi(1, (max_hp + 3) / 4)
+		hp = maxi(0, hp - dmg)
+		c["hp"] = hp
+		c["max_hp"] = max_hp
+		## Stay visible until death or combat clears the wilderness list.
+		c["show_hp"] = true
+		if hp <= 0:
+			creatures.remove_at(i)
+			return {"dead": true, "hp": 0, "max_hp": max_hp, "pos": tile}
+		creatures[i] = c
+		return {"dead": false, "hp": hp, "max_hp": max_hp, "pos": tile}
+	return {}
+
+
+func clear_hp_bars() -> void:
+	## Hide bars when combat starts (wilderness creatures leave the explore view).
+	for i in creatures.size():
+		var c: Dictionary = creatures[i]
+		if bool(c.get("show_hp", false)):
+			c["show_hp"] = false
+			creatures[i] = c
+
+
+static func base_hp_for(base_tile: int) -> int:
+	var base := _base_tile(base_tile)
+	return int(_BASE_HP.get(base, 80))
 
 
 func cleanup(avatar: Vector2i) -> bool:
@@ -370,12 +465,16 @@ static func wrap_delta(from: Vector2i, to: Vector2i) -> Vector2i:
 
 func _make_creature(x: int, y: int, base_tile: int, facing: int) -> Dictionary:
 	var base := _base_tile(base_tile)
+	var max_hp := base_hp_for(base)
 	return {
 		"x": x,
 		"y": y,
 		"tile": base,
 		"facing": clampi(facing, 0, 3),
 		"movement": _default_movement(base),
+		"hp": max_hp,
+		"max_hp": max_hp,
+		"show_hp": false,
 	}
 
 
