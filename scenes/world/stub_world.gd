@@ -5401,7 +5401,6 @@ func _combat_clear_aim_state() -> void:
 	_combat_foe_dmg.clear()
 	if _map:
 		_map.clear_combat_aim_cursor()
-		_map.clear_combat_range_shade()
 	_sync_combat_aim_foe_roster()
 
 
@@ -5528,7 +5527,6 @@ func _combat_begin_aim() -> void:
 		false
 	)
 	if _map:
-		_map.set_combat_range_shade(from, wid)
 		_map.set_combat_aim_cursor(_combat_aim_pos)
 	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
@@ -5600,7 +5598,6 @@ func _combat_cancel_aim() -> void:
 	_combat_aim_weapon = 0
 	if _map:
 		_map.clear_combat_aim_cursor()
-		_map.clear_combat_range_shade()
 	_sync_combat_aim_foe_roster()
 	_push_message(Locale.t("cmd_cancelled"), false)
 	_layout_prompt_row()
@@ -5635,7 +5632,6 @@ func _combat_confirm_aim() -> void:
 	_combat_aiming = false
 	if _map:
 		_map.clear_combat_aim_cursor()
-		_map.clear_combat_range_shade()
 	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
 	_combat_resolve_attack(klass, wid, from, target)
@@ -5646,15 +5642,24 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 	_stamp_command_time()
 	var dist := WeaponIcons.aim_distance(from, target)
 	var valid_cell := _map.combat_can_strike(wid, from, target)
-	## Self tile: unstrikeable (no shade). Allies and foes are valid targets.
+	## Self tile: unstrikeable. Allies and foes are valid targets.
+	## Intermediate walls stop the missile — no hit past the obstacle.
 	var aim_foe_i := -1
 	var aim_ally_i := -1
 	if valid_cell:
 		aim_foe_i = _map.combat_foe_index_at(target)
 		if aim_foe_i < 0:
 			aim_ally_i = _map.combat_party_index_at(target)
-			## Never count the attacker as an ally target on their own tile
-			## (blocked by aim_strike_allows anyway).
+	## Projectiles for non-melee strikes that leave the adjacent ortho step.
+	var use_proj := (
+		not WeaponIcons.is_melee(wid)
+		and from != target
+		and (WeaponIcons.is_absolute_range(wid) or dist > 1)
+	)
+	if use_proj and not _map.combat_shot_reaches(from, target):
+		## Wall/mast in the way — fly until the obstacle, no unit damage beyond.
+		aim_foe_i = -1
+		aim_ally_i = -1
 	var found_foe := aim_foe_i >= 0
 	var found_ally := aim_ally_i >= 0
 	var found_target := found_foe or found_ally
@@ -5664,12 +5669,6 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		## Aimed empty space (not scatter, not self) — drop sticky.
 		_combat_clear_sticky_aim()
 
-	## Projectiles for non-melee strikes that leave the adjacent ortho step.
-	var use_proj := (
-		not WeaponIcons.is_melee(wid)
-		and from != target
-		and (WeaponIcons.is_absolute_range(wid) or dist > 1)
-	)
 	if use_proj:
 		await _combat_resolve_ranged_attack(klass, wid, from, target, aim_foe_i, aim_ally_i)
 	else:
@@ -6103,7 +6102,7 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 
 
 func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
-	## Free-aim shot (same LOF / projectile as party ranged); xu4 monsters never miss.
+	## Free-aim shot; xu4 monsters never miss when the missile reaches the tile.
 	var from: Vector2i = plan.get("from", Vector2i.ZERO)
 	var to: Vector2i = plan.get("to", Vector2i.ZERO)
 	var party_i := int(plan.get("party_i", -1))
@@ -6118,6 +6117,9 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 	klass = int(unit.get("klass", klass))
 	to = Vector2i(int(unit.get("x", to.x)), int(unit.get("y", to.y)))
 	await _map.await_combat_projectile(from, to)
+	if not _map.combat_shot_reaches(from, to):
+		## Stopped on an intermediate obstacle — no effect.
+		return
 	await _map.await_flash_combat_tile(to, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
 	match effect:
 		"poison":

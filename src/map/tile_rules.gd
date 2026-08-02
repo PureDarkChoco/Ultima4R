@@ -221,11 +221,16 @@ static func is_opaque(tile_id: int) -> bool:
 			return false
 
 
+static func is_secret_door(tile_id: int) -> bool:
+	## xu4 secret_door — attackable solid (can be opened / destroyed later).
+	return clampi(tile_id, 0, 255) == 73
+
+
 static func blocks_weapon_shot(tile_id: int) -> bool:
-	## Combat aim LOF: walls and ship pillars stop projectiles past them.
-	## column 48, shipmast 53, stone_wall 57, brick_wall 127.
+	## Stops projectiles: walls / ship pillars, plus secret doors (past them).
+	## column 48, shipmast 53, stone_wall 57, secret_door 73, brick_wall 127.
 	match clampi(tile_id, 0, 255):
-		48, 53, 57, 127:
+		48, 53, 57, 73, 127:
 			return true
 		_:
 			return false

@@ -12,10 +12,6 @@ const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _WeaponIconsScript := preload("res://src/core/weapon_icons.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
-## Out-of-range combat aim shade — dither between two translucent blacks.
-const COMBAT_RANGE_SHADE_A := Color(0, 0, 0, 0.55)
-const COMBAT_RANGE_SHADE_B := Color(0, 0, 0, 0.78)
-
 const VIEW_H := 11
 const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
 const VIEW_W_MIN := VIEW_W
@@ -231,11 +227,6 @@ const COMBAT_AIM_CURSOR_PATH := "res://assets/ui/combat/target_cursor.png"
 var _combat_tile_flashes: Array[Dictionary] = []
 ## Ranged weapon missile in combat-local float tile space (tile centers).
 var _combat_proj: Dictionary = {}
-## Out-of-range shade while Attack aim is open.
-var _combat_range_shade := false
-var _combat_range_from := Vector2i.ZERO
-var _combat_range_weapon := 0
-var _combat_range_shade_img: Image
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -461,7 +452,6 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_combat_aim_pos = Vector2i(-1, -1)
 	_combat_tile_flashes.clear()
 	_combat_proj.clear()
-	_clear_combat_range_shade_state()
 	_ensure_combat_aim_cursor()
 	_combat_focus_on = true
 	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
@@ -482,7 +472,6 @@ func exit_combat() -> void:
 	_combat_aim_pos = Vector2i(-1, -1)
 	_combat_tile_flashes.clear()
 	_combat_proj.clear()
-	_clear_combat_range_shade_state()
 	_rebuild()
 
 
@@ -619,55 +608,45 @@ func get_combat_aim_cursor() -> Vector2i:
 	return _combat_aim_pos
 
 
-func set_combat_range_shade(from: Vector2i, weapon_id: int) -> void:
-	## Dim tiles the current weapon cannot strike from `from`.
-	_combat_range_shade = true
-	_combat_range_from = from
-	_combat_range_weapon = weapon_id
-	_ensure_combat_range_shade_img()
-	if _combat_map != null:
-		_rebuild()
-
-
-func clear_combat_range_shade() -> void:
-	if not _combat_range_shade:
-		return
-	_clear_combat_range_shade_state()
-	if _combat_map != null:
-		_rebuild()
-
-
-func _clear_combat_range_shade_state() -> void:
-	_combat_range_shade = false
-	_combat_range_weapon = 0
-	_combat_range_from = Vector2i.ZERO
-
-
 func combat_can_strike(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
-	## Range/melee rules plus wall/mast line-of-fire from the attacker.
-	if not _WeaponIconsScript.aim_strike_allows(weapon_id, from, to):
-		return false
-	if _WeaponIconsScript.is_melee(weapon_id):
-		return true
-	if _WeaponIconsScript.attacks_through_objects(weapon_id):
-		return true
-	return combat_shot_line_clear(from, to)
+	## In-range cells are always aimable (incl. walls / future secret tiles).
+	## Obstacles only stop the traveling projectile — they do not shade or forbid aim.
+	return _WeaponIconsScript.aim_strike_allows(weapon_id, from, to)
 
 
-func combat_shot_line_clear(from: Vector2i, to: Vector2i) -> bool:
-	## Straight line from attacker; walls / ship mast block tiles beyond.
+func combat_shot_reaches(from: Vector2i, to: Vector2i) -> bool:
+	## True if the shot lands on `to`.
+	## Secret doors are attackable; normal obstacles are not (stop one tile short).
 	if _combat_map == null or from == to:
 		return true
-	## Solid blocker on the target cell itself is not a valid strike tile.
-	if _TileRulesCamp.blocks_weapon_shot(_combat_map.tile_at(to.x, to.y)):
-		return false
 	var cells: Array[Vector2i] = _TileRulesCamp.cells_on_line(from, to)
-	## Skip attacker and destination — only intermediate obstacles matter for "past".
-	for i in range(1, cells.size() - 1):
+	for i in range(1, cells.size()):
 		var c: Vector2i = cells[i]
-		if _TileRulesCamp.blocks_weapon_shot(_combat_map.tile_at(c.x, c.y)):
-			return false
+		var tid := int(_combat_map.tile_at(c.x, c.y))
+		if not _TileRulesCamp.blocks_weapon_shot(tid):
+			continue
+		if c == to and _TileRulesCamp.is_secret_door(tid):
+			return true
+		## Normal obstacle (or anything past a blocker) — does not reach `to`.
+		return false
 	return true
+
+
+func combat_projectile_end(from: Vector2i, to: Vector2i) -> Vector2i:
+	## Secret door: land on that tile. Other blockers: stop on the tile before them.
+	if _combat_map == null or from == to:
+		return to
+	var cells: Array[Vector2i] = _TileRulesCamp.cells_on_line(from, to)
+	for i in range(1, cells.size()):
+		var c: Vector2i = cells[i]
+		var tid := int(_combat_map.tile_at(c.x, c.y))
+		if not _TileRulesCamp.blocks_weapon_shot(tid):
+			continue
+		if _TileRulesCamp.is_secret_door(tid):
+			return c
+		## Normal obstacle — stop on the previous cell (in front of the wall).
+		return cells[i - 1]
+	return to
 
 
 func combat_foe_index_at(pos: Vector2i) -> int:
@@ -782,16 +761,18 @@ func await_flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12
 
 func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> void:
 	## Cannon-style flight in combat-local coords (straight line, any angle).
+	## Stops on the first wall/mast (magic weapons included — no pass-through).
 	## `weapon_id` selects a custom missile sprite (e.g. sling stone).
 	if from == to:
 		return
-	var delta := to - from
+	var end := combat_projectile_end(from, to)
+	var delta := end - from
 	var steps := maxi(absi(delta.x), absi(delta.y))
 	if steps <= 0:
 		return
 	var duration := float(steps) * CANNON_SEC_PER_TILE
 	var start := Vector2(from) + Vector2(0.5, 0.5)
-	var finish := Vector2(to) + Vector2(0.5, 0.5)
+	var finish := Vector2(end) + Vector2(0.5, 0.5)
 	_combat_proj = {"x": start.x, "y": start.y, "wid": weapon_id}
 	_rebuild()
 	var tween := create_tween()
@@ -974,7 +955,8 @@ func _combat_pick_ranged_target(from: Vector2i) -> Dictionary:
 		var dist := _WeaponIconsScript.aim_distance(from, pos)
 		if dist < 1 or dist > _WorldCreaturesScript.COMBAT_RANGED_RANGE:
 			continue
-		if not combat_shot_line_clear(from, pos):
+		## Prefer targets the missile can actually reach (no intermediate wall).
+		if not combat_shot_reaches(from, pos):
 			continue
 		var better := dist < int(best.dist)
 		if dist == int(best.dist) and (randi() % 2) == 0:
@@ -2699,7 +2681,6 @@ func _rebuild_combat() -> void:
 
 	_paint_combat_foes(origin_x, origin_y)
 	_paint_combat_party(origin_x, origin_y)
-	_paint_combat_range_shade(origin_x, origin_y)
 	_paint_combat_focus(origin_x, origin_y)
 	_paint_combat_tile_flashes(origin_x, origin_y)
 	_paint_combat_projectile(origin_x, origin_y)
@@ -2790,46 +2771,6 @@ func _ensure_combat_aim_cursor() -> void:
 	if _combat_aim_cursor != null and not _combat_aim_cursor.is_empty():
 		return
 	_combat_aim_cursor = _load_image_path(COMBAT_AIM_CURSOR_PATH)
-
-
-func _ensure_combat_range_shade_img() -> void:
-	## 2×2 Bayer-style dither between current shade and a darker tint.
-	if _combat_range_shade_img == null or _combat_range_shade_img.is_empty():
-		_combat_range_shade_img = Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
-	for y in TILE_SRC:
-		for x in TILE_SRC:
-			## Threshold matrix: 0 2 / 3 1 — alternate A/B for a soft dither.
-			var cell := (x & 1) + ((y & 1) << 1)
-			var dark := cell == 1 or cell == 2
-			_combat_range_shade_img.set_pixel(
-				x, y, COMBAT_RANGE_SHADE_B if dark else COMBAT_RANGE_SHADE_A
-			)
-
-
-func _paint_combat_range_shade(origin_x: int, origin_y: int) -> void:
-	## Translucent black on tiles outside strike range. Attacker's own tile
-	## stays unshaded (still unstrikeable).
-	if not _combat_range_shade:
-		return
-	_ensure_combat_range_shade_img()
-	if _combat_range_shade_img == null:
-		return
-	for cy in CAMP_H:
-		for cx in CAMP_W:
-			var cell := Vector2i(cx, cy)
-			if cell == _combat_range_from:
-				continue
-			if combat_can_strike(_combat_range_weapon, _combat_range_from, cell):
-				continue
-			var sx := origin_x + cx
-			var sy := origin_y + cy
-			if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
-				continue
-			_buf.blend_rect(
-				_combat_range_shade_img,
-				Rect2i(0, 0, TILE_SRC, TILE_SRC),
-				Vector2i(sx * TILE_SRC, sy * TILE_SRC)
-			)
 
 
 func _paint_combat_aim_cursor(origin_x: int, origin_y: int) -> void:
