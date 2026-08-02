@@ -783,9 +783,16 @@ func _side_geom() -> Dictionary:
 	var overflow := maxf(pane_sz.x - center_w, 0.0)
 	var left_w := floorf(overflow * 0.5)
 	var right_w := overflow - left_w
+	## Snap right strip so x + w lands exactly on the pane's right edge (no 1px tile peek).
+	var right_open_x := floorf(pane_sz.x - right_w)
+	right_w = pane_sz.x - right_open_x
 	var compact_w := float(ceili(float(COMPACT_RIGHT_TILES) * tile_w))
-	## Floor tile multiples so y + h never exceeds pane (avoids MapPane clip).
-	var top_h := floorf(float(RIGHT_TOP_TILES) * tile_h)
+	var compact_x := pane_sz.x - compact_w
+	## Ceil the roster band so the 5th tile row is fully covered.
+	var top_h := minf(
+		float(ceili(float(RIGHT_TOP_TILES) * tile_h)),
+		maxf(pane_sz.y - 24.0, 1.0)
+	)
 	var bottom_open_h := pane_sz.y - top_h
 	## Closed height = bottom 5/15 of the open content at the same line pitch.
 	var open_content := maxf(bottom_open_h - float(MSG_INSET_Y * 2), float(MSG_OPEN_LINES))
@@ -812,13 +819,13 @@ func _side_geom() -> Dictionary:
 		"right_w": right_w,
 		"compact_w": compact_w,
 		"compact_h": compact_h,
-		"compact_x": pane_sz.x - compact_w,
+		"compact_x": compact_x,
 		"top_h": top_h,
 		"bottom_closed_h": bottom_closed_h,
 		"bottom_open_h": bottom_open_h,
 		"left_open_x": 0.0,
 		"left_closed_x": -left_w,
-		"right_open_x": pane_sz.x - right_w,
+		"right_open_x": right_open_x,
 		"right_closed_x": pane_sz.x,
 		"bottom_open_y": top_h,
 		"bottom_closed_y": bottom_closed_y,
@@ -833,10 +840,10 @@ func _pin_msg_panel(visible_h: float) -> void:
 	if _right_bottom == null or _map_pane == null:
 		return
 	var g := _side_geom()
-	_msg_full_h = floorf(g["bottom_open_h"])
-	_msg_rw = floorf(g["right_w"])
-	_msg_open_x = floorf(g["right_open_x"])
-	_msg_h = clampf(floorf(visible_h), 8.0, _msg_full_h)
+	_msg_full_h = g["bottom_open_h"]
+	_msg_open_x = g["right_open_x"]
+	_msg_rw = g["pane_w"] - _msg_open_x
+	_msg_h = clampf(visible_h, 8.0, _msg_full_h)
 	_apply_msg_geometry()
 	_refresh_message_view()
 
@@ -924,13 +931,17 @@ func _apply_msg_geometry() -> void:
 	if _msg_full_h < 8.0 or _msg_rw < 8.0:
 		return
 	_ensure_msg_terminal()
-	var pane_h := floorf(_map_pane.size.y)
-	var h := clampf(floorf(_msg_h), 8.0, _msg_full_h)
-	var x := floorf(_msg_open_x)
+	var pane_w := _map_pane.size.x
+	var pane_h := _map_pane.size.y
+	var h := clampf(_msg_h, 8.0, _msg_full_h)
+	var x := _msg_open_x
 	if x < 0.0:
-		x = floorf(_map_pane.size.x - _msg_rw)
-	_right_bottom.custom_minimum_size = Vector2(_msg_rw, h)
-	_right_bottom.size = Vector2(_msg_rw, h)
+		x = pane_w - _msg_rw
+	## Width always reaches the pane's right edge.
+	var w := pane_w - x
+	_msg_rw = w
+	_right_bottom.custom_minimum_size = Vector2(w, h)
+	_right_bottom.size = Vector2(w, h)
 	_right_bottom.position = Vector2(x, pane_h - h)
 	_right_bottom.visible = true
 	_place_msg_block(h)
@@ -1039,13 +1050,15 @@ func _layout_side_panels(animate: bool) -> void:
 		return
 	var g := _side_geom()
 	var lw: float = g["left_w"]
-	var rw: float = g["right_w"]
 	var cw: float = g["compact_w"]
 	var ch: float = g["compact_h"]
 	var ph: float = g["pane_h"]
+	var pw: float = g["pane_w"]
 	var top_h: float = g["top_h"]
-	var bot_closed_h: float = floorf(g["bottom_closed_h"])
-	var bot_open_h: float = floorf(g["bottom_open_h"])
+	var bot_closed_h: float = g["bottom_closed_h"]
+	var bot_open_h: float = g["bottom_open_h"]
+	var right_open_x: float = g["right_open_x"]
+	var rw: float = pw - right_open_x
 	if ph < 1.0 or rw < 1.0:
 		return
 
@@ -1056,7 +1069,6 @@ func _layout_side_panels(animate: bool) -> void:
 	_left_pane.size = Vector2(lw, ph)
 
 	var left_x: float = g["left_open_x"] if _sides_open else g["left_closed_x"]
-	var right_open_x: float = floorf(g["right_open_x"])
 	var right_closed_x: float = g["right_closed_x"]
 	var compact_x: float = g["compact_x"]
 
@@ -1068,7 +1080,7 @@ func _layout_side_panels(animate: bool) -> void:
 			_compact_roster.relayout()
 
 	_msg_full_h = bot_open_h
-	_msg_rw = floorf(rw)
+	_msg_rw = rw
 	_msg_open_x = right_open_x
 
 	if animate and is_inside_tree():
@@ -1200,9 +1212,9 @@ func _open_order_roster() -> void:
 	_order_opened_roster = true
 	_refresh_party()
 	var g := _side_geom()
-	var rw: float = g["right_w"]
+	var right_open_x: float = g["right_open_x"]
+	var rw: float = g["pane_w"] - right_open_x
 	var top_h: float = g["top_h"]
-	var right_open_x: float = floorf(g["right_open_x"])
 	var right_closed_x: float = g["right_closed_x"]
 	_right_top.visible = true
 	_right_top.size = Vector2(rw, top_h)
