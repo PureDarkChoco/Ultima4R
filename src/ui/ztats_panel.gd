@@ -7,9 +7,13 @@ extends Control
 const _WeaponIcons := preload("res://src/core/weapon_icons.gd")
 const _ArmorIcons := preload("res://src/core/armor_icons.gd")
 const _ReagentIcons := preload("res://src/core/reagent_icons.gd")
+const _RuneIcons := preload("res://src/core/rune_icons.gd")
+const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
+const _Virtues := preload("res://src/core/virtues.gd")
 const _Spells := preload("res://src/core/spells.gd")
 
-enum InvPage { NONE = -1, GEAR = 0, REAGENTS = 1, MIXTURES = 2 }
+## xu4 order adapted: Weapons+Armor → Items (+sextant) → Reagents → Mixtures.
+enum InvPage { NONE = -1, GEAR = 0, ITEMS = 1, REAGENTS = 2, MIXTURES = 3 }
 
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
@@ -1164,6 +1168,9 @@ func _refresh_inventory() -> void:
 		InvPage.GEAR:
 			_inv_title.text = Locale.t("ztats_page_equipment")
 			_fill_gear_page()
+		InvPage.ITEMS:
+			_inv_title.text = Locale.t("ztats_page_items")
+			_fill_items_page()
 		InvPage.REAGENTS:
 			_inv_title.text = Locale.t("ztats_page_reagents")
 			_fill_reagents_page()
@@ -1207,6 +1214,84 @@ func _fill_gear_page() -> void:
 			_ArmorIcons.defense_of(a),
 			qty2
 		)
+
+
+func _fill_items_page() -> void:
+	## xu4 StatsArea::showItems — stones, runes, quest relics.
+	## Torches/gems/keys live on the bottom bar; sextant joins this page.
+	var any := false
+	if GameState.stones != 0:
+		_add_inv_section(Locale.t("ztats_section_stones"))
+		for i in 8:
+			if (GameState.stones & (1 << i)) == 0:
+				continue
+			_add_icon_name_row(
+				_load_keyed_gear_path(_SpecialItemIcons.stone_path(i)),
+				Locale.t(_SpecialItemIcons.stone_name_key(i))
+			)
+			any = true
+	if GameState.runes != 0:
+		_add_inv_section(Locale.t("ztats_section_runes"))
+		for i in 8:
+			if (GameState.runes & (1 << i)) == 0:
+				continue
+			_add_icon_name_row(
+				_load_keyed_gear_path(_RuneIcons.path_for_id(i)),
+				_Virtues.name_of(i, GameState.lang_short())
+			)
+			any = true
+	var relics: Array[Dictionary] = []
+	if GameState.has_item_flag(GameState.ITEM_BELL):
+		relics.append({"path": _SpecialItemIcons.BELL, "key": "ztats_item_bell"})
+	if GameState.has_item_flag(GameState.ITEM_BOOK):
+		relics.append({"path": _SpecialItemIcons.BOOK, "key": "ztats_item_book"})
+	if GameState.has_item_flag(GameState.ITEM_CANDLE):
+		relics.append({"path": _SpecialItemIcons.CANDLE, "key": "ztats_item_candle"})
+	if GameState.has_item_flag(GameState.ITEM_KEY_T):
+		relics.append({"path": _SpecialItemIcons.KEY_TRUTH, "key": "ztats_item_key_truth"})
+	if GameState.has_item_flag(GameState.ITEM_KEY_L):
+		relics.append({"path": _SpecialItemIcons.KEY_LOVE, "key": "ztats_item_key_love"})
+	if GameState.has_item_flag(GameState.ITEM_KEY_C):
+		relics.append({"path": _SpecialItemIcons.KEY_COURAGE, "key": "ztats_item_key_courage"})
+	if GameState.has_item_flag(GameState.ITEM_HORN):
+		relics.append({"path": _SpecialItemIcons.HORN, "key": "ztats_item_horn"})
+	if GameState.has_item_flag(GameState.ITEM_WHEEL):
+		relics.append({"path": _SpecialItemIcons.WHEEL, "key": "ztats_item_wheel"})
+	if GameState.has_item_flag(GameState.ITEM_SKULL):
+		relics.append({"path": _SpecialItemIcons.SKULL, "key": "ztats_item_skull"})
+	if GameState.has_sextant:
+		relics.append({"path": "", "key": "ztats_item_sextant"})
+	if not relics.is_empty():
+		_add_inv_section(Locale.t("ztats_section_relics"))
+		for r in relics:
+			_add_icon_name_row(
+				_load_keyed_gear_path(str(r.get("path", ""))),
+				Locale.t(str(r.get("key", "")))
+			)
+			any = true
+	if not any:
+		## Empty party — keep the page readable.
+		var hint := Label.new()
+		hint.text = Locale.t("ztats_items_none")
+		hint.add_theme_font_size_override("font_size", FONT_SIZE)
+		hint.add_theme_color_override("font_color", COL_TEXT)
+		hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		UiTheme.apply_font(hint)
+		var wrap := Control.new()
+		wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		wrap.add_child(hint)
+		_inv_list.add_child(wrap)
+
+
+func _add_icon_name_row(tex: Texture2D, name: String) -> void:
+	## Unique quest items — icon + name, no quantity column.
+	var inner := _make_inv_inner_row()
+	_add_inv_icon(inner, tex)
+	_add_inv_name(inner, name)
+	_add_inv_static_row(inner)
 
 
 func _fill_reagents_page() -> void:

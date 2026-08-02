@@ -751,6 +751,187 @@ const _T := {
 		"en_us": "Thy ship sinks!",
 		"ko": "배가 가라앉는다!",
 	},
+	## xu4 Search (S) — game.cpp / item.cpp
+	"cmd_searching": {
+		"en_u4": "Searching...",
+		"en_us": "Searching...",
+		"ko": "수색 중...",
+	},
+	"cmd_search_nothing": {
+		"en_u4": "Nothing Here!",
+		"en_us": "Nothing Here!",
+		"ko": "아무것도 없다!",
+	},
+	"cmd_search_find": {
+		"en_u4": "You find...",
+		"en_us": "You find...",
+		"ko": "발견했다...",
+	},
+	"cmd_search_find_name": {
+		"en_u4": "%s!",
+		"en_us": "%s!",
+		"ko": "%s!",
+	},
+	"cmd_search_dropped": {
+		"en_u4": "Dropped some!",
+		"en_us": "Dropped some!",
+		"ko": "일부를 버렸다!",
+	},
+	"cmd_search_drift": {
+		"en_u4": "Drift only!",
+		"en_us": "Drift only!",
+		"ko": "표류만 가능!",
+	},
+	"cmd_telescope_knob1": {
+		"en_u4": "You see a knob",
+		"en_us": "You see a knob",
+		"ko": "손잡이가 보인다",
+	},
+	"cmd_telescope_knob2": {
+		"en_u4": "on the telescope",
+		"en_us": "on the telescope",
+		"ko": "망원경 위에",
+	},
+	"cmd_telescope_knob3": {
+		"en_u4": "marked A-P",
+		"en_us": "marked A-P",
+		"ko": "A-P라고 적혀 있다",
+	},
+	"cmd_telescope_select": {
+		"en_u4": "You Select:",
+		"en_us": "You Select:",
+		"ko": "선택:",
+	},
+	"search_item_mandrake": {
+		"en_u4": "Mandrake Root",
+		"en_us": "Mandrake Root",
+		"ko": "맨드레이크 뿌리",
+	},
+	"search_item_nightshade": {
+		"en_u4": "Nightshade",
+		"en_us": "Nightshade",
+		"ko": "밤그늘풀",
+	},
+	"search_item_bell": {
+		"en_u4": "the Bell of Courage",
+		"en_us": "the Bell of Courage",
+		"ko": "용기의 종",
+	},
+	"search_item_book": {
+		"en_u4": "the Book of Truth",
+		"en_us": "the Book of Truth",
+		"ko": "진리의 서",
+	},
+	"search_item_candle": {
+		"en_u4": "the Candle of Love",
+		"en_us": "the Candle of Love",
+		"ko": "사랑의 촛불",
+	},
+	"search_item_horn": {
+		"en_u4": "A Silver Horn",
+		"en_us": "A Silver Horn",
+		"ko": "은빛 뿔피리",
+	},
+	"search_item_wheel": {
+		"en_u4": "the Wheel from the H.M.S. Cape",
+		"en_us": "the Wheel from the H.M.S. Cape",
+		"ko": "H.M.S. 케이프의 키",
+	},
+	"search_item_skull": {
+		"en_u4": "the Skull of Modain the Wizard",
+		"en_us": "the Skull of Modain the Wizard",
+		"ko": "마법사 모데인의 해골",
+	},
+	"search_item_stone_red": {
+		"en_u4": "the Red Stone",
+		"en_us": "the Red Stone",
+		"ko": "붉은 돌",
+	},
+	"search_item_stone_orange": {
+		"en_u4": "the Orange Stone",
+		"en_us": "the Orange Stone",
+		"ko": "주황 돌",
+	},
+	"search_item_stone_yellow": {
+		"en_u4": "the Yellow Stone",
+		"en_us": "the Yellow Stone",
+		"ko": "노란 돌",
+	},
+	"search_item_stone_green": {
+		"en_u4": "the Green Stone",
+		"en_us": "the Green Stone",
+		"ko": "초록 돌",
+	},
+	"search_item_stone_blue": {
+		"en_u4": "the Blue Stone",
+		"en_us": "the Blue Stone",
+		"ko": "파란 돌",
+	},
+	"search_item_stone_purple": {
+		"en_u4": "the Purple Stone",
+		"en_us": "the Purple Stone",
+		"ko": "보라 돌",
+	},
+	"search_item_stone_black": {
+		"en_u4": "the Black Stone",
+		"en_us": "the Black Stone",
+		"ko": "검은 돌",
+	},
+	"search_item_stone_white": {
+		"en_u4": "the White Stone",
+		"en_us": "the White Stone",
+		"ko": "흰 돌",
+	},
+	"search_item_mystic_armor": {
+		"en_u4": "Mystic Armor",
+		"en_us": "Mystic Armor",
+		"ko": "신비의 갑옷",
+	},
+	"search_item_mystic_swords": {
+		"en_u4": "Mystic Swords",
+		"en_us": "Mystic Swords",
+		"ko": "신비의 검",
+	},
+	"search_item_rune_honesty": {
+		"en_u4": "the rune of Honesty",
+		"en_us": "the rune of Honesty",
+		"ko": "정직의 룬",
+	},
+	"search_item_rune_compassion": {
+		"en_u4": "the rune of Compassion",
+		"en_us": "the rune of Compassion",
+		"ko": "연민의 룬",
+	},
+	"search_item_rune_valor": {
+		"en_u4": "the rune of Valor",
+		"en_us": "the rune of Valor",
+		"ko": "용맹의 룬",
+	},
+	"search_item_rune_justice": {
+		"en_u4": "the rune of Justice",
+		"en_us": "the rune of Justice",
+		"ko": "정의의 룬",
+	},
+	"search_item_rune_sacrifice": {
+		"en_u4": "the rune of Sacrifice",
+		"en_us": "the rune of Sacrifice",
+		"ko": "희생의 룬",
+	},
+	"search_item_rune_honor": {
+		"en_u4": "the rune of Honor",
+		"en_us": "the rune of Honor",
+		"ko": "명예의 룬",
+	},
+	"search_item_rune_spirituality": {
+		"en_u4": "the rune of Spirituality",
+		"en_us": "the rune of Spirituality",
+		"ko": "영성의 룬",
+	},
+	"search_item_rune_humility": {
+		"en_u4": "the rune of Humility",
+		"en_us": "the rune of Humility",
+		"ko": "겸손의 룬",
+	},
 	## xu4 board() / exitTransport()
 	"cmd_board_what": {
 		"en_u4": "Board What?",
@@ -1302,6 +1483,11 @@ const _T := {
 		"en_us": "Armor",
 		"ko": "갑옷",
 	},
+	"ztats_page_items": {
+		"en_u4": "Items",
+		"en_us": "Items",
+		"ko": "아이템",
+	},
 	"ztats_page_reagents": {
 		"en_u4": "Reagents",
 		"en_us": "Reagents",
@@ -1311,6 +1497,116 @@ const _T := {
 		"en_u4": "Mixtures",
 		"en_us": "Mixtures",
 		"ko": "마법",
+	},
+	"ztats_section_stones": {
+		"en_u4": "Stones",
+		"en_us": "Stones",
+		"ko": "돌",
+	},
+	"ztats_section_runes": {
+		"en_u4": "Runes",
+		"en_us": "Runes",
+		"ko": "룬",
+	},
+	"ztats_section_relics": {
+		"en_u4": "Relics",
+		"en_us": "Relics",
+		"ko": "유물",
+	},
+	"ztats_items_none": {
+		"en_u4": "None",
+		"en_us": "None",
+		"ko": "없음",
+	},
+	"ztats_item_sextant": {
+		"en_u4": "Sextant",
+		"en_us": "Sextant",
+		"ko": "육분의",
+	},
+	"ztats_item_bell": {
+		"en_u4": "Bell",
+		"en_us": "Bell",
+		"ko": "종",
+	},
+	"ztats_item_book": {
+		"en_u4": "Book",
+		"en_us": "Book",
+		"ko": "서",
+	},
+	"ztats_item_candle": {
+		"en_u4": "Candle",
+		"en_us": "Candle",
+		"ko": "촛불",
+	},
+	"ztats_item_horn": {
+		"en_u4": "Horn",
+		"en_us": "Horn",
+		"ko": "뿔피리",
+	},
+	"ztats_item_wheel": {
+		"en_u4": "Wheel",
+		"en_us": "Wheel",
+		"ko": "키",
+	},
+	"ztats_item_skull": {
+		"en_u4": "Skull",
+		"en_us": "Skull",
+		"ko": "해골",
+	},
+	"ztats_item_key_truth": {
+		"en_u4": "Key of Truth",
+		"en_us": "Key of Truth",
+		"ko": "진리의 열쇠",
+	},
+	"ztats_item_key_love": {
+		"en_u4": "Key of Love",
+		"en_us": "Key of Love",
+		"ko": "사랑의 열쇠",
+	},
+	"ztats_item_key_courage": {
+		"en_u4": "Key of Courage",
+		"en_us": "Key of Courage",
+		"ko": "용기의 열쇠",
+	},
+	"ztats_item_stone_blue": {
+		"en_u4": "Blue Stone",
+		"en_us": "Blue Stone",
+		"ko": "파란 돌",
+	},
+	"ztats_item_stone_yellow": {
+		"en_u4": "Yellow Stone",
+		"en_us": "Yellow Stone",
+		"ko": "노란 돌",
+	},
+	"ztats_item_stone_red": {
+		"en_u4": "Red Stone",
+		"en_us": "Red Stone",
+		"ko": "붉은 돌",
+	},
+	"ztats_item_stone_green": {
+		"en_u4": "Green Stone",
+		"en_us": "Green Stone",
+		"ko": "초록 돌",
+	},
+	"ztats_item_stone_orange": {
+		"en_u4": "Orange Stone",
+		"en_us": "Orange Stone",
+		"ko": "주황 돌",
+	},
+	"ztats_item_stone_purple": {
+		"en_u4": "Purple Stone",
+		"en_us": "Purple Stone",
+		"ko": "보라 돌",
+	},
+	"ztats_item_stone_white": {
+		"en_u4": "White Stone",
+		"en_us": "White Stone",
+		"ko": "흰 돌",
+	},
+	"ztats_item_stone_black": {
+		"en_u4": "Black Stone",
+		"en_us": "Black Stone",
+		"ko": "검은 돌",
 	},
 	"ztats_col_name": {
 		"en_u4": "Name",

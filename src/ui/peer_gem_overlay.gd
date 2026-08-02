@@ -66,6 +66,23 @@ func open_peer(
 	move_to_front()
 
 
+func open_peer_city(
+	city, ## CityMapData
+	tile_size: Vector2,
+	loc_text: String = ""
+) -> void:
+	## xu4 gamePeerCity — full 32×32 city gem (no party marker).
+	if city == null or not city.loaded:
+		return
+	_ensure_buffers()
+	_blit_gem_city(city)
+	_layout_panel(tile_size)
+	_set_loc_text(loc_text)
+	_open = true
+	visible = true
+	move_to_front()
+
+
 func close_peer() -> void:
 	if not _open:
 		return
@@ -174,6 +191,22 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i) -> void:
 			if gx == half_x and gy == half_y:
 				tid = _party_gem_tile()
 			_blit_gem_cell(gx, gy, tid)
+	_tex.update(_buf)
+
+
+func _blit_gem_city(city) -> void:
+	## Center the 32×32 .ULT in the wider gem viewport; void outside is black.
+	if _buf == null or _gem_sheet == null or _gem_sheet.is_empty():
+		return
+	_buf.fill(Color(0, 0, 0, 1))
+	var city_w := 32
+	var city_h := 32
+	var origin_x := int((GEM_VIEW_W - city_w) / 2)
+	var origin_y := int((GEM_VIEW_H - city_h) / 2)
+	for cy in city_h:
+		for cx in city_w:
+			var tid := int(city.tile_at(cx, cy))
+			_blit_gem_cell(origin_x + cx, origin_y + cy, tid)
 	_tex.update(_buf)
 
 

@@ -18,6 +18,7 @@ const _CityFloorPortals := preload("res://src/map/city_floor_portals.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _Moongates := preload("res://src/map/moongates.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
+const _SearchItems := preload("res://src/core/search_items.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -114,6 +115,8 @@ var _block_dir_until_keyup := false
 var _moongate_busy := false
 ## True while a cannonball is in flight (blocks move/commands).
 var _cannon_busy := false
+## True while Search is pausing on "Searching..." (blocks move/commands).
+var _search_busy := false
 ## Pirate shots queued during moveObjects (animated after AI step).
 var _pending_pirate_shots: Array[Dictionary] = []
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
@@ -146,12 +149,17 @@ var _camp_guard_cursor := 0
 var _chest_open_stage := 0
 var _chest_open_target := Vector2i(-1, -1)
 var _chest_open_cursor := 0
+## xu4 telescope Use via Search — wait for A–P city choice.
+var _telescope_stage := 0
 ## True while xu4 immobilized (all asleep) auto-turns are queued.
 var _immobilized_pending := false
 ## xu4 settings campTime default (Resting… animation seconds).
 const CAMP_REST_SEC := 10.0
 ## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
 const IMMOBILIZED_SLEEP_SEC := 0.166
+## Remake QoL: brief pause after "Searching..." so S can't be mashed.
+## xu4 has no Search-specific delay (only finishTurn screenWait(1)).
+const SEARCH_PAUSE_SEC := 0.45
 ## Quit & Save / Esc Load: 0 = idle, 1 = save picker, 2 = load picker.
 var _save_stage := 0
 var _save_panel # SaveSlotPanel
@@ -1010,6 +1018,8 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("cmd_camp_who_guards")
 	if _chest_open_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_chest_who_opens")
+	if _telescope_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_telescope_select")
 	if _save_stage == 1:
 		return MSG_PROMPT + Locale.t("save_title")
 	if _save_stage == 2:
@@ -1323,7 +1333,7 @@ func _process(delta: float) -> void:
 	_tick_cursor(delta)
 	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
 	_tick_world_clock(delta)
-	if _moongate_busy or _cannon_busy:
+	if _moongate_busy or _cannon_busy or _search_busy:
 		return
 	## xu4 force pass if no commands within last 20 seconds.
 	_tick_auto_pass(delta)
@@ -1356,7 +1366,7 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1668,6 +1678,9 @@ func _on_escape() -> void:
 	if _chest_open_stage != 0:
 		_cancel_chest_open(true)
 		return
+	if _telescope_stage != 0:
+		_cancel_telescope(true)
+		return
 	if _ready_stage != 0:
 		_close_ready(true)
 		return
@@ -1712,6 +1725,7 @@ func _input(event: InputEvent) -> void:
 				or _camp_stage == 2
 				or _camp_stage == 3
 				or _chest_open_stage != 0
+				or _telescope_stage != 0
 				or _save_stage != 0
 				or _esc_menu_is_open()
 			):
@@ -1723,8 +1737,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Save / Load / Esc menu / New Order.
-	if _moongate_busy or _cannon_busy:
+	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / New Order.
+	if _moongate_busy or _cannon_busy or _search_busy:
 		get_viewport().set_input_as_handled()
 		return
 	if _save_stage != 0:
@@ -1741,6 +1755,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _camp_stage != 0:
 		if _handle_camp_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _telescope_stage != 0:
+		if _handle_telescope_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -1913,8 +1933,11 @@ func _handle_command(cmd: int) -> void:
 	_close_mix(false)
 	_close_camp(false)
 	_cancel_chest_open(false)
+	_cancel_telescope(false)
 	_close_save(false)
-	if cmd == U4Commands.Id.PEER:
+	if cmd == U4Commands.Id.SEARCH:
+		_do_search()
+	elif cmd == U4Commands.Id.PEER:
 		_do_peer()
 	elif cmd == U4Commands.Id.NEW_ORDER:
 		_do_new_order()
@@ -2148,6 +2171,105 @@ func _layout_ship_hull_hud() -> void:
 		bot_origin.y + floorf((bar_h - hud_sz.y) * 0.5) + SHIP_HULL_HUD_INSET.y
 	)
 	_ship_hull_hud.move_to_front()
+
+
+func _do_search() -> void:
+	## xu4 game.cpp case 's' (world/city). Dungeon Search is separate.
+	if _search_busy:
+		return
+	_search_busy = true
+	_push_message(Locale.t("cmd_searching"), false)
+	## Beat so "Searching..." reads, and S can't be mashed into another turn.
+	await get_tree().create_timer(SEARCH_PAUSE_SEC).timeout
+	if not is_inside_tree():
+		_search_busy = false
+		return
+	var city_fname := ""
+	if _is_in_city() and _city_map != null:
+		city_fname = str(_city_map.source_path).get_file()
+	var item: Dictionary = _SearchItems.item_at(city_fname, _tile_pos)
+	if item.is_empty() or _SearchItems.is_owned(item):
+		_push_message(Locale.t("cmd_search_nothing"), false)
+		_search_busy = false
+		_finish_party_turn()
+		return
+	var name_key := str(item.get("name_key", ""))
+	if not name_key.is_empty():
+		_push_message(Locale.t("cmd_search_find"), false)
+		_push_message(Locale.t("cmd_search_find_name", [Locale.t(name_key)]), false)
+	var result: Dictionary = _SearchItems.grant(item)
+	if bool(result.get("dropped", false)):
+		_push_message(Locale.t("cmd_search_dropped"), false)
+	if bool(result.get("telescope", false)):
+		_search_busy = false
+		_begin_telescope()
+		return
+	_refresh_inventory_bars()
+	_refresh_party()
+	_search_busy = false
+	_finish_party_turn()
+
+
+func _begin_telescope() -> void:
+	## xu4 useTelescope — knob prompt then A–P city peer.
+	_push_message(Locale.t("cmd_telescope_knob1"), false)
+	_push_message(Locale.t("cmd_telescope_knob2"), false)
+	_push_message(Locale.t("cmd_telescope_knob3"), false)
+	_telescope_stage = 1
+	_layout_prompt_row()
+
+
+func _cancel_telescope(show_none: bool = false) -> void:
+	if _telescope_stage == 0:
+		return
+	_telescope_stage = 0
+	_layout_prompt_row()
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+		_finish_party_turn()
+
+
+func _handle_telescope_input(event: InputEvent) -> bool:
+	if _telescope_stage != 1:
+		return false
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	var k := event as InputEventKey
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_cancel_telescope(true)
+		return true
+	var code := k.keycode
+	if code < KEY_A or code > KEY_P:
+		code = k.physical_keycode
+	if code < KEY_A or code > KEY_P:
+		return true ## swallow other keys while selecting
+	var idx := int(code - KEY_A)
+	_telescope_stage = 0
+	_layout_prompt_row()
+	_open_telescope_city(idx)
+	return true
+
+
+func _open_telescope_city(choice_index: int) -> void:
+	## xu4 gamePeerCity(choice) — gem view of city map id choice+1.
+	var fname := _SearchItems.telescope_city_fname(choice_index)
+	if fname.is_empty():
+		_finish_party_turn()
+		return
+	var path := _CityMapData.resolve_u4_file(fname)
+	var cmap = _CityMapData.new()
+	if path.is_empty() or not cmap.load_from_path(path):
+		_finish_party_turn()
+		return
+	_ensure_peer_overlay()
+	if _peer_overlay == null or _map == null:
+		_finish_party_turn()
+		return
+	var tile_sz := _map.displayed_tile_size()
+	var portal := _WorldPortals.portal_for_fname(fname)
+	var loc := str(portal.get("name", fname.get_basename()))
+	_peer_overlay.open_peer_city(cmap, tile_sz, loc)
+	## Turn ends when the gem view is dismissed (_close_peer_overlay).
 
 
 func _do_peer() -> void:
@@ -2865,7 +2987,7 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		if _is_ztats_dismiss(event):
 			_close_ztats(false)
 			return true
-		## ↑↓ scroll inventory lists; ←→ cycle pages (chars → gear → reagents → mixtures).
+		## ↑↓ scroll inventory lists; ←→ cycle pages (chars → gear → items → reagents → mixtures).
 		if _ztats_panel and _ztats_panel.is_inventory_page():
 			if _try_ztats_inv_scroll(event):
 				return true
@@ -2968,8 +3090,8 @@ func _nudge_ztats_view(delta: int) -> void:
 
 
 func _ztats_flat_count() -> int:
-	## Party character sheets + Equipment + Reagents + Mixtures.
-	return maxi(GameState.party_size(), 1) + 3
+	## Party character sheets + Equipment + Items + Reagents + Mixtures.
+	return maxi(GameState.party_size(), 1) + 4
 
 
 func _show_ztats_flat(flat: int) -> void:
@@ -2982,6 +3104,8 @@ func _show_ztats_flat(flat: int) -> void:
 		0:
 			_show_ztats_inventory(ZtatsPanel.InvPage.GEAR)
 		1:
+			_show_ztats_inventory(ZtatsPanel.InvPage.ITEMS)
+		2:
 			_show_ztats_inventory(ZtatsPanel.InvPage.REAGENTS)
 		_:
 			_show_ztats_inventory(ZtatsPanel.InvPage.MIXTURES)
@@ -3070,10 +3194,12 @@ func _show_ztats_inventory(page: int) -> void:
 	match page:
 		ZtatsPanel.InvPage.GEAR:
 			_ztats_flat = party_n
-		ZtatsPanel.InvPage.REAGENTS:
+		ZtatsPanel.InvPage.ITEMS:
 			_ztats_flat = party_n + 1
-		_:
+		ZtatsPanel.InvPage.REAGENTS:
 			_ztats_flat = party_n + 2
+		_:
+			_ztats_flat = party_n + 3
 	_clear_order_selection()
 	_layout_prompt_row()
 	if _right_top:
@@ -4699,7 +4825,9 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+		return false
+	if _moongate_busy or _cannon_busy or _search_busy:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false

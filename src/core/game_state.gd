@@ -57,7 +57,7 @@ var gems: int = 0
 var gold: int = 200 ## xu4 SaveGame.gold
 var keys: int = 0
 var torches: int = 2
-var skull: int = 0 ## quest item count (HUD); bitflags later
+var skull: int = 0 ## HUD/legacy; kept in sync with ITEM_SKULL bit
 ## Sextant required for Locate (L / Ctrl+L). xu4 starts with 0.
 var has_sextant: bool = false
 ## xu4 SaveGame.shiphull — 0..50; shown while aboard a frigate.
@@ -71,10 +71,49 @@ const FOOD_MAX := 999900
 var moves: int = 0
 ## xu4 SaveGame.lastcamp — (moves / CAMP_HEAL_INTERVAL) & 0xffff after a non-ambush rest.
 var lastcamp: int = 0
+## xu4 SaveGame.lastreagent — (moves & 0xF0) after finding reagents / unique search loot.
+var lastreagent: int = 0
+## xu4 SaveGame.items / stones / runes bitfields (Search / Use).
+var items: int = 0
+var stones: int = 0
+var runes: int = 0
 ## xu4 camp.h — heal only when the moves/100 bucket differs from lastcamp.
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
 const TILE_CORPSE := 56
+
+## xu4 savegame.h Item / Stone / Rune enums.
+const ITEM_SKULL := 0x01
+const ITEM_SKULL_DESTROYED := 0x02
+const ITEM_CANDLE := 0x04
+const ITEM_BOOK := 0x08
+const ITEM_BELL := 0x10
+const ITEM_KEY_C := 0x20
+const ITEM_KEY_L := 0x40
+const ITEM_KEY_T := 0x80
+const ITEM_HORN := 0x100
+const ITEM_WHEEL := 0x200
+const ITEM_CANDLE_USED := 0x400
+const ITEM_BOOK_USED := 0x800
+const ITEM_BELL_USED := 0x1000
+
+const STONE_BLUE := 0x01
+const STONE_YELLOW := 0x02
+const STONE_RED := 0x04
+const STONE_GREEN := 0x08
+const STONE_ORANGE := 0x10
+const STONE_PURPLE := 0x20
+const STONE_WHITE := 0x40
+const STONE_BLACK := 0x80
+
+const RUNE_HONESTY := 0x01
+const RUNE_COMPASSION := 0x02
+const RUNE_VALOR := 0x04
+const RUNE_JUSTICE := 0x08
+const RUNE_SACRIFICE := 0x10
+const RUNE_HONOR := 0x20
+const RUNE_SPIRITUALITY := 0x40
+const RUNE_HUMILITY := 0x80
 
 ## xu4 world clock (GameController::timerFired / updateMoons).
 ## Real-time 4 Hz ticks — not tied to party moves.
@@ -224,6 +263,10 @@ func reset_party() -> void:
 	skull = 0
 	has_sextant = false
 	ship_hull = 50
+	lastreagent = 0
+	items = 0
+	stones = 0
+	runes = 0
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
 
@@ -479,6 +522,11 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	torches = 2
 	gems = 0
 	keys = 0
+	skull = 0
+	items = 0
+	stones = 0
+	runes = 0
+	lastreagent = 0
 	has_sextant = false
 	moves = 0
 	lastcamp = 0
@@ -1041,6 +1089,107 @@ func adjust_karma_stole_chest() -> void:
 	adjust_karma_virtue(Virtues.Id.HONOR, -1)
 
 
+func adjust_karma_found_item() -> void:
+	## xu4 KA_FOUND_ITEM — Honor +5.
+	adjust_karma_virtue(Virtues.Id.HONOR, 5)
+
+
+func award_xp_leader(amount: int) -> void:
+	## xu4 PartyMember::awardXp on party member 0 (leader). Cap 9999.
+	if amount <= 0:
+		return
+	var klass := party_leader_class()
+	if klass < 0 or klass >= member_xp.size():
+		return
+	member_xp[klass] = mini(9999, int(member_xp[klass]) + amount)
+
+
+func mark_lastreagent() -> void:
+	## xu4: lastreagent = moves & 0xF0 after Search loot / reagent harvest.
+	lastreagent = moves & 0xF0
+
+
+func has_item_flag(flag: int) -> bool:
+	return (items & flag) != 0
+
+
+func has_stone(flag: int) -> bool:
+	return (stones & flag) != 0
+
+
+func has_rune(flag: int) -> bool:
+	return (runes & flag) != 0
+
+
+func grant_quest_item(flag: int, xp: int) -> void:
+	## Bell / Book / Candle / Horn / Wheel / Skull (and key bits later).
+	award_xp_leader(xp)
+	adjust_karma_found_item()
+	items |= flag
+	if (flag & ITEM_SKULL) != 0:
+		skull = 1
+	mark_lastreagent()
+
+
+func grant_stone(flag: int) -> void:
+	award_xp_leader(200)
+	adjust_karma_found_item()
+	stones |= flag
+	mark_lastreagent()
+
+
+func grant_rune(flag: int) -> void:
+	award_xp_leader(100)
+	adjust_karma_found_item()
+	runes |= flag
+	mark_lastreagent()
+
+
+func grant_mystic_weapon() -> void:
+	## xu4 putMysticInInventory — +8 mystic swords.
+	award_xp_leader(400)
+	adjust_karma_found_item()
+	if weapons.size() > WeaponIcons.Id.MYSTIC_SWORD:
+		weapons[WeaponIcons.Id.MYSTIC_SWORD] = int(weapons[WeaponIcons.Id.MYSTIC_SWORD]) + 8
+	mark_lastreagent()
+
+
+func grant_mystic_armor() -> void:
+	## xu4 putMysticInInventory — +8 mystic robes.
+	award_xp_leader(400)
+	adjust_karma_found_item()
+	if armor.size() > ArmorIcons.Id.MYSTIC_ROBE:
+		armor[ArmorIcons.Id.MYSTIC_ROBE] = int(armor[ArmorIcons.Id.MYSTIC_ROBE]) + 8
+	mark_lastreagent()
+
+
+func grant_search_reagent(reag_id: int) -> bool:
+	## xu4 putReagentInInventory. Returns true if capped (Dropped some!).
+	adjust_karma_found_item()
+	var qty := reagent_qty(reag_id) + (randi() % 8) + 2
+	var dropped := false
+	if qty > 99:
+		qty = 99
+		dropped = true
+	if reag_id >= 0 and reag_id < reagents.size():
+		reagents[reag_id] = qty
+	mark_lastreagent()
+	return dropped
+
+
+func is_full_avatar() -> bool:
+	## xu4 SC_FULLAVATAR — every karma virtue is 0 (partial Avatarhood).
+	for i in karma.size():
+		if int(karma[i]) != 0:
+			return false
+	return karma.size() >= 8
+
+
+func reagent_delay_blocks() -> bool:
+	## xu4 SC_REAGENTDELAY — same moves&0xF0 bucket as lastreagent.
+	return (moves & 0xF0) == lastreagent
+
+
 func roll_chest_trap_u4dos() -> Dictionary:
 	## xu4 getChestTrapHandler rolls (u4dos path); Ultima4R springs this on Open.
 	## Returns { sprung, trap_type }. Trap type only meaningful when sprung.
@@ -1332,6 +1481,10 @@ func to_save_dict() -> Dictionary:
 		"keys": keys,
 		"torches": torches,
 		"skull": skull,
+		"items": items,
+		"stones": stones,
+		"runes": runes,
+		"lastreagent": lastreagent,
 		"has_sextant": has_sextant,
 		"weapons": weapons.duplicate(),
 		"armor": armor.duplicate(),
@@ -1380,6 +1533,14 @@ func apply_save_dict(d: Dictionary) -> void:
 	keys = maxi(0, int(d.get("keys", keys)))
 	torches = maxi(0, int(d.get("torches", torches)))
 	skull = maxi(0, int(d.get("skull", skull)))
+	items = maxi(0, int(d.get("items", items)))
+	stones = maxi(0, int(d.get("stones", stones)))
+	runes = maxi(0, int(d.get("runes", runes)))
+	lastreagent = maxi(0, int(d.get("lastreagent", lastreagent)))
+	## Legacy saves stored only `skull` count — promote into the items bitfield.
+	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
+		items |= ITEM_SKULL
+	skull = 1 if (items & ITEM_SKULL) != 0 else 0
 	has_sextant = bool(d.get("has_sextant", has_sextant))
 	_apply_int_array(weapons, d.get("weapons", []), 16)
 	_apply_int_array(armor, d.get("armor", []), 8)
