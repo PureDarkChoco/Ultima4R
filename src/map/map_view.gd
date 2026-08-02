@@ -49,6 +49,10 @@ const TILE_FIELD_SLEEP := 71
 const TILE_SPIT := 75 ## campfire spit — 2-frame fire flicker (`075_spit_1.png`)
 const TILE_CHEST := 60 ## closed chest; open art is frame 1 (`060_chest_1.png`)
 const TILE_LAVA := 76
+const TILE_MISS_FLASH := 77 ## xu4 missFlash / missile (cannon ball)
+const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
+## Seconds per tile of cannon travel (matches prior per-tile miss flash).
+const CANNON_SEC_PER_TILE := 0.10
 ## Multi-frame terrain flip period (spit, etc.).
 const TILE_ANIM_PERIOD := 0.20
 ## Open chest cavity in `060_chest_1.png` is 18×2 (x=7..24, y=14..15);
@@ -79,6 +83,8 @@ const TILE_MOUNTAINS := 8
 ## Mounted party marker (person on horse) — left / right.
 const HORSE_RIDER_W_PATH := "res://assets/tiles/horse_rider_w.png"
 const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
+## Cannonball: black_pearl ~12×12, centered on transparent 32×32.
+const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
 ## Camp map / sleeping corpse (shapes index — graphics.b tile_corpse).
 const CAMP_W: int = _CombatMapDataScript.WIDTH
 const CAMP_H: int = _CombatMapDataScript.HEIGHT
@@ -125,6 +131,11 @@ var _overlays: Array[Vector3i] = []
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
 ## Wilderness monsters: Vector3i(x, y, base_tile_id). Drawn with tile animation.
 var _creatures: Array[Vector3i] = []
+## Brief world-tile FX: { x, y, tid, left }.
+var _tile_flashes: Array[Dictionary] = []
+## Flying cannonball in unwrapped tile-space (center): { x, y } or empty.
+var _cannon_proj: Dictionary = {}
+var _cannonball_img: Image
 ## Active Trammel moongate annotation (world map only).
 var _moongate_pos := Vector2i(-1, -1)
 var _moongate_tid := -1
@@ -217,6 +228,7 @@ func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_ensure_buffers()
 	_load_horse_rider_assets()
+	_cannonball_img = _load_image_path(CANNONBALL_PATH)
 	texture = _tex
 
 
@@ -584,6 +596,63 @@ func transport_tile() -> int:
 	return _transport_tile
 
 
+func flash_world_tile(pos: Vector2i, tile_id: int, duration: float = 0.10) -> void:
+	## xu4 GameController::flashTile — brief overlay blit at a world cell.
+	_tile_flashes.append({
+		"x": pos.x,
+		"y": pos.y,
+		"tid": tile_id,
+		"left": maxf(duration, 0.04),
+	})
+	_rebuild()
+
+
+func await_cannonball(from_tile: Vector2i, to_tile: Vector2i, dir: Vector2i) -> void:
+	## Pixel-smooth flight; duration = tile distance × CANNON_SEC_PER_TILE.
+	if dir == Vector2i.ZERO:
+		return
+	var delta := _cannon_unwrap_delta(from_tile, to_tile)
+	var steps := maxi(absi(delta.x), absi(delta.y))
+	if steps <= 0:
+		return
+	var duration := float(steps) * CANNON_SEC_PER_TILE
+	var start := Vector2(from_tile) + Vector2(0.5, 0.5)
+	var finish := start + Vector2(dir) * float(steps)
+	_cannon_proj = {"x": start.x, "y": start.y}
+	_rebuild()
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
+	tween.tween_method(_set_cannon_proj_pos, start, finish, duration)
+	await tween.finished
+	_cannon_proj.clear()
+	_rebuild()
+
+
+func _set_cannon_proj_pos(pos: Vector2) -> void:
+	if _cannon_proj.is_empty():
+		return
+	_cannon_proj["x"] = pos.x
+	_cannon_proj["y"] = pos.y
+	_rebuild()
+
+
+func _cannon_unwrap_delta(from_tile: Vector2i, to_tile: Vector2i) -> Vector2i:
+	var d := to_tile - from_tile
+	if is_in_city():
+		return d
+	var w := WorldMapData.WIDTH
+	var h := WorldMapData.HEIGHT
+	if d.x > w / 2:
+		d.x -= w
+	elif d.x < -w / 2:
+		d.x += w
+	if d.y > h / 2:
+		d.y -= h
+	elif d.y < -h / 2:
+		d.y += h
+	return d
+
+
 func shake_ship(duration: float = 0.28, amplitude: float = 2.0) -> void:
 	## Brief jolt when Yell-cruise runs aground — subtle ship nudge.
 	_shake_dur = maxf(duration, 0.05)
@@ -733,6 +802,20 @@ func _process(delta: float) -> void:
 		_shake_left = maxf(0.0, _shake_left - delta)
 		shake_changed = true
 
+	var flash_changed := false
+	if not _tile_flashes.is_empty():
+		var kept: Array[Dictionary] = []
+		for f in _tile_flashes:
+			var left := float(f.get("left", 0.0)) - delta
+			if left > 0.0:
+				f["left"] = left
+				kept.append(f)
+			else:
+				flash_changed = true
+		if kept.size() != _tile_flashes.size():
+			flash_changed = true
+		_tile_flashes = kept
+
 	if _spell_flash_left > 0.0:
 		_spell_flash_left = maxf(0.0, _spell_flash_left - delta)
 		queue_redraw()
@@ -741,14 +824,24 @@ func _process(delta: float) -> void:
 		# Same frame as set_center — keep first pose on screen for one full frame.
 		if _scroll_skip_process:
 			_scroll_skip_process = false
-			if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed or moongate_changed:
+			if (
+				frame_changed or water_changed or tile_anim_changed or npc_changed
+				or shake_changed or moongate_changed or flash_changed
+				or not _tile_flashes.is_empty()
+				or not _cannon_proj.is_empty()
+			):
 				_rebuild()
 			return
 		_scroll_frames_left -= 1
 		_rebuild()
 		return
 
-	if frame_changed or water_changed or tile_anim_changed or npc_changed or shake_changed or moongate_changed:
+	if (
+		frame_changed or water_changed or tile_anim_changed or npc_changed
+		or shake_changed or moongate_changed or flash_changed
+		or not _tile_flashes.is_empty()
+		or not _cannon_proj.is_empty()
+	):
 		_rebuild()
 
 
@@ -982,6 +1075,9 @@ func _rebuild() -> void:
 	_paint_creatures(cam)
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
+	## Cannon ball + hit FX above party (xu4 flashTile over the avatar).
+	_paint_cannon_proj(cam)
+	_paint_tile_flashes(cam)
 
 	_tex.set_image(_buf)
 	texture = _tex
@@ -2319,6 +2415,75 @@ func _paint_creatures(cam: Vector2) -> void:
 		if slice == null:
 			continue
 		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+
+
+func _paint_tile_flashes(cam: Vector2) -> void:
+	if _tile_flashes.is_empty() or not tiles_ready:
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for f in _tile_flashes:
+		var wx := int(f.get("x", 0))
+		var wy := int(f.get("y", 0))
+		if not is_tile_visible(wx, wy):
+			continue
+		var tid := int(f.get("tid", TILE_MISS_FLASH))
+		var screen := Vector2(wx, wy) - cam + Vector2(half_x, half_y)
+		var px := int(round(screen.x * float(TILE_SRC)))
+		var py := int(round(screen.y * float(TILE_SRC)))
+		if px <= -TILE_SRC or py <= -TILE_SRC:
+			continue
+		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+			continue
+		var slice := _overlay_slice(tid)
+		if slice == null:
+			continue
+		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+
+
+func _paint_cannon_proj(cam: Vector2) -> void:
+	if _cannon_proj.is_empty() or not tiles_ready:
+		return
+	if _cannonball_img == null or _cannonball_img.is_empty():
+		return
+	var wx := float(_cannon_proj.get("x", 0.0))
+	var wy := float(_cannon_proj.get("y", 0.0))
+	var p := _cannon_screen_top_left(Vector2(wx, wy), cam)
+	var px := p.x
+	var py := p.y
+	if px <= -TILE_SRC or py <= -TILE_SRC:
+		return
+	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+		return
+	_buf.blend_rect(
+		_cannonball_img,
+		Rect2i(0, 0, TILE_SRC, TILE_SRC),
+		Vector2i(px, py)
+	)
+
+
+func _cannon_screen_top_left(world_center: Vector2, cam: Vector2) -> Vector2i:
+	## Tile-center → 32×32 top-left; same half_x/half_y as creatures (int view/2).
+	var d := world_center - cam
+	if not is_in_city():
+		var w := float(WorldMapData.WIDTH)
+		var h := float(WorldMapData.HEIGHT)
+		if d.x > w * 0.5:
+			d.x -= w
+		elif d.x < -w * 0.5:
+			d.x += w
+		if d.y > h * 0.5:
+			d.y -= h
+		elif d.y < -h * 0.5:
+			d.y += h
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	## Equivalent to creature paint at (center - 0.5): keeps ball on tile midlines.
+	var tl := d - Vector2(0.5, 0.5) + Vector2(half_x, half_y)
+	return Vector2i(
+		int(round(tl.x * float(TILE_SRC))),
+		int(round(tl.y * float(TILE_SRC)))
+	)
 
 
 func _paint_bridge_near_rails(cam: Vector2) -> void:

@@ -1156,6 +1156,50 @@ func heal_ship(pts: int = 1) -> bool:
 	return ship_hull != before
 
 
+func damage_ship(pts: int) -> bool:
+	## xu4 Party::damageShip. True if the hull sinks (pts > remaining).
+	if pts <= 0:
+		return false
+	if pts > ship_hull:
+		ship_hull = 0
+		return true
+	ship_hull -= pts
+	return false
+
+
+func damage_party_cannon(min_damage: int = 10, max_damage: int = 25) -> int:
+	## xu4 gameDamageParty — each living member 50% chance of min..max damage.
+	## Returns roster flash mask (party slot bits).
+	var flash_mask := 0
+	var span := maxi(0, max_damage - min_damage)
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if (randi() % 2) != 0:
+			continue
+		var dmg := min_damage
+		if span > 0:
+			dmg = min_damage + (randi() % (span + 1))
+		elif max_damage >= 0:
+			dmg = max_damage
+		if apply_member_damage(mid, dmg):
+			flash_mask |= 1 << i
+	return flash_mask
+
+
+func kill_party() -> void:
+	## xu4 gameKillParty — all members HP 0 / DEAD (death sequence later).
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0:
+			continue
+		if mid < member_hp.size():
+			member_hp[mid] = 0
+		if mid < member_status.size():
+			member_status[mid] = PartyRoster.Status.DEAD
+
+
 func living_party_count() -> int:
 	## xu4: dead members do not eat; poisoned/sleeping still do.
 	var n := 0

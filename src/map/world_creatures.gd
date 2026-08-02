@@ -12,6 +12,8 @@ const MAX_CREATURES_ON_MAP := 4
 const MAX_CREATURE_DISTANCE := 16
 const SPAWN_DIVISOR_WORLD := 32
 const SPAWN_TRIES := 10
+## xu4 fireAt / pirate specialAction — cannonball range (tiles).
+const CANNON_RANGE := 3
 
 const TILE_PIRATE := 128
 const TILE_NIXIE := 132
@@ -138,6 +140,15 @@ func creature_at(tile: Vector2i) -> int:
 	return -1
 
 
+func remove_at(tile: Vector2i) -> bool:
+	for i in creatures.size():
+		var c: Dictionary = creatures[i]
+		if int(c["x"]) == tile.x and int(c["y"]) == tile.y:
+			creatures.remove_at(i)
+			return true
+	return false
+
+
 func cleanup(avatar: Vector2i) -> bool:
 	## xu4 GameController::creatureCleanup — drop creatures beyond distance 16.
 	var before := creatures.size()
@@ -153,16 +164,98 @@ func cleanup(avatar: Vector2i) -> bool:
 func move_all(
 	world,
 	avatar: Vector2i,
-	blocked: Callable = Callable()
+	blocked: Callable = Callable(),
+	on_pirate_fire: Callable = Callable()
 ) -> bool:
-	## xu4 Map::moveObjects — wander / attack path, world wrap, slow tiles.
+	## xu4 Map::moveObjects — specialAction (pirate cannon) then move.
 	if world == null or not world.loaded:
 		return false
 	var changed := false
 	for i in creatures.size():
+		var c: Dictionary = creatures[i]
+		var pos := Vector2i(int(c["x"]), int(c["y"]))
+		## xu4: orthogonally adjacent attackers become combatant — skip action+move.
+		if (
+			int(c.get("movement", MOVE_ATTACK)) == MOVE_ATTACK
+			and _ortho_adjacent(pos, avatar)
+		):
+			continue
+		if _try_pirate_cannon(i, avatar, on_pirate_fire):
+			changed = true
+			continue
 		if _move_one(i, world, avatar, blocked):
 			changed = true
 	return changed
+
+
+func _try_pirate_cannon(index: int, avatar: Vector2i, on_fire: Callable) -> bool:
+	## xu4 Creature::specialAction PIRATE_ID — broadsides only, range 1..3.
+	if index < 0 or index >= creatures.size():
+		return false
+	var c: Dictionary = creatures[index]
+	if int(c.get("tile", 0)) != TILE_PIRATE:
+		return false
+	var pos := Vector2i(int(c["x"]), int(c["y"]))
+	var delta := wrap_delta(pos, avatar)
+	var adx := absi(delta.x)
+	var ady := absi(delta.y)
+	if not ((adx == 0 and ady <= CANNON_RANGE) or (ady == 0 and adx <= CANNON_RANGE)):
+		return false
+	if adx == 0 and ady == 0:
+		return false
+	var shot := Vector2i.ZERO
+	if adx == 0:
+		shot = Vector2i(0, 1 if delta.y > 0 else -1)
+	else:
+		shot = Vector2i(1 if delta.x > 0 else -1, 0)
+	var facing := _facing_to_dir(int(c.get("facing", 0)))
+	if not is_broadside_dir(facing, shot):
+		return false
+	if on_fire.is_valid():
+		on_fire.call(pos, shot)
+	return true
+
+
+static func is_broadside_dir(ship_facing: Vector2i, fire_dir: Vector2i) -> bool:
+	## xu4 dirGetBroadsidesDirs — port/starboard only (not fore/aft).
+	if fire_dir == Vector2i.ZERO:
+		return false
+	if ship_facing == fire_dir or ship_facing == -fire_dir:
+		return false
+	## Must be a cardinal orthogonal to facing.
+	if ship_facing.x != 0:
+		return fire_dir.x == 0 and fire_dir.y != 0
+	if ship_facing.y != 0:
+		return fire_dir.y == 0 and fire_dir.x != 0
+	return false
+
+
+static func _facing_to_dir(facing: int) -> Vector2i:
+	## Pirate frames: W N E S.
+	match clampi(facing, 0, 3):
+		0:
+			return Vector2i(-1, 0)
+		1:
+			return Vector2i(0, -1)
+		2:
+			return Vector2i(1, 0)
+		_:
+			return Vector2i(0, 1)
+
+
+static func cannon_path(origin: Vector2i, dir: Vector2i, max_range: int = CANNON_RANGE) -> Array[Vector2i]:
+	## xu4 gameGetDirectionalActionPath with no blocker — 1..max_range.
+	var out: Array[Vector2i] = []
+	if dir == Vector2i.ZERO or max_range < 1:
+		return out
+	var cur := origin
+	for _i in max_range:
+		cur = Vector2i(
+			posmod(cur.x + dir.x, _WorldMapDataScript.WIDTH),
+			posmod(cur.y + dir.y, _WorldMapDataScript.HEIGHT)
+		)
+		out.append(cur)
+	return out
 
 
 func try_random_spawn(

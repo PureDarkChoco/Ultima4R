@@ -729,6 +729,28 @@ const _T := {
 		"en_us": "Fire What?",
 		"ko": "무엇을 쏘나?",
 	},
+	## xu4 fire() — printed before "Dir: Dir?"
+	"cmd_fire_cannon": {
+		"en_u4": "Fire Cannon!",
+		"en_us": "Fire Cannon!",
+		"ko": "함포 발사!",
+	},
+	## Prompt label so need_dir_prompt → "Dir: Dir?" (xu4 fire).
+	"cmd_fire_dir": {
+		"en_u4": "Dir",
+		"en_us": "Dir",
+		"ko": "방향",
+	},
+	"cmd_broadsides_only": {
+		"en_u4": "Broadsides Only!",
+		"en_us": "Broadsides Only!",
+		"ko": "좌우현만 가능!",
+	},
+	"cmd_ship_sinks": {
+		"en_u4": "Thy ship sinks!",
+		"en_us": "Thy ship sinks!",
+		"ko": "배가 가라앉는다!",
+	},
 	## xu4 board() / exitTransport()
 	"cmd_board_what": {
 		"en_u4": "Board What?",

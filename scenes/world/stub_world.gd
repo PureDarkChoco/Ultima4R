@@ -112,6 +112,10 @@ var _pending_cmd_name: String = ""
 var _block_dir_until_keyup := false
 ## True while moongate travel flash is playing (blocks move/commands).
 var _moongate_busy := false
+## True while a cannonball is in flight (blocks move/commands).
+var _cannon_busy := false
+## Pirate shots queued during moveObjects (animated after AI step).
+var _pending_pirate_shots: Array[Dictionary] = []
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
 var _order_stage := 0
 var _order_slot_a := -1
@@ -1319,7 +1323,7 @@ func _process(delta: float) -> void:
 	_tick_cursor(delta)
 	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
 	_tick_world_clock(delta)
-	if _moongate_busy:
+	if _moongate_busy or _cannon_busy:
 		return
 	## xu4 force pass if no commands within last 20 seconds.
 	_tick_auto_pass(delta)
@@ -1720,7 +1724,7 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Save / Load / Esc menu / New Order.
-	if _moongate_busy:
+	if _moongate_busy or _cannon_busy:
 		get_viewport().set_input_as_handled()
 		return
 	if _save_stage != 0:
@@ -1867,7 +1871,7 @@ func _handle_command(cmd: int) -> void:
 	var lang := GameState.lang_short()
 	var letter := U4Commands.letter_for(cmd)
 	var name := U4Commands.label(cmd, lang)
-	## xu4 fire(): not on a ship → "Fire What?" (no Dir?).
+	## xu4 fire(): not on a ship → "Fire What?"; else "Fire Cannon!" + Dir?
 	if cmd == U4Commands.Id.FIRE:
 		_clear_pending_dir()
 		_clear_pending_order()
@@ -1878,7 +1882,14 @@ func _handle_command(cmd: int) -> void:
 		_close_camp(false)
 		_cancel_chest_open(false)
 		_close_save(false)
-		_push_message(Locale.t("cmd_fire_what"), false)
+		if _transport != Transport.SHIP or _is_in_city():
+			_push_message(Locale.t("cmd_fire_what"), false)
+			_finish_party_turn()
+			return
+		_push_message(Locale.t("cmd_fire_cannon"), false)
+		_pending_cmd = cmd
+		_pending_cmd_name = Locale.t("cmd_fire_dir")
+		_layout_prompt_row()
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
 		## xu4: print "Attack: " then "Dir?" on the *same* line and wait.
@@ -2607,13 +2618,136 @@ func _creature_spawn_blocked(pos: Vector2i) -> bool:
 	return false
 
 
+func _on_pirate_cannon_fire(from: Vector2i, dir: Vector2i) -> void:
+	## Queued during moveObjects; animated after the AI pass.
+	_pending_pirate_shots.append({"from": from, "dir": dir})
+
+
+func _do_fire_cannon(dir: Vector2i) -> String:
+	## Sync probe for broadsides-only; flight is awaited in _finish_directed_command.
+	if _transport != Transport.SHIP or _is_in_city():
+		return Locale.t("cmd_fire_what")
+	var facing := _ship_facing_dir()
+	if not _WorldCreaturesScript.is_broadside_dir(facing, dir):
+		return Locale.t("cmd_broadsides_only")
+	return ""
+
+
+func _fire_cannon_along_async(origin: Vector2i, dir: Vector2i, from_avatar: bool) -> void:
+	## Pixel-smooth ball, then resolve xu4 fireAt at the impact tile.
+	var path: Array[Vector2i] = _WorldCreaturesScript.cannon_path(
+		origin, dir, _WorldCreaturesScript.CANNON_RANGE
+	)
+	if path.is_empty():
+		return
+	var impact_pos := path[path.size() - 1]
+	var impact: Dictionary = {}
+	for pos in path:
+		var info := _cannon_probe(pos, from_avatar)
+		if bool(info.get("valid", false)):
+			impact_pos = pos
+			impact = info
+			break
+	_cannon_busy = true
+	if _map != null:
+		await _map.await_cannonball(origin, impact_pos, dir)
+	if not impact.is_empty():
+		_cannon_apply_impact(impact)
+	_cannon_busy = false
+
+
+func _cannon_probe(pos: Vector2i, from_avatar: bool) -> Dictionary:
+	## Classify target at `pos` without FX (xu4 fireAt validity).
+	const TILE_BALLOON := 24
+	var hits_avatar := pos == _tile_pos
+	var creature_tid := -1
+	if not _is_in_city() and _world_creatures != null:
+		creature_tid = _world_creatures.creature_at(pos)
+	var overlay_tid := -1
+	if _map != null:
+		overlay_tid = _map.overlay_at(pos)
+	var valid := false
+	if creature_tid >= 0:
+		valid = true
+	elif overlay_tid >= 0 and not (from_avatar and overlay_tid == TILE_BALLOON):
+		valid = true
+	if hits_avatar:
+		valid = true
+	if not valid:
+		return {}
+	var kind := "stop"
+	if hits_avatar:
+		kind = "avatar"
+	elif creature_tid < 0 and overlay_tid >= 0:
+		kind = "overlay"
+	elif from_avatar and creature_tid >= 0:
+		kind = "creature"
+	return {
+		"valid": true,
+		"pos": pos,
+		"kind": kind,
+		"from_avatar": from_avatar,
+	}
+
+
+func _cannon_apply_impact(info: Dictionary) -> void:
+	var pos: Vector2i = info.get("pos", Vector2i.ZERO)
+	var kind := str(info.get("kind", ""))
+	match kind:
+		"avatar":
+			if _map != null:
+				_map.flash_world_tile(pos, MapView.TILE_HIT_FLASH, 0.36)
+			_apply_cannon_hit_on_party()
+		"overlay":
+			if _map != null:
+				_map.flash_world_tile(pos, MapView.TILE_HIT_FLASH, 0.36)
+				_map.remove_overlay_at(pos)
+		"creature":
+			if _map != null:
+				_map.flash_world_tile(pos, MapView.TILE_HIT_FLASH, 0.36)
+			if (randi() % 4) == 0 and _world_creatures != null:
+				_world_creatures.remove_at(pos)
+				_sync_creatures_to_map()
+		_:
+			pass
+
+
+func _apply_cannon_hit_on_party() -> void:
+	## xu4 hitPartyAtRange — ship hull 10, else party 10–25 (50% each).
+	if _map != null:
+		_map.shake_ship()
+	if _transport == Transport.SHIP:
+		var sunk := GameState.damage_ship(10)
+		_refresh_ship_hull_hud()
+		if _roster and _roster.has_method("flash_players"):
+			_roster.flash_players(-1)
+		if _compact_roster and _compact_roster.has_method("flash_players"):
+			_compact_roster.flash_players(-1)
+		if sunk:
+			_push_message(Locale.t("cmd_ship_sinks"), false)
+			GameState.kill_party()
+			_refresh_party()
+		return
+	var flash := GameState.damage_party_cannon(10, 25)
+	_refresh_party()
+	_flash_party_damage(flash)
+
+
 func _update_world_creatures() -> void:
 	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures.
 	if _is_in_city() or _world == null or not _world.loaded:
 		return
 	if _world_creatures == null:
 		return
-	var changed := _world_creatures.move_all(_world, _tile_pos, _creature_spawn_blocked)
+	_pending_pirate_shots.clear()
+	var changed := _world_creatures.move_all(
+		_world,
+		_tile_pos,
+		_creature_spawn_blocked,
+		_on_pirate_cannon_fire
+	)
+	for shot in _pending_pirate_shots:
+		await _fire_cannon_along_async(shot["from"], shot["dir"], false)
 	if _world_creatures.cleanup(_tile_pos):
 		changed = true
 	if _world_creatures.try_random_spawn(
@@ -4444,7 +4578,7 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 	## Combat turns pass in_combat=true so moves (camp heal clock) do not advance.
 	## While the whole party is asleep, loops with "Zzzzzz" until someone wakes.
 	_stamp_command_time()
-	_run_party_turn_once(in_combat)
+	await _run_party_turn_once(in_combat)
 	if in_combat:
 		return
 	_maybe_continue_immobilized()
@@ -4459,7 +4593,7 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 		_move_city_persons()
 	## xu4 creatureCleanup → checkRandomCreatures (world; offscreen of explore view).
 	if not in_combat:
-		_update_world_creatures()
+		await _update_world_creatures()
 	## xu4 annotations.passTurn — open doors close after ttl.
 	if not in_combat:
 		_pass_map_annotations()
@@ -4512,7 +4646,7 @@ func _on_immobilized_timer() -> void:
 	if GameState.is_party_dead() or not GameState.is_party_immobilized():
 		_refresh_party()
 		return
-	_run_party_turn_once(false)
+	await _run_party_turn_once(false)
 	_maybe_continue_immobilized()
 
 
@@ -4609,6 +4743,10 @@ func _finish_directed_command(dir: Vector2i) -> void:
 			result = _do_jimmy(dir)
 		U4Commands.Id.GET_CHEST:
 			result = _do_get_chest(dir)
+		U4Commands.Id.FIRE:
+			result = _do_fire_cannon(dir)
+			if result.is_empty():
+				await _fire_cannon_along_async(_tile_pos, dir, true)
 		_:
 			result = _directed_result_message(cmd)
 	if not result.is_empty():
@@ -4617,7 +4755,7 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	if _chest_open_stage != 0:
 		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
-	_finish_party_turn()
+	await _finish_party_turn()
 
 
 func _do_open(dir: Vector2i) -> String:
