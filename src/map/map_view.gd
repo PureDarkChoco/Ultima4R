@@ -8,6 +8,7 @@ extends TextureRect
 const _CombatMapDataScript := preload("res://src/map/combat_map_data.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _LineOfSightScript := preload("res://src/map/line_of_sight.gd")
+const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 
@@ -122,6 +123,8 @@ var _los: PackedByteArray = PackedByteArray()
 ## Temporary world overlays: Vector3i(x, y, tile_id) — horse/ship stubs, etc.
 var _overlays: Array[Vector3i] = []
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
+## Wilderness monsters: Vector3i(x, y, base_tile_id). Drawn with tile animation.
+var _creatures: Array[Vector3i] = []
 ## Active Trammel moongate annotation (world map only).
 var _moongate_pos := Vector2i(-1, -1)
 var _moongate_tid := -1
@@ -438,6 +441,16 @@ func set_overlays(items: Array[Vector3i]) -> void:
 
 func get_overlays() -> Array[Vector3i]:
 	return _overlays.duplicate()
+
+
+func set_creatures(items: Array[Vector3i]) -> void:
+	## Wilderness monsters (world map only). Empty while exploring a city.
+	_creatures = items.duplicate()
+	_rebuild()
+
+
+func get_creatures() -> Array[Vector3i]:
+	return _creatures.duplicate()
 
 
 func set_los_enabled(on: bool) -> void:
@@ -966,6 +979,7 @@ func _rebuild() -> void:
 	)
 	_paint_moongate(cam)
 	_paint_overlays(cam)
+	_paint_creatures(cam)
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
 
@@ -2270,6 +2284,33 @@ func _paint_overlays(cam: Vector2) -> void:
 		var px := int(round(screen.x * float(TILE_SRC)))
 		var py := int(round(screen.y * float(TILE_SRC)))
 		## Cull if fully off the view buffer.
+		if px <= -TILE_SRC or py <= -TILE_SRC:
+			continue
+		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+			continue
+		var slice := _overlay_slice(tid)
+		if slice == null:
+			continue
+		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+
+
+func _paint_creatures(cam: Vector2) -> void:
+	## Wilderness monsters — `z` is base (or pirate facing); animate consecutive tiles.
+	if _creatures.is_empty() or not tiles_ready:
+		return
+	if is_in_city():
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for item in _creatures:
+		var wx := int(item.x)
+		var wy := int(item.y)
+		if not is_tile_visible(wx, wy):
+			continue
+		var tid: int = _WorldCreaturesScript.resolve_paint_tile(int(item.z), _tile_anim_frame)
+		var screen := Vector2(wx, wy) - cam + Vector2(half_x, half_y)
+		var px := int(round(screen.x * float(TILE_SRC)))
+		var py := int(round(screen.y * float(TILE_SRC)))
 		if px <= -TILE_SRC or py <= -TILE_SRC:
 			continue
 		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:

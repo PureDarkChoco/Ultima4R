@@ -17,6 +17,7 @@ const _WorldPortals := preload("res://src/map/world_portals.gd")
 const _CityFloorPortals := preload("res://src/map/city_floor_portals.gd")
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _Moongates := preload("res://src/map/moongates.gd")
+const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -80,6 +81,7 @@ const SHIP_HULL_LOW_THRESHOLD := 20
 const SHIP_HULL_ICON_SZ := 14.0
 
 var _world := WorldMapData.new()
+var _world_creatures = _WorldCreaturesScript.new()
 var _tile_pos := Vector2i(83, 105)
 ## xu4 transportContext stub: foot / horse / ship.
 enum Transport { FOOT, HORSE, SHIP }
@@ -277,6 +279,9 @@ func _apply_world_save(w: Dictionary) -> void:
 		_map.set_overlays(_overlays_from_save(w.get("overlays", [])))
 	else:
 		_map.set_overlays(_overlays_from_hull_fallback())
+	if _world_creatures != null:
+		_world_creatures.from_save(w.get("creatures", []))
+		_sync_creatures_to_map()
 
 	if bool(w.get("in_city", false)):
 		_restore_city_from_save(w)
@@ -344,6 +349,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_map.enter_city(cmap, local, _city_return_pos, spawn)
 	_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 	_map.clear_moongate()
+	_sync_creatures_to_map()
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -605,6 +611,9 @@ func _can_move_to(dest: Vector2i) -> bool:
 		)
 	if _world == null or not _world.loaded:
 		return true
+	## Do not step onto (or through) wilderness monsters — combat engages later.
+	if _world_creatures != null and _world_creatures.creature_at(dest) >= 0:
+		return false
 	var dest_id := _effective_world_tid(dest)
 	var from_id := _effective_world_tid(_tile_pos)
 	var dir := Vector2i(
@@ -2461,6 +2470,7 @@ func _world_save_dict() -> Dictionary:
 		"parked_ship_x": _parked_ship_tile.x,
 		"parked_ship_y": _parked_ship_tile.y,
 		"overlays": _overlays_to_save(),
+		"creatures": _creatures_to_save(),
 		"city_chests": _city_chests_to_save(),
 		"in_city": false,
 	}
@@ -2571,6 +2581,52 @@ func _overlays_to_save() -> Array:
 	for item in _map.get_overlays():
 		out.append({"x": int(item.x), "y": int(item.y), "t": int(item.z)})
 	return out
+
+
+func _creatures_to_save() -> Array:
+	if _world_creatures == null:
+		return []
+	return _world_creatures.to_save()
+
+
+func _sync_creatures_to_map() -> void:
+	if _map == null or _world_creatures == null:
+		return
+	if _is_in_city():
+		_map.set_creatures([] as Array[Vector3i])
+		return
+	_map.set_creatures(_world_creatures.as_paint_items())
+
+
+func _creature_spawn_blocked(pos: Vector2i) -> bool:
+	## Do not stack on parked horses/ships or an existing creature.
+	if _world_creatures != null and _world_creatures.creature_at(pos) >= 0:
+		return true
+	if _map != null and _map.overlay_at(pos) >= 0:
+		return true
+	return false
+
+
+func _update_world_creatures() -> void:
+	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures.
+	if _is_in_city() or _world == null or not _world.loaded:
+		return
+	if _world_creatures == null:
+		return
+	var changed := _world_creatures.move_all(_world, _tile_pos, _creature_spawn_blocked)
+	if _world_creatures.cleanup(_tile_pos):
+		changed = true
+	if _world_creatures.try_random_spawn(
+		_world,
+		_tile_pos,
+		MapView.VIEW_W,
+		MapView.VIEW_H,
+		GameState.moves,
+		_creature_spawn_blocked
+	):
+		changed = true
+	if changed:
+		_sync_creatures_to_map()
 
 
 func _cancel_save(show_none: bool) -> void:
@@ -3902,6 +3958,7 @@ func _exit_city() -> void:
 		_map.exit_city()
 		_map.set_center(_tile_pos, false)
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_sync_creatures_to_map()
 	_sync_moongate(true)
 	_refresh_locate_hud()
 	_push_message(Locale.t("cmd_exit_city"), false)
@@ -4400,6 +4457,9 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 	## xu4 Map::moveObjects — town NPCs roam after the party acts.
 	if not in_combat:
 		_move_city_persons()
+	## xu4 creatureCleanup → checkRandomCreatures (world; offscreen of explore view).
+	if not in_combat:
+		_update_world_creatures()
 	## xu4 annotations.passTurn — open doors close after ttl.
 	if not in_combat:
 		_pass_map_annotations()
