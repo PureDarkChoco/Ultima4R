@@ -155,6 +155,9 @@ var _esc_menu # EscMenuPanel
 ## City / castle visit (Enter). World position restored on leave.
 var _city_map # CityMapData
 var _city_return_pos := Vector2i.ZERO
+## Per-.ULT emptied chests only (not open lids). Key = lowercase basename →
+## { "x,y": true }. Leave/floor change closes lids; memory/save keep emptied spots.
+var _city_chest_memory: Dictionary = {}
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
@@ -253,6 +256,7 @@ func _apply_world_save(w: Dictionary) -> void:
 	## City saves store world portal as x,y plus city_fname + city_x/y.
 	if w.is_empty() or _map == null:
 		return
+	_load_city_chest_memory(w.get("city_chests", {}))
 	_tile_pos = Vector2i(int(w.get("x", _tile_pos.x)), int(w.get("y", _tile_pos.y)))
 	_sides_open = bool(w.get("sides_open", _sides_open))
 	_transport = int(w.get("transport", Transport.FOOT))
@@ -2445,6 +2449,7 @@ func _world_save_dict() -> Dictionary:
 		"parked_ship_x": _parked_ship_tile.x,
 		"parked_ship_y": _parked_ship_tile.y,
 		"overlays": _overlays_to_save(),
+		"city_chests": _city_chests_to_save(),
 		"in_city": false,
 	}
 	if _is_in_city():
@@ -3768,6 +3773,7 @@ func _use_city_floor_portal(action: int) -> void:
 	var msg_key := str(portal.get("msg", ""))
 	if not msg_key.is_empty():
 		_push_message(Locale.t(msg_key), false)
+	_stash_emptied_city_chests()
 	_city_map = cmap
 	_tile_pos = start
 	## Keep world exit tile; rim plains still from original Enter spawn.
@@ -3789,10 +3795,95 @@ func _is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 
 
+func _city_map_fname(cmap = null) -> String:
+	var m = cmap if cmap != null else _city_map
+	if m == null:
+		return ""
+	return str(m.source_path).get_file().to_lower()
+
+
+func _stash_emptied_city_chests() -> void:
+	## Remember only looted spots; open lids are discarded on leave/floor change.
+	if _city_map == null or not _city_map.loaded:
+		return
+	if not _city_map.has_method("emptied_chest_keys"):
+		return
+	var fname := _city_map_fname()
+	if fname.is_empty():
+		return
+	var bucket: Dictionary = _city_chest_memory.get(fname, {})
+	if typeof(bucket) != TYPE_DICTIONARY:
+		bucket = {}
+	for key in _city_map.emptied_chest_keys():
+		bucket[str(key)] = true
+	_city_chest_memory[fname] = bucket
+
+
+func _mark_city_chest_emptied(x: int, y: int) -> void:
+	var fname := _city_map_fname()
+	if fname.is_empty():
+		return
+	var bucket: Dictionary = _city_chest_memory.get(fname, {})
+	if typeof(bucket) != TYPE_DICTIONARY:
+		bucket = {}
+	bucket[_CityMapData.chest_key(x, y)] = true
+	_city_chest_memory[fname] = bucket
+
+
+func _is_remembered_empty_chest(x: int, y: int) -> bool:
+	var fname := _city_map_fname()
+	if fname.is_empty() or not _city_chest_memory.has(fname):
+		return false
+	var bucket: Variant = _city_chest_memory[fname]
+	if typeof(bucket) != TYPE_DICTIONARY:
+		return false
+	return bool((bucket as Dictionary).get(_CityMapData.chest_key(x, y), false))
+
+
+func _city_chests_to_save() -> Dictionary:
+	_stash_emptied_city_chests()
+	var out := {}
+	for fname in _city_chest_memory.keys():
+		var chests: Variant = _city_chest_memory[fname]
+		if typeof(chests) != TYPE_DICTIONARY:
+			continue
+		var copy := {}
+		for ck in (chests as Dictionary).keys():
+			if bool((chests as Dictionary)[ck]):
+				copy[str(ck)] = true
+		if not copy.is_empty():
+			out[str(fname)] = copy
+	return out
+
+
+func _load_city_chest_memory(raw: Variant) -> void:
+	## Accept new `{ "x,y": true }` and older open-state dicts (icon_shown == 0 only).
+	_city_chest_memory.clear()
+	if typeof(raw) != TYPE_DICTIONARY:
+		return
+	for fname in (raw as Dictionary).keys():
+		var chests: Variant = (raw as Dictionary)[fname]
+		if typeof(chests) != TYPE_DICTIONARY:
+			continue
+		var copy := {}
+		for ck in (chests as Dictionary).keys():
+			var d: Variant = (chests as Dictionary)[ck]
+			var emptied := false
+			if typeof(d) == TYPE_BOOL:
+				emptied = bool(d)
+			elif typeof(d) == TYPE_DICTIONARY:
+				emptied = int((d as Dictionary).get("icon_shown", 0)) <= 0
+			if emptied:
+				copy[str(ck)] = true
+		if not copy.is_empty():
+			_city_chest_memory[str(fname).to_lower()] = copy
+
+
 func _exit_city() -> void:
 	## Leave city back to the world tile we Entered from.
 	if not _is_in_city():
 		return
+	_stash_emptied_city_chests()
 	_city_map = null
 	_tile_pos = _city_return_pos
 	if _map != null:
@@ -4474,8 +4565,12 @@ func _do_open(dir: Vector2i) -> String:
 			return Locale.t("cmd_nothing_to_open")
 		var tid := int(_city_map.effective_tile_at(target.x, target.y))
 		if _TileRules.is_chest(tid):
+			## Still open this visit: no second trap. Empty → empty msg; else already open.
+			if _city_map.is_chest_empty(target.x, target.y):
+				return Locale.t("cmd_chest_empty")
 			if _city_map.is_chest_open(target.x, target.y):
 				return Locale.t("cmd_chest_already_open")
+			## Closed lid (incl. remembered-empty after leave): Who opens? + trap again.
 			if _living_party_slot_count() < 1:
 				return Locale.t("cmd_cant")
 			_begin_chest_open_who(target)
@@ -4602,18 +4697,28 @@ func _complete_chest_open(slot: int, finish_turn: bool) -> void:
 		if finish_turn:
 			_finish_party_turn()
 		return
+	if _city_map.is_chest_empty(target.x, target.y):
+		_push_message(Locale.t("cmd_chest_empty"), false)
+		if finish_turn:
+			_finish_party_turn()
+		return
 	if _city_map.is_chest_open(target.x, target.y):
 		_push_message(Locale.t("cmd_chest_already_open"), false)
 		if finish_turn:
 			_finish_party_turn()
 		return
-	_city_map.open_chest_at(target.x, target.y)
+	var already_looted := _is_remembered_empty_chest(target.x, target.y)
+	_city_map.open_chest_at(target.x, target.y, not already_looted)
+	if already_looted:
+		_mark_city_chest_emptied(target.x, target.y)
 	if _map != null and _map.has_method("begin_chest_loot_reveal"):
 		_map.begin_chest_loot_reveal()
 	elif _map != null and _map.has_method("refresh"):
 		_map.refresh()
 	_push_message(Locale.t("cmd_opened"), false)
 	_resolve_chest_trap(slot, opener_klass)
+	if already_looted:
+		_push_message(Locale.t("cmd_chest_empty"), false)
 	if finish_turn:
 		_finish_party_turn()
 
@@ -4652,11 +4757,12 @@ func _do_get_chest(dir: Vector2i) -> String:
 	if not _city_map.is_chest_open(target.x, target.y):
 		return Locale.t("cmd_not_here")
 	if not _city_map.chest_has_loot(target.x, target.y):
-		return Locale.t("cmd_not_here")
+		return Locale.t("cmd_chest_empty")
 
 	var gold := GameState.take_chest_gold()
 	GameState.adjust_karma_stole_chest()
 	_city_map.take_chest_loot(target.x, target.y)
+	_mark_city_chest_emptied(target.x, target.y)
 	if _map != null and _map.has_method("refresh"):
 		_map.refresh()
 	_refresh_inventory_bars()

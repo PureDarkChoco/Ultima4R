@@ -677,6 +677,11 @@ const _T := {
 		"en_us": "Already opened.",
 		"ko": "이미 열렸습니다.",
 	},
+	"cmd_chest_empty": {
+		"en_u4": "The chest is empty!",
+		"en_us": "The chest is empty.",
+		"ko": "상자가 비어 있다.",
+	},
 	## xu4 getChest — "Who opens?"
 	"cmd_chest_who_opens": {
 		"en_u4": "Who opens?",
@@ -686,27 +691,27 @@ const _T := {
 	## xu4 getChest / getChestTrapHandler
 	"cmd_chest_holds": {
 		"en_u4": "The Chest Holds: %d Gold",
-		"en_us": "The Chest Holds: %d Gold",
+		"en_us": "The chest holds: %d gold.",
 		"ko": "상자 속: 골드 %d",
 	},
 	"cmd_chest_trap_acid": {
 		"en_u4": "Acid Trap!",
-		"en_us": "Acid Trap!",
+		"en_us": "Acid trap!",
 		"ko": "산성 함정!",
 	},
 	"cmd_chest_trap_poison": {
 		"en_u4": "Poison Trap!",
-		"en_us": "Poison Trap!",
+		"en_us": "Poison trap!",
 		"ko": "독 함정!",
 	},
 	"cmd_chest_trap_sleep": {
 		"en_u4": "Sleep Trap!",
-		"en_us": "Sleep Trap!",
+		"en_us": "Sleep trap!",
 		"ko": "수면 함정!",
 	},
 	"cmd_chest_trap_bomb": {
 		"en_u4": "Bomb Trap!",
-		"en_us": "Bomb Trap!",
+		"en_us": "Bomb trap!",
 		"ko": "폭탄 함정!",
 	},
 	"cmd_chest_trap_evaded": {

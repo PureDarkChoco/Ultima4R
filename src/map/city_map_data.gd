@@ -142,9 +142,9 @@ func is_chest_open(x: int, y: int) -> bool:
 	return opened_chests.has(chest_key(x, y))
 
 
-func open_chest_at(x: int, y: int) -> Dictionary:
-	## Open the lid and show a single gold icon (trap resolved by caller on Open).
-	## Get later: gold roll + KA_STOLE_CHEST.
+func open_chest_at(x: int, y: int, with_loot: bool = true) -> Dictionary:
+	## Open the lid. with_loot=false → empty open art (already looted this game).
+	## Trap is resolved by the caller on Open.
 	var key := chest_key(x, y)
 	if opened_chests.has(key):
 		return opened_chests[key] as Dictionary
@@ -152,7 +152,7 @@ func open_chest_at(x: int, y: int) -> Dictionary:
 		"x": x,
 		"y": y,
 		"icon_total": 1,
-		"icon_shown": 1,
+		"icon_shown": 1 if with_loot else 0,
 	}
 	opened_chests[key] = data
 	return data
@@ -183,6 +183,21 @@ func chest_icon_shown(x: int, y: int) -> int:
 	if not opened_chests.has(key):
 		return 0
 	return int((opened_chests[key] as Dictionary).get("icon_shown", 0))
+
+
+func is_chest_empty(x: int, y: int) -> bool:
+	## Opened this visit and already looted (no gold icon left).
+	return is_chest_open(x, y) and not chest_has_loot(x, y)
+
+
+func emptied_chest_keys() -> Array[String]:
+	## Coordinates looted during this visit (for cross-visit memory / save).
+	var keys: Array[String] = []
+	for k in opened_chests.keys():
+		var d: Dictionary = opened_chests[k]
+		if int(d.get("icon_shown", 0)) <= 0:
+			keys.append(str(k))
+	return keys
 
 
 func person_tile_at(x: int, y: int) -> int:
