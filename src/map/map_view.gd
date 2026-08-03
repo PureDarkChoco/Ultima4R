@@ -967,47 +967,125 @@ func _combat_pick_ranged_target(from: Vector2i) -> Dictionary:
 
 
 func _combat_apply_advance_step(index: int, from: Vector2i, target: Vector2i) -> bool:
-	## One ortho step closer for 8-way melee: minimize Chebyshev first so a
-	## diagonal neighbor (cheb==1) is a valid end state — not only side-hugs.
-	var dirs := _combat_advance_dirs(from)
-	var best := Vector2i.ZERO
-	var best_cheb := _WeaponIconsScript.chebyshev(from, target)
-	var best_manh := _combat_manhattan(from, target)
-	var improved := false
-	for d in dirs:
-		var dest := from + d
-		if not _combat_in_bounds(dest):
-			continue
-		if not _combat_can_walk(from, dest, d):
-			continue
-		if _combat_occupied(dest, -1, index):
-			continue
-		var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
-		if _TileRulesCamp.slowed_by_tile(dest_tid):
-			continue
-		var cheb := _WeaponIconsScript.chebyshev(dest, target)
-		var manh := _combat_manhattan(dest, target)
-		if cheb < best_cheb or (cheb == best_cheb and manh < best_manh):
-			best_cheb = cheb
-			best_manh = manh
-			best = d
-			improved = true
-		elif (
-			improved
-			and cheb == best_cheb
-			and manh == best_manh
-			and (randi() % 2) == 0
-		):
-			best = d
-	if not improved:
+	## One ortho step toward the target. Prefer BFS around walkability / other
+	## units so walls and props do not hard-stop a greedy distance shrink.
+	## Fallback: xu4 map_pathTo — prefer relative dirs, else any valid step.
+	var valid: Array[Vector2i] = _combat_valid_advance_dirs(from, index)
+	if valid.is_empty():
 		return false
-	var dest2 := from + best
+	var step := _combat_bfs_step_toward(from, target, index, valid)
+	if step == Vector2i.ZERO:
+		step = _combat_path_to(from, target, valid)
+	if step == Vector2i.ZERO:
+		return false
+	var dest2 := from + step
 	var foe: Dictionary = _combat_foes[index]
 	foe["x"] = dest2.x
 	foe["y"] = dest2.y
 	_combat_foes[index] = foe
 	_rebuild()
 	return true
+
+
+func _combat_valid_advance_dirs(from: Vector2i, skip_foe: int) -> Array[Vector2i]:
+	## Walkable ortho steps (no map exit, no stack, skip slowed terrain).
+	var out: Array[Vector2i] = []
+	for d in _combat_advance_dirs(from):
+		var dest := from + d
+		if not _combat_in_bounds(dest):
+			continue
+		if not _combat_can_walk(from, dest, d):
+			continue
+		if _combat_occupied(dest, -1, skip_foe):
+			continue
+		var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+		if _TileRulesCamp.slowed_by_tile(dest_tid):
+			continue
+		out.append(d)
+	return out
+
+
+func _combat_path_to(from: Vector2i, to: Vector2i, valid: Array[Vector2i]) -> Vector2i:
+	## xu4 map_pathTo: directions toward the target, else any valid.
+	if valid.is_empty():
+		return Vector2i.ZERO
+	var dx := from.x - to.x
+	var dy := from.y - to.y
+	var prefer: Array[Vector2i] = []
+	for d in valid:
+		var toward := false
+		if dx < 0 and d.x > 0:
+			toward = true
+		if dx > 0 and d.x < 0:
+			toward = true
+		if dy < 0 and d.y > 0:
+			toward = true
+		if dy > 0 and d.y < 0:
+			toward = true
+		if toward:
+			prefer.append(d)
+	var pool: Array[Vector2i] = prefer if not prefer.is_empty() else valid
+	return pool[randi() % pool.size()]
+
+
+func _combat_bfs_step_toward(
+	from: Vector2i, target: Vector2i, skip_foe: int, valid: Array[Vector2i]
+) -> Vector2i:
+	## Shortest walk around obstacles: BFS from the party tile (goal), then
+	## take a neighboring step on the geodesic. Guarantees detours when a
+	## wall sits on the straight line.
+	if _combat_map == null:
+		return Vector2i.ZERO
+	var dist := PackedInt32Array()
+	dist.resize(CAMP_W * CAMP_H)
+	dist.fill(9999)
+	if not _combat_in_bounds(target):
+		return Vector2i.ZERO
+	var q: Array[Vector2i] = [target]
+	dist[target.y * CAMP_W + target.x] = 0
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		qi += 1
+		var cd: int = dist[cur.y * CAMP_W + cur.x]
+		for d in _DIRS_COMBAT:
+			var n: Vector2i = cur + d
+			if not _combat_in_bounds(n):
+				continue
+			var ni := n.y * CAMP_W + n.x
+			if dist[ni] <= cd + 1:
+				continue
+			## Undirected terrain graph (like flee BFS). Directed walk checks
+			## apply on the actual step via `valid`. Allow seed + mover tile.
+			if n != target and n != from:
+				if _combat_occupied(n, -1, skip_foe):
+					continue
+				var n_tid := int(_combat_map.tile_at(n.x, n.y))
+				if not _TileRulesCamp.is_creature_walkable(n_tid):
+					continue
+				if _TileRulesCamp.slowed_by_tile(n_tid):
+					continue
+			dist[ni] = cd + 1
+			q.append(n)
+	var from_i := from.y * CAMP_W + from.x
+	if dist[from_i] >= 9999:
+		return Vector2i.ZERO
+	## Choose a valid ortho step that strictly decreases path distance.
+	var best_d := dist[from_i]
+	var candidates: Array[Vector2i] = []
+	for d in valid:
+		var dest := from + d
+		if not _combat_in_bounds(dest):
+			continue
+		var dd: int = dist[dest.y * CAMP_W + dest.x]
+		if dd < best_d:
+			best_d = dd
+			candidates = [d]
+		elif dd == best_d and dd < dist[from_i]:
+			candidates.append(d)
+	if candidates.is_empty():
+		return Vector2i.ZERO
+	return candidates[randi() % candidates.size()]
 
 
 func _combat_is_land_tile(tid: int) -> bool:
