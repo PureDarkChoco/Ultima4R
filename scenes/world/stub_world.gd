@@ -2968,14 +2968,24 @@ func _apply_cannon_hit_on_party() -> void:
 	var flash := GameState.damage_party_cannon(10, 25)
 	_refresh_party()
 	_flash_party_damage(flash)
-	## Foot hits: finishTurn's isDead → deathStart(0) via `_maybe_continue_immobilized`.
+	## Foot: if the volley wiped the party, death starts now — not after more AI.
+	if GameState.is_party_dead():
+		_start_death_sequence(0.0)
+
+
+func _party_wiped_or_dying() -> bool:
+	## Party is fully dead, or the death cutscene already owns the screen.
+	return _death_busy or GameState.is_party_dead()
 
 
 func _update_world_creatures() -> void:
 	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures.
+	## Creatures act sequentially; after a lethal pirate shot, stop further AI / combat.
 	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
 		return
 	if _world_creatures == null:
+		return
+	if _party_wiped_or_dying():
 		return
 	_pending_pirate_shots.clear()
 	var moved: Dictionary = _world_creatures.move_all(
@@ -2985,9 +2995,16 @@ func _update_world_creatures() -> void:
 		_on_pirate_cannon_fire
 	)
 	var changed := bool(moved.get("changed", false))
+	## Fire each broadside in order; abort if the party is wiped mid-queue.
 	for shot in _pending_pirate_shots:
+		if _party_wiped_or_dying():
+			return
 		await _fire_cannon_along_async(shot["from"], shot["dir"], false)
-	## xu4: adjacent attacker → engage immediately (skip cleanup/spawn this turn).
+		if _party_wiped_or_dying():
+			return
+	## Adjacent engage only if the party still stands after all world AI.
+	if _party_wiped_or_dying():
+		return
 	var attacker: Dictionary = moved.get("attacker", {})
 	if typeof(attacker) == TYPE_DICTIONARY and not (attacker as Dictionary).is_empty():
 		var apos := Vector2i(int(attacker.get("x", 0)), int(attacker.get("y", 0)))
@@ -4853,6 +4870,9 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 	## xu4 creatureCleanup → checkRandomCreatures (world; offscreen of explore view).
 	if not in_combat:
 		await _update_world_creatures()
+	## Death after world AI (ship sink / cannon wipe) — skip leftover turn bookkeeping FX noise.
+	if not in_combat and _party_wiped_or_dying():
+		return
 	## xu4 annotations.passTurn — open doors close after ttl.
 	if not in_combat:
 		_pass_map_annotations()
@@ -5280,6 +5300,9 @@ func _do_attack(dir: Vector2i) -> String:
 func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	## Open the .CON battlefield (placement only — turn loop later).
 	if _combat_active or foe.is_empty():
+		return
+	## Never open the arena on a wiped party (pirate broadsides / death cutscene).
+	if _party_wiped_or_dying():
 		return
 	_reset_hold_state()
 	_clear_pending_dir()
