@@ -297,6 +297,49 @@ static func is_pirate_ship(tile_or_base: int) -> bool:
 	return _base_tile(tile_or_base) == TILE_PIRATE
 
 
+## xu4 config.b `nochest: true` — Bat, Slime, Insect Swarm, Wisp.
+const _NOCHEST_TILES := {
+	148: true, ## Bat
+	160: true, ## Slime
+	180: true, ## Insect Swarm
+	220: true, ## Wisp
+}
+
+
+static func leaves_chest(tile_or_base: int) -> bool:
+	## xu4 Creature::leavesChest — not aquatic (swims/sails) and not nochest.
+	var base := _base_tile(tile_or_base)
+	if _sails(base) or _swims(base):
+		return false
+	if bool(_NOCHEST_TILES.get(base, false)):
+		return false
+	return true
+
+
+## Roughly biped / humanoid combatants — extra food / gear drops.
+const _HUMANOID_TILES := {
+	156: true, ## Ghost
+	164: true, ## Troll
+	168: true, ## Gremlin
+	188: true, ## Phantom
+	192: true, ## Orc
+	196: true, ## Skeleton
+	200: true, ## Rogue
+	208: true, ## Ettin
+	212: true, ## Headless
+	216: true, ## Cyclops
+	224: true, ## Evil Mage
+	228: true, ## Liche
+	236: true, ## Zorn
+	240: true, ## Daemon
+	252: true, ## Balron
+}
+
+
+static func is_humanoid(tile_or_base: int) -> bool:
+	return bool(_HUMANOID_TILES.get(_base_tile(tile_or_base), false))
+
+
 ## xu4 config.b `ranged: true` wilderness creatures (combat free-aim).
 const _RANGED_TILES := {
 	132: true, ## Nixie

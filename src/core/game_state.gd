@@ -1158,9 +1158,107 @@ func adjust_gold(delta: int) -> int:
 
 func take_chest_gold() -> int:
 	## xu4 Party::getChest — roll + add gold; return amount rolled (for the message).
-	var amount := (randi() % 50) + (randi() % 8) + 10
+	var amount := roll_chest_gold_amount()
 	adjust_gold(amount)
 	return amount
+
+
+func roll_chest_gold_amount() -> int:
+	## xu4 Party::getChest gold formula only (no apply).
+	return (randi() % 50) + (randi() % 8) + 10
+
+
+## Combat chest stack kinds (Get peels from the top).
+const CHEST_LOOT_GOLD := "gold"
+const CHEST_LOOT_FOOD := "food"
+const CHEST_LOOT_WEAPON := "weapon"
+const CHEST_LOOT_ARMOR := "armor"
+const CHEST_LOOT_TORCH := "torch"
+const CHEST_LOOT_KEY := "key"
+const CHEST_LOOT_GEM := "gem"
+## Staff..Halberd (exclude Hands, Magic*, Mystic).
+const _CHEST_NORMAL_WEAPONS: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+## Cloth..Plate (exclude Magic*, Mystic).
+const _CHEST_NORMAL_ARMORS: Array[int] = [1, 2, 3, 4]
+
+
+func roll_combat_chest_loot(humanoid: bool) -> Array:
+	## Always gold; humanoids also roll food / weapons / armor / misc.
+	## Returns stack top-first (index 0 is taken first on Get).
+	var pool: Array = []
+	pool.append({
+		"kind": CHEST_LOOT_GOLD,
+		"amount": roll_chest_gold_amount(),
+		"id": 0,
+	})
+	if humanoid:
+		if (randi() % 100) < 15:
+			pool.append({
+				"kind": CHEST_LOOT_FOOD,
+				"amount": (randi() % 10) + 1, ## display food units 1..10
+				"id": 0,
+			})
+		if (randi() % 100) < 4:
+			var n_weap := 1 if (randi() % 2) == 0 else 2
+			for _i in n_weap:
+				var wid := _CHEST_NORMAL_WEAPONS[randi() % _CHEST_NORMAL_WEAPONS.size()]
+				pool.append({"kind": CHEST_LOOT_WEAPON, "amount": 1, "id": wid})
+		if (randi() % 100) < 3:
+			var aid := _CHEST_NORMAL_ARMORS[randi() % _CHEST_NORMAL_ARMORS.size()]
+			pool.append({"kind": CHEST_LOOT_ARMOR, "amount": 1, "id": aid})
+		if (randi() % 100) < 1:
+			var r := randi() % 100
+			if r < 50:
+				pool.append({"kind": CHEST_LOOT_TORCH, "amount": 1, "id": 0})
+			elif r < 80:
+				pool.append({"kind": CHEST_LOOT_KEY, "amount": 1, "id": 0})
+			else:
+				pool.append({"kind": CHEST_LOOT_GEM, "amount": 1, "id": 0})
+	## Fisher–Yates shuffle → random presentation order.
+	for i in range(pool.size() - 1, 0, -1):
+		var j := randi() % (i + 1)
+		var tmp: Variant = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	return pool
+
+
+func apply_chest_loot_entry(entry: Dictionary) -> String:
+	## Grant one stack entry; returns the player-facing Get message.
+	if entry.is_empty():
+		return Locale.t("cmd_chest_empty")
+	var kind := str(entry.get("kind", ""))
+	var amount := int(entry.get("amount", 0))
+	var item_id := int(entry.get("id", 0))
+	match kind:
+		CHEST_LOOT_GOLD:
+			var got := adjust_gold(maxi(0, amount))
+			return Locale.t("cmd_chest_holds", [got if got > 0 else amount])
+		CHEST_LOOT_FOOD:
+			## food_display units → centi-units in Party storage.
+			adjust_food(maxi(0, amount) * 100)
+			return Locale.t("cmd_chest_holds_food", [amount])
+		CHEST_LOOT_WEAPON:
+			if item_id > 0 and item_id < weapons.size():
+				weapons[item_id] = int(weapons[item_id]) + 1
+				mark_weapon_known(item_id)
+			return Locale.t("cmd_chest_holds_weapon", [Locale.weapon_name(item_id)])
+		CHEST_LOOT_ARMOR:
+			if item_id > 0 and item_id < armor.size():
+				armor[item_id] = int(armor[item_id]) + 1
+				mark_armor_known(item_id)
+			return Locale.t("cmd_chest_holds_armor", [Locale.armor_name(item_id)])
+		CHEST_LOOT_TORCH:
+			torches = clampi(torches + maxi(1, amount), 0, 99)
+			return Locale.t("cmd_chest_holds_torch", [amount])
+		CHEST_LOOT_KEY:
+			keys = clampi(keys + maxi(1, amount), 0, 99)
+			return Locale.t("cmd_chest_holds_key", [amount])
+		CHEST_LOOT_GEM:
+			gems = clampi(gems + maxi(1, amount), 0, 99)
+			return Locale.t("cmd_chest_holds_gem", [amount])
+		_:
+			return Locale.t("cmd_chest_empty")
 
 
 func adjust_karma_virtue(virtue: int, delta: int) -> void:

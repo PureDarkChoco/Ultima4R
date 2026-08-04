@@ -133,11 +133,15 @@ var _death_blackout: ColorRect
 var _death_fade_tween: Tween
 ## Combat arena session (battlefield open; turn loop later).
 var _combat_active := false
+## Victory announced; free leave via ESC / map-edge (no extra karma).
+var _combat_victory_aftermath := false
 ## True while pacing delays / foe turns run — blocks combat input.
 var _combat_resolving := false
 ## Gap after each unit acts (xu4 screenWait≈42ms is snappy; keep readable).
 const COMBAT_TURN_GAP := 0.28
 const COMBAT_HIT_FLASH_SEC := 0.14
+## Victory ESC: cascade leave order 1→8 with a short beat between units.
+const COMBAT_VICTORY_EXIT_GAP := 0.2
 var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## U5-style Attack aim: A → move cursor → A/Enter strike; Esc cancels.
@@ -5550,6 +5554,7 @@ func _death_revive() -> void:
 		_map.exit_combat()
 	_combat_active = false
 	_combat_resolving = false
+	_combat_victory_aftermath = false
 	_combat_foe = {}
 	if _map != null and _map.is_camping():
 		_map.exit_camp()
@@ -5725,6 +5730,9 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	## Chest Open waits on "Who opens?" — turn finishes after the pick.
 	if _chest_open_stage != 0:
 		return
+	## Victory aftermath: free map — directed Open/Get must not start turn coroutines.
+	if _combat_active and _combat_victory_aftermath:
+		return
 	## Combat arena: directed action spends the current member (not party clock).
 	if _combat_active:
 		await _combat_finish_member_turn()
@@ -5794,6 +5802,7 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	## Lock input; open side panels first when they were closed, then swap the map.
 	_combat_active = true
 	_combat_resolving = true
+	_combat_victory_aftermath = false
 	await _open_sides_for_combat()
 	## Place living party on .CON player_start slots.
 	var party_units: Array = []
@@ -5855,8 +5864,13 @@ func _end_combat_stub() -> void:
 	## (win, flee/loss, or party wipe); never put back on the map.
 	if not _combat_active:
 		return
+	if _combat_victory_aftermath:
+		## After Victory!, cascade everyone off then return to field.
+		await _combat_victory_esc_exit_all()
+		return
 	_combat_clear_aim_state()
 	_combat_resolving = true
+	_combat_victory_aftermath = false
 	if _map != null:
 		_map.exit_combat()
 	_combat_foe = {}
@@ -5886,18 +5900,55 @@ func _combat_clear_aim_state() -> void:
 	_sync_combat_aim_foe_roster()
 
 
-func _end_combat_won() -> void:
-	## xu4 endCombat when isWon — Victory! + KA_KILLED_EVIL + awardLoot (pirate → ship).
-	if not _combat_active:
+func _begin_combat_victory_aftermath() -> void:
+	## Enemies wiped — show Victory! + karma/loot once, stay on the .CON map.
+	## Leave later via ESC (party_slot order) or walking everyone off the edge.
+	if not _combat_active or _combat_victory_aftermath:
 		return
 	_combat_clear_aim_state()
-	_combat_resolving = true
+	_clear_pending_dir()
+	## Always free combat input after Victory (even if a turn-gap coroutine still runs).
+	_combat_victory_aftermath = true
+	_combat_resolving = false
+	_combat_aiming = false
 	var engaged_tid := int(_combat_foe.get("tile", 0))
 	var foe_pos := Vector2i(
 		int(_combat_foe.get("x", _tile_pos.x)),
 		int(_combat_foe.get("y", _tile_pos.y))
 	)
 	var foe_facing := int(_combat_foe.get("facing", 0))
+	## Loot / karma at the Victory! moment (not when stepping off the arena).
+	_push_message(Locale.t("cmd_victory"), false)
+	if _WorldCreaturesScript.is_pirate_ship(engaged_tid):
+		_place_captured_pirate_ship(foe_pos, foe_facing)
+	if _WorldCreaturesScript.is_evil(engaged_tid):
+		GameState.adjust_karma_killed_evil()
+	## World foe already taken off the map at combat start — keep it gone.
+	if _foe_roster:
+		_foe_roster.clear()
+	if _roster:
+		_roster.clear_order_selection()
+	if _map != null:
+		_map.clear_combat_foe_focus()
+		if _map.combat_party_count() > 0:
+			_map.set_combat_focus(0)
+	_refresh_party()
+	_refresh_foe_roster()
+	_sync_combat_focus_roster()
+	_layout_prompt_row()
+	_stamp_command_time()
+	## Already empty (edge case) — leave immediately.
+	if _map == null or _map.combat_party_count() <= 0:
+		await _finish_combat_victory_exit()
+
+
+func _finish_combat_victory_exit() -> void:
+	## Return to the field after Victory! aftermath — no further karma.
+	if not _combat_active:
+		return
+	_combat_clear_aim_state()
+	_combat_resolving = true
+	_combat_victory_aftermath = false
 	if _map != null:
 		_map.exit_combat()
 	_combat_foe = {}
@@ -5907,16 +5958,43 @@ func _end_combat_won() -> void:
 		_roster.clear_order_selection()
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
-	_push_message(Locale.t("cmd_victory"), false)
-	if _WorldCreaturesScript.is_pirate_ship(engaged_tid):
-		_place_captured_pirate_ship(foe_pos, foe_facing)
-	if _WorldCreaturesScript.is_evil(engaged_tid):
-		GameState.adjust_karma_killed_evil()
 	_refresh_party()
 	await _restore_sides_after_combat()
 	_combat_active = false
 	_combat_resolving = false
 	_stamp_command_time()
+
+
+func _combat_victory_esc_exit_all() -> void:
+	## ESC after Victory!: peel party_slot 0…7 with a short gap, then field map.
+	if not _combat_active or not _combat_victory_aftermath or _map == null:
+		return
+	if _combat_resolving:
+		return
+	_combat_resolving = true
+	## Only for Esc bulk exit — walking off the edge stays quiet.
+	_push_message(Locale.t("cmd_escape"), false)
+	while _map != null and _map.combat_party_count() > 0:
+		var best_i := -1
+		var best_slot := 999
+		for i in _map.combat_party_count():
+			var u: Dictionary = _map.get_combat_party_unit(i)
+			var slot := int(u.get("party_slot", 99))
+			if slot < best_slot:
+				best_slot = slot
+				best_i = i
+		if best_i < 0:
+			break
+		_map.remove_combat_party_at(best_i)
+		_refresh_party()
+		_sync_combat_focus_roster()
+		if _map.combat_party_count() <= 0:
+			break
+		await get_tree().create_timer(COMBAT_VICTORY_EXIT_GAP).timeout
+		if not _combat_active or not _combat_victory_aftermath or _map == null:
+			_combat_resolving = false
+			return
+	await _finish_combat_victory_exit()
 
 
 func _place_captured_pirate_ship(pos: Vector2i, facing: int) -> void:
@@ -5937,10 +6015,11 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	if not (event is InputEventKey):
 		return false
 	var k := event as InputEventKey
+	## After Victory!: free roam / Open / Get / ESC leave — never swallow on resolving.
+	if _combat_victory_aftermath:
+		return _handle_combat_victory_input(k)
 	## Swallow other keys while foe turns / gaps / strike FX play out.
 	if _combat_resolving and not _combat_aiming:
-		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			return true
 		return true
 	if _combat_aiming:
 		return _handle_combat_aim_input(k)
@@ -5975,6 +6054,45 @@ func _handle_combat_input(event: InputEvent) -> bool:
 		_combat_finish_member_turn()
 		return true
 	_handle_combat_command(cmd)
+	return true
+
+
+func _handle_combat_victory_input(k: InputEventKey) -> bool:
+	## Free movement, Open/Get/Cast/Klimb/Descend, ESC cascade exit — no turn clock.
+	_combat_resolving = false
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_combat_victory_esc_exit_all()
+		return true
+	var dir := _combat_dir_from_key(k)
+	if dir != Vector2i.ZERO:
+		_combat_try_move(dir)
+		return true
+	var cmd := U4Commands.from_event(k)
+	var lang := GameState.lang_short()
+	match cmd:
+		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+			## Loot chests left on the arena (no turn cost after Victory!).
+			_pending_cmd = cmd
+			_pending_cmd_name = U4Commands.label(cmd, lang)
+			_layout_prompt_row()
+		U4Commands.Id.ZTATS:
+			_do_ztats()
+		U4Commands.Id.CAST:
+			## Cast UI not ported yet — same stub as explore/combat turn.
+			_push_message(Locale.t("cmd_stub", [
+				U4Commands.letter_for(cmd),
+				U4Commands.label(cmd, lang),
+			]), false)
+		U4Commands.Id.KLIMB:
+			_push_message(Locale.t("cmd_klimb_what"), false)
+		U4Commands.Id.DESCEND:
+			_push_message(Locale.t("cmd_descend_what"), false)
+		U4Commands.Id.READY:
+			_do_ready()
+		U4Commands.Id.USE:
+			_do_use()
+		_:
+			pass ## ignore other letters (no Not here! spam)
 	return true
 
 
@@ -6022,6 +6140,13 @@ func _handle_combat_command(cmd: int) -> void:
 		U4Commands.Id.CAST:
 			## Cast not fully ported yet — consume the turn like a valid command start.
 			_push_message(Locale.t("cmd_stub", [letter, name]), false)
+			_combat_finish_member_turn()
+		U4Commands.Id.KLIMB:
+			## Arena has no ladders — same outcome as world with no Klimb portal.
+			_push_message(Locale.t("cmd_klimb_what"), false)
+			_combat_finish_member_turn()
+		U4Commands.Id.DESCEND:
+			_push_message(Locale.t("cmd_descend_what"), false)
 			_combat_finish_member_turn()
 		U4Commands.Id.USE:
 			_do_use()
@@ -6248,7 +6373,8 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		_combat_resolving = false
 		return
 	if _map.is_combat_won():
-		await _end_combat_won()
+		await _begin_combat_victory_aftermath()
+		_combat_resolving = false
 		return
 	## Finish turn without the usual entry guard (we already set resolving).
 	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
@@ -6272,7 +6398,8 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		await _end_combat_lost()
 		return
 	if _map.is_combat_won():
-		await _end_combat_won()
+		await _begin_combat_victory_aftermath()
+		_combat_resolving = false
 		return
 	_map.set_combat_focus(0)
 	_refresh_foe_roster()
@@ -6462,8 +6589,18 @@ func _combat_dir_from_key(k: InputEventKey) -> Vector2i:
 
 
 func _combat_try_move(dir: Vector2i) -> void:
-	if _map == null or not _map.is_in_combat() or _combat_resolving:
+	if _map == null or not _map.is_in_combat():
 		return
+	if _combat_resolving and not _combat_victory_aftermath:
+		return
+	if _combat_victory_aftermath:
+		## Keep a valid focus for free roam after party members leave.
+		if _map.get_combat_focus() < 0 or _map.get_combat_focus() >= _map.combat_party_count():
+			if _map.combat_party_count() > 0:
+				_map.set_combat_focus(0)
+			else:
+				_finish_combat_victory_exit()
+				return
 	var result := _map.try_move_combat_focus(dir)
 	var after_flee := false
 	match result:
@@ -6474,10 +6611,21 @@ func _combat_try_move(dir: Vector2i) -> void:
 		MapView.COMBAT_MOVE_FLED:
 			## xu4: direction message + SOUND_FLEE; unit already off the arena.
 			_push_message(_direction_label(dir, true), false)
-			_combat_apply_healthy_fled_karma(_map.get_combat_last_fled())
+			## No healthy-flee karma after Victory! (already awarded on announce).
+			if not _combat_victory_aftermath:
+				_combat_apply_healthy_fled_karma(_map.get_combat_last_fled())
 			after_flee = true
 		_:
 			_push_message(Locale.t("cmd_blocked"), false)
+	if _combat_victory_aftermath:
+		## Free roam after Victory! — no turn clock; leave when empty.
+		if after_flee and (_map == null or _map.combat_party_count() <= 0):
+			_finish_combat_victory_exit()
+		elif after_flee:
+			_map.refocus_after_flee()
+			_sync_combat_focus_roster()
+			_refresh_party()
+		return
 	## xu4: move (incl. blocked/slowed/flee) ends the active member's turn.
 	_combat_finish_member_turn(after_flee)
 
@@ -6502,10 +6650,19 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	## Fleeing the last member → isLost → endCombat (Battle is lost + karma).
 	if _map == null or not _map.is_in_combat() or _combat_resolving:
 		return
+	## Victory aftermath never runs the foe phase or defeat path.
+	if _combat_victory_aftermath:
+		if after_flee and _map.combat_party_count() <= 0:
+			_finish_combat_victory_exit()
+		return
 	_combat_resolving = true
 	_stamp_command_time()
 	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
 	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_won() and not _combat_victory_aftermath:
+		await _begin_combat_victory_aftermath()
 		_combat_resolving = false
 		return
 	if _map.is_combat_lost():
@@ -6527,7 +6684,8 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		_combat_resolving = false
 		return
 	if _map.is_combat_won():
-		await _end_combat_won()
+		await _begin_combat_victory_aftermath()
+		_combat_resolving = false
 		return
 	if _map.is_combat_lost():
 		await _end_combat_lost()
@@ -6540,7 +6698,8 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 			_combat_resolving = false
 			return
 		if _map.is_combat_won():
-			await _end_combat_won()
+			await _begin_combat_victory_aftermath()
+			_combat_resolving = false
 			return
 		if _map.is_combat_lost():
 			await _end_combat_lost()
@@ -6615,7 +6774,9 @@ func _combat_maybe_end_after_foes() -> bool:
 		await _end_combat_lost()
 		return true
 	if _map.is_combat_won():
-		await _end_combat_won()
+		await _begin_combat_victory_aftermath()
+		## Parent turn coroutine may still have been "resolving" — force free input.
+		_combat_resolving = false
 		return true
 	return false
 
@@ -6757,6 +6918,8 @@ func _end_combat_lost() -> void:
 	## • Else fled / empty arena with living members → Battle is lost + flee karma.
 	if not _combat_active:
 		return
+	## Not a victory exit path.
+	_combat_victory_aftermath = false
 	_combat_clear_aim_state()
 	_combat_resolving = true
 	var engaged_tid := int(_combat_foe.get("tile", 0))
@@ -6769,6 +6932,7 @@ func _end_combat_lost() -> void:
 	if wiped:
 		## xu4: isDead → deathStart(5); no "Battle is lost!" / flee karma.
 		## Keep combat map underfoot until blackout/revive (messages on open sides).
+		_combat_victory_aftermath = false
 		_refresh_party()
 		_combat_active = false
 		_combat_resolving = false
@@ -6817,6 +6981,23 @@ func _do_open(dir: Vector2i) -> String:
 		var ctid := _map.combat_tile_at(ctarget)
 		if ctid < 0:
 			return Locale.t("cmd_nothing_to_open")
+		if _map.has_combat_chest_at(ctarget):
+			if _map.combat_chest_is_empty(ctarget):
+				return Locale.t("cmd_chest_empty")
+			if _map.combat_chest_is_open(ctarget):
+				return Locale.t("cmd_chest_already_open")
+			if not _map.open_combat_chest_at(ctarget):
+				return Locale.t("cmd_nothing_to_open")
+			## Combat: active member opens (xu4 getChest(focus)); trap then Get for gold.
+			var slot := _map.get_combat_focus_party_slot()
+			var opener_klass := _map.get_combat_focus_klass()
+			if slot < 0:
+				slot = _first_living_party_slot()
+			if opener_klass < 0:
+				opener_klass = GameState.party_member_at(slot)
+			_push_message(Locale.t("cmd_opened"), false)
+			_resolve_chest_trap(slot, opener_klass)
+			return ""
 		if _TileRules.is_locked_door(ctid):
 			return Locale.t("cmd_cant")
 		if _TileRules.is_door(ctid):
@@ -6996,6 +7177,8 @@ func _complete_chest_open(slot: int, finish_turn: bool) -> void:
 
 func _finish_action_turn() -> void:
 	## Party-clock outside combat; combat spends the focused member.
+	if _combat_active and _combat_victory_aftermath:
+		return
 	if _combat_active:
 		_combat_finish_member_turn()
 	else:
@@ -7025,6 +7208,23 @@ func _clear_chest_open_ui() -> void:
 
 func _do_get_chest(dir: Vector2i) -> String:
 	## Ultima4R: Get after Open — gold + KA_STOLE_CHEST (trap already resolved on Open).
+	## Combat: object chests from slain foes (no city karma steal).
+	if _is_in_combat() and _map != null and _map.is_in_combat():
+		var from := _map.get_combat_focus_pos()
+		if from.x < 0:
+			return Locale.t("cmd_not_here")
+		var ctarget := from + dir
+		if not _map.has_combat_chest_at(ctarget):
+			return Locale.t("cmd_not_here")
+		if not _map.combat_chest_is_open(ctarget):
+			return Locale.t("cmd_not_here")
+		if not _map.combat_chest_has_loot(ctarget):
+			return Locale.t("cmd_chest_empty")
+		var entry := _map.take_combat_chest_loot(ctarget)
+		var msg := GameState.apply_chest_loot_entry(entry)
+		_refresh_inventory_bars()
+		_push_message(msg, false)
+		return ""
 	if not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return Locale.t("cmd_not_here")
 	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)

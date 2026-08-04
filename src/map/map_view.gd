@@ -10,6 +10,7 @@ const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _LineOfSightScript := preload("res://src/map/line_of_sight.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _WeaponIconsScript := preload("res://src/core/weapon_icons.gd")
+const _ArmorIconsScript := preload("res://src/core/armor_icons.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
@@ -62,6 +63,10 @@ const TILE_ANIM_PERIOD := 0.20
 const CHEST_LOOT_ICON_SIZE := 16
 const CHEST_CAVITY_CENTER := Vector2i(16, 19) ## open mouth + 4px down
 const GOLD_HUD_PATH := "res://assets/ui/hud/gold.png"
+const FOOD_HUD_PATH := "res://assets/ui/hud/food.png"
+const TORCH_HUD_PATH := "res://assets/ui/hud/torch.png"
+const KEY_HUD_PATH := "res://assets/ui/hud/key.png"
+const GEM_HUD_PATH := "res://assets/ui/hud/gem.png"
 ## Temporary transport sprites (shapes tile indices).
 const TILE_SHIP_W := 16
 const TILE_SHIP_N := 17
@@ -219,6 +224,7 @@ var _water_cd := WATER_SCROLL_PERIOD
 var _tile_anim_frame := 0
 var _tile_anim_cd := TILE_ANIM_PERIOD
 var _gold_loot_icon: Image
+var _loot_icon_cache: Dictionary = {} ## path → scaled Image
 ## Ship grounding jolt — party/ship sprite offset while > 0.
 var _shake_left := 0.0
 var _shake_dur := 0.0
@@ -239,6 +245,10 @@ var _combat_map # CombatMapData
 var _combat_party: Array[Dictionary] = []
 ## Each: { "x", "y", "tile" } — foes on the arena.
 var _combat_foes: Array[Dictionary] = []
+## Living foe count at combat start (for 1/N chest drop).
+var _combat_foe_spawn_count := 0
+## Combat loot chests: key "x,y" → { open, icon_shown } (icon_shown 1 = gold left).
+var _combat_chests: Dictionary = {}
 ## Index into `_combat_party` for xu4 TileView::drawFocus (blinking white box).
 var _combat_focus := -1
 ## Index into `_combat_foes` while that creature acts (−1 = party phase).
@@ -506,9 +516,11 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 		if typeof(u) == TYPE_DICTIONARY:
 			_combat_party.append((u as Dictionary).duplicate(true))
 	_combat_foes.clear()
+	_combat_chests.clear()
 	for u in foe_units:
 		if typeof(u) == TYPE_DICTIONARY:
 			_combat_foes.append((u as Dictionary).duplicate(true))
+	_combat_foe_spawn_count = _combat_foes.size()
 	## xu4 beginCombat — focus first placeable party member.
 	_combat_focus = 0 if not _combat_party.is_empty() else -1
 	_combat_foe_focus = -1
@@ -530,6 +542,8 @@ func exit_combat() -> void:
 	_combat_map = null
 	_combat_party.clear()
 	_combat_foes.clear()
+	_combat_chests.clear()
+	_combat_foe_spawn_count = 0
 	_combat_focus = -1
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
@@ -792,9 +806,16 @@ func get_combat_foe_at(index: int) -> Dictionary:
 
 
 func damage_combat_foe(index: int, damage: int) -> Dictionary:
-	## Apply damage. Returns { hit, killed, hp, max_hp, tile, xp, dealt }.
+	## Apply damage. Returns { hit, killed, hp, max_hp, tile, xp, dealt, chest }.
 	var out := {
-		"hit": false, "killed": false, "hp": 0, "max_hp": 0, "tile": 0, "xp": 0, "dealt": 0
+		"hit": false,
+		"killed": false,
+		"hp": 0,
+		"max_hp": 0,
+		"tile": 0,
+		"xp": 0,
+		"dealt": 0,
+		"chest": false,
 	}
 	if index < 0 or index >= _combat_foes.size():
 		return out
@@ -817,9 +838,123 @@ func damage_combat_foe(index: int, damage: int) -> Dictionary:
 	out["xp"] = maxi(1, int(f.get("max_hp", 64)) / 16)
 	if hp <= 0:
 		out["killed"] = true
+		## xu4 awardLoot was 100% once per fight; split as 1/N per kill on death tile.
+		var at := Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+		out["chest"] = try_spawn_combat_chest(at, int(f.get("tile", 0)))
 	if _combat_map != null:
 		_rebuild()
 	return out
+
+
+func try_spawn_combat_chest(pos: Vector2i, foe_tile: int) -> bool:
+	## leavesChest types only; p = 1 / spawn count. Overlays (does not alter ground).
+	if not _combat_in_bounds(pos):
+		return false
+	if not _WorldCreaturesScript.leaves_chest(foe_tile):
+		return false
+	if _combat_map != null:
+		var ground := int(_combat_map.tile_at(pos.x, pos.y))
+		## xu4 awardLoot: need creature-walkable ground under the body.
+		if not _TileRulesCamp.is_creature_walkable(ground):
+			return false
+	var n := maxi(1, _combat_foe_spawn_count)
+	if (randi() % n) != 0:
+		return false
+	var key := _combat_chest_key(pos.x, pos.y)
+	if _combat_chests.has(key):
+		return false
+	var humanoid := _WorldCreaturesScript.is_humanoid(foe_tile)
+	var stack: Array = GameState.roll_combat_chest_loot(humanoid)
+	_combat_chests[key] = {
+		"x": pos.x,
+		"y": pos.y,
+		"open": false,
+		"stack": stack,
+	}
+	return true
+
+
+static func _combat_chest_key(x: int, y: int) -> String:
+	return "%d,%d" % [x, y]
+
+
+func has_combat_chest_at(pos: Vector2i) -> bool:
+	return _combat_chests.has(_combat_chest_key(pos.x, pos.y))
+
+
+func combat_chest_is_open(pos: Vector2i) -> bool:
+	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
+	if typeof(d) != TYPE_DICTIONARY:
+		return false
+	return bool((d as Dictionary).get("open", false))
+
+
+func combat_chest_stack_size(pos: Vector2i) -> int:
+	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
+	if typeof(d) != TYPE_DICTIONARY:
+		return 0
+	var stack: Variant = (d as Dictionary).get("stack", [])
+	if typeof(stack) != TYPE_ARRAY:
+		return 0
+	return (stack as Array).size()
+
+
+func combat_chest_has_loot(pos: Vector2i) -> bool:
+	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
+	if typeof(d) != TYPE_DICTIONARY:
+		return false
+	var chest: Dictionary = d
+	if not bool(chest.get("open", false)):
+		return false
+	return combat_chest_stack_size(pos) > 0
+
+
+func combat_chest_is_empty(pos: Vector2i) -> bool:
+	## Opened and fully looted.
+	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
+	if typeof(d) != TYPE_DICTIONARY:
+		return false
+	var chest: Dictionary = d
+	return bool(chest.get("open", false)) and combat_chest_stack_size(pos) <= 0
+
+
+func open_combat_chest_at(pos: Vector2i) -> bool:
+	## Open lid; stack remains for Get. Returns false if missing/already open.
+	var key := _combat_chest_key(pos.x, pos.y)
+	if not _combat_chests.has(key):
+		return false
+	var chest: Dictionary = _combat_chests[key]
+	if bool(chest.get("open", false)):
+		return false
+	chest["open"] = true
+	_combat_chests[key] = chest
+	if _combat_map != null:
+		_rebuild()
+	return true
+
+
+func take_combat_chest_loot(pos: Vector2i) -> Dictionary:
+	## Pop top stack entry (index 0). Empty dict if nothing left.
+	var key := _combat_chest_key(pos.x, pos.y)
+	if not _combat_chests.has(key):
+		return {}
+	var chest: Dictionary = _combat_chests[key]
+	if not bool(chest.get("open", false)):
+		return {}
+	var stack: Array = []
+	var raw: Variant = chest.get("stack", [])
+	if typeof(raw) == TYPE_ARRAY:
+		stack = (raw as Array).duplicate(true)
+	if stack.is_empty():
+		return {}
+	var entry: Variant = stack.pop_front()
+	chest["stack"] = stack
+	_combat_chests[key] = chest
+	if _combat_map != null:
+		_rebuild()
+	if typeof(entry) != TYPE_DICTIONARY:
+		return {}
+	return (entry as Dictionary).duplicate(true)
 
 
 func flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12) -> void:
@@ -2471,17 +2606,45 @@ func _paint_chest_loot(cam: Vector2) -> void:
 
 
 func _ensure_gold_loot_icon() -> Image:
-	if (
-		_gold_loot_icon != null
-		and not _gold_loot_icon.is_empty()
-		and _gold_loot_icon.get_width() == CHEST_LOOT_ICON_SIZE
-		and _gold_loot_icon.get_height() == CHEST_LOOT_ICON_SIZE
-	):
-		return _gold_loot_icon
-	if not ResourceLoader.exists(GOLD_HUD_PATH):
+	return _scaled_loot_icon(GOLD_HUD_PATH)
+
+
+func _loot_icon_for_entry(entry: Dictionary) -> Image:
+	var kind := str(entry.get("kind", GameState.CHEST_LOOT_GOLD))
+	match kind:
+		GameState.CHEST_LOOT_FOOD:
+			return _scaled_loot_icon(FOOD_HUD_PATH)
+		GameState.CHEST_LOOT_TORCH:
+			return _scaled_loot_icon(TORCH_HUD_PATH)
+		GameState.CHEST_LOOT_KEY:
+			return _scaled_loot_icon(KEY_HUD_PATH)
+		GameState.CHEST_LOOT_GEM:
+			return _scaled_loot_icon(GEM_HUD_PATH)
+		GameState.CHEST_LOOT_WEAPON:
+			var wpath := _WeaponIconsScript.path_for_id(int(entry.get("id", 0)))
+			if not wpath.is_empty():
+				return _scaled_loot_icon(wpath)
+			return _scaled_loot_icon(GOLD_HUD_PATH)
+		GameState.CHEST_LOOT_ARMOR:
+			var apath := _ArmorIconsScript.path_for_id(int(entry.get("id", 0)))
+			if not apath.is_empty():
+				return _scaled_loot_icon(apath)
+			return _scaled_loot_icon(GOLD_HUD_PATH)
+		_:
+			return _scaled_loot_icon(GOLD_HUD_PATH)
+
+
+func _scaled_loot_icon(path: String) -> Image:
+	if path.is_empty():
+		return null
+	if _loot_icon_cache.has(path):
+		var cached: Variant = _loot_icon_cache[path]
+		if cached is Image and not (cached as Image).is_empty():
+			return cached as Image
+	if not ResourceLoader.exists(path):
 		return null
 	var src := Image.new()
-	if src.load(GOLD_HUD_PATH) != OK:
+	if src.load(path) != OK:
 		return null
 	if src.get_format() != Image.FORMAT_RGBA8:
 		src.convert(Image.FORMAT_RGBA8)
@@ -2492,8 +2655,10 @@ func _ensure_gold_loot_icon() -> Image:
 			if c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
 				src.set_pixel(x, y, Color(0, 0, 0, 0))
 	src.resize(CHEST_LOOT_ICON_SIZE, CHEST_LOOT_ICON_SIZE, Image.INTERPOLATE_NEAREST)
-	_gold_loot_icon = src
-	return _gold_loot_icon
+	_loot_icon_cache[path] = src
+	if path == GOLD_HUD_PATH:
+		_gold_loot_icon = src
+	return src
 
 
 func _npc_frame_tile(tid: int, prev: int, person_i: int) -> int:
@@ -2946,6 +3111,7 @@ func _rebuild_combat() -> void:
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
 			_blit_terrain_to(_buf, tid, dst)
 
+	_paint_combat_chests(origin_x, origin_y)
 	_paint_combat_foes(origin_x, origin_y)
 	_paint_combat_party(origin_x, origin_y)
 	_paint_combat_focus(origin_x, origin_y)
@@ -2955,6 +3121,49 @@ func _rebuild_combat() -> void:
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
+
+
+func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
+	## Dropped loot chests (under units). Open frame + stacked top-of-pile icon.
+	if _combat_chests.is_empty() or not tiles_ready:
+		return
+	for v in _combat_chests.values():
+		if typeof(v) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = v
+		var pos := Vector2i(int(d.get("x", -1)), int(d.get("y", -1)))
+		var sx := origin_x + pos.x
+		var sy := origin_y + pos.y
+		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+			continue
+		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		var is_open := bool(d.get("open", false))
+		_U4TileBankScript.blit_to(_buf, TILE_CHEST, dst, 1 if is_open else 0)
+		if not is_open:
+			continue
+		var stack: Array = []
+		var raw: Variant = d.get("stack", [])
+		if typeof(raw) == TYPE_ARRAY:
+			stack = raw as Array
+		if stack.is_empty():
+			continue
+		var top: Dictionary = stack[0] if typeof(stack[0]) == TYPE_DICTIONARY else {}
+		var icon := _loot_icon_for_entry(top)
+		if icon == null or icon.is_empty():
+			continue
+		var iw := icon.get_width()
+		var ih := icon.get_height()
+		var base_ox := CHEST_CAVITY_CENTER.x - iw / 2
+		var base_oy := CHEST_CAVITY_CENTER.y - ih / 2
+		## Layered copies = remaining pile depth (top icon only).
+		var layers := mini(stack.size(), 5)
+		for i in layers:
+			var li := layers - 1 - i
+			_buf.blend_rect(
+				icon,
+				Rect2i(0, 0, iw, ih),
+				Vector2i(dst.x + base_ox + li * 2, dst.y + base_oy - li * 2)
+			)
 
 
 func _paint_combat_party(origin_x: int, origin_y: int) -> void:

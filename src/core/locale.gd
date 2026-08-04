@@ -281,6 +281,12 @@ const _T := {
 		"en_us": "Victory!",
 		"ko": "승리!",
 	},
+	## Victory aftermath: Esc exits the whole party at once (not edge-flee).
+	"cmd_escape": {
+		"en_u4": "Escape",
+		"en_us": "Escape",
+		"ko": "탈출",
+	},
 	## xu4 combat attack miss / kill
 	"cmd_missed": {
 		"en_u4": "Missed!",
@@ -788,6 +794,36 @@ const _T := {
 		"en_u4": "The Chest Holds: %d Gold",
 		"en_us": "The chest holds: %d gold.",
 		"ko": "상자 속: 골드 %d",
+	},
+	"cmd_chest_holds_food": {
+		"en_u4": "The Chest Holds: Food %d",
+		"en_us": "The chest holds: %d food.",
+		"ko": "상자 속: 식량 %d",
+	},
+	"cmd_chest_holds_weapon": {
+		"en_u4": "The Chest Holds: %s",
+		"en_us": "The chest holds: %s.",
+		"ko": "상자 속: %s",
+	},
+	"cmd_chest_holds_armor": {
+		"en_u4": "The Chest Holds: %s",
+		"en_us": "The chest holds: %s.",
+		"ko": "상자 속: %s",
+	},
+	"cmd_chest_holds_torch": {
+		"en_u4": "The Chest Holds: Torch x%d",
+		"en_us": "The chest holds: torch x%d.",
+		"ko": "상자 속: 횃불 x%d",
+	},
+	"cmd_chest_holds_key": {
+		"en_u4": "The Chest Holds: Key x%d",
+		"en_us": "The chest holds: key x%d.",
+		"ko": "상자 속: 열쇠 x%d",
+	},
+	"cmd_chest_holds_gem": {
+		"en_u4": "The Chest Holds: Gem x%d",
+		"en_us": "The chest holds: gem x%d.",
+		"ko": "상자 속: 보석 x%d",
 	},
 	"cmd_chest_trap_acid": {
 		"en_u4": "Acid Trap!",
