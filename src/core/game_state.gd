@@ -1206,12 +1206,12 @@ func roll_combat_chest_loot(humanoid: bool) -> Array:
 				"amount": (randi() % 8) + 3, ## display food units 3..10
 				"id": 0,
 			})
-		if (randi() % 100) < 4:
-			var n_weap := 1 if (randi() % 2) == 0 else 2
+		if (randi() % 100) < 5:
+			var n_weap := 1 if (randi() % 100) < 80 else 2
 			for _i in n_weap:
 				var wid := _CHEST_NORMAL_WEAPONS[randi() % _CHEST_NORMAL_WEAPONS.size()]
 				pool.append({"kind": CHEST_LOOT_WEAPON, "amount": 1, "id": wid})
-		if (randi() % 100) < 3:
+		if (randi() % 100) < 5:
 			var aid := _CHEST_NORMAL_ARMORS[randi() % _CHEST_NORMAL_ARMORS.size()]
 			pool.append({"kind": CHEST_LOOT_ARMOR, "amount": 1, "id": aid})
 		if (randi() % 100) < 1:
