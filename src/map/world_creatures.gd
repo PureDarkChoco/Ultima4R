@@ -596,27 +596,36 @@ func spawn_offscreen(
 	return false
 
 
+## xu4 modular TileId order (one species per step). In SHAPES/0–255 each
+## species occupies N animation frames, so offsets must step by species —
+## not raw tile+rn (that stacks 4 pirate facings as 4 separate rolls).
+const _SEA_FROM_PIRATE: Array[int] = [
+	128, 132, 134, 136, 138, 140, 142,
+] ## pirate … twister (sailable, rn 0..6)
+const _SEA_FROM_NIXIE: Array[int] = [
+	132, 134, 136, 138, 140,
+] ## nixie … whirlpool (swimable shallows, rn 0..4)
+
+
 static func random_for_tile(tile_id: int, moves: int) -> int:
 	## xu4 Creature::randomForTile — returns base tile id, or -1.
-	var base := -1
-	var rn := 0
+	## Deep/medium water is sailable (checked first) → 7-way sea table.
+	## Shallows are swim-only → 5-way (no pirate ships).
 	if _TileRules.is_sailable(tile_id):
-		base = TILE_PIRATE
-		rn = randi() % 7
-	elif _TileRules.is_swimable(tile_id):
-		base = TILE_NIXIE
-		rn = randi() % 5
-	elif _TileRules.is_creature_walkable(tile_id):
+		return _SEA_FROM_PIRATE[randi() % _SEA_FROM_PIRATE.size()]
+	if _TileRules.is_swimable(tile_id):
+		return _SEA_FROM_NIXIE[randi() % _SEA_FROM_NIXIE.size()]
+	if _TileRules.is_creature_walkable(tile_id):
 		var era := 0x0f
 		if moves < 10000:
-			era = 0x03
+			era = 0x03 ## Easy: orc – python
 		elif moves < 30000:
-			era = 0x07
-		base = TILE_ORC
-		rn = era & (randi() % 0x10) & (randi() % 0x10)
-	else:
-		return -1
-	return _base_tile(base + rn)
+			era = 0x07 ## Medium: orc – wisp
+		## Hard: orc – balron. Double roll AND biases low rn (weaker).
+		var rn: int = era & (randi() % 0x10) & (randi() % 0x10)
+		## Species index → first frame of that monster (4 tiles each on land).
+		return _base_tile(TILE_ORC + rn * 4)
+	return -1
 
 
 static func map_distance(a: Vector2i, b: Vector2i) -> int:
