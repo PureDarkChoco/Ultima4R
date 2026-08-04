@@ -1,17 +1,14 @@
-class_name EscMenuPanel
+class_name OptionsPanel
 extends Control
 
-## In-game Esc pause menu — ↑↓ + Enter; Esc closes (handled by world).
+## In-game Esc → Options submenu. Currently: language only.
+## Left/right (or Enter) cycles language; Esc returns to Esc menu (world handles).
 
 enum Item {
-	SAVE = 0,
-	LOAD = 1,
-	RETURN_MENU = 2,
-	OPTION = 3,
-	QUIT = 4,
+	LANGUAGE = 0,
 }
 
-const ITEM_COUNT := 5
+const ITEM_COUNT := 1
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_DIM := Color(0.55, 0.58, 0.55, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
@@ -19,15 +16,7 @@ const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
 const FONT_SIZE := 16
 const ROW_H := 30
-const PANEL_W := 320.0
-
-const ITEM_KEYS := [
-	"esc_menu_save",
-	"esc_menu_load",
-	"esc_menu_return",
-	"esc_menu_option",
-	"esc_menu_quit",
-]
+const PANEL_W := 360.0
 
 var _backdrop: ColorRect
 var _panel: PanelContainer
@@ -74,6 +63,8 @@ func set_status(text: String) -> void:
 
 
 func nudge_cursor(delta: int) -> void:
+	if ITEM_COUNT <= 1:
+		return
 	_cursor = posmod(_cursor + delta, ITEM_COUNT)
 	_sync_cursor()
 
@@ -88,6 +79,18 @@ func set_cursor(index: int) -> void:
 func refresh() -> void:
 	_refresh_labels()
 	_sync_cursor()
+
+
+func cycle_language(delta: int = 1) -> void:
+	## Session + settings.cfg; save slots store language on next Save.
+	var langs := GameState.LANG_IDS
+	var i := langs.find(GameState.language)
+	if i < 0:
+		i = 0
+	GameState.language = langs[posmod(i + delta, langs.size())]
+	_refresh_labels()
+	_sync_cursor()
+	_status.text = Locale.t("esc_menu_language_set", [Locale.lang_label()])
 
 
 func _build() -> void:
@@ -183,10 +186,14 @@ func _build() -> void:
 
 
 func _refresh_labels() -> void:
-	_title.text = Locale.t("esc_menu_title")
-	_hint.text = Locale.t("esc_menu_hint")
+	_title.text = Locale.t("esc_options_title")
+	_hint.text = Locale.t("esc_options_hint")
 	for i in ITEM_COUNT:
-		_row_labs[i].text = Locale.t(ITEM_KEYS[i])
+		if i == Item.LANGUAGE:
+			_row_labs[i].text = "%s: ◂ %s ▸" % [
+				Locale.t("menu_language"),
+				Locale.lang_label(),
+			]
 		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
 
 

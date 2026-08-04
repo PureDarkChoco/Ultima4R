@@ -111,6 +111,11 @@ const _T := {
 		"en_us": "Really quit?",
 		"ko": "정말 종료하시겠습니까?",
 	},
+	"return_menu_confirm": {
+		"en_u4": "Return to the title menu?",
+		"en_us": "Return to the title menu?",
+		"ko": "시작 메뉴로 돌아갈까요?",
+	},
 	"menu_copyright": {
 		"en_u4": "© Copyright 1987 Lord British",
 		"en_us": "© Copyright 1987 Lord British",
@@ -552,10 +557,20 @@ const _T := {
 		"en_us": "Quit",
 		"ko": "종료",
 	},
-	"esc_menu_option_soon": {
-		"en_u4": "Not available.",
-		"en_us": "Options are not available yet.",
-		"ko": "아직 사용할 수 없다.",
+	"esc_options_title": {
+		"en_u4": "Options",
+		"en_us": "Options",
+		"ko": "옵션",
+	},
+	"esc_options_hint": {
+		"en_u4": "←→ language. Enter cycles. Esc back.",
+		"en_us": "←→ language. Enter cycles. Esc back.",
+		"ko": "←→ 언어. Enter 전환. Esc 돌아가기.",
+	},
+	"esc_menu_language_set": {
+		"en_u4": "Language: %s",
+		"en_us": "Language: %s",
+		"ko": "언어: %s",
 	},
 	"save_slot_empty": {
 		"en_u4": "%s: (Empty)",

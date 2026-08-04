@@ -1,8 +1,14 @@
 extends Node
 
 ## Intercept OS quit (macOS ⌘Q, Windows Alt+F4, window close) and ask Yes/No.
+## Also used by the Esc menu for Quit / Return to Menu.
 
 const LAYER_Z := 128
+
+enum Kind {
+	QUIT = 0,
+	RETURN_MENU = 1,
+}
 
 var _layer: CanvasLayer
 var _root: Control
@@ -10,6 +16,7 @@ var _title: Label
 var _btn_yes: Button
 var _btn_no: Button
 var _open := false
+var _kind: int = Kind.QUIT
 var _prev_focus: Control
 
 
@@ -23,16 +30,18 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		prompt()
+		prompt(Kind.QUIT)
 
 
 func is_open() -> bool:
 	return _open
 
 
-func prompt() -> void:
-	## Show (or keep) the quit confirmation. Safe to call while already open.
+func prompt(kind: int = Kind.QUIT) -> void:
+	## Show (or retarget) confirmation. Safe while already open.
+	_kind = kind
 	if _open:
+		_refresh_text()
 		_btn_no.grab_focus()
 		_sync_choice_style()
 		return
@@ -107,8 +116,8 @@ func _build() -> void:
 	_btn_no.focus_neighbor_left = _btn_no.get_path_to(_btn_yes)
 	_btn_no.focus_neighbor_right = _btn_no.get_path_to(_btn_yes)
 
-	_btn_yes.pressed.connect(_accept_quit)
-	_btn_no.pressed.connect(_cancel_quit)
+	_btn_yes.pressed.connect(_accept)
+	_btn_no.pressed.connect(_cancel)
 	_btn_yes.focus_entered.connect(_sync_choice_style)
 	_btn_no.focus_entered.connect(_sync_choice_style)
 
@@ -116,7 +125,11 @@ func _build() -> void:
 func _refresh_text() -> void:
 	if _title == null:
 		return
-	_title.text = Locale.t("quit_confirm")
+	match _kind:
+		Kind.RETURN_MENU:
+			_title.text = Locale.t("return_menu_confirm")
+		_:
+			_title.text = Locale.t("quit_confirm")
 	_btn_yes.text = Locale.t("cmd_yes")
 	_btn_no.text = Locale.t("cmd_no")
 
@@ -131,7 +144,7 @@ func _input(event: InputEvent) -> void:
 	if not _open:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
-		_cancel_quit()
+		_cancel()
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("choice_a"):
@@ -150,11 +163,11 @@ func _input(event: InputEvent) -> void:
 		if code == KEY_NONE:
 			code = event.keycode
 		if code == KEY_Y:
-			_accept_quit()
+			_accept()
 			get_viewport().set_input_as_handled()
 			return
 		if code == KEY_N:
-			_cancel_quit()
+			_cancel()
 			get_viewport().set_input_as_handled()
 			return
 	## Arrows / stick: move between Yes and No (don't rely on default ui_* only).
@@ -170,9 +183,9 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept") or event.is_action_pressed("confirm"):
 		## Space is bound to confirm — treat focused choice as the answer.
 		if get_viewport().gui_get_focus_owner() == _btn_yes:
-			_accept_quit()
+			_accept()
 		else:
-			_cancel_quit()
+			_cancel()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -185,18 +198,30 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _accept_quit() -> void:
-	_open = false
-	get_tree().quit()
-
-
-func _cancel_quit() -> void:
+func _accept() -> void:
 	if not _open:
 		return
+	var kind := _kind
+	_dismiss_ui(false)
+	match kind:
+		Kind.RETURN_MENU:
+			SceneRouter.to_menu()
+		_:
+			get_tree().quit()
+
+
+func _cancel() -> void:
+	if not _open:
+		return
+	_dismiss_ui(true)
+
+
+func _dismiss_ui(restore_focus: bool) -> void:
 	_open = false
 	get_tree().paused = false
 	_root.visible = false
 	_layer.visible = false
-	if is_instance_valid(_prev_focus):
+	if restore_focus and is_instance_valid(_prev_focus):
 		_prev_focus.grab_focus()
 	_prev_focus = null
+	_kind = Kind.QUIT

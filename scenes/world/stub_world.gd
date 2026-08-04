@@ -12,6 +12,7 @@ const _CombatMapData := preload("res://src/map/combat_map_data.gd")
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
 const _EscMenuPanel := preload("res://src/ui/esc_menu_panel.gd")
+const _OptionsPanel := preload("res://src/ui/options_panel.gd")
 const _CityMapData := preload("res://src/map/city_map_data.gd")
 const _WorldPortals := preload("res://src/map/world_portals.gd")
 const _CityFloorPortals := preload("res://src/map/city_floor_portals.gd")
@@ -204,6 +205,7 @@ var _save_panel # SaveSlotPanel
 ## True when the slot picker was opened from the Esc menu (return there after).
 var _slot_from_esc := false
 var _esc_menu # EscMenuPanel
+var _options_panel # OptionsPanel
 ## City / castle visit (Enter). World position restored on leave.
 var _city_map # CityMapData
 var _city_return_pos := Vector2i.ZERO
@@ -251,6 +253,7 @@ func _ready() -> void:
 	_ensure_ztats_panel()
 	_ensure_save_panel()
 	_ensure_esc_menu()
+	_ensure_options_panel()
 	_ensure_locate_hud()
 	if _compact_roster:
 		_compact_roster.set_compact(true)
@@ -281,6 +284,8 @@ func _ready() -> void:
 
 	call_deferred("_fit_explore_map")
 	call_deferred("grab_focus")
+	if not GameState.language_changed.is_connected(_on_language_changed):
+		GameState.language_changed.connect(_on_language_changed)
 	if not _load_error.is_empty():
 		_push_message(_load_error)
 		push_error(_load_error)
@@ -1069,6 +1074,8 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("save_title")
 	if _save_stage == 2:
 		return MSG_PROMPT + Locale.t("load_title")
+	if _options_panel_is_open():
+		return MSG_PROMPT + Locale.t("esc_options_title")
 	if _esc_menu_is_open():
 		return MSG_PROMPT + Locale.t("esc_menu_title")
 	if _order_stage == 1:
@@ -1441,7 +1448,7 @@ func _process(delta: float) -> void:
 	if _is_party_asleep_locked():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1453,7 +1460,7 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1690,6 +1697,8 @@ func _tick_select_cursor() -> void:
 		_nudge_save_cursor(step)
 	elif _esc_menu_is_open():
 		_nudge_esc_menu_cursor(step)
+	elif _options_panel_is_open():
+		_nudge_options_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
 	_arm_hold_after_step()
@@ -1786,6 +1795,9 @@ func _on_escape() -> void:
 		## xu4 ReadDir: Esc clears "Dir?" on the same line — no extra message.
 		_clear_pending_dir()
 		return
+	if _options_panel_is_open():
+		_close_options_panel(true)
+		return
 	if _esc_menu_is_open():
 		_close_esc_menu()
 		return
@@ -1825,6 +1837,7 @@ func _input(event: InputEvent) -> void:
 				or _telescope_stage != 0
 				or _save_stage != 0
 				or _esc_menu_is_open()
+				or _options_panel_is_open()
 			):
 				get_viewport().set_input_as_handled()
 				return
@@ -1834,7 +1847,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / New Order.
+	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		get_viewport().set_input_as_handled()
 		return
@@ -1872,6 +1885,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _save_stage != 0:
 		if _handle_save_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _options_panel_is_open():
+		if _handle_options_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -2520,13 +2539,27 @@ func _ensure_esc_menu() -> void:
 	add_child(_esc_menu)
 
 
+func _ensure_options_panel() -> void:
+	if _options_panel != null:
+		return
+	_options_panel = _OptionsPanel.new()
+	_options_panel.name = "OptionsPanel"
+	add_child(_options_panel)
+
+
 func _esc_menu_is_open() -> bool:
 	return _esc_menu != null and _esc_menu.is_open()
+
+
+func _options_panel_is_open() -> bool:
+	return _options_panel != null and _options_panel.is_open()
 
 
 func _open_esc_menu() -> void:
 	_ensure_esc_menu()
 	_reset_hold_state()
+	if _options_panel:
+		_options_panel.close_panel()
 	_esc_menu.open_panel(0)
 	_layout_prompt_row()
 
@@ -2534,12 +2567,56 @@ func _open_esc_menu() -> void:
 func _close_esc_menu() -> void:
 	if _esc_menu:
 		_esc_menu.close_panel()
+	if _options_panel:
+		_options_panel.close_panel()
+	_layout_prompt_row()
+
+
+func _open_options_panel() -> void:
+	_ensure_options_panel()
+	_reset_hold_state()
+	## Cover Esc menu; Esc from options returns to it.
+	if _esc_menu:
+		_esc_menu.close_panel()
+	_options_panel.open_panel(0)
+	_layout_prompt_row()
+
+
+func _close_options_panel(return_to_esc: bool) -> void:
+	if _options_panel:
+		_options_panel.close_panel()
+	if return_to_esc:
+		_ensure_esc_menu()
+		_esc_menu.open_panel(_EscMenuPanel.Item.OPTION)
 	_layout_prompt_row()
 
 
 func _nudge_esc_menu_cursor(delta: int) -> void:
 	if _esc_menu:
 		_esc_menu.nudge_cursor(delta)
+
+
+func _nudge_options_cursor(delta: int) -> void:
+	if _options_panel:
+		_options_panel.nudge_cursor(delta)
+
+
+func _on_language_changed(_lang: String) -> void:
+	## Live HUD / menus after Options language change or slot-load language.
+	if _esc_menu != null and _esc_menu.is_open():
+		_esc_menu.refresh()
+	if _options_panel != null and _options_panel.is_open():
+		_options_panel.refresh()
+	if _save_panel != null and _save_panel.is_open():
+		_save_panel.refresh()
+	if _ztats_panel != null and _ztats_stage != 0:
+		## Ztats labels (gear/item names) live in private refresh helpers.
+		_ztats_panel._refresh()
+		if _ztats_panel.is_inventory_page():
+			_ztats_panel._refresh_inventory()
+	_refresh_party()
+	_refresh_locate_hud()
+	_layout_prompt_row()
 
 
 func _handle_esc_menu_input(event: InputEvent) -> bool:
@@ -2571,6 +2648,83 @@ func _handle_esc_menu_input(event: InputEvent) -> bool:
 	return true
 
 
+func _handle_options_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _options_horizontal_nudge(event):
+		var dir := _options_language_delta(event)
+		if dir != 0:
+			_cycle_options_language(dir)
+			return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_close_options_panel(true)
+			return true
+		if _is_order_confirm_key(k):
+			_confirm_options_item(_options_panel.cursor() if _options_panel else 0)
+			return true
+	if event is InputEventJoypadButton:
+		var jb := event as InputEventJoypadButton
+		if jb.button_index == JOY_BUTTON_B:
+			_close_options_panel(true)
+			return true
+		if jb.button_index == JOY_BUTTON_A:
+			_confirm_options_item(_options_panel.cursor() if _options_panel else 0)
+			return true
+	return true
+
+
+func _options_horizontal_nudge(event: InputEvent) -> bool:
+	return (
+		event.is_action_pressed("ui_left")
+		or event.is_action_pressed("ui_right")
+		or event.is_action_pressed("move_left")
+		or event.is_action_pressed("move_right")
+		or (
+			event is InputEventKey
+			and (
+				event.keycode == KEY_LEFT
+				or event.physical_keycode == KEY_LEFT
+				or event.keycode == KEY_RIGHT
+				or event.physical_keycode == KEY_RIGHT
+			)
+		)
+	)
+
+
+func _options_language_delta(event: InputEvent) -> int:
+	if (
+		event.is_action_pressed("ui_left")
+		or event.is_action_pressed("move_left")
+		or (event is InputEventKey and (event.keycode == KEY_LEFT or event.physical_keycode == KEY_LEFT))
+	):
+		return -1
+	if (
+		event.is_action_pressed("ui_right")
+		or event.is_action_pressed("move_right")
+		or (event is InputEventKey and (event.keycode == KEY_RIGHT or event.physical_keycode == KEY_RIGHT))
+	):
+		return 1
+	return 0
+
+
+func _cycle_options_language(delta: int) -> void:
+	_ensure_options_panel()
+	if _options_panel == null:
+		return
+	_options_panel.cycle_language(delta)
+	_layout_prompt_row()
+
+
+func _confirm_options_item(index: int) -> void:
+	match index:
+		_OptionsPanel.Item.LANGUAGE:
+			_cycle_options_language(1)
+		_:
+			pass
+
+
 func _esc_menu_letter_index(k: InputEventKey) -> int:
 	var code := k.keycode
 	var phys := k.physical_keycode
@@ -2600,13 +2754,12 @@ func _confirm_esc_menu(index: int) -> void:
 			_close_esc_menu()
 			_open_slot_picker(_SaveSlotPanel.Mode.LOAD, true)
 		_EscMenuPanel.Item.RETURN_MENU:
-			_close_esc_menu()
-			SceneRouter.to_menu()
+			## Same Yes/No prompt as ⌘Q (different message / destination).
+			QuitConfirm.prompt(QuitConfirm.Kind.RETURN_MENU)
 		_EscMenuPanel.Item.OPTION:
-			if _esc_menu:
-				_esc_menu.set_status(Locale.t("esc_menu_option_soon"))
+			_open_options_panel()
 		_EscMenuPanel.Item.QUIT:
-			get_tree().quit()
+			QuitConfirm.prompt(QuitConfirm.Kind.QUIT)
 
 
 func _nudge_save_cursor(delta: int) -> void:
@@ -5353,7 +5506,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
