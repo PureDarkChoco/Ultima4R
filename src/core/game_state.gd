@@ -1164,8 +1164,16 @@ func take_chest_gold() -> int:
 
 
 func roll_chest_gold_amount() -> int:
-	## xu4 Party::getChest gold formula only (no apply).
+	## xu4 Party::getChest gold formula only (no apply). City / camp chests.
+	## Range 10–66; E ≈ 38.
 	return (randi() % 50) + (randi() % 8) + 10
+
+
+func roll_combat_chest_gold_amount() -> int:
+	## Per-kill combat drop (E[#chests] ≈ 1 via 1/N spawn). Mean is ~1.2× city
+	## roll (≈46) so fight total tracks ~120% classic awardLoot gold; max is lower
+	## than 66 so multi-chest wins do not balloon as hard. Range 32–58.
+	return (randi() % 22) + (randi() % 6) + 32
 
 
 ## Combat chest stack kinds (Get peels from the top).
@@ -1188,14 +1196,14 @@ func roll_combat_chest_loot(humanoid: bool) -> Array:
 	var pool: Array = []
 	pool.append({
 		"kind": CHEST_LOOT_GOLD,
-		"amount": roll_chest_gold_amount(),
+		"amount": roll_combat_chest_gold_amount(),
 		"id": 0,
 	})
 	if humanoid:
 		if (randi() % 100) < 15:
 			pool.append({
 				"kind": CHEST_LOOT_FOOD,
-				"amount": (randi() % 10) + 1, ## display food units 1..10
+				"amount": (randi() % 8) + 3, ## display food units 3..10
 				"id": 0,
 			})
 		if (randi() % 100) < 4:
@@ -1207,13 +1215,11 @@ func roll_combat_chest_loot(humanoid: bool) -> Array:
 			var aid := _CHEST_NORMAL_ARMORS[randi() % _CHEST_NORMAL_ARMORS.size()]
 			pool.append({"kind": CHEST_LOOT_ARMOR, "amount": 1, "id": aid})
 		if (randi() % 100) < 1:
-			var r := randi() % 100
-			if r < 50:
-				pool.append({"kind": CHEST_LOOT_TORCH, "amount": 1, "id": 0})
-			elif r < 80:
-				pool.append({"kind": CHEST_LOOT_KEY, "amount": 1, "id": 0})
-			else:
-				pool.append({"kind": CHEST_LOOT_GEM, "amount": 1, "id": 0})
+			pool.append({"kind": CHEST_LOOT_TORCH, "amount": 1, "id": 0})
+		if (randi() % 100) < 1:
+			pool.append({"kind": CHEST_LOOT_KEY, "amount": 1, "id": 0})
+		if (randi() % 100) < 1:
+			pool.append({"kind": CHEST_LOOT_GEM, "amount": 1, "id": 0})
 	## Fisher–Yates shuffle → random presentation order.
 	for i in range(pool.size() - 1, 0, -1):
 		var j := randi() % (i + 1)
