@@ -36,6 +36,12 @@ func tile_at(x: int, y: int) -> int:
 	return int(tiles[y * WIDTH + x])
 
 
+func set_tile(x: int, y: int, tid: int) -> void:
+	if x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT or tiles.size() < TILE_COUNT:
+		return
+	tiles[y * WIDTH + x] = clampi(tid, 0, 255) & 0xFF
+
+
 func load_from_path(path: String) -> bool:
 	clear()
 	if path.is_empty() or not FileAccess.file_exists(path):

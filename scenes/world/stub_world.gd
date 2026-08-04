@@ -160,6 +160,8 @@ var _ztats_flat := 0
 var _ready_stage := 0
 var _ready_cursor := 0
 var _ready_slot := -1
+## Combat R / xu4 readyWeapon(focus): fixed party slot, skip member pick.
+var _ready_self_only := false
 ## xu4 wearArmor(): 0 = idle, 1 = pick member, 2 = pick armor.
 var _wear_stage := 0
 var _wear_cursor := 0
@@ -1408,8 +1410,13 @@ func _process(delta: float) -> void:
 	_tick_world_clock(delta)
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		return
-	## Combat arena: turn input is key-driven (no world cruise / no auto-pass).
+	## Combat arena: turn input is key-driven (no world cruise / no auto-pass),
+	## but Ready / Ztats / chest pick still need the same cursor repeat ticks.
 	if _combat_active:
+		if _ztats_stage == 1 or _ready_stage == 1 or _chest_open_stage == 1:
+			_tick_select_cursor()
+		elif _ready_stage == 2:
+			_tick_ready_weapon_cursor()
 		return
 	## xu4 force pass if no commands within last 20 seconds (explore only).
 	_tick_auto_pass(delta)
@@ -1828,6 +1835,32 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _combat_active:
+		## Nested UIs opened from combat (Ready / Ztats / Open Who) before arena keys.
+		if _ready_stage != 0:
+			if _handle_ready_input(event):
+				get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
+		if _ztats_stage != 0:
+			if _handle_ztats_input(event):
+				get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
+		if _chest_open_stage != 0:
+			if _handle_chest_open_input(event):
+				get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
+		if _pending_cmd != U4Commands.Id.NONE:
+			if event is InputEventKey and event.pressed and not event.echo:
+				if _handle_combat_pending_dir(event as InputEventKey):
+					get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
 		if _handle_combat_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
@@ -3371,6 +3404,7 @@ func _close_ztats(show_none: bool) -> void:
 	_layout_prompt_row()
 	if show_none and was == 1:
 		_push_message(Locale.t("cmd_none"), false)
+	## Combat Ztats is free (view only) — does not spend the member turn.
 
 
 func _ensure_ready_panel() -> void:
@@ -3387,13 +3421,19 @@ func _ensure_ready_panel() -> void:
 
 
 func _do_ready() -> void:
-	## xu4 readyWeapon(): "Ready a weapon for: " → pick member → weapon list.
+	## xu4 readyWeapon(): explore asks who; combat passes focus → Weapon only.
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_wear(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
+		if _combat_active and not _combat_resolving:
+			_combat_finish_member_turn()
 		return
+	if _combat_active:
+		_do_ready_combat_self()
+		return
+	_ready_self_only = false
 	_open_order_roster()
 	_ready_stage = 1
 	_ready_cursor = 0
@@ -3405,6 +3445,32 @@ func _do_ready() -> void:
 		_ready_panel.close_panel()
 	_sync_ready_selection()
 	_layout_prompt_row()
+
+
+func _do_ready_combat_self() -> void:
+	## xu4 combat: readyWeapon(getFocus()) — current member only.
+	if _map == null or not _map.is_in_combat():
+		_push_message(Locale.t("cmd_none"), false)
+		return
+	var slot := _map.get_combat_focus_party_slot()
+	if slot < 0 or slot >= GameState.party_size():
+		_push_message(Locale.t("cmd_none"), false)
+		if not _combat_resolving:
+			_combat_finish_member_turn()
+		return
+	var klass := GameState.party_member_at(slot)
+	if klass < 0 or GameState.is_member_disabled(klass):
+		_push_message(Locale.t("cmd_cant"), false)
+		if not _combat_resolving:
+			_combat_finish_member_turn()
+		return
+	_ready_self_only = true
+	_ready_slot = slot
+	_ready_cursor = slot
+	## Announce combatant then open weapon list (no "for:" party pick).
+	var pname := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_ready_for_done", [pname]), false)
+	_show_ready_weapons(slot)
 
 
 func _handle_ready_input(event: InputEvent) -> bool:
@@ -3419,7 +3485,10 @@ func _handle_ready_input(event: InputEvent) -> bool:
 			return true
 	if _ready_stage == 2:
 		return _handle_ready_weapon_input(event)
-	## Pick member — same affordances as Ztats / New Order.
+	## Stage 1: pick member (explore only — combat starts at stage 2).
+	if _ready_self_only:
+		_close_ready(true)
+		return true
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
 		_close_ready(true)
 		return true
@@ -3470,9 +3539,12 @@ func _handle_ready_weapon_input(event: InputEvent) -> bool:
 		if letter >= 0:
 			_try_ready_weapon(letter)
 			return true
-		## R while picking weapon → back to member pick (like Ztats Z).
+		## R while picking weapon → explore: back to member; combat: cancel Ready.
 		if k.keycode == KEY_R or k.physical_keycode == KEY_R:
-			_return_ready_to_pick()
+			if _ready_self_only:
+				_close_ready(true)
+			else:
+				_return_ready_to_pick()
 			return true
 	return true
 
@@ -3509,6 +3581,8 @@ func _tick_ready_weapon_cursor() -> void:
 
 
 func _nudge_ready_cursor(delta: int) -> void:
+	if _ready_self_only:
+		return
 	var n := maxi(GameState.party_size(), 1)
 	_ready_cursor = posmod(_ready_cursor + delta, n)
 	_sync_ready_selection()
@@ -3520,6 +3594,8 @@ func _sync_ready_selection() -> void:
 
 
 func _accept_ready_slot(slot: int) -> void:
+	if _ready_self_only:
+		return
 	var n := GameState.party_size()
 	if slot < 0 or slot >= n:
 		_close_ready(true)
@@ -3533,6 +3609,7 @@ func _accept_ready_slot(slot: int) -> void:
 func _show_ready_weapons(slot: int) -> void:
 	_ensure_ready_panel()
 	_ready_stage = 2
+	_ready_slot = slot
 	_reset_hold_state()
 	_clear_order_selection()
 	if _roster:
@@ -3548,6 +3625,9 @@ func _show_ready_weapons(slot: int) -> void:
 
 
 func _return_ready_to_pick() -> void:
+	if _ready_self_only:
+		_close_ready(true)
+		return
 	_ready_stage = 1
 	_ready_slot = -1
 	_reset_hold_state()
@@ -3576,6 +3656,11 @@ func _confirm_ready_cursor() -> void:
 func _try_ready_weapon(weapon_id: int) -> void:
 	if _ready_slot < 0:
 		return
+	## Combat: only the focused party slot may change gear.
+	if _ready_self_only and _combat_active and _map != null:
+		var focus_slot := _map.get_combat_focus_party_slot()
+		if _ready_slot != focus_slot:
+			return
 	## Qty 0 / restricted — ignore letter keys (no "None left!" spam).
 	if _ready_panel and not _ready_panel.can_select_weapon(weapon_id):
 		return
@@ -3587,6 +3672,7 @@ func _try_ready_weapon(weapon_id: int) -> void:
 			_push_message(_ready_restricted_message(_ready_slot, weapon_id), false)
 		_:
 			_push_message(Locale.t("cmd_ready_done", [Locale.weapon_name(weapon_id)]), false)
+			_refresh_party()
 			_close_ready(false)
 
 
@@ -3609,9 +3695,11 @@ func _weapon_starts_vowel(name: String) -> bool:
 
 func _close_ready(show_none: bool) -> void:
 	var was := _ready_stage
+	var self_only := _ready_self_only
 	_ready_stage = 0
 	_ready_cursor = 0
 	_ready_slot = -1
+	_ready_self_only = false
 	_clear_order_selection()
 	if _ready_panel:
 		_ready_panel.close_panel()
@@ -3622,8 +3710,15 @@ func _close_ready(show_none: bool) -> void:
 	elif _order_opened_roster and _order_stage == 0 and _ztats_stage == 0 and _wear_stage == 0 and _mix_stage == 0:
 		_close_order_roster()
 	_layout_prompt_row()
-	if show_none and was == 1:
-		_push_message(Locale.t("cmd_none"), false)
+	if show_none and was != 0:
+		if _combat_active:
+			## Esc / cancel mid-Ready: no turn spent.
+			_push_message(Locale.t("cmd_cancelled"), false)
+		elif was == 1 and not self_only:
+			_push_message(Locale.t("cmd_none"), false)
+	## Combat Ready spends a turn only when a weapon is confirmed (show_none=false).
+	elif _combat_active and was != 0 and not _combat_resolving:
+		_combat_finish_member_turn()
 
 
 func _ensure_wear_panel() -> void:
@@ -5270,6 +5365,10 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	## Chest Open waits on "Who opens?" — turn finishes after the pick.
 	if _chest_open_stage != 0:
 		return
+	## Combat arena: directed action spends the current member (not party clock).
+	if _combat_active:
+		await _combat_finish_member_turn()
+		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	await _finish_party_turn()
 
@@ -5471,8 +5570,8 @@ func _place_captured_pirate_ship(pos: Vector2i, facing: int) -> void:
 
 
 func _handle_combat_input(event: InputEvent) -> bool:
-	## Combat: move / Pass / Attack aim (U5 cursor); Esc leaves (stub) or cancels aim.
-	## No idle auto-pass. Blocked / Slowed still end the member's turn.
+	## Combat: move / Pass / Attack + xu4 letter commands; banned → "Not here!".
+	## Esc leaves (stub) or cancels aim. No idle auto-pass.
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if not (event is InputEventKey):
@@ -5499,15 +5598,80 @@ func _handle_combat_input(event: InputEvent) -> bool:
 		_push_message(Locale.t("cmd_pass"), false)
 		_combat_finish_member_turn()
 		return true
-	## A — enter U5 aim mode (ranged free cursor / melee 8-adjacent).
-	if _is_key(k, KEY_A):
-		_combat_begin_aim()
+	var dir := _combat_dir_from_key(k)
+	if dir != Vector2i.ZERO:
+		_combat_try_move(dir)
+		return true
+	var cmd := U4Commands.from_event(k)
+	if cmd == U4Commands.Id.NONE:
+		return false
+	if cmd == U4Commands.Id.PASS:
+		_push_message(Locale.t("cmd_pass"), false)
+		_combat_finish_member_turn()
+		return true
+	if not U4Commands.allowed_in_combat(cmd):
+		## xu4: Not here! still ends the member's turn.
+		_push_message(Locale.t("cmd_not_here"), false)
+		_combat_finish_member_turn()
+		return true
+	_handle_combat_command(cmd)
+	return true
+
+
+func _handle_combat_pending_dir(k: InputEventKey) -> bool:
+	## Open / Get Dir? while combat is active (no _process move).
+	## Esc / Space / Enter cancel without spending the member turn.
+	if _pending_cmd == U4Commands.Id.NONE:
+		return false
+	if (
+		k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
+		or _is_dir_cancel_key(k)
+	):
+		_clear_pending_dir()
+		_push_message(Locale.t("cmd_cancelled"), false)
+		_layout_prompt_row()
 		return true
 	var dir := _combat_dir_from_key(k)
 	if dir == Vector2i.ZERO:
-		return false
-	_combat_try_move(dir)
+		## Any non-dir → "What?" and abort Dir? (no turn until a real action).
+		_clear_pending_dir()
+		_push_message(Locale.t("cmd_what"), false)
+		_layout_prompt_row()
+		return true
+	_finish_directed_command(dir)
 	return true
+
+
+func _handle_combat_command(cmd: int) -> void:
+	## Letter commands allowed in combat (after Not-here filter).
+	var lang := GameState.lang_short()
+	var name := U4Commands.label(cmd, lang)
+	var letter := U4Commands.letter_for(cmd)
+	match cmd:
+		U4Commands.Id.ATTACK:
+			_combat_begin_aim()
+		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+			## Dir? prompts (Open is remake-allowed; Get matches classic).
+			_pending_cmd = cmd
+			_pending_cmd_name = name
+			_layout_prompt_row()
+		U4Commands.Id.READY:
+			_do_ready()
+		U4Commands.Id.ZTATS:
+			_do_ztats()
+		U4Commands.Id.CAST:
+			## Cast not fully ported yet — consume the turn like a valid command start.
+			_push_message(Locale.t("cmd_stub", [letter, name]), false)
+			_combat_finish_member_turn()
+		U4Commands.Id.USE:
+			_push_message(Locale.t("cmd_stub", [letter, name]), false)
+			_combat_finish_member_turn()
+		U4Commands.Id.VOLUME:
+			## xu4 V toggles music; no turn cost.
+			_push_message(Locale.t("cmd_stub", [letter, name]), false)
+		_:
+			_push_message(Locale.t("cmd_not_here"), false)
+			_combat_finish_member_turn()
 
 
 func _is_key(k: InputEventKey, code: int) -> bool:
@@ -6238,6 +6402,28 @@ func _do_open(dir: Vector2i) -> String:
 	## Ultima4R: city chests ask Who opens? then trap; Get only loots.
 	const TILE_BRICK_FLOOR := 62
 	const DOOR_OPEN_TTL := 4
+	## Combat map: door under the active member (adjacent tile).
+	if _is_in_combat() and _map != null and _map.is_in_combat():
+		var from := _map.get_combat_focus_pos()
+		if from.x < 0:
+			return Locale.t("cmd_nothing_to_open")
+		var ctarget := from + dir
+		if (
+			ctarget.x < 0 or ctarget.y < 0
+			or ctarget.x >= _CombatMapData.WIDTH
+			or ctarget.y >= _CombatMapData.HEIGHT
+		):
+			return Locale.t("cmd_nothing_to_open")
+		var ctid := _map.combat_tile_at(ctarget)
+		if ctid < 0:
+			return Locale.t("cmd_nothing_to_open")
+		if _TileRules.is_locked_door(ctid):
+			return Locale.t("cmd_cant")
+		if _TileRules.is_door(ctid):
+			if _map.open_combat_door(ctarget):
+				return Locale.t("cmd_opened")
+			return Locale.t("cmd_nothing_to_open")
+		return Locale.t("cmd_nothing_to_open")
 	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
 	if _is_in_city():
 		if _city_map == null or not _city_map.loaded:
@@ -6380,17 +6566,17 @@ func _complete_chest_open(slot: int, finish_turn: bool) -> void:
 	_clear_chest_open_ui()
 	if _city_map == null or not _city_map.loaded:
 		if finish_turn:
-			_finish_party_turn()
+			_finish_action_turn()
 		return
 	if _city_map.is_chest_empty(target.x, target.y):
 		_push_message(Locale.t("cmd_chest_empty"), false)
 		if finish_turn:
-			_finish_party_turn()
+			_finish_action_turn()
 		return
 	if _city_map.is_chest_open(target.x, target.y):
 		_push_message(Locale.t("cmd_chest_already_open"), false)
 		if finish_turn:
-			_finish_party_turn()
+			_finish_action_turn()
 		return
 	var already_looted := _is_remembered_empty_chest(target.x, target.y)
 	_city_map.open_chest_at(target.x, target.y, not already_looted)
@@ -6405,6 +6591,14 @@ func _complete_chest_open(slot: int, finish_turn: bool) -> void:
 	if already_looted:
 		_push_message(Locale.t("cmd_chest_empty"), false)
 	if finish_turn:
+		_finish_action_turn()
+
+
+func _finish_action_turn() -> void:
+	## Party-clock outside combat; combat spends the focused member.
+	if _combat_active:
+		_combat_finish_member_turn()
+	else:
 		_finish_party_turn()
 
 
@@ -6412,7 +6606,11 @@ func _cancel_chest_open(show_none: bool) -> void:
 	var was := _chest_open_stage
 	_clear_chest_open_ui()
 	if show_none and was != 0:
-		_push_message(Locale.t("cmd_none"), false)
+		if _combat_active:
+			## Esc mid "Who opens?" — command cancelled, turn kept.
+			_push_message(Locale.t("cmd_cancelled"), false)
+		else:
+			_push_message(Locale.t("cmd_none"), false)
 
 
 func _clear_chest_open_ui() -> void:

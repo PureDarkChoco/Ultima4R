@@ -338,6 +338,26 @@ func is_in_combat() -> bool:
 	return _combat_map != null
 
 
+func combat_tile_at(pos: Vector2i) -> int:
+	## Terrain id on the active .CON map, or -1 if not in combat / OOB.
+	if _combat_map == null:
+		return -1
+	if pos.x < 0 or pos.y < 0 or pos.x >= CAMP_W or pos.y >= CAMP_H:
+		return -1
+	return int(_combat_map.tile_at(pos.x, pos.y))
+
+
+func open_combat_door(pos: Vector2i) -> bool:
+	## Replace a door tile with brick floor for the rest of combat.
+	if _combat_map == null:
+		return false
+	if not _TileRulesCamp.is_door(int(_combat_map.tile_at(pos.x, pos.y))):
+		return false
+	_combat_map.set_tile(pos.x, pos.y, 62) ## brick floor
+	_rebuild()
+	return true
+
+
 func is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 

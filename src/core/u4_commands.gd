@@ -136,6 +136,24 @@ const NEEDS_DIRECTION := {
 	Id.TALK: true,
 }
 
+## xu4 CombatController legal keys: A C G R U Z (+ dirs / Pass).
+## Ultima4R also allows Open (O); banned letters print "Not here!".
+const COMBAT_ALLOWED := {
+	Id.ATTACK: true,
+	Id.CAST: true,
+	Id.GET_CHEST: true,
+	Id.OPEN: true,
+	Id.READY: true,
+	Id.USE: true,
+	Id.ZTATS: true,
+	Id.PASS: true,
+	Id.VOLUME: true,
+}
+
+
+static func allowed_in_combat(cmd: int) -> bool:
+	return bool(COMBAT_ALLOWED.get(cmd, false))
+
 
 static func from_keycode(keycode: int) -> int:
 	if keycode == KEY_SPACE:

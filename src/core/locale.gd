@@ -338,9 +338,9 @@ const _T := {
 		"ko": "열쇠가 없다!",
 	},
 	"cmd_not_here": {
-		"en_u4": "Not Here!",
-		"en_us": "Not Here!",
-		"ko": "여기엔 없다!",
+		"en_u4": "Not here!",
+		"en_us": "Not here!",
+		"ko": "여기서는 안 된다!",
 	},
 	"cmd_only_on_foot": {
 		"en_u4": "Only on foot!",
