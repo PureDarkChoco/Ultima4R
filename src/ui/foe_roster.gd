@@ -2,7 +2,7 @@ class_name FoeRoster
 extends VBoxContainer
 
 ## Combat left panel: foes in xu4 creatureTable slot order (priority 0 first).
-## Row: creature tile | name | HP bar + "cur / max".
+## Row: creature tile | name | HP bar (gray until first hit, then cur / max).
 
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
@@ -117,7 +117,7 @@ func clear_aim_highlight() -> void:
 
 
 func set_foes(foes: Array) -> void:
-	## Expect [{tile, hp, max_hp, priority/slot, ...}]. Sorted by priority (asc).
+	## Expect [{tile, hp, max_hp, priority/slot, show_hp, ...}]. Sorted by priority (asc).
 	_foes.clear()
 	var tmp: Array[Dictionary] = []
 	for u in foes:
@@ -293,7 +293,9 @@ func _apply_foes_to_rows() -> void:
 		_names[i].add_theme_color_override("font_color", COL_TEXT)
 		var hp := int(d.get("hp", 0))
 		var mhp := maxi(1, int(d.get("max_hp", hp)))
-		_set_bar(_hp_fill[i], _hp_lab[i], hp, mhp)
+		## Hidden until first successful hit (`show_hp` set by MapView.damage_combat_foe).
+		var revealed := bool(d.get("show_hp", false))
+		_set_bar(_hp_fill[i], _hp_lab[i], hp, mhp, revealed)
 	_refresh_icons()
 
 
@@ -309,7 +311,14 @@ func _refresh_icons() -> void:
 		_icons[i].texture = ImageTexture.create_from_image(slice)
 
 
-func _set_bar(fill: ColorRect, lab: Label, cur: int, mx: int) -> void:
+func _set_bar(fill: ColorRect, lab: Label, cur: int, mx: int, revealed: bool = true) -> void:
+	if not revealed:
+		## Gray track only — no fill and no numbers until the foe is hit.
+		lab.text = ""
+		fill.set_meta("ratio", 0.0)
+		fill.color = COL_HP
+		_apply_fill_width(fill)
+		return
 	lab.text = "%d / %d" % [cur, mx]
 	var ratio := 0.0 if mx <= 0 else clampf(float(cur) / float(mx), 0.0, 1.0)
 	fill.set_meta("ratio", ratio)

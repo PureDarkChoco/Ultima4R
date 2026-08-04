@@ -1184,21 +1184,47 @@ const CHEST_LOOT_ARMOR := "armor"
 const CHEST_LOOT_TORCH := "torch"
 const CHEST_LOOT_KEY := "key"
 const CHEST_LOOT_GEM := "gem"
+const CHEST_LOOT_SILK := "silk"
+const CHEST_LOOT_REAGENT := "reagent"
 ## Staff..Halberd (exclude Hands, Magic*, Mystic).
 const _CHEST_NORMAL_WEAPONS: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ## Cloth..Plate (exclude Magic*, Mystic).
 const _CHEST_NORMAL_ARMORS: Array[int] = [1, 2, 3, 4]
+## Ash..Pearl — no Nightshade / Mandrake (mage-chest pool).
+const _CHEST_MAGE_REAGENTS: Array[int] = [
+	ReagentIcons.Id.SULPHUROUS_ASH,
+	ReagentIcons.Id.GINSENG,
+	ReagentIcons.Id.GARLIC,
+	ReagentIcons.Id.SPIDER_SILK,
+	ReagentIcons.Id.BLOOD_MOSS,
+	ReagentIcons.Id.BLACK_PEARL,
+]
 
 
-func roll_combat_chest_loot(humanoid: bool) -> Array:
-	## Always gold; humanoids also roll food / weapons / armor / misc.
-	## Returns stack top-first (index 0 is taken first on Get).
+func roll_combat_chest_loot(
+	humanoid: bool,
+	spider: bool = false,
+	mage: bool = false,
+	key_source: bool = false
+) -> Array:
+	## Always gold. Spiders: 5% silk (1–3). Mages: 5% common reagents.
+	## Humanoids: food/weapons/armor/misc. Keys only from Rogue (`key_source`).
+	## Stack top-first on Get.
 	var pool: Array = []
 	pool.append({
 		"kind": CHEST_LOOT_GOLD,
 		"amount": roll_combat_chest_gold_amount(),
 		"id": 0,
 	})
+	if spider and (randi() % 100) < 5:
+		pool.append({
+			"kind": CHEST_LOOT_SILK,
+			"amount": (randi() % 3) + 1, ## 1..3
+			"id": 0,
+		})
+	if mage and (randi() % 100) < 5:
+		for entry in _roll_mage_chest_reagents():
+			pool.append(entry)
 	if humanoid:
 		if (randi() % 100) < 15:
 			pool.append({
@@ -1209,14 +1235,22 @@ func roll_combat_chest_loot(humanoid: bool) -> Array:
 		if (randi() % 100) < 5:
 			var n_weap := 1 if (randi() % 100) < 80 else 2
 			for _i in n_weap:
-				var wid := _CHEST_NORMAL_WEAPONS[randi() % _CHEST_NORMAL_WEAPONS.size()]
+				var wid: int
+				if mage:
+					wid = WeaponIcons.Id.STAFF
+				else:
+					wid = _CHEST_NORMAL_WEAPONS[randi() % _CHEST_NORMAL_WEAPONS.size()]
 				pool.append({"kind": CHEST_LOOT_WEAPON, "amount": 1, "id": wid})
 		if (randi() % 100) < 5:
-			var aid := _CHEST_NORMAL_ARMORS[randi() % _CHEST_NORMAL_ARMORS.size()]
+			var aid: int
+			if mage:
+				aid = ArmorIcons.Id.CLOTH
+			else:
+				aid = _CHEST_NORMAL_ARMORS[randi() % _CHEST_NORMAL_ARMORS.size()]
 			pool.append({"kind": CHEST_LOOT_ARMOR, "amount": 1, "id": aid})
 		if (randi() % 100) < 1:
 			pool.append({"kind": CHEST_LOOT_TORCH, "amount": 1, "id": 0})
-		if (randi() % 100) < 1:
+		if key_source and (randi() % 100) < 1:
 			pool.append({"kind": CHEST_LOOT_KEY, "amount": 1, "id": 0})
 		if (randi() % 100) < 1:
 			pool.append({"kind": CHEST_LOOT_GEM, "amount": 1, "id": 0})
@@ -1227,6 +1261,21 @@ func roll_combat_chest_loot(humanoid: bool) -> Array:
 		pool[i] = pool[j]
 		pool[j] = tmp
 	return pool
+
+
+func _roll_mage_chest_reagents() -> Array:
+	## 90% one kind / 10% two; each kind 75%×1 / 25%×2. Types distinct.
+	var pool: Array[int] = _CHEST_MAGE_REAGENTS.duplicate()
+	var n_kinds := 1 if (randi() % 100) < 90 else 2
+	n_kinds = mini(n_kinds, pool.size())
+	var out: Array = []
+	for _i in n_kinds:
+		var pick := randi() % pool.size()
+		var rid := int(pool[pick])
+		pool.remove_at(pick)
+		var qty := 1 if (randi() % 100) < 75 else 2
+		out.append({"kind": CHEST_LOOT_REAGENT, "amount": qty, "id": rid})
+	return out
 
 
 func apply_chest_loot_entry(entry: Dictionary) -> String:
@@ -1263,6 +1312,15 @@ func apply_chest_loot_entry(entry: Dictionary) -> String:
 		CHEST_LOOT_GEM:
 			gems = clampi(gems + maxi(1, amount), 0, 99)
 			return Locale.t("cmd_chest_holds_gem", [amount])
+		CHEST_LOOT_SILK:
+			## Spider chest bonus (gold always rolls separately).
+			var n := maxi(1, amount)
+			adjust_reagent(ReagentIcons.Id.SPIDER_SILK, n)
+			return Locale.t("cmd_chest_holds_silk", [n])
+		CHEST_LOOT_REAGENT:
+			var n_r := maxi(1, amount)
+			adjust_reagent(item_id, n_r)
+			return Locale.t("cmd_chest_holds_reagent", [Locale.reagent_name(item_id), n_r])
 		_:
 			return Locale.t("cmd_chest_empty")
 

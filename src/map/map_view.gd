@@ -248,7 +248,7 @@ var _combat_party: Array[Dictionary] = []
 var _combat_foes: Array[Dictionary] = []
 ## Living foe count at combat start (for 1/N chest drop).
 var _combat_foe_spawn_count := 0
-## Combat loot chests: key "x,y" → { open, icon_shown } (icon_shown 1 = gold left).
+## Combat loot chests: key "x,y" → { open, stack, ... }.
 var _combat_chests: Dictionary = {}
 ## Index into `_combat_party` for xu4 TileView::drawFocus (blinking white box).
 var _combat_focus := -1
@@ -865,12 +865,17 @@ func try_spawn_combat_chest(pos: Vector2i, foe_tile: int) -> bool:
 	if _combat_chests.has(key):
 		return false
 	var humanoid := _WorldCreaturesScript.is_humanoid(foe_tile)
-	var stack: Array = GameState.roll_combat_chest_loot(humanoid)
+	var spider := _WorldCreaturesScript.is_spider(foe_tile)
+	var mage := _WorldCreaturesScript.is_mage(foe_tile)
+	var key_source := _WorldCreaturesScript.drops_chest_keys(foe_tile)
+	var stack: Array = GameState.roll_combat_chest_loot(humanoid, spider, mage, key_source)
 	_combat_chests[key] = {
 		"x": pos.x,
 		"y": pos.y,
 		"open": false,
 		"stack": stack,
+		"from_spider": spider,
+		"from_mage": mage,
 	}
 	return true
 
@@ -2621,6 +2626,13 @@ func _loot_icon_for_entry(entry: Dictionary) -> Image:
 			return _scaled_loot_icon(KEY_HUD_PATH)
 		GameState.CHEST_LOOT_GEM:
 			return _scaled_loot_icon(GEM_HUD_PATH)
+		GameState.CHEST_LOOT_SILK:
+			return _scaled_loot_icon(ReagentIcons.path_for_id(ReagentIcons.Id.SPIDER_SILK))
+		GameState.CHEST_LOOT_REAGENT:
+			var rpath := ReagentIcons.path_for_id(int(entry.get("id", 0)))
+			if not rpath.is_empty():
+				return _scaled_loot_icon(rpath)
+			return _scaled_loot_icon(GOLD_HUD_PATH)
 		GameState.CHEST_LOOT_WEAPON:
 			var wpath := _WeaponIconsScript.path_for_id(int(entry.get("id", 0)))
 			if not wpath.is_empty():

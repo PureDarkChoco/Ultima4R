@@ -340,6 +340,36 @@ static func is_humanoid(tile_or_base: int) -> bool:
 	return bool(_HUMANOID_TILES.get(_base_tile(tile_or_base), false))
 
 
+const TILE_SPIDER := 152
+
+
+static func is_spider(tile_or_base: int) -> bool:
+	return _base_tile(tile_or_base) == TILE_SPIDER
+
+
+## Combat key loot 1% — Rogue only (pirates still leave no chest).
+const TILE_ROGUE := 200
+
+
+static func is_rogue(tile_or_base: int) -> bool:
+	return _base_tile(tile_or_base) == TILE_ROGUE
+
+
+static func drops_chest_keys(tile_or_base: int) -> bool:
+	return is_rogue(tile_or_base)
+
+
+## Spellcasting humanoids (reagent bonus bags) — Evil Mage, Liche.
+const _MAGE_TILES := {
+	224: true, ## Evil Mage
+	228: true, ## Liche
+}
+
+
+static func is_mage(tile_or_base: int) -> bool:
+	return bool(_MAGE_TILES.get(_base_tile(tile_or_base), false))
+
+
 ## xu4 config.b `ranged: true` wilderness creatures (combat free-aim).
 const _RANGED_TILES := {
 	132: true, ## Nixie

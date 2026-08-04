@@ -825,6 +825,21 @@ const _T := {
 		"en_us": "The chest holds: gem x%d.",
 		"ko": "상자 속: 보석 x%d",
 	},
+	"cmd_get_silk": {
+		"en_u4": "Spider Silk x%d",
+		"en_us": "Spider silk x%d.",
+		"ko": "거미줄 x%d",
+	},
+	"cmd_chest_holds_silk": {
+		"en_u4": "The Chest Holds: Spider Silk x%d",
+		"en_us": "The chest holds: spider silk x%d.",
+		"ko": "상자 속: 거미줄 x%d",
+	},
+	"cmd_chest_holds_reagent": {
+		"en_u4": "The Chest Holds: %s x%d",
+		"en_us": "The chest holds: %s x%d.",
+		"ko": "상자 속: %s x%d",
+	},
 	"cmd_chest_trap_acid": {
 		"en_u4": "Acid Trap!",
 		"en_us": "Acid trap!",
