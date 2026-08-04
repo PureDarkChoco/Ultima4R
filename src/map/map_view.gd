@@ -53,6 +53,8 @@ const TILE_MISS_FLASH := 77 ## xu4 missFlash / missile (cannon ball)
 const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
 ## Seconds per tile of cannon travel (matches prior per-tile miss flash).
 const CANNON_SEC_PER_TILE := 0.10
+## Magic bow / magic axe fly 1.5× faster than the default missile.
+const MAGIC_MISSILE_SPEED := 1.5
 ## Multi-frame terrain flip period (spit, etc.).
 const TILE_ANIM_PERIOD := 0.20
 ## Open chest cavity in `060_chest_1.png` is 18×2 (x=7..24, y=14..15);
@@ -87,6 +89,29 @@ const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
 const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
 ## Sling stone — source art scaled to 1/4 (8×8 from 32×32).
 const SLING_MISSILE_PATH := "res://assets/ui/weapons/sling_missile.png"
+## Thrown dagger — inventory icon flies, rotated to flight direction.
+const DAGGER_MISSILE_PATH := "res://assets/ui/weapons/dagger.png"
+## Source art points tip toward top-right (image +x, −y) ≈ −45°.
+const DAGGER_BASE_ANGLE := -PI * 0.25
+## Drawn size for the flying dagger (24→12 = half).
+const DAGGER_MISSILE_DRAW := 12
+## Thrown magic axe — inventory icon, spins out then returns.
+const MAGIC_AXE_MISSILE_PATH := "res://assets/ui/weapons/magic_axe.png"
+const MAGIC_AXE_MISSILE_DRAW := 12
+## Spin while flying (radians per tile of travel).
+const MAGIC_AXE_SPIN_PER_TILE := TAU * 1.25
+## Bow / crossbow arrow (pixel stick; tip up; bow-string browns).
+const ARROW_MISSILE_PATH := "res://assets/ui/weapons/arrow_missile.png"
+## Magic bow arrow — same shape, blue from magic_bow / magic_sword.
+const MAGIC_ARROW_MISSILE_PATH := "res://assets/ui/weapons/magic_arrow_missile.png"
+## Source art points tip up (image −y).
+const ARROW_BASE_ANGLE := -PI * 0.5
+const MISSILE_ANGLE_BUCKETS := 32
+## Magic arrow afterimage: ghost copies behind the head.
+const MAGIC_ARROW_TRAIL_LEN := 4
+const MAGIC_ARROW_TRAIL_SPACE := 0.14 ## min tile spacing between samples
+## Per-sample alpha (oldest → newest); head is always 1.
+const MAGIC_ARROW_TRAIL_ALPHA := [0.18, 0.28, 0.40, 0.55]
 ## Camp map / sleeping corpse (shapes index — graphics.b tile_corpse).
 const CAMP_W: int = _CombatMapDataScript.WIDTH
 const CAMP_H: int = _CombatMapDataScript.HEIGHT
@@ -139,6 +164,19 @@ var _tile_flashes: Array[Dictionary] = []
 var _cannon_proj: Dictionary = {}
 var _cannonball_img: Image
 var _sling_missile_img: Image
+## Keyed + scaled dagger; rotated per throw into _combat_proj["img"].
+var _dagger_missile_img: Image
+## Keyed + scaled magic axe (spin base; frames via _magic_axe_rot_cache).
+var _magic_axe_missile_img: Image
+## Arrow stick for bow / crossbow / magic bow.
+var _arrow_missile_img: Image
+var _magic_arrow_missile_img: Image
+## Rotation blit caches: angle_bucket → Image.
+var _dagger_rot_cache: Dictionary = {}
+var _arrow_rot_cache: Dictionary = {}
+var _magic_arrow_rot_cache: Dictionary = {}
+var _magic_axe_rot_cache: Dictionary = {}
+
 ## Active Trammel moongate annotation (world map only).
 var _moongate_pos := Vector2i(-1, -1)
 var _moongate_tid := -1
@@ -265,6 +303,12 @@ func _ready() -> void:
 	_load_horse_rider_assets()
 	_cannonball_img = _load_image_path(CANNONBALL_PATH)
 	_sling_missile_img = _load_image_path(SLING_MISSILE_PATH)
+	_dagger_missile_img = _prepare_dagger_missile(_load_image_path(DAGGER_MISSILE_PATH))
+	_magic_axe_missile_img = _prepare_sized_missile(
+		_load_image_path(MAGIC_AXE_MISSILE_PATH), MAGIC_AXE_MISSILE_DRAW
+	)
+	_arrow_missile_img = _load_image_path(ARROW_MISSILE_PATH)
+	_magic_arrow_missile_img = _load_image_path(MAGIC_ARROW_MISSILE_PATH)
 	texture = _tex
 
 
@@ -800,7 +844,8 @@ func await_flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12
 func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> void:
 	## Cannon-style flight in combat-local coords (straight line, any angle).
 	## Stops on the first wall/mast unless weapon attacks through objects (Halberd).
-	## `weapon_id` selects a custom missile sprite (e.g. sling stone).
+	## `weapon_id` selects a custom missile sprite (sling / dagger / arrow / magic axe).
+	## Magic axe: outbound only — caller resolves hit VFX, then `await_combat_projectile_return`.
 	if from == to:
 		return
 	var end := combat_projectile_end(from, to, weapon_id)
@@ -809,14 +854,88 @@ func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) 
 	if steps <= 0:
 		return
 	var duration := float(steps) * CANNON_SEC_PER_TILE
+	if (
+		weapon_id == _WeaponIconsScript.Id.MAGIC_BOW
+		or weapon_id == _WeaponIconsScript.Id.MAGIC_AXE
+	):
+		duration /= MAGIC_MISSILE_SPEED
 	var start := Vector2(from) + Vector2(0.5, 0.5)
 	var finish := Vector2(end) + Vector2(0.5, 0.5)
-	_combat_proj = {"x": start.x, "y": start.y, "wid": weapon_id}
+	var custom_img: Image = null
+	var flight := atan2(finish.y - start.y, finish.x - start.x)
+	var spinning := false
+	if weapon_id == _WeaponIconsScript.Id.DAGGER:
+		custom_img = _oriented_missile(
+			_dagger_missile_img, flight, DAGGER_BASE_ANGLE, _dagger_rot_cache
+		)
+	elif (
+		weapon_id == _WeaponIconsScript.Id.BOW
+		or weapon_id == _WeaponIconsScript.Id.CROSSBOW
+	):
+		custom_img = _oriented_missile(
+			_arrow_missile_img, flight, ARROW_BASE_ANGLE, _arrow_rot_cache
+		)
+	elif weapon_id == _WeaponIconsScript.Id.MAGIC_BOW:
+		custom_img = _oriented_missile(
+			_magic_arrow_missile_img, flight, ARROW_BASE_ANGLE, _magic_arrow_rot_cache
+		)
+	elif weapon_id == _WeaponIconsScript.Id.MAGIC_AXE:
+		spinning = (
+			_magic_axe_missile_img != null and not _magic_axe_missile_img.is_empty()
+		)
+		if spinning:
+			custom_img = _spin_missile_frame(_magic_axe_missile_img, 0.0, _magic_axe_rot_cache)
+	var trail_on := weapon_id == _WeaponIconsScript.Id.MAGIC_BOW and custom_img != null
+	var returning := weapon_id == _WeaponIconsScript.Id.MAGIC_AXE
+	_combat_proj = {
+		"x": start.x,
+		"y": start.y,
+		"wid": weapon_id,
+		"img": custom_img,
+		"trail": [] as Array,
+		"trail_on": trail_on,
+		"trail_last": start if trail_on else Vector2.ZERO,
+		"spin": spinning,
+		"spin_base": _magic_axe_missile_img if spinning else null,
+		"spin_cache": _magic_axe_rot_cache if spinning else {},
+		"spin_traveled": 0.0,
+		"spin_last": start,
+		"return_pending": false,
+		"return_to": start,
+		"return_duration": duration,
+	}
 	_rebuild()
 	var tween := create_tween()
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
 	tween.tween_method(_set_combat_proj_pos, start, finish, duration)
 	await tween.finished
+	if returning and not _combat_proj.is_empty():
+		## Stay at impact so hit flash can play while the axe is still there.
+		_combat_proj["return_pending"] = true
+		_combat_proj["x"] = finish.x
+		_combat_proj["y"] = finish.y
+		_rebuild()
+		return
+	_combat_proj.clear()
+	_rebuild()
+
+
+func await_combat_projectile_return() -> void:
+	## Second leg of a returning weapon (magic axe). No-op otherwise.
+	if _combat_proj.is_empty() or not bool(_combat_proj.get("return_pending", false)):
+		return
+	var home: Vector2 = _combat_proj.get("return_to", Vector2.ZERO) as Vector2
+	var duration := maxf(0.02, float(_combat_proj.get("return_duration", CANNON_SEC_PER_TILE)))
+	var apex := Vector2(
+		float(_combat_proj.get("x", home.x)),
+		float(_combat_proj.get("y", home.y))
+	)
+	_combat_proj["return_pending"] = false
+	_combat_proj["spin_last"] = apex
+	var back := create_tween()
+	back.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
+	back.tween_method(_set_combat_proj_pos, apex, home, duration)
+	await back.finished
 	_combat_proj.clear()
 	_rebuild()
 
@@ -824,6 +943,26 @@ func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) 
 func _set_combat_proj_pos(pos: Vector2) -> void:
 	if _combat_proj.is_empty():
 		return
+	if bool(_combat_proj.get("spin", false)):
+		var prev: Vector2 = _combat_proj.get("spin_last", pos) as Vector2
+		var traveled := float(_combat_proj.get("spin_traveled", 0.0)) + prev.distance_to(pos)
+		_combat_proj["spin_traveled"] = traveled
+		_combat_proj["spin_last"] = pos
+		var base: Image = _combat_proj.get("spin_base", null) as Image
+		var cache: Dictionary = _combat_proj.get("spin_cache", {}) as Dictionary
+		_combat_proj["img"] = _spin_missile_frame(
+			base, traveled * MAGIC_AXE_SPIN_PER_TILE, cache
+		)
+	if bool(_combat_proj.get("trail_on", false)):
+		var last: Vector2 = _combat_proj.get("trail_last", pos) as Vector2
+		if last.distance_to(pos) >= MAGIC_ARROW_TRAIL_SPACE:
+			## Leave a ghost at the previous sample (behind the tip).
+			var trail: Array = _combat_proj.get("trail", []) as Array
+			trail.append({"x": last.x, "y": last.y})
+			while trail.size() > MAGIC_ARROW_TRAIL_LEN:
+				trail.pop_front()
+			_combat_proj["trail"] = trail
+			_combat_proj["trail_last"] = pos
 	_combat_proj["x"] = pos.x
 	_combat_proj["y"] = pos.y
 	_rebuild()
@@ -2955,26 +3094,37 @@ func _paint_combat_tile_flashes(origin_x: int, origin_y: int) -> void:
 
 
 func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
-	## Missile flying in combat-local float space (sling stone or tile 77).
+	## Missile flying in combat-local float space (dagger / arrow / sling / flash).
 	if _combat_proj.is_empty() or not tiles_ready:
 		return
 	var cx := float(_combat_proj.get("x", 0.0))
 	var cy := float(_combat_proj.get("y", 0.0))
 	var wid := int(_combat_proj.get("wid", -1))
+	var custom: Image = _combat_proj.get("img", null) as Image
+	if custom != null and not custom.is_empty():
+		## Magic bow: faint copies along the recent path, then the solid tip.
+		if bool(_combat_proj.get("trail_on", false)):
+			var trail: Array = _combat_proj.get("trail", []) as Array
+			var n := trail.size()
+			for i in n:
+				var g: Dictionary = trail[i]
+				var ai := i - (n - MAGIC_ARROW_TRAIL_ALPHA.size())
+				var a := 0.15
+				if ai >= 0 and ai < MAGIC_ARROW_TRAIL_ALPHA.size():
+					a = float(MAGIC_ARROW_TRAIL_ALPHA[ai])
+				elif n > 0:
+					a = float(MAGIC_ARROW_TRAIL_ALPHA[0]) * float(i + 1) / float(n)
+				_paint_projectile_image(
+					custom, origin_x, origin_y, float(g.get("x", 0.0)), float(g.get("y", 0.0)), a
+				)
+		_paint_projectile_image(custom, origin_x, origin_y, cx, cy, 1.0)
+		return
 	if (
 		wid == _WeaponIconsScript.Id.SLING
 		and _sling_missile_img != null
 		and not _sling_missile_img.is_empty()
 	):
-		var iw := _sling_missile_img.get_width()
-		var ih := _sling_missile_img.get_height()
-		var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - float(iw) * 0.5))
-		var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - float(ih) * 0.5))
-		if px <= -iw or py <= -ih:
-			return
-		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
-			return
-		_buf.blend_rect(_sling_missile_img, Rect2i(0, 0, iw, ih), Vector2i(px, py))
+		_paint_projectile_image(_sling_missile_img, origin_x, origin_y, cx, cy, 1.0)
 		return
 	var slice := _overlay_slice(TILE_MISS_FLASH)
 	if slice == null:
@@ -2986,6 +3136,137 @@ func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
 	if px2 >= view_w * TILE_SRC or py2 >= view_h * TILE_SRC:
 		return
 	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px2, py2))
+
+
+func _paint_projectile_image(
+	img: Image, origin_x: int, origin_y: int, cx: float, cy: float, alpha: float = 1.0
+) -> void:
+	var iw := img.get_width()
+	var ih := img.get_height()
+	var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - float(iw) * 0.5))
+	var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - float(ih) * 0.5))
+	if px <= -iw or py <= -ih:
+		return
+	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
+		return
+	if alpha >= 0.999:
+		_buf.blend_rect(img, Rect2i(0, 0, iw, ih), Vector2i(px, py))
+		return
+	## Soft afterimage — scale source alpha and composite onto the combat buffer.
+	var a_mul := clampf(alpha, 0.0, 1.0)
+	var bw := _buf.get_width()
+	var bh := _buf.get_height()
+	for y in ih:
+		var dy := py + y
+		if dy < 0 or dy >= bh:
+			continue
+		for x in iw:
+			var dx := px + x
+			if dx < 0 or dx >= bw:
+				continue
+			var sc := img.get_pixel(x, y)
+			if sc.a * a_mul < 0.02:
+				continue
+			var sa := sc.a * a_mul
+			var bc := _buf.get_pixel(dx, dy)
+			var out_a := sa + bc.a * (1.0 - sa)
+			if out_a < 0.001:
+				continue
+			_buf.set_pixel(
+				dx,
+				dy,
+				Color(
+					(sc.r * sa + bc.r * bc.a * (1.0 - sa)) / out_a,
+					(sc.g * sa + bc.g * bc.a * (1.0 - sa)) / out_a,
+					(sc.b * sa + bc.b * bc.a * (1.0 - sa)) / out_a,
+					out_a
+				)
+			)
+
+
+func _prepare_dagger_missile(src: Image) -> Image:
+	return _prepare_sized_missile(src, DAGGER_MISSILE_DRAW)
+
+
+func _prepare_sized_missile(src: Image, draw_size: int) -> Image:
+	## Key near-black inventory backdrop, nearest-scale for projectile size.
+	if src == null or src.is_empty():
+		return null
+	var img := Image.new()
+	img.copy_from(src)
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	if img.get_width() != draw_size or img.get_height() != draw_size:
+		img.resize(draw_size, draw_size, Image.INTERPOLATE_NEAREST)
+	return img
+
+
+func _spin_missile_frame(src: Image, angle: float, cache: Dictionary) -> Image:
+	## Bucketed absolute rotation for continuous spin (magic axe).
+	if src == null or src.is_empty():
+		return null
+	var two_pi := TAU
+	var norm := fposmod(angle, two_pi)
+	var bucket := int(round(norm / two_pi * float(MISSILE_ANGLE_BUCKETS))) % MISSILE_ANGLE_BUCKETS
+	if cache.has(bucket):
+		return cache[bucket] as Image
+	var ang := float(bucket) / float(MISSILE_ANGLE_BUCKETS) * two_pi
+	var rotated := _rotate_image_nearest(src, ang)
+	cache[bucket] = rotated
+	return rotated
+
+
+func _oriented_missile(
+	src: Image, flight_angle: float, base_angle: float, cache: Dictionary
+) -> Image:
+	## Rotate so the art tip points along flight (tile space: +x right, +y down).
+	if src == null or src.is_empty():
+		return null
+	var turn := flight_angle - base_angle
+	var two_pi := TAU
+	var norm := fposmod(turn, two_pi)
+	var bucket := int(round(norm / two_pi * float(MISSILE_ANGLE_BUCKETS))) % MISSILE_ANGLE_BUCKETS
+	if cache.has(bucket):
+		return cache[bucket] as Image
+	var ang := float(bucket) / float(MISSILE_ANGLE_BUCKETS) * two_pi
+	var rotated := _rotate_image_nearest(src, ang)
+	cache[bucket] = rotated
+	return rotated
+
+
+func _rotate_image_nearest(src: Image, angle: float) -> Image:
+	## Nearest-neighbor rotate about center (pixel-art safe).
+	var w := src.get_width()
+	var h := src.get_height()
+	var cos_a := cos(angle)
+	var sin_a := sin(angle)
+	var nw := maxi(1, int(ceili(absf(float(w) * cos_a) + absf(float(h) * sin_a))))
+	var nh := maxi(1, int(ceili(absf(float(w) * sin_a) + absf(float(h) * cos_a))))
+	var out := Image.create(nw, nh, false, Image.FORMAT_RGBA8)
+	out.fill(Color(0, 0, 0, 0))
+	var cx := (float(w) - 1.0) * 0.5
+	var cy := (float(h) - 1.0) * 0.5
+	var ncx := (float(nw) - 1.0) * 0.5
+	var ncy := (float(nh) - 1.0) * 0.5
+	var icos := cos(-angle)
+	var isin := sin(-angle)
+	for y in nh:
+		for x in nw:
+			var dx := float(x) - ncx
+			var dy := float(y) - ncy
+			var sx := int(round(dx * icos - dy * isin + cx))
+			var sy := int(round(dx * isin + dy * icos + cy))
+			if sx < 0 or sy < 0 or sx >= w or sy >= h:
+				continue
+			var c := src.get_pixel(sx, sy)
+			if c.a > 0.01:
+				out.set_pixel(x, y, c)
+	return out
 
 
 func _build_camp_background() -> void:

@@ -6198,10 +6198,15 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		if aim_foe_i < 0:
 			aim_ally_i = _map.combat_party_index_at(target)
 	## Projectiles for non-melee strikes beyond adjacent 8-way, or absolute-range weapons.
+	## Returning weapons (magic axe) always show a throw even at range 1.
 	var use_proj := (
 		not WeaponIcons.is_melee(wid)
 		and from != target
-		and (WeaponIcons.is_absolute_range(wid) or steps > 1)
+		and (
+			WeaponIcons.is_absolute_range(wid)
+			or steps > 1
+			or WeaponIcons.returns_to_thrower(wid)
+		)
 	)
 	if use_proj and not _map.combat_shot_reaches(from, target, wid):
 		## Wall/mast in the way — fly until the obstacle, no unit damage beyond.
@@ -6311,10 +6316,12 @@ func _combat_resolve_ranged_attack(
 	aim_ally_i: int
 ) -> void:
 	## xu4 hit roll first. On miss: projectile still flies; no miss-flash VFX.
+	## Returning weapons (magic axe): fly out → hit VFX/damage → fly home.
 	const SCATTER_HIT_CHANCE := 0.5
 	if aim_foe_i < 0 and aim_ally_i < 0:
 		await _map.await_combat_projectile(from, target, wid)
 		_push_message(Locale.t("cmd_missed"), false)
+		await _map.await_combat_projectile_return()
 		return
 
 	var hits := false
@@ -6331,6 +6338,7 @@ func _combat_resolve_ranged_attack(
 			await _combat_apply_foe_hit(klass, aim_foe_i, target)
 		else:
 			await _combat_apply_ally_hit(klass, aim_ally_i, target)
+		await _map.await_combat_projectile_return()
 		return
 
 	var scatter_miss := randf() < GameState.miss_scatter_chance(klass)
@@ -6358,11 +6366,13 @@ func _combat_resolve_ranged_attack(
 				_push_message(Locale.t("cmd_missed"), false)
 		else:
 			_push_message(Locale.t("cmd_missed"), false)
+		await _map.await_combat_projectile_return()
 		return
 
 	## 명중 미스 — shot reaches the tile; text only (no miss flash).
 	await _map.await_combat_projectile(from, target, wid)
 	_push_message(Locale.t("cmd_missed"), false)
+	await _map.await_combat_projectile_return()
 
 
 func _combat_pick_scatter_tile(center: Vector2i, exclude: Vector2i = Vector2i(-999, -999)) -> Vector2i:

@@ -196,6 +196,11 @@ static func leaves_field(weapon_id: int) -> bool:
 	return weapon_id == Id.FLAMING_OIL
 
 
+static func returns_to_thrower(weapon_id: int) -> bool:
+	## Magic axe flies out then boomerangs back (not consumed).
+	return weapon_id == Id.MAGIC_AXE
+
+
 static func chebyshev(a: Vector2i, b: Vector2i) -> int:
 	return maxi(absi(a.x - b.x), absi(a.y - b.y))
 
