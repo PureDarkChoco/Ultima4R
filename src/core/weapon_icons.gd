@@ -76,9 +76,10 @@ const DAMAGE: Array[int] = [
 ]
 
 ## Combat aim range by id (−1 = unlimited magic ranged).
+## Dagger is not listed independently — always oil range + 1 (see range_of).
 ## Sling 8, Oil 6, Bow 7, Crossbow 8; Magic Axe/Bow/Wand unlimited.
 const RANGE: Array[int] = [
-	1, 1, 10, 8, 1, 1, 1, 7, 8, 6, 2, -1, 1, -1, -1, 1,
+	1, 1, 0, 8, 1, 1, 1, 7, 8, 6, 2, -1, 1, -1, -1, 1,
 ]
 
 ## xu4 WEAP_ABSOLUTERANGE — only hits at exact distance (Halberd).
@@ -141,8 +142,11 @@ static func damage_of(weapon_id: int) -> int:
 
 static func range_of(weapon_id: int) -> int:
 	## Max aim distance; huge sentinel for unlimited magic ranged.
+	## Dagger: xu4 10 = oil 9 + 1 — derived here so oil changes stay in sync.
 	if is_unlimited_range(weapon_id):
 		return 99
+	if weapon_id == Id.DAGGER:
+		return maxi(1, range_of(Id.FLAMING_OIL) + 1)
 	if weapon_id < 0 or weapon_id >= RANGE.size():
 		return 1
 	return maxi(1, RANGE[weapon_id])
@@ -156,11 +160,11 @@ static func is_unlimited_range(weapon_id: int) -> bool:
 
 static func is_melee(weapon_id: int) -> bool:
 	## Range-1 non-absolute weapons: U5-style 8-direction adjacent aim.
-	if is_unlimited_range(weapon_id) or is_absolute_range(weapon_id):
+	## Must use range_of (not RANGE[]): Dagger stores 0 in RANGE and
+	## derives oil+1 there — RANGE[dagger] <= 1 wrongly forced melee.
+	if is_absolute_range(weapon_id):
 		return false
-	if weapon_id < 0 or weapon_id >= RANGE.size():
-		return true
-	return RANGE[weapon_id] <= 1
+	return range_of(weapon_id) <= 1
 
 
 static func is_absolute_range(weapon_id: int) -> bool:
@@ -185,6 +189,11 @@ static func loses_when_used(weapon_id: int) -> bool:
 	if weapon_id < 0 or weapon_id >= LOSE_WHEN_USED.size():
 		return false
 	return LOSE_WHEN_USED[weapon_id]
+
+
+static func leaves_field(weapon_id: int) -> bool:
+	## xu4 leaveTile (flaming oil → fire_field).
+	return weapon_id == Id.FLAMING_OIL
 
 
 static func chebyshev(a: Vector2i, b: Vector2i) -> int:

@@ -19,19 +19,25 @@ const INV_ICON := 20
 const INV_ROW_H := 25
 const INV_LIST_SEP := 3
 const INV_DELTA_W := 44
-const INV_STAT_W := 40
+## Wide enough for "Damage" / "Defense" titles at FONT_SIZE-1 (fixed-width slot).
+const INV_STAT_W := 56
 const INV_QTY_W := 28
 const INV_PAD_H := 10
-const INV_PAD_V := 6
+const INV_PAD_TOP := 6
+const INV_ROOT_SEP := 6
 const CUR_ICON := 20
 
 
 var _root: VBoxContainer
+var _pad_top: Control
 var _cur_icon: TextureRect
 var _cur_name: Label
 var _cur_atk: Label
 var _scroll: ScrollContainer
 var _list: VBoxContainer
+## Absorbs leftover panel pixels so the list viewport is an exact N-row height.
+var _tail: Control
+var _visible_rows := 1
 var _slot := -1
 var _klass := -1
 var _current_id := 0
@@ -41,6 +47,8 @@ var _ids: Array[int] = []
 var _usable: Array[bool] = []
 var _row_wraps: Array[Control] = []
 var _cursor := 0
+## Bumps to cancel deferred scroll restores after close / reopen.
+var _scroll_gen := 0
 
 
 func _ready() -> void:
@@ -50,14 +58,14 @@ func _ready() -> void:
 
 	_root = VBoxContainer.new()
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_root.add_theme_constant_override("separation", 6)
+	_root.add_theme_constant_override("separation", INV_ROOT_SEP)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	var pad_top := Control.new()
-	pad_top.custom_minimum_size = Vector2(0, INV_PAD_V)
-	pad_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(pad_top)
+	_pad_top = Control.new()
+	_pad_top.custom_minimum_size = Vector2(0, INV_PAD_TOP)
+	_pad_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_pad_top)
 
 	var cur_wrap := MarginContainer.new()
 	cur_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
@@ -89,24 +97,27 @@ func _ready() -> void:
 	_cur_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cur_row.add_child(_cur_name)
 
-	var atk_kind := Label.new()
-	atk_kind.text = Locale.t("ztats_atk")
-	atk_kind.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	atk_kind.add_theme_font_size_override("font_size", FONT_SIZE)
-	atk_kind.add_theme_color_override("font_color", COL_ACCENT)
-	UiTheme.apply_font(atk_kind)
-	atk_kind.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cur_row.add_child(atk_kind)
-
+	## Match list columns: Δ | ATK | Qty (kind sits in the Δ slot).
+	cur_row.add_child(_fixed_col(
+		Locale.t("ztats_atk"), INV_DELTA_W, FONT_SIZE, COL_ACCENT
+	))
+	var atk_slot := Control.new()
+	atk_slot.custom_minimum_size = Vector2(INV_STAT_W, 0)
+	atk_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	atk_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	atk_slot.clip_contents = true
 	_cur_atk = Label.new()
+	_cur_atk.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_cur_atk.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_cur_atk.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_cur_atk.custom_minimum_size = Vector2(INV_STAT_W, 0)
+	_cur_atk.clip_text = true
 	_cur_atk.add_theme_font_size_override("font_size", FONT_SIZE)
 	_cur_atk.add_theme_color_override("font_color", COL_TEXT)
 	UiTheme.apply_font(_cur_atk)
 	_cur_atk.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cur_row.add_child(_cur_atk)
+	atk_slot.add_child(_cur_atk)
+	cur_row.add_child(atk_slot)
+	cur_row.add_child(_fixed_col("", INV_QTY_W, FONT_SIZE, COL_TEXT))
 
 	var hdr_wrap := MarginContainer.new()
 	hdr_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
@@ -120,14 +131,17 @@ func _ready() -> void:
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	## Programmatic scroll only — hide bar so header / rows share width.
+	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scroll.clip_contents = true
 	_root.add_child(_scroll)
 
 	var list_margin := MarginContainer.new()
 	list_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list_margin.add_theme_constant_override("margin_left", INV_PAD_H)
 	list_margin.add_theme_constant_override("margin_right", INV_PAD_H)
-	list_margin.add_theme_constant_override("margin_bottom", INV_PAD_V)
+	## No bottom pad — content height is an exact multiple of the row stride.
 	list_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_scroll.add_child(list_margin)
 
@@ -137,8 +151,21 @@ func _ready() -> void:
 	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	list_margin.add_child(_list)
 
+	_tail = Control.new()
+	_tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tail.custom_minimum_size = Vector2.ZERO
+	_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_root.add_child(_tail)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and visible:
+		call_deferred("_fit_list_viewport_gen", _scroll_gen)
+
 
 func open_for(slot: int) -> void:
+	## Always start at the top usable row and scroll home.
+	_scroll_gen += 1
 	_slot = slot
 	_klass = GameState.party_member_at(slot)
 	_current_id = GameState.weapon_of_slot(slot)
@@ -147,10 +174,14 @@ func open_for(slot: int) -> void:
 	_rebuild_list()
 	_cursor = _first_usable_index()
 	_sync_cursor()
+	_scroll_to_top()
 	visible = true
+	var gen := _scroll_gen
+	call_deferred("_fit_list_viewport_gen", gen)
 
 
 func close_panel() -> void:
+	_scroll_gen += 1
 	visible = false
 	_slot = -1
 	_klass = -1
@@ -158,6 +189,7 @@ func close_panel() -> void:
 	_usable.clear()
 	_row_wraps.clear()
 	_clear_list()
+	_scroll_to_top()
 
 
 func slot() -> int:
@@ -263,6 +295,7 @@ func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
 	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	## Fixed row height — clip so font metrics can't add 1–2px and jiggle scroll.
 	wrap.clip_contents = true
 
 	var bg := ColorRect.new()
@@ -308,45 +341,24 @@ func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
 	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(name_lab)
 
-	var delta_lab := Label.new()
-	delta_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	delta_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	delta_lab.custom_minimum_size = Vector2(INV_DELTA_W, 0)
-	delta_lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	if not ok or delta == 0:
-		delta_lab.text = ""
-		delta_lab.add_theme_color_override("font_color", COL_DIM)
-	elif delta > 0:
-		delta_lab.text = "+%d" % delta
-		delta_lab.add_theme_color_override("font_color", COL_DELTA_UP)
-	else:
-		delta_lab.text = "%d" % delta
-		delta_lab.add_theme_color_override("font_color", COL_DELTA_DOWN)
-	UiTheme.apply_font(delta_lab)
-	delta_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(delta_lab)
-
-	var dmg_lab := Label.new()
-	dmg_lab.text = str(dmg)
-	dmg_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	dmg_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	dmg_lab.custom_minimum_size = Vector2(INV_STAT_W, 0)
-	dmg_lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	dmg_lab.add_theme_color_override("font_color", COL_TEXT if ok else COL_DIM)
-	UiTheme.apply_font(dmg_lab)
-	dmg_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(dmg_lab)
-
-	var qty_lab := Label.new()
-	qty_lab.text = "" if is_hands else str(mini(qty, 99))
-	qty_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	qty_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	qty_lab.custom_minimum_size = Vector2(INV_QTY_W, 0)
-	qty_lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	qty_lab.add_theme_color_override("font_color", COL_TEXT if ok else COL_DIM)
-	UiTheme.apply_font(qty_lab)
-	qty_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(qty_lab)
+	var delta_txt := ""
+	var delta_col := COL_DIM
+	if ok and delta > 0:
+		delta_txt = "+%d" % delta
+		delta_col = COL_DELTA_UP
+	elif ok and delta < 0:
+		delta_txt = "%d" % delta
+		delta_col = COL_DELTA_DOWN
+	row.add_child(_fixed_col(delta_txt, INV_DELTA_W, FONT_SIZE, delta_col))
+	row.add_child(_fixed_col(
+		str(dmg), INV_STAT_W, FONT_SIZE, COL_TEXT if ok else COL_DIM
+	))
+	row.add_child(_fixed_col(
+		"" if is_hands else str(mini(qty, 99)),
+		INV_QTY_W,
+		FONT_SIZE,
+		COL_TEXT if ok else COL_DIM
+	))
 
 	_list.add_child(wrap)
 	_ids.append(weapon_id)
@@ -381,36 +393,44 @@ func _make_header_row() -> Control:
 	UiTheme.apply_font(nm)
 	row.add_child(nm)
 
-	var delta := Label.new()
-	delta.text = Locale.t("ready_col_delta")
-	delta.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	delta.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	delta.custom_minimum_size = Vector2(INV_DELTA_W, 0)
-	delta.add_theme_font_size_override("font_size", FONT_SIZE - 1)
-	delta.add_theme_color_override("font_color", COL_ACCENT)
-	UiTheme.apply_font(delta)
-	row.add_child(delta)
-
-	var st := Label.new()
-	st.text = Locale.t("ztats_col_damage")
-	st.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	st.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	st.custom_minimum_size = Vector2(INV_STAT_W, 0)
-	st.add_theme_font_size_override("font_size", FONT_SIZE - 1)
-	st.add_theme_color_override("font_color", COL_ACCENT)
-	UiTheme.apply_font(st)
-	row.add_child(st)
-
-	var q := Label.new()
-	q.text = Locale.t("ztats_col_qty")
-	q.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	q.custom_minimum_size = Vector2(INV_QTY_W, 0)
-	q.add_theme_font_size_override("font_size", FONT_SIZE - 1)
-	q.add_theme_color_override("font_color", COL_ACCENT)
-	UiTheme.apply_font(q)
-	row.add_child(q)
+	## Fixed-width slots so long titles (Damage / 공격력) cannot shift Δ vs numbers.
+	row.add_child(_fixed_col(
+		Locale.t("ready_col_delta"), INV_DELTA_W, FONT_SIZE - 1, COL_ACCENT
+	))
+	row.add_child(_fixed_col(
+		Locale.t("ztats_col_damage"), INV_STAT_W, FONT_SIZE - 1, COL_ACCENT
+	))
+	row.add_child(_fixed_col(
+		Locale.t("ztats_col_qty"), INV_QTY_W, FONT_SIZE - 1, COL_ACCENT
+	))
 	return wrap
+
+
+## Non-Container slot of exact width — Label text cannot widen the column.
+func _fixed_col(
+	text: String,
+	width: float,
+	font_size: int,
+	color: Color
+) -> Control:
+	var slot := Control.new()
+	slot.custom_minimum_size = Vector2(width, 0)
+	slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.clip_contents = true
+	var lab := Label.new()
+	lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lab.text = text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.clip_text = true
+	lab.add_theme_font_size_override("font_size", font_size)
+	lab.add_theme_color_override("font_color", color)
+	UiTheme.apply_font(lab)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.add_child(lab)
+	return slot
+
 
 
 func _first_usable_index() -> int:
@@ -456,17 +476,120 @@ func _sync_cursor() -> void:
 
 
 func _ensure_cursor_visible() -> void:
+	## Viewport is an exact N-row height → move by whole strides only.
 	if _cursor < 0 or _cursor >= _row_wraps.size() or _scroll == null:
 		return
-	var row := _row_wraps[_cursor]
-	var top := row.position.y
-	var bot := top + row.size.y
-	var view_top := _scroll.scroll_vertical
-	var view_bot := view_top + _scroll.size.y
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var top := _cursor * stride
+	var bot := top + INV_ROW_H
+	var view_h := _list_viewport_height(_visible_rows)
+	if view_h <= 0:
+		view_h = int(_scroll.size.y)
+	if view_h <= 0:
+		return
+	var max_scroll := _scroll_max()
+	var view_top := int(_scroll.scroll_vertical)
+	var view_bot := view_top + view_h
+	var next := view_top
 	if top < view_top:
-		_scroll.scroll_vertical = int(top)
+		next = top
 	elif bot > view_bot:
-		_scroll.scroll_vertical = int(bot - _scroll.size.y)
+		next = bot - view_h
+	## Whole-row steps only (and exact max).
+	if next > 0:
+		next = (next / stride) * stride
+	next = clampi(next, 0, max_scroll)
+	if next != view_top:
+		_scroll.scroll_vertical = next
+
+
+func _list_viewport_height(rows: int) -> int:
+	if rows <= 0:
+		return 0
+	return rows * INV_ROW_H + (rows - 1) * INV_LIST_SEP
+
+
+func _scroll_content_height() -> int:
+	var n := _row_wraps.size()
+	if n <= 0:
+		return 0
+	return n * INV_ROW_H + (n - 1) * INV_LIST_SEP
+
+
+func _scroll_max() -> int:
+	## content (n rows) − viewport (v rows) = (n − v) · stride
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var n := _row_wraps.size()
+	var v := maxi(1, _visible_rows)
+	return maxi(0, (n - v) * stride)
+
+
+func _fit_list_viewport_gen(gen: int) -> void:
+	if gen != _scroll_gen:
+		return
+	## Let expand layout settle, then snap to an exact N-row height.
+	_tail.custom_minimum_size = Vector2.ZERO
+	_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_scroll.custom_minimum_size = Vector2.ZERO
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	if _pad_top:
+		_pad_top.custom_minimum_size.y = INV_PAD_TOP
+	call_deferred("_fit_list_viewport_apply", gen)
+
+
+func _fit_list_viewport_apply(gen: int) -> void:
+	if gen != _scroll_gen:
+		return
+	_fit_list_viewport()
+	_scroll_to_top()
+
+
+func _fit_list_viewport() -> void:
+	## Make scroll area height an exact multiple of list rows (no half-row clip).
+	if _scroll == null or _tail == null or _root == null:
+		return
+	## Available height is the expanded scroll area (or formula if not yet laid out).
+	var avail := int(_scroll.size.y)
+	if avail < INV_ROW_H:
+		var chrome := 0
+		var before := 0
+		for c in _root.get_children():
+			if c == _scroll:
+				break
+			var ch := int(c.size.y)
+			if ch < 1:
+				ch = int(c.get_combined_minimum_size().y)
+			chrome += ch
+			before += 1
+		chrome += INV_ROOT_SEP * before
+		avail = int(size.y) - chrome - INV_ROOT_SEP
+	if avail < INV_ROW_H:
+		avail = INV_ROW_H
+	var stride := INV_ROW_H + INV_LIST_SEP
+	## Prefer one more full row by shaving top pad (list grows "up") when it fits.
+	var pad_budget := INV_PAD_TOP
+	var n_vis := maxi(1, (avail + INV_LIST_SEP) / stride)
+	var residual := avail - _list_viewport_height(n_vis)
+	var need_for_extra := stride - residual
+	if residual > 0 and residual < stride and need_for_extra > 0 and need_for_extra <= pad_budget:
+		if _pad_top:
+			_pad_top.custom_minimum_size.y = INV_PAD_TOP - need_for_extra
+		avail += need_for_extra
+		n_vis += 1
+	elif _pad_top:
+		_pad_top.custom_minimum_size.y = INV_PAD_TOP
+	var exact := _list_viewport_height(n_vis)
+	residual = maxi(0, avail - exact)
+	_visible_rows = n_vis
+	_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_scroll.custom_minimum_size = Vector2(0, exact)
+	_tail.custom_minimum_size = Vector2(0, residual)
+	_tail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+
+func _scroll_to_top() -> void:
+	if _scroll != null:
+		_scroll.scroll_vertical = 0
 
 
 func _clear_list() -> void:

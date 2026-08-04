@@ -634,10 +634,13 @@ func combat_can_strike(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
 	return _WeaponIconsScript.aim_strike_allows(weapon_id, from, to)
 
 
-func combat_shot_reaches(from: Vector2i, to: Vector2i) -> bool:
+func combat_shot_reaches(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> bool:
 	## True if the shot lands on `to`.
-	## Secret doors are attackable; normal obstacles are not (stop one tile short).
+	## Halberd (attackthroughobjects): ignore intermediate walls.
+	## Secret doors are attackable; normal obstacles stop one tile short.
 	if _combat_map == null or from == to:
+		return true
+	if _WeaponIconsScript.attacks_through_objects(weapon_id):
 		return true
 	var cells: Array[Vector2i] = _TileRulesCamp.cells_on_line(from, to)
 	for i in range(1, cells.size()):
@@ -652,9 +655,12 @@ func combat_shot_reaches(from: Vector2i, to: Vector2i) -> bool:
 	return true
 
 
-func combat_projectile_end(from: Vector2i, to: Vector2i) -> Vector2i:
+func combat_projectile_end(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> Vector2i:
 	## Secret door: land on that tile. Other blockers: stop on the tile before them.
+	## Halberd flies through solids to the aimed cell.
 	if _combat_map == null or from == to:
+		return to
+	if _WeaponIconsScript.attacks_through_objects(weapon_id):
 		return to
 	var cells: Array[Vector2i] = _TileRulesCamp.cells_on_line(from, to)
 	for i in range(1, cells.size()):
@@ -667,6 +673,18 @@ func combat_projectile_end(from: Vector2i, to: Vector2i) -> Vector2i:
 		## Normal obstacle — stop on the previous cell (in front of the wall).
 		return cells[i - 1]
 	return to
+
+
+func combat_leave_field(pos: Vector2i, field_tid: int = TILE_FIELD_FIRE) -> bool:
+	## xu4 weapon leaveTile (e.g. flaming oil → fire_field) when ground is walkable.
+	if _combat_map == null or not _combat_in_bounds(pos):
+		return false
+	var ground := int(_combat_map.tile_at(pos.x, pos.y))
+	if not _TileRulesCamp.is_creature_walkable(ground):
+		return false
+	_combat_map.set_tile(pos.x, pos.y, field_tid)
+	_rebuild()
+	return true
 
 
 func combat_foe_index_at(pos: Vector2i) -> int:
@@ -781,11 +799,11 @@ func await_flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12
 
 func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> void:
 	## Cannon-style flight in combat-local coords (straight line, any angle).
-	## Stops on the first wall/mast (magic weapons included — no pass-through).
+	## Stops on the first wall/mast unless weapon attacks through objects (Halberd).
 	## `weapon_id` selects a custom missile sprite (e.g. sling stone).
 	if from == to:
 		return
-	var end := combat_projectile_end(from, to)
+	var end := combat_projectile_end(from, to, weapon_id)
 	var delta := end - from
 	var steps := maxi(absi(delta.x), absi(delta.y))
 	if steps <= 0:
@@ -908,19 +926,20 @@ func act_combat_creature_at(index: int) -> Dictionary:
 	out["from"] = from
 	out["tile"] = tid
 	out["base_hp"] = base_hp
-	## 1/4: free-aim ranged (player-style target + LOF), if capable.
-	if (
-		_WorldCreaturesScript.is_ranged(tid)
-		and (randi() % 4) == 0
-	):
+	## Free-aim ranged: on row/col/exact-diagonal → always shoot if LOF.
+	## Off-axis free aim → 40% shoot, 60% advance (keeps melee party in play).
+	if _WorldCreaturesScript.is_ranged(tid):
 		var ranged := _combat_pick_ranged_target(from)
 		if ranged.party_i >= 0:
-			out["action"] = "ranged"
-			out["to"] = ranged.pos
-			out["party_i"] = ranged.party_i
-			out["klass"] = ranged.klass
-			out["effect"] = _WorldCreaturesScript.ranged_effect(tid)
-			return out
+			var aligned := _combat_is_axis_or_diagonal(from, ranged.pos)
+			if aligned or (randi() % 100) < 40:
+				out["action"] = "ranged"
+				out["to"] = ranged.pos
+				out["party_i"] = ranged.party_i
+				out["klass"] = ranged.klass
+				out["effect"] = _WorldCreaturesScript.ranged_effect(tid)
+				return out
+			## 60% off-axis: skip the shot and fall through to advance.
 	## 1/4: cast sleep (Reaper / Balron) when not ranging.
 	if _WorldCreaturesScript.casts_sleep(tid) and (randi() % 4) == 0:
 		out["action"] = "cast_sleep"
@@ -984,6 +1003,17 @@ func _combat_pick_ranged_target(from: Vector2i) -> Dictionary:
 		if better:
 			best = {"party_i": i, "klass": klass, "pos": pos, "dist": dist}
 	return best
+
+
+func _combat_is_axis_or_diagonal(from: Vector2i, to: Vector2i) -> bool:
+	## Classic U4 LOS axes: straight N/S/E/W or exact 45° diagonal.
+	var dx := absi(to.x - from.x)
+	var dy := absi(to.y - from.y)
+	if dx == 0 and dy == 0:
+		return false
+	if dx == 0 or dy == 0:
+		return true
+	return dx == dy
 
 
 func _combat_apply_advance_step(index: int, from: Vector2i, target: Vector2i) -> bool:

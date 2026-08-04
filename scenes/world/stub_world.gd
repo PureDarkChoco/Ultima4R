@@ -8,6 +8,8 @@ extends Control
 ## Preload so world scene parses even if global class cache is stale.
 const _TileRules := preload("res://src/map/tile_rules.gd")
 const _MixPanel := preload("res://src/ui/mix_panel.gd")
+const _UsePanel := preload("res://src/ui/use_panel.gd")
+const _UseItems := preload("res://src/core/use_items.gd")
 const _CombatMapData := preload("res://src/map/combat_map_data.gd")
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
@@ -43,6 +45,7 @@ var _ztats_panel: ZtatsPanel
 var _ready_panel: ReadyPanel
 var _wear_panel: WearPanel
 var _mix_panel # MixPanel — preloaded script instance
+var _use_panel # UsePanel — preloaded script instance
 var _locate_label: Label
 var _locate_on := false
 var _ship_hull_hud: HBoxContainer
@@ -170,6 +173,8 @@ var _wear_cursor := 0
 var _wear_slot := -1
 ## Improved Mix: 0 = idle, 1 = known list, 2 = reagent pick, 3 = wait spell letter (Make new).
 var _mix_stage := 0
+## Use (U): 0 = idle, 1 = pick item from list.
+var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
@@ -1060,6 +1065,8 @@ func _prompt_row_text() -> String:
 		return MSG_PROMPT + Locale.t("mix_title")
 	if _mix_stage == 3:
 		return MSG_PROMPT + Locale.t("mix_for_spell")
+	if _use_stage == 1:
+		return MSG_PROMPT + Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
 		return MSG_PROMPT + Locale.t("cmd_ztats_for")
 	if _camp_stage == 2:
@@ -1448,7 +1455,7 @@ func _process(delta: float) -> void:
 	if _is_party_asleep_locked():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	if _ready_stage == 2:
@@ -1460,7 +1467,7 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1689,6 +1696,8 @@ func _tick_select_cursor() -> void:
 		_nudge_wear_cursor(step)
 	elif _mix_stage == 1 or _mix_stage == 2:
 		_nudge_mix_cursor(step)
+	elif _use_stage == 1:
+		_nudge_use_cursor(step)
 	elif _camp_stage == 3:
 		_nudge_camp_guard_cursor(step)
 	elif _chest_open_stage == 1:
@@ -1783,6 +1792,9 @@ func _on_escape() -> void:
 	if _wear_stage != 0:
 		_close_wear(true)
 		return
+	if _use_stage != 0:
+		_close_use(true)
+		return
 	if _ztats_stage != 0:
 		_close_ztats(true)
 		return
@@ -1831,6 +1843,7 @@ func _input(event: InputEvent) -> void:
 				or _ready_stage != 0
 				or _wear_stage != 0
 				or _mix_stage != 0
+				or _use_stage != 0
 				or _camp_stage == 2
 				or _camp_stage == 3
 				or _chest_open_stage != 0
@@ -1852,9 +1865,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if _combat_active:
-		## Nested UIs opened from combat (Ready / Ztats / Open Who) before arena keys.
+		## Nested UIs opened from combat (Ready / Use / Ztats / Open Who) before arena keys.
 		if _ready_stage != 0:
 			if _handle_ready_input(event):
+				get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
+		if _use_stage != 0:
+			if _handle_use_input(event):
 				get_viewport().set_input_as_handled()
 			elif event.is_pressed():
 				get_viewport().set_input_as_handled()
@@ -1921,6 +1940,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _mix_stage != 0:
 		if _handle_mix_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _use_stage != 0:
+		if _handle_use_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -2047,6 +2072,7 @@ func _handle_command(cmd: int) -> void:
 		_close_ready(false)
 		_close_wear(false)
 		_close_mix(false)
+		_close_use(false)
 		_close_camp(false)
 		_cancel_chest_open(false)
 		_close_save(false)
@@ -2066,6 +2092,7 @@ func _handle_command(cmd: int) -> void:
 		_close_ready(false)
 		_close_wear(false)
 		_close_mix(false)
+		_close_use(false)
 		_close_camp(false)
 		_cancel_chest_open(false)
 		_close_save(false)
@@ -2079,6 +2106,7 @@ func _handle_command(cmd: int) -> void:
 	_close_ready(false)
 	_close_wear(false)
 	_close_mix(false)
+	_close_use(false)
 	_close_camp(false)
 	_cancel_chest_open(false)
 	_cancel_telescope(false)
@@ -2097,6 +2125,8 @@ func _handle_command(cmd: int) -> void:
 		_do_wear()
 	elif cmd == U4Commands.Id.MIX:
 		_do_mix()
+	elif cmd == U4Commands.Id.USE:
+		_do_use()
 	elif cmd == U4Commands.Id.HOLE_UP:
 		_do_hole_up()
 	elif cmd == U4Commands.Id.ENTER:
@@ -3582,6 +3612,7 @@ func _do_ready() -> void:
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_wear(false)
+	_close_use(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		if _combat_active and not _combat_resolving:
@@ -3896,6 +3927,7 @@ func _do_wear() -> void:
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_ready(false)
+	_close_use(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		return
@@ -4139,6 +4171,7 @@ func _do_mix() -> void:
 	_close_ztats(false)
 	_close_ready(false)
 	_close_wear(false)
+	_close_use(false)
 	if not GameState.has_any_reagents():
 		_push_message(Locale.t("mix_none_left"), false)
 		_finish_party_turn()
@@ -4401,6 +4434,119 @@ func _close_mix(show_none: bool) -> void:
 	if show_none:
 		_push_message(Locale.t("cmd_none"), false)
 	_finish_party_turn()
+
+
+func _ensure_use_panel() -> void:
+	if _use_panel != null:
+		return
+	var host := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as Control
+	if host == null:
+		return
+	_use_panel = _UsePanel.new()
+	_use_panel.name = "UsePanel"
+	_use_panel.visible = false
+	_use_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(_use_panel)
+
+
+func _do_use() -> void:
+	## List-based Use. No owned quest items → message and end (remake).
+	_clear_pending_order()
+	_close_ztats(false)
+	_close_ready(false)
+	_close_wear(false)
+	_close_mix(false)
+	if not _UseItems.has_any():
+		_push_message(Locale.t("cmd_use_none"), false)
+		if _combat_active and not _combat_resolving:
+			_combat_finish_member_turn()
+		else:
+			_finish_party_turn()
+		return
+	_push_message(Locale.t("cmd_use_which"), false)
+	_ensure_use_panel()
+	_open_order_roster()
+	if _roster:
+		_roster.visible = false
+	if _ztats_panel:
+		_ztats_panel.close_panel()
+	_use_stage = 1
+	_reset_hold_state()
+	if _use_panel:
+		_use_panel.open_list()
+	_layout_prompt_row()
+
+
+func _nudge_use_cursor(step: int) -> void:
+	if _use_panel == null:
+		return
+	_use_panel.nudge_cursor(step)
+
+
+func _handle_use_input(event: InputEvent) -> bool:
+	if not event.is_pressed():
+		return false
+	if event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+		if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
+			_close_use(true)
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_use(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_use(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_confirm_use_cursor()
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_confirm_use_cursor()
+		return true
+	if event is InputEventKey and _is_direction_key(event as InputEventKey):
+		return true
+	return true
+
+
+func _confirm_use_cursor() -> void:
+	if _use_panel == null:
+		return
+	var kind: int = int(_use_panel.cursor_kind())
+	if kind < 0:
+		return
+	## Effects (horn / skull / BBC…) land later — wrong place → classic line.
+	var item_name := _UseItems.display_name(kind)
+	_close_use(false)
+	_push_message(item_name, false)
+	_push_message(Locale.t("cmd_use_no_effect"), false)
+	if _combat_active and not _combat_resolving:
+		_combat_finish_member_turn()
+	else:
+		_finish_party_turn()
+
+
+func _close_use(show_none: bool) -> void:
+	var was := _use_stage
+	if was == 0:
+		if _use_panel:
+			_use_panel.close_panel()
+		return
+	_use_stage = 0
+	if _use_panel:
+		_use_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_layout_prompt_row()
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+		if not _combat_active:
+			_finish_party_turn()
 
 
 func _do_hole_up() -> void:
@@ -5368,6 +5514,9 @@ func _close_ui_for_death() -> void:
 	_mix_stage = 0
 	if _mix_panel:
 		_mix_panel.close_panel()
+	_use_stage = 0
+	if _use_panel:
+		_use_panel.close_panel()
 	if _save_stage != 0:
 		_close_save(false)
 	if _esc_menu_is_open():
@@ -5506,7 +5655,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -5875,8 +6024,7 @@ func _handle_combat_command(cmd: int) -> void:
 			_push_message(Locale.t("cmd_stub", [letter, name]), false)
 			_combat_finish_member_turn()
 		U4Commands.Id.USE:
-			_push_message(Locale.t("cmd_stub", [letter, name]), false)
-			_combat_finish_member_turn()
+			_do_use()
 		U4Commands.Id.VOLUME:
 			## xu4 V toggles music; no turn cost.
 			_push_message(Locale.t("cmd_stub", [letter, name]), false)
@@ -6038,23 +6186,24 @@ func _combat_confirm_aim() -> void:
 func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector2i) -> void:
 	_combat_resolving = true
 	_stamp_command_time()
-	var dist := WeaponIcons.aim_distance(from, target)
+	## xu4 path distance: each 8-way step counts as 1 (Chebyshev, not aim_distance).
+	var steps := WeaponIcons.chebyshev(from, target)
 	var valid_cell := _map.combat_can_strike(wid, from, target)
 	## Self tile: unstrikeable. Allies and foes are valid targets.
-	## Intermediate walls stop the missile — no hit past the obstacle.
+	## Intermediate walls stop the missile — no hit past the obstacle (except Halberd).
 	var aim_foe_i := -1
 	var aim_ally_i := -1
 	if valid_cell:
 		aim_foe_i = _map.combat_foe_index_at(target)
 		if aim_foe_i < 0:
 			aim_ally_i = _map.combat_party_index_at(target)
-	## Projectiles for non-melee strikes that leave the adjacent ortho step.
+	## Projectiles for non-melee strikes beyond adjacent 8-way, or absolute-range weapons.
 	var use_proj := (
 		not WeaponIcons.is_melee(wid)
 		and from != target
-		and (WeaponIcons.is_absolute_range(wid) or dist > 1)
+		and (WeaponIcons.is_absolute_range(wid) or steps > 1)
 	)
-	if use_proj and not _map.combat_shot_reaches(from, target):
+	if use_proj and not _map.combat_shot_reaches(from, target, wid):
 		## Wall/mast in the way — fly until the obstacle, no unit damage beyond.
 		aim_foe_i = -1
 		aim_ally_i = -1
@@ -6072,15 +6221,23 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 	else:
 		await _combat_resolve_melee_attack(klass, target, aim_foe_i, aim_ally_i, found_target)
 
-	## xu4: lose when used (oil), or loseWhenRanged when !foundTarget || distance > 1.
+	## xu4: lose when used (oil). Dagger loseWhenRanged: adjacent 8-way hit keeps;
+	## thrown (steps > 1) or no target → consume.
 	var spent := WeaponIcons.loses_when_used(wid) or (
-		WeaponIcons.loses_when_ranged(wid) and (not found_target or dist > 1)
+		WeaponIcons.loses_when_ranged(wid) and (not found_target or steps > 1)
 	)
 	if spent and klass >= 0:
 		var kept := GameState.lose_ready_weapon(klass)
 		_refresh_party()
 		if not kept:
 			_push_message(Locale.t("cmd_last_one"), false)
+
+	## xu4 leaveTile (flaming oil → fire_field on walkable impact cell).
+	if WeaponIcons.leaves_field(wid) and _map != null:
+		var leave_at := target
+		if use_proj:
+			leave_at = _map.combat_projectile_end(from, target, wid)
+		_map.combat_leave_field(leave_at, MapView.TILE_FIELD_FIRE)
 
 	if not _combat_active or _map == null or not _map.is_in_combat():
 		_combat_resolving = false

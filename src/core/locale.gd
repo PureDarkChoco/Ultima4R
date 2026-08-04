@@ -1242,9 +1242,9 @@ const _T := {
 		"ko": "%s은(는) %s을(를) 쓸 수 없다",
 	},
 	"ready_col_delta": {
-		"en_u4": "Δ",
-		"en_us": "Δ",
-		"ko": "Δ",
+		"en_u4": "▲",
+		"en_us": "▲",
+		"ko": "▲",
 	},
 	## xu4 wearArmor()
 	"cmd_wear_for": {
@@ -1276,6 +1276,22 @@ const _T := {
 		"en_u4": "A %s may NOT use %s",
 		"en_us": "A %s may NOT use %s",
 		"ko": "%s은(는) %s을(를) 쓸 수 없다",
+	},
+	## Use (U) — list of quest items (remake); empty inventory aborts.
+	"cmd_use_which": {
+		"en_u4": "Use which item:",
+		"en_us": "Use which item:",
+		"ko": "사용할 아이템:",
+	},
+	"cmd_use_none": {
+		"en_u4": "You have no items.",
+		"en_us": "You have no items.",
+		"ko": "가지고 있는 아이템이 없습니다.",
+	},
+	"cmd_use_no_effect": {
+		"en_u4": "Hmm...No effect!",
+		"en_us": "Hmm...No effect!",
+		"ko": "흠... 아무 일도 없다!",
 	},
 	"cmd_fired": {
 		"en_u4": "%s",
