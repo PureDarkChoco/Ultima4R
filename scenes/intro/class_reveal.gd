@@ -22,6 +22,8 @@ const PORTRAIT_PX := 192.0
 func _ready() -> void:
 	UiTheme.apply_root(self)
 	$ColorRect.color = Color.BLACK
+	$ColorRect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	UiTheme.style_label(_class_line, 28, UiTheme.TEXT)
 	UiTheme.style_label(_hint, 14, UiTheme.MUTED)
@@ -34,6 +36,9 @@ func _ready() -> void:
 	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_portrait.custom_minimum_size = Vector2(PORTRAIT_PX, PORTRAIT_PX)
+	_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_class_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh())
 	_refresh()
@@ -50,13 +55,26 @@ func _refresh() -> void:
 	_hint.text = Locale.t("press_any_key")
 
 
+func _gui_input(event: InputEvent) -> void:
+	## Mouse clicks hit this Control first (full-rect stop filter).
+	if _try_continue(event):
+		accept_event()
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_pressed() or event.is_echo():
-		return
 	## Esc only leaves character creation on the name/gender screen.
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
 		get_viewport().set_input_as_handled()
 		return
+	if _try_continue(event):
+		get_viewport().set_input_as_handled()
+
+
+func _try_continue(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
+		return false
 	if (
 		event.is_action_pressed("ui_accept")
 		or event.is_action_pressed("confirm")
@@ -65,4 +83,5 @@ func _unhandled_input(event: InputEvent) -> void:
 		or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
 	):
 		SceneRouter.to_world(true)
-		get_viewport().set_input_as_handled()
+		return true
+	return false

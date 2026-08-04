@@ -158,40 +158,69 @@ func _process(delta: float) -> void:
 			break
 
 
+func _gui_input(event: InputEvent) -> void:
+	## Mouse clicks land here (MOUSE_FILTER_STOP), not only in _unhandled_input.
+	if _handle_story_input(event):
+		accept_event()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _busy_fade:
 		get_viewport().set_input_as_handled()
 		return
 	## Esc only leaves character creation on the name/gender screen.
-	if event.is_action_pressed("ui_cancel") or (
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel") or (
 		event is InputEventKey and event.pressed and not event.echo
 		and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE)
 	):
 		get_viewport().set_input_as_handled()
 		return
-	if not event.is_pressed() or event.is_echo():
-		return
-	if _mode == Mode.QUESTIONS:
-		_handle_question_input(event)
-		return
-	if event.is_action_pressed("ui_accept") or _is_advance_key(event):
-		_advance()
+	if _handle_story_input(event):
 		get_viewport().set_input_as_handled()
 
 
-func _handle_question_input(event: InputEvent) -> void:
+func _handle_story_input(event: InputEvent) -> bool:
+	## True if the event was consumed (advance or A/B choice).
+	if _busy_fade:
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _mode == Mode.QUESTIONS:
+		return _handle_question_input(event)
+	if _is_advance_input(event):
+		_advance()
+		return true
+	return false
+
+
+func _handle_question_input(event: InputEvent) -> bool:
 	if _q_phase == QPhase.INTRO:
-		if event.is_action_pressed("ui_accept") or _is_advance_key(event):
+		if _is_advance_input(event):
 			_show_question_ask()
-			get_viewport().set_input_as_handled()
-		return
-	## ASK: A/B (xu4 readChoice "ab").
+			return true
+		return false
+	## ASK: A/B (xu4 readChoice "ab"); click left/right card area for mouse.
 	if event.is_action_pressed("choice_a") or _is_letter(event, KEY_A):
 		_answer_question(0)
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("choice_b") or _is_letter(event, KEY_B):
+		return true
+	if event.is_action_pressed("choice_b") or _is_letter(event, KEY_B):
 		_answer_question(1)
-		get_viewport().set_input_as_handled()
+		return true
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		var pick := _card_pick_at(get_local_mouse_position())
+		if pick >= 0:
+			_answer_question(pick)
+			return true
+	return false
+
+
+func _card_pick_at(local_pos: Vector2) -> int:
+	## 0 = A (left card), 1 = B (right), -1 = miss.
+	if _card_a != null and _card_a.visible and _card_a.get_rect().has_point(local_pos):
+		return 0
+	if _card_b != null and _card_b.visible and _card_b.get_rect().has_point(local_pos):
+		return 1
+	return -1
 
 
 func _is_letter(event: InputEvent, key: int) -> bool:
@@ -201,7 +230,14 @@ func _is_letter(event: InputEvent, key: int) -> bool:
 	return false
 
 
-func _is_advance_key(event: InputEvent) -> bool:
+func _is_advance_input(event: InputEvent) -> bool:
+	## Any "next page" control: key, confirm/ui_accept, mouse LMB, gamepad A.
+	if event.is_action_pressed("ui_accept") or event.is_action_pressed("confirm"):
+		return true
+	if event is InputEventMouseButton:
+		return event.button_index == MOUSE_BUTTON_LEFT
+	if event is InputEventJoypadButton:
+		return event.button_index == JOY_BUTTON_A
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		var code := k.keycode
