@@ -94,6 +94,14 @@ static func blit_to(dst: Image, tile_id: int, dst_pos: Vector2i, frame: int = 0)
 	dst.blit_rect(src, Rect2i(0, 0, TILE_SIZE, TILE_SIZE), dst_pos)
 
 
+static func blend_to(dst: Image, tile_id: int, dst_pos: Vector2i, frame: int = 0) -> void:
+	## Alpha-aware copy (transparent margins show underdraw below).
+	var src := image(tile_id, frame)
+	if src == null or dst == null:
+		return
+	dst.blend_rect(src, Rect2i(0, 0, TILE_SIZE, TILE_SIZE), dst_pos)
+
+
 static func blit_anim_to(dst: Image, tile_id: int, dst_pos: Vector2i, anim_tick: int) -> void:
 	## Cycle multi-frame tiles; single-frame tiles ignore the tick.
 	var n := frame_count(tile_id)

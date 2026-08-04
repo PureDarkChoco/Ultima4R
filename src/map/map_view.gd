@@ -49,6 +49,7 @@ const TILE_FIELD_FIRE := 70
 const TILE_FIELD_SLEEP := 71
 const TILE_SPIT := 75 ## campfire spit — 2-frame fire flicker (`075_spit_1.png`)
 const TILE_CHEST := 60 ## closed chest; open art is frame 1 (`060_chest_1.png`)
+const TILE_BRICK_FLOOR := 62 ## underlay for city map chest tiles
 const TILE_LAVA := 76
 const TILE_MISS_FLASH := 77 ## xu4 missFlash / missile (cannon ball)
 const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
@@ -2507,13 +2508,13 @@ func _rebuild_city() -> void:
 			var my := base.y - half_y + dy
 			var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			if (
-				tid == TILE_CHEST
-				and _city_map != null
-				and _city_map.has_method("is_chest_open")
-				and _city_map.is_chest_open(mx, my)
-			):
-				_U4TileBankScript.blit_to(_stage, TILE_CHEST, dst, 1)
+			if tid == TILE_CHEST:
+				var open: bool = (
+					_city_map != null
+					and _city_map.has_method("is_chest_open")
+					and _city_map.is_chest_open(mx, my)
+				)
+				_blit_chest_tile(_stage, dst, 1 if open else 0, true)
 			else:
 				_blit_terrain_to(_stage, tid, dst)
 
@@ -3138,7 +3139,8 @@ func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
 			continue
 		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
 		var is_open := bool(d.get("open", false))
-		_U4TileBankScript.blit_to(_buf, TILE_CHEST, dst, 1 if is_open else 0)
+		## Terrain already drawn under — blend keyed chest so grass shows through.
+		_U4TileBankScript.blend_to(_buf, TILE_CHEST, dst, 1 if is_open else 0)
 		if not is_open:
 			continue
 		var stack: Array = []
@@ -3847,12 +3849,19 @@ func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
 		## Spit: `075_spit.png` ↔ `075_spit_1.png` (camp, city, world — same path).
 		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	elif tid == TILE_CHEST:
-		## Closed chest only here; open frame is chosen in `_rebuild_city`.
-		_U4TileBankScript.blit_to(target, tid, dst, 0)
+		## xu4 chest uses replacement floor under transparent margins.
+		_blit_chest_tile(target, dst, 0, _city_map != null)
 	elif _U4TileBankScript.frame_count(tid) > 1:
 		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	else:
 		_U4TileBankScript.blit_to(target, tid, dst)
+
+
+func _blit_chest_tile(target: Image, dst: Vector2i, frame: int, city_floor: bool) -> void:
+	## Floor underlay + alpha-blended chest (PNG margins are transparent).
+	var under := TILE_BRICK_FLOOR if city_floor else TILE_GRASS
+	_U4TileBankScript.blit_to(target, under, dst, 0)
+	_U4TileBankScript.blend_to(target, TILE_CHEST, dst, frame)
 
 
 func _refresh_los() -> void:
