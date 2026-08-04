@@ -126,6 +126,7 @@ var _search_busy := false
 var _death_busy := false
 ## Map-pane blackout during death cutscene (xu4 VIEW_CUTSCENE / eraseMapArea).
 var _death_blackout: ColorRect
+var _death_fade_tween: Tween
 ## Combat arena session (battlefield open; turn loop later).
 var _combat_active := false
 ## True while pacing delays / foe turns run — blocks combat input.
@@ -186,8 +187,11 @@ var _immobilized_pending := false
 const CAMP_REST_SEC := 10.0
 ## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
 const IMMOBILIZED_SLEEP_SEC := 0.166
-## xu4 death.cpp — DeathController interval + revive coords.
-const DEATH_PAUSE_SEC := 5.0
+## xu4 death.cpp — deathStart(delay) + DeathController tick + revive.
+## Pre-message (xu4 ~10s): delay 5s + controller 5s → remake: 5 + 3 hold + 2 fade.
+const DEATH_PAUSE_SEC := 5.0 ## seconds between death dialogue lines (controller tick)
+const DEATH_CONTROLLER_HOLD_SEC := 3.0 ## hold on map before first-line fade
+const DEATH_FADE_OUT_SEC := 2.0 ## last part of first DeathController beat (fade to black)
 const DEATH_NAME_WIDTH := 16 ## xu4 TEXT_AREA_W for centered avatar name
 const DEATH_REVIVE_CASTLE := Vector2i(19, 8) ## lcb_2 throne room
 const DEATH_LCB_WORLD := Vector2i(86, 107)
@@ -5044,24 +5048,29 @@ func _start_death_sequence(delay_sec: float = 0.0) -> void:
 
 
 func _run_death_sequence_async(delay_sec: float) -> void:
-	## xu4 DeathController — 5s between messages, then deathRevive.
+	## xu4 deathStart(delay) then DeathController (PAUSE_SEC per line).
+	## First controller beat ≈ 5s: 3s hold + 2s map fade (same total as xu4's 5s).
 	_close_ui_for_death()
 	if _msg_cursor:
 		_msg_cursor.visible = false
 	## Keep the message panel open so lines stay readable during the cutscene.
 	if not _sides_open:
 		_toggle_side_panels()
+	## deathStart(5) wait — combat/map still visible.
 	if delay_sec > 0.0:
 		await _death_wait(delay_sec)
 	if not is_inside_tree() or not _death_busy:
 		_abort_death_sequence()
 		return
-	## First timer tick also waits PAUSE_SEC before message 0.
-	await _death_wait(DEATH_PAUSE_SEC)
+	## First DeathController beat before msg 0 (xu4 PAUSE_SEC=5, split hold+fade).
+	await _death_wait(DEATH_CONTROLLER_HOLD_SEC)
 	if not is_inside_tree() or not _death_busy:
 		_abort_death_sequence()
 		return
-	_set_death_blackout(true)
+	await _death_fade_to_black(DEATH_FADE_OUT_SEC)
+	if not is_inside_tree() or not _death_busy:
+		_abort_death_sequence()
+		return
 	_push_death_blank_lines(3)
 	_push_message(Locale.t("death_all_is_dark"), false)
 
@@ -5106,6 +5115,7 @@ func _death_wait(sec: float) -> void:
 
 func _abort_death_sequence() -> void:
 	## Never leave the player on a permanent black map pane.
+	_kill_death_fade_tween()
 	_set_death_blackout(false)
 	_death_busy = false
 	if _msg_cursor:
@@ -5134,25 +5144,64 @@ func _death_centered_name() -> String:
 	return pad + name
 
 
+func _kill_death_fade_tween() -> void:
+	if _death_fade_tween != null and is_instance_valid(_death_fade_tween):
+		_death_fade_tween.kill()
+	_death_fade_tween = null
+
+
+func _ensure_death_blackout() -> void:
+	## Map-area black veil (under message / roster panes).
+	if _map_pane == null or _map == null:
+		return
+	if _death_blackout == null or not is_instance_valid(_death_blackout):
+		_death_blackout = ColorRect.new()
+		_death_blackout.name = "DeathBlackout"
+		_death_blackout.color = Color.BLACK
+		_death_blackout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_death_blackout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_map_pane.add_child(_death_blackout)
+	## Sit immediately above MapView; Left/Right panes stay later → on top.
+	var idx := _map.get_index() + 1
+	_map_pane.move_child(_death_blackout, clampi(idx, 0, _map_pane.get_child_count() - 1))
+
+
+func _death_fade_to_black(duration: float) -> void:
+	## Soft fade-out into the death cutscene (combat wipe or other total death).
+	if _map_pane == null or _map == null:
+		return
+	_ensure_death_blackout()
+	_kill_death_fade_tween()
+	_death_blackout.visible = true
+	_death_blackout.color = Color.BLACK
+	if duration <= 0.0:
+		_death_blackout.modulate = Color(1, 1, 1, 1)
+		return
+	_death_blackout.modulate = Color(1, 1, 1, 0)
+	_death_fade_tween = create_tween()
+	## Keep fading even if the scene tree is paused.
+	_death_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_death_fade_tween.tween_property(
+		_death_blackout, "modulate:a", 1.0, duration
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await _death_fade_tween.finished
+	_death_fade_tween = null
+	if _death_blackout != null and is_instance_valid(_death_blackout):
+		_death_blackout.modulate = Color(1, 1, 1, 1)
+
+
 func _set_death_blackout(on: bool) -> void:
-	## xu4 screenEraseMapArea — black over the map, UNDER message/roster panes.
-	## (MapPane children draw in tree order; never move_to_front or msgs vanish.)
+	## Hard snap blackout on/off (abort / after revive). Prefer fade for cut-in.
+	_kill_death_fade_tween()
 	if _map_pane == null or _map == null:
 		return
 	if on:
-		if _death_blackout == null or not is_instance_valid(_death_blackout):
-			_death_blackout = ColorRect.new()
-			_death_blackout.name = "DeathBlackout"
-			_death_blackout.color = Color.BLACK
-			_death_blackout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			_death_blackout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			_map_pane.add_child(_death_blackout)
-		## Sit immediately above MapView; Left/Right panes stay later → on top.
-		var idx := _map.get_index() + 1
-		_map_pane.move_child(_death_blackout, clampi(idx, 0, _map_pane.get_child_count() - 1))
+		_ensure_death_blackout()
+		_death_blackout.modulate = Color(1, 1, 1, 1)
 		_death_blackout.visible = true
 	elif _death_blackout != null and is_instance_valid(_death_blackout):
 		_death_blackout.visible = false
+		_death_blackout.modulate = Color(1, 1, 1, 1)
 
 
 func _close_ui_for_death() -> void:
@@ -5176,6 +5225,10 @@ func _close_ui_for_death() -> void:
 	_camp_map = null
 	if _map != null and _map.is_camping():
 		_map.exit_camp()
+	## Wipe-from-combat: clear arena widgets; map stays until blackout/revive.
+	_combat_clear_aim_state()
+	if _foe_roster:
+		_foe_roster.clear()
 	_chest_open_stage = 0
 	_telescope_stage = 0
 	_order_stage = 0
@@ -5190,7 +5243,12 @@ func _death_revive() -> void:
 	## xu4 deathRevive — unwind to world, enter LCB-2 at throne, reviveParty.
 	## Always clear blackout/busy even if a later step fails.
 	_set_death_blackout(false)
-	## Leave city / camp without printing exit chatter.
+	## Leave combat / city / camp without printing exit chatter.
+	if _map != null and _map.is_in_combat():
+		_map.exit_combat()
+	_combat_active = false
+	_combat_resolving = false
+	_combat_foe = {}
 	if _map != null and _map.is_camping():
 		_map.exit_camp()
 	_camp_stage = 0
@@ -6208,9 +6266,7 @@ func _combat_run_foe_phase() -> void:
 	for i in indices:
 		if not _combat_active or _map == null:
 			return
-		if _map.is_combat_lost():
-			return
-		if _map.is_combat_won():
+		if await _combat_maybe_end_after_foes():
 			return
 		_map.set_combat_foe_focus(i)
 		if _roster:
@@ -6224,11 +6280,24 @@ func _combat_run_foe_phase() -> void:
 		_refresh_party()
 		if not _combat_active or _map == null:
 			return
-		if _map.is_combat_won() or _map.is_combat_lost():
+		if await _combat_maybe_end_after_foes():
 			return
 		await get_tree().create_timer(COMBAT_TURN_GAP).timeout
 	if _map != null:
 		_map.clear_combat_foe_focus()
+
+
+func _combat_maybe_end_after_foes() -> bool:
+	## True if win/loss was handled (caller should stop the foe loop).
+	if _map == null:
+		return true
+	if GameState.is_party_dead() or _map.is_combat_lost():
+		await _end_combat_lost()
+		return true
+	if _map.is_combat_won():
+		await _end_combat_won()
+		return true
+	return false
 
 
 func _combat_resolve_foe_act(plan: Dictionary) -> void:
@@ -6363,22 +6432,33 @@ func _combat_resolve_foe_fled(plan: Dictionary) -> void:
 
 
 func _end_combat_lost() -> void:
-	## xu4 endCombat when !isWon — all fled the arena (or later: wiped).
-	## World creature already removed at engage; karma from engaged foe alignment.
+	## xu4 endCombat when !isWon.
+	## • Party wiped → deathStart (stay on combat screen into cutscene).
+	## • Else fled / empty arena with living members → Battle is lost + flee karma.
 	if not _combat_active:
 		return
 	_combat_clear_aim_state()
 	_combat_resolving = true
 	var engaged_tid := int(_combat_foe.get("tile", 0))
-	var evil := _WorldCreaturesScript.is_evil(engaged_tid)
-	var good := _WorldCreaturesScript.is_good(engaged_tid)
-	if _map != null:
-		_map.exit_combat()
+	var wiped := GameState.is_party_dead()
 	_combat_foe = {}
 	if _foe_roster:
 		_foe_roster.clear()
 	if _roster:
 		_roster.clear_order_selection()
+	if wiped:
+		## xu4: isDead → deathStart(5); no "Battle is lost!" / flee karma.
+		## Keep combat map underfoot until blackout/revive (messages on open sides).
+		_refresh_party()
+		_combat_active = false
+		_combat_resolving = false
+		_stamp_command_time()
+		_start_death_sequence(DEATH_PAUSE_SEC)
+		return
+	var evil := _WorldCreaturesScript.is_evil(engaged_tid)
+	var good := _WorldCreaturesScript.is_good(engaged_tid)
+	if _map != null:
+		_map.exit_combat()
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
 	if evil:
