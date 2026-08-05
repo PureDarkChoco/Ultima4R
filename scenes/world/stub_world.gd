@@ -821,7 +821,9 @@ func _style_bars() -> void:
 func _style_side_panels() -> void:
 	if _left_pane is PanelContainer:
 		(_left_pane as PanelContainer).add_theme_stylebox_override(
-			"panel", _make_edge_panel(_FoeRosterScript.ROSTER_STYLE_PAD, 0, 0, 2, 0)
+			"panel", _make_edge_panel(
+				_FoeRosterScript.ROSTER_STYLE_PAD, 0, 0, 2, 0, Color(0.0, 0.0, 0.0, 0.8)
+			)
 		)
 	if _right_top is PanelContainer:
 		## Open panel chrome (reference): style pad + MarginContainer pad.
@@ -829,8 +831,9 @@ func _style_side_panels() -> void:
 			"panel", _make_edge_panel(PartyRoster.ROSTER_STYLE_PAD, 2, 0, 0, 0)
 		)
 	if _right_bottom is Panel:
+		## Message strip: dark semi-transparent so map tiles faintly show (~80% cover).
 		(_right_bottom as Panel).add_theme_stylebox_override(
-			"panel", _make_edge_panel(0, 2, 2, 0, 0)
+			"panel", _make_edge_panel(0, 2, 2, 0, 0, Color(0.0, 0.0, 0.0, 0.8))
 		)
 	if _compact_pane is Panel:
 		## No style content pad — compact roster offsets use full ROSTER_PAD.
@@ -852,10 +855,11 @@ func _make_edge_panel(
 	border_l: int,
 	border_t: int,
 	border_r: int,
-	border_b: int
+	border_b: int,
+	bg: Color = Color(0.0, 0.0, 0.0, 1.0)
 ) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.0, 0.0, 0.0, 1)
+	sb.bg_color = bg
 	sb.border_color = Color(0.35, 0.55, 0.95, 1)
 	sb.border_width_left = border_l
 	sb.border_width_top = border_t
