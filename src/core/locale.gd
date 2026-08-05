@@ -458,6 +458,21 @@ const _T := {
 		"en_us": "%s stands watch.",
 		"ko": "%s이(가) 경비한다.",
 	},
+	"cmd_set_active_none": {
+		"en_u4": "Set Active Player: None!",
+		"en_us": "Set Active Player: None!",
+		"ko": "단독 조작: 해제!",
+	},
+	"cmd_set_active_player": {
+		"en_u4": "Set Active Player: %s!",
+		"en_us": "Set Active Player: %s!",
+		"ko": "단독 조작: %s!",
+	},
+	"cmd_set_active_disabled": {
+		"en_u4": "Disabled!",
+		"en_us": "Disabled!",
+		"ko": "행동 불가!",
+	},
 	"cmd_who": {
 		"en_u4": "Who?",
 		"en_us": "Who?",

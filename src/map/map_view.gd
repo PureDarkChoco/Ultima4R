@@ -614,6 +614,16 @@ func get_combat_focus_party_slot() -> int:
 	return int(_combat_party[_combat_focus].get("party_slot", -1))
 
 
+func find_combat_party_index_for_slot(party_slot: int) -> int:
+	## Combat-party index for a party order slot, or −1 if not on the arena.
+	if party_slot < 0:
+		return -1
+	for i in _combat_party.size():
+		if int(_combat_party[i].get("party_slot", -1)) == party_slot:
+			return i
+	return -1
+
+
 func living_combat_foe_indices() -> Array[int]:
 	## Foe turn order = creatureTable / placement order (xu4 getCreatures index).
 	var out: Array[int] = []

@@ -135,6 +135,8 @@ var _death_fade_tween: Tween
 var _combat_active := false
 ## Victory announced; free leave via ESC / map-edge (no extra karma).
 var _combat_victory_aftermath := false
+## Victory solo control: party_order slot (0..7), or −1 = sequential party mode.
+var _victory_solo_party_slot := -1
 ## True while pacing delays / foe turns run — blocks combat input.
 var _combat_resolving := false
 ## xu4 combat sleep wake (1/8) allowed. Camp ambush keeps this false until
@@ -5800,6 +5802,7 @@ func _death_revive() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_victory_aftermath = false
+	_victory_solo_party_slot = -1
 	_combat_foe = {}
 	if _map != null and _map.is_camping():
 		_map.exit_camp()
@@ -6119,6 +6122,7 @@ func _begin_combat(
 	_combat_active = true
 	_combat_resolving = true
 	_combat_victory_aftermath = false
+	_victory_solo_party_slot = -1
 	## Camp ambush: no sleep→wake rolls until the first creature phase ends.
 	## Normal engage: party may need the 1/8 roll before any creature acts.
 	_combat_allow_sleep_wake = not foes_first
@@ -6209,6 +6213,7 @@ func _end_combat_stub() -> void:
 	_combat_clear_aim_state()
 	_combat_resolving = true
 	_combat_victory_aftermath = false
+	_victory_solo_party_slot = -1
 	if _map != null:
 		_map.exit_combat()
 	_combat_foe = {}
@@ -6247,6 +6252,7 @@ func _begin_combat_victory_aftermath() -> void:
 	_clear_pending_dir()
 	## Always free combat input after Victory (even if a turn-gap coroutine still runs).
 	_combat_victory_aftermath = true
+	_victory_solo_party_slot = -1
 	_combat_resolving = false
 	_combat_aiming = false
 	## xu4 CampController::endCombat — wake sleepers after the fight.
@@ -6289,6 +6295,7 @@ func _finish_combat_victory_exit() -> void:
 	_combat_clear_aim_state()
 	_combat_resolving = true
 	_combat_victory_aftermath = false
+	_victory_solo_party_slot = -1
 	if _map != null:
 		_map.exit_combat()
 	_combat_foe = {}
@@ -6398,11 +6405,18 @@ func _handle_combat_input(event: InputEvent) -> bool:
 
 
 func _handle_combat_victory_input(k: InputEventKey) -> bool:
-	## Free movement, Open/Get/Cast, ESC cascade exit — no turn clock.
+	## Free movement, Open/Get/Cast, active-player 0–8, ESC cascade exit — no turn clock.
 	_combat_resolving = false
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		_combat_victory_esc_exit_all()
 		return true
+	## 0 = party rotation, 1–8 = solo control of that party slot (xu4 active player).
+	var digit := _victory_digit_from_key(k)
+	if digit >= 0:
+		_victory_set_active_player(digit - 1) ## 0 key → -1 (none)
+		return true
+	## Keep solo character focused (in case focus drifted).
+	_victory_ensure_solo_focus()
 	var dir := _combat_dir_from_key(k)
 	if dir != Vector2i.ZERO:
 		_combat_try_move(dir)
@@ -6430,6 +6444,85 @@ func _handle_combat_victory_input(k: InputEventKey) -> bool:
 		_:
 			pass ## ignore other letters (no Not here! spam)
 	return true
+
+
+func _victory_digit_from_key(k: InputEventKey) -> int:
+	## Returns 0–8 for top-row / keypad digits, or −1.
+	for code in [k.keycode, k.physical_keycode]:
+		if code >= KEY_0 and code <= KEY_8:
+			return int(code - KEY_0)
+		if code >= KEY_KP_0 and code <= KEY_KP_8:
+			return int(code - KEY_KP_0)
+	return -1
+
+
+func _victory_set_active_player(party_slot: int) -> void:
+	## party_slot −1 = clear solo (party rotation). 0–7 = roster slot #1–#8.
+	if party_slot < -1 or party_slot > 7:
+		_push_message(Locale.t("cmd_who"), false)
+		return
+	if party_slot < 0:
+		_victory_solo_party_slot = -1
+		_push_message(Locale.t("cmd_set_active_none"), false)
+		_sync_combat_focus_roster()
+		return
+	## Number beyond current party size or empty slot.
+	if party_slot >= GameState.party_size():
+		_push_message(Locale.t("cmd_who"), false)
+		return
+	var nm := GameState.party_member_display_name(party_slot)
+	if nm.is_empty():
+		_push_message(Locale.t("cmd_who"), false)
+		return
+	_push_message(Locale.t("cmd_set_active_player", [nm]), false)
+	var mid := GameState.party_member_at(party_slot)
+	if mid < 0 or GameState.is_member_disabled(mid):
+		_push_message(Locale.t("cmd_set_active_disabled"), false)
+		return
+	if _map == null:
+		return
+	var combat_i := _map.find_combat_party_index_for_slot(party_slot)
+	if combat_i < 0:
+		## Member exists but already left the arena.
+		_push_message(Locale.t("cmd_who"), false)
+		return
+	_victory_solo_party_slot = party_slot
+	_map.set_combat_focus(combat_i)
+	_sync_combat_focus_roster()
+	_refresh_party()
+
+
+func _victory_ensure_solo_focus() -> void:
+	if not _combat_victory_aftermath or _victory_solo_party_slot < 0 or _map == null:
+		return
+	var combat_i := _map.find_combat_party_index_for_slot(_victory_solo_party_slot)
+	if combat_i < 0:
+		## Solo unit already off-map — drop back to party rotation.
+		_victory_solo_party_slot = -1
+		if _map.combat_party_count() > 0 and (
+			_map.get_combat_focus() < 0 or _map.get_combat_focus() >= _map.combat_party_count()
+		):
+			_map.set_combat_focus(0)
+		_sync_combat_focus_roster()
+		return
+	if _map.get_combat_focus() != combat_i:
+		_map.set_combat_focus(combat_i)
+		_sync_combat_focus_roster()
+
+
+func _victory_advance_party_focus() -> void:
+	## Party mode after Victory: cycle focus through remaining units.
+	if _map == null or _victory_solo_party_slot >= 0:
+		return
+	var n := _map.combat_party_count()
+	if n <= 1:
+		return
+	var cur := _map.get_combat_focus()
+	if cur < 0:
+		_map.set_combat_focus(0)
+	else:
+		_map.set_combat_focus((cur + 1) % n)
+	_sync_combat_focus_roster()
 
 
 func _handle_combat_pending_dir(k: InputEventKey) -> bool:
@@ -6951,9 +7044,25 @@ func _combat_try_move(dir: Vector2i) -> void:
 		if after_flee and (_map == null or _map.combat_party_count() <= 0):
 			_finish_combat_victory_exit()
 		elif after_flee:
+			## Solo character left the map → drop to party rotation / next order.
+			if _victory_solo_party_slot >= 0:
+				if _map.find_combat_party_index_for_slot(_victory_solo_party_slot) < 0:
+					_victory_solo_party_slot = -1
 			_map.refocus_after_flee()
 			_sync_combat_focus_roster()
 			_refresh_party()
+		elif _victory_solo_party_slot < 0:
+			## Party mode: after a successful step, pass focus to the next unit.
+			if (
+				result == MapView.COMBAT_MOVE_OK
+				or result == MapView.COMBAT_MOVE_SLOWED
+			):
+				_victory_advance_party_focus()
+			else:
+				_sync_combat_focus_roster()
+		else:
+			_victory_ensure_solo_focus()
+			_sync_combat_focus_roster()
 		return
 	## xu4: move (incl. blocked/slowed/flee) ends the active member's turn.
 	_combat_finish_member_turn(after_flee)
@@ -7270,6 +7379,7 @@ func _end_combat_lost() -> void:
 		return
 	## Not a victory exit path.
 	_combat_victory_aftermath = false
+	_victory_solo_party_slot = -1
 	_combat_clear_aim_state()
 	_combat_resolving = true
 	var engaged_tid := int(_combat_foe.get("tile", 0))
@@ -7744,13 +7854,19 @@ func _sync_combat_aim_foe_roster() -> void:
 
 func _sync_combat_focus_roster() -> void:
 	## Mirror map focus onto the right-hand party list.
+	## Victory solo: gold "locked" row = active player; blue cursor = current focus.
 	if _roster == null or _map == null or not _combat_active:
 		return
 	var slot := _map.get_combat_focus_party_slot()
 	if slot < 0:
 		_roster.clear_order_selection()
-	else:
-		_roster.set_order_selection(slot, -1)
+		return
+	var solo := -1
+	if _combat_victory_aftermath and _victory_solo_party_slot >= 0:
+		solo = _victory_solo_party_slot
+	_roster.set_order_selection(slot, solo)
+	if _compact_roster != null:
+		_compact_roster.set_order_selection(slot, solo)
 
 
 func _push_move_message(dir: Vector2i) -> void:
