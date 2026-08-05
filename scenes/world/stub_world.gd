@@ -3,7 +3,7 @@ extends Control
 ## Explore: top/bottom status bars + fixed 25×11 map.
 ## Message terminal: fixed 15-line grid (even pitch). Tab opens all 15;
 ## closed clips to the bottom 5 at the same pitch. Last line is always
-## Ultima-style prompt + blue charset @ cursor animation (bottom-aligned history).
+## Ultima-style charset prompt glyph + spinning @ cursor (bottom-aligned history).
 
 ## Preload so world scene parses even if global class cache is stale.
 const _TileRules := preload("res://src/map/tile_rules.gd")
@@ -22,6 +22,8 @@ const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 const _Moongates := preload("res://src/map/moongates.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _SearchItems := preload("res://src/core/search_items.gd")
+const _TalkTlk := preload("res://src/core/talk_tlk.gd")
+const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
 const _CombatMaps := preload("res://src/map/combat_maps.gd")
 const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
@@ -56,7 +58,6 @@ const MOVE_HOLD_DELAY := 0.5
 ## World move repeat cadence (lower = faster). Horse matches foot unless galloping.
 const MOVE_HOLD_INTERVAL_FOOT := 0.15
 const MOVE_HOLD_INTERVAL_SHIP := 0.15
-const MSG_PROMPT := "► "
 const MSG_KEEP := 64
 const MSG_OPEN_LINES := 15
 const MSG_CLOSED_LINES := 5
@@ -66,13 +67,17 @@ const MSG_FONT_SIZE := 14
 const MSG_COLOR := Color(0.91, 0.9, 0.82, 1)
 const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 const CHARSET_GLYPH := 16
+## xu4 CHARSET_PROMPT ('\020' = index 16) — blue right-triangle from charset.png.
+const PROMPT_CHAR := 16
 ## charset.png: blue spinning @ frames (after moon glyphs 20..27).
 const CURSOR_CHAR0 := 28
 const CURSOR_FRAME_COUNT := 4
 const CURSOR_FRAME_SEC := 0.34
-## Slight lift on the charset blue @ so it reads better on the navy panel.
+## Slight lift on the charset blue glyphs so they read better on the navy panel.
 const CURSOR_BRIGHTEN := 1.45
 const CURSOR_BRIGHTEN_ADD := 0.12
+## History-line marker: rendered as charset prompt image, never shown as "►" text.
+const MSG_PROMPT_MARK := "\u0001"
 const LAYOUT_UNITS := 13.0
 const BAR_UNITS := 0.5
 const SIDE_TWEEN_SEC := 0.18
@@ -236,6 +241,35 @@ var _city_chest_memory: Dictionary = {}
 var _load_error: String = ""
 var _esc_held := false
 var _msg_lines: PackedStringArray = PackedStringArray()
+## History rows support BBCode (talk keyword tint).
+var _msg_rows: Array[RichTextLabel] = []
+var _msg_prompt_row: Control
+var _msg_prompt_icon: TextureRect ## xu4 CHARSET_PROMPT glyph (not a Unicode ►)
+var _msg_prompt_label: Label
+var _msg_cursor: TextureRect
+var _msg_ui_ready := false
+var _prompt_tex: Texture2D
+var _cursor_frames: Array[Texture2D] = []
+var _cursor_frame := 0
+var _cursor_t := 0.0
+var _msg_h := 0.0
+var _msg_full_h := 0.0
+var _msg_rw := 0.0
+var _msg_open_x := 0.0
+var _msg_open_content_h := 0.0
+var _msg_pitch := 0.0
+## Talk session (city .TLK discourse). 0 = idle.
+## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
+var _talk_stage := 0
+var _talk_person_i := -1
+var _talk_entry: RefCounted = null ## _TalkTlk.Entry
+var _talk_buffer := ""
+var _talk_keywords: Array = []
+var _talk_turn_away := 0
+var _talk_pending_ask := false
+## Talk expands only the message strip (not left/right inventory).
+var _talk_msg_open := false
+var _talk_msg_tween: Tween
 var _sides_open := false
 ## N (New Order): temporarily show only the character roster panel.
 var _order_opened_roster := false
@@ -243,21 +277,6 @@ var _order_opened_roster := false
 var _order_close_token := 0
 const ORDER_ROSTER_HOLD_SEC := 1.1
 var _side_tween: Tween
-## Locked message panel geometry (visible size — grows on Tab).
-var _msg_h := 0.0
-var _msg_full_h := 0.0
-var _msg_rw := 0.0
-var _msg_open_x := 0.0
-var _msg_pitch := 0.0
-var _msg_open_content_h := 0.0
-var _msg_rows: Array[Label] = []
-var _msg_prompt_row: Control
-var _msg_prompt_label: Label
-var _msg_cursor: TextureRect
-var _cursor_frames: Array[Texture2D] = []
-var _cursor_frame := 0
-var _cursor_t := 0.0
-var _msg_ui_ready := false
 
 
 func _ready() -> void:
@@ -947,17 +966,25 @@ func _ensure_msg_terminal() -> void:
 		return
 	_msg_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_msg_block.clip_contents = false
-	_load_cursor_frames()
+	_load_msg_charset_glyphs()
 	## History rows (14) + prompt row (1) = 15 equal slots.
 	for i in range(MSG_OPEN_LINES - 1):
-		var lb := _make_msg_label()
-		_msg_block.add_child(lb)
-		_msg_rows.append(lb)
+		var row := _make_msg_history_row()
+		_msg_block.add_child(row)
+		_msg_rows.append(row)
 	_msg_prompt_row = Control.new()
 	_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_msg_block.add_child(_msg_prompt_row)
-	_msg_prompt_label = _make_msg_label()
-	_msg_prompt_label.text = MSG_PROMPT
+	_msg_prompt_icon = TextureRect.new()
+	_msg_prompt_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_msg_prompt_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_msg_prompt_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_msg_prompt_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if _prompt_tex != null:
+		_msg_prompt_icon.texture = _prompt_tex
+	_msg_prompt_row.add_child(_msg_prompt_icon)
+	_msg_prompt_label = _make_msg_prompt_label()
+	_msg_prompt_label.text = ""
 	_msg_prompt_row.add_child(_msg_prompt_label)
 	_msg_cursor = TextureRect.new()
 	_msg_cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -971,8 +998,10 @@ func _ensure_msg_terminal() -> void:
 	_refresh_message_view()
 
 
-func _load_cursor_frames() -> void:
+func _load_msg_charset_glyphs() -> void:
+	## Extract xu4 CHARSET_PROMPT and spinning-cursor frames from charset.png.
 	_cursor_frames.clear()
+	_prompt_tex = null
 	var img := Image.new()
 	if img.load(CHARSET_PATH) != OK:
 		var tex := load(CHARSET_PATH) as Texture2D
@@ -982,26 +1011,58 @@ func _load_cursor_frames() -> void:
 		return
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
+	_prompt_tex = _charset_glyph_tex(img, PROMPT_CHAR, true)
 	for frame in CURSOR_FRAME_COUNT:
-		var cy := (CURSOR_CHAR0 + frame) * CHARSET_GLYPH
-		var glyph := Image.create(CHARSET_GLYPH, CHARSET_GLYPH, false, Image.FORMAT_RGBA8)
-		glyph.blit_rect(img, Rect2i(0, cy, CHARSET_GLYPH, CHARSET_GLYPH), Vector2i.ZERO)
-		for y in CHARSET_GLYPH:
-			for x in CHARSET_GLYPH:
-				var c := glyph.get_pixel(x, y)
-				if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-					glyph.set_pixel(x, y, Color(0, 0, 0, 0))
-				else:
-					glyph.set_pixel(x, y, Color(
-						minf(c.r * CURSOR_BRIGHTEN + CURSOR_BRIGHTEN_ADD, 1.0),
-						minf(c.g * CURSOR_BRIGHTEN + CURSOR_BRIGHTEN_ADD, 1.0),
-						minf(c.b * CURSOR_BRIGHTEN + CURSOR_BRIGHTEN_ADD * 0.5, 1.0),
-						c.a
-					))
-		_cursor_frames.append(ImageTexture.create_from_image(glyph))
+		_cursor_frames.append(_charset_glyph_tex(img, CURSOR_CHAR0 + frame, true))
 
 
-func _make_msg_label() -> Label:
+func _charset_glyph_tex(sheet: Image, char_index: int, brighten: bool) -> Texture2D:
+	var cy := char_index * CHARSET_GLYPH
+	if cy + CHARSET_GLYPH > sheet.get_height():
+		return null
+	var glyph := Image.create(CHARSET_GLYPH, CHARSET_GLYPH, false, Image.FORMAT_RGBA8)
+	glyph.blit_rect(sheet, Rect2i(0, cy, CHARSET_GLYPH, CHARSET_GLYPH), Vector2i.ZERO)
+	for y in CHARSET_GLYPH:
+		for x in CHARSET_GLYPH:
+			var c := glyph.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				glyph.set_pixel(x, y, Color(0, 0, 0, 0))
+			elif brighten:
+				glyph.set_pixel(x, y, Color(
+					minf(c.r * CURSOR_BRIGHTEN + CURSOR_BRIGHTEN_ADD, 1.0),
+					minf(c.g * CURSOR_BRIGHTEN + CURSOR_BRIGHTEN_ADD, 1.0),
+					minf(c.b * CURSOR_BRIGHTEN + CURSOR_BRIGHTEN_ADD * 0.5, 1.0),
+					c.a
+				))
+	return ImageTexture.create_from_image(glyph)
+
+
+func _make_msg_history_row() -> RichTextLabel:
+	## BBCode-capable history line (talk keyword tint).
+	var lb := RichTextLabel.new()
+	lb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lb.bbcode_enabled = true
+	lb.scroll_active = false
+	lb.fit_content = false
+	lb.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lb.clip_contents = true
+	## No theme stylebox padding — wrap width must match painted glyph width.
+	var empty := StyleBoxEmpty.new()
+	lb.add_theme_stylebox_override("normal", empty)
+	lb.add_theme_stylebox_override("focus", empty)
+	lb.add_theme_constant_override("margin_left", 0)
+	lb.add_theme_constant_override("margin_right", 0)
+	lb.add_theme_color_override("default_color", MSG_COLOR)
+	lb.add_theme_font_size_override("normal_font_size", MSG_FONT_SIZE)
+	var f := UiTheme.font()
+	if f:
+		lb.add_theme_font_override("normal_font", f)
+	lb.custom_minimum_size = Vector2.ZERO
+	return lb
+
+
+func _make_msg_prompt_label() -> Label:
+	## Live input text after the charset prompt glyph (Dir? / buffers / titles).
 	var lb := Label.new()
 	lb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lb.clip_text = true
@@ -1053,10 +1114,11 @@ func _place_msg_block(panel_h: float) -> void:
 
 	for i in range(_msg_rows.size()):
 		var lb := _msg_rows[i]
-		lb.add_theme_font_size_override("font_size", font_sz)
+		lb.add_theme_font_size_override("normal_font_size", font_sz)
 		lb.position = Vector2(0.0, float(i) * _msg_pitch)
 		lb.size = Vector2(w, _msg_pitch)
 		lb.custom_minimum_size = Vector2.ZERO
+		lb.scroll_active = false
 
 	if _msg_prompt_row:
 		_msg_prompt_row.position = Vector2(0.0, float(MSG_OPEN_LINES - 1) * _msg_pitch)
@@ -1066,54 +1128,76 @@ func _place_msg_block(panel_h: float) -> void:
 
 
 func _prompt_row_text() -> String:
-	## xu4: "Attack: Dir?" waits on the same line as the command (after ►).
+	## Body only — CHARSET_PROMPT glyph is drawn as TextureRect when applicable.
+	## xu4: "Attack: Dir?" waits on the same line as the prompt glyph + cursor.
 	if _ready_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_ready_for")
+		return Locale.t("cmd_ready_for")
 	if _ready_stage == 2:
-		return MSG_PROMPT + Locale.t("cmd_ready_weapon")
+		return Locale.t("cmd_ready_weapon")
 	if _wear_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_wear_for")
+		return Locale.t("cmd_wear_for")
 	if _wear_stage == 2:
-		return MSG_PROMPT + Locale.t("cmd_wear_armor")
+		return Locale.t("cmd_wear_armor")
 	if _mix_stage == 1:
-		return MSG_PROMPT + Locale.t("mix_title")
+		return Locale.t("mix_title")
 	if _mix_stage == 2:
-		return MSG_PROMPT + Locale.t("mix_title")
+		return Locale.t("mix_title")
 	if _mix_stage == 3:
-		return MSG_PROMPT + Locale.t("mix_for_spell")
+		return Locale.t("mix_for_spell")
 	if _use_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_use_which")
+		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_ztats_for")
+		return Locale.t("cmd_ztats_for")
 	if _camp_stage == 2:
-		return MSG_PROMPT + Locale.t("cmd_camp_set_watch")
+		return Locale.t("cmd_camp_set_watch")
 	if _camp_stage == 3:
-		return MSG_PROMPT + Locale.t("cmd_camp_who_guards")
+		return Locale.t("cmd_camp_who_guards")
 	if _chest_open_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_chest_who_opens")
+		return Locale.t("cmd_chest_who_opens")
 	if _telescope_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_telescope_select")
+		return Locale.t("cmd_telescope_select")
 	if _save_stage == 1:
-		return MSG_PROMPT + Locale.t("save_title")
+		return Locale.t("save_title")
 	if _save_stage == 2:
-		return MSG_PROMPT + Locale.t("load_title")
+		return Locale.t("load_title")
 	if _options_panel_is_open():
-		return MSG_PROMPT + Locale.t("esc_options_title")
+		return Locale.t("esc_options_title")
 	if _esc_menu_is_open():
-		return MSG_PROMPT + Locale.t("esc_menu_title")
+		return Locale.t("esc_menu_title")
 	if _order_stage == 1:
-		return MSG_PROMPT + Locale.t("cmd_exchange")
+		return Locale.t("cmd_exchange")
 	if _order_stage == 2:
-		return MSG_PROMPT + Locale.t("cmd_with")
+		return Locale.t("cmd_with")
 	if _combat_aiming:
-		return MSG_PROMPT + Locale.t("cmd_attack_aim")
+		return Locale.t("cmd_attack_aim")
+	## Talk: xu4 has no CHARSET_PROMPT on dialogue input — only the live cursor.
+	if _talk_stage == 1:
+		return _talk_buffer
+	if _talk_stage == 2:
+		return "" ## wait any key before yes/no question
+	if _talk_stage == 3:
+		return "You say: " + _talk_buffer
+	if _talk_stage == 4:
+		return "How much? " + _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
-		return MSG_PROMPT + Locale.need_dir_prompt(_pending_cmd_name)
+		return Locale.need_dir_prompt(_pending_cmd_name)
 	if _ship_yell_await_dir:
-		return MSG_PROMPT + Locale.need_dir_prompt(
+		return Locale.need_dir_prompt(
 			U4Commands.label(U4Commands.Id.YELL, GameState.lang_short())
 		)
-	return MSG_PROMPT
+	return ""
+
+
+func _prompt_row_wants_glyph() -> bool:
+	## xu4 screenPrompt — world command wait shows CHARSET_PROMPT; talk input does not.
+	return _talk_stage == 0
+
+
+func _msg_prompt_glyph_side(font_sz: int) -> float:
+	var side := float(font_sz) * 1.05
+	if _msg_pitch > 0.0:
+		side = minf(side, _msg_pitch)
+	return maxf(side, 10.0)
 
 
 func _layout_prompt_row(font_sz: int = -1) -> void:
@@ -1122,26 +1206,45 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 	if font_sz < 0:
 		font_sz = clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE)
 	var text := _prompt_row_text()
+	var wants_glyph := _prompt_row_wants_glyph()
+	var x := 0.0
+	var side := _msg_prompt_glyph_side(font_sz)
+	if _msg_prompt_icon != null:
+		if wants_glyph and _prompt_tex != null:
+			_msg_prompt_icon.visible = true
+			_msg_prompt_icon.texture = _prompt_tex
+			_msg_prompt_icon.size = Vector2(side, side)
+			_msg_prompt_icon.custom_minimum_size = Vector2.ZERO
+			_msg_prompt_icon.position = Vector2(0.0, (_msg_pitch - side) * 0.5)
+			x = side + 2.0
+		else:
+			_msg_prompt_icon.visible = false
 	_msg_prompt_label.add_theme_font_size_override("font_size", font_sz)
 	_msg_prompt_label.text = text
-	var prompt_w := float(font_sz) * float(maxi(text.length(), 2)) * 0.55
-	var font := _msg_prompt_label.get_theme_font("font")
-	if font:
-		prompt_w = font.get_string_size(
-			text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
-		).x
-	_msg_prompt_label.position = Vector2.ZERO
-	_msg_prompt_label.size = Vector2(maxf(prompt_w, 8.0), _msg_pitch)
-	_msg_prompt_label.custom_minimum_size = Vector2.ZERO
-	_msg_prompt_label.visible = true
+	_msg_prompt_label.add_theme_color_override("font_color", MSG_COLOR)
+	var text_w := 0.0
+	if not text.is_empty():
+		var font := _msg_prompt_label.get_theme_font("font")
+		if font:
+			text_w = font.get_string_size(
+				text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
+			).x
+		else:
+			text_w = float(font_sz) * float(text.length()) * 0.55
+		_msg_prompt_label.visible = true
+		_msg_prompt_label.position = Vector2(x, 0.0)
+		_msg_prompt_label.size = Vector2(maxf(text_w, 8.0), _msg_pitch)
+		_msg_prompt_label.custom_minimum_size = Vector2.ZERO
+		x += text_w
+	else:
+		_msg_prompt_label.visible = false
 	if _msg_cursor:
-		## Charset @ sits inset in the 16×16 cell, so draw a bit larger than
-		## font_sz to match the perceived size of the ► prompt glyph.
-		var side := float(font_sz) * 1.2
-		side = minf(side, _msg_pitch)
-		_msg_cursor.size = Vector2(side, side)
+		## Charset @ sits inset in the 16×16 cell; scale slightly past font_sz.
+		var cside := float(font_sz) * 1.2
+		cside = minf(cside, _msg_pitch) if _msg_pitch > 0.0 else cside
+		_msg_cursor.size = Vector2(cside, cside)
 		_msg_cursor.custom_minimum_size = Vector2.ZERO
-		_msg_cursor.position = Vector2(prompt_w, (_msg_pitch - side) * 0.5)
+		_msg_cursor.position = Vector2(x, (_msg_pitch - cside) * 0.5)
 		_apply_cursor_frame()
 
 
@@ -1223,7 +1326,9 @@ func _layout_side_panels(animate: bool) -> void:
 			_side_tween.tween_property(_right_top, "position", Vector2(right_closed_x, 0.0), SIDE_TWEEN_SEC) \
 				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			## Shrink Label with panel each frame so min-size can't trap tall open height.
-			_side_tween.tween_method(_tween_msg_height, msg_from, bot_closed_h, SIDE_TWEEN_SEC) \
+			## Talk keeps the tall message strip even when inventory sides close.
+			var msg_to: float = bot_open_h if _talk_msg_open else bot_closed_h
+			_side_tween.tween_method(_tween_msg_height, msg_from, msg_to, SIDE_TWEEN_SEC) \
 				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			_side_tween.chain().tween_callback(_on_sides_closed)
 	else:
@@ -1236,7 +1341,8 @@ func _layout_side_panels(animate: bool) -> void:
 		_right_top.custom_minimum_size = Vector2(rw, top_h)
 		_right_top.position = Vector2(right_open_x if roster_open else right_closed_x, 0.0)
 		_right_top.visible = roster_open
-		_msg_h = bot_open_h if _sides_open else bot_closed_h
+		## Talk can grow only the message strip without opening inventory panels.
+		_msg_h = bot_open_h if (_sides_open or _talk_msg_open) else bot_closed_h
 		_apply_msg_geometry()
 		_refresh_message_view()
 		if _compact_pane:
@@ -1279,7 +1385,11 @@ func _on_sides_closed() -> void:
 		if _compact_pane:
 			_compact_pane.visible = true
 			_compact_pane.modulate.a = 1.0
-		_msg_h = floorf(_side_geom()["bottom_closed_h"])
+		## Keep tall message log while Talk owns the strip.
+		if _talk_msg_open:
+			_msg_h = _msg_full_h if _msg_full_h > 8.0 else floorf(_side_geom()["bottom_open_h"])
+		else:
+			_msg_h = floorf(_side_geom()["bottom_closed_h"])
 		_apply_msg_geometry()
 		_refresh_message_view()
 
@@ -1490,13 +1600,15 @@ func _process(delta: float) -> void:
 	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
+	if _talk_stage != 0:
+		return
 	if _ready_stage == 2:
 		_tick_ready_weapon_cursor()
 		return
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1801,6 +1913,10 @@ func _on_escape() -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
+	## Conversation owns Esc: farewell (Bye), never open the options menu.
+	if _talk_stage != 0:
+		_end_talk(true)
+		return
 	if _mix_stage != 0:
 		_close_mix(true)
 		return
@@ -1877,6 +1993,7 @@ func _input(event: InputEvent) -> void:
 				or _wear_stage != 0
 				or _mix_stage != 0
 				or _use_stage != 0
+				or _talk_stage != 0
 				or _camp_stage == 2
 				or _camp_stage == 3
 				or _chest_open_stage != 0
@@ -1896,6 +2013,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
 		get_viewport().set_input_as_handled()
+		return
+	if _talk_stage != 0:
+		if _handle_talk_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
 		return
 	if _combat_active:
 		## Nested UIs opened from combat (Ready / Use / Ztats / Open Who) before arena keys.
@@ -4946,6 +5069,17 @@ func _exit_city() -> void:
 	## Leave city back to the world tile we Entered from.
 	if not _is_in_city():
 		return
+	if _talk_stage != 0:
+		_talk_stage = 0
+		_talk_person_i = -1
+		_talk_entry = null
+		_talk_buffer = ""
+		_talk_keywords.clear()
+		_talk_pending_ask = false
+		_talk_msg_open = false
+		if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
+			_talk_msg_tween.kill()
+			_talk_msg_tween = null
 	_stash_emptied_city_chests()
 	## Leaving the place forgets anger (xu4 City::addPerson next visit).
 	_city_guards_alerted = false
@@ -5920,7 +6054,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -5983,6 +6117,12 @@ func _finish_directed_command(dir: Vector2i) -> void:
 			result = _do_fire_cannon(dir)
 			if result.is_empty():
 				await _fire_cannon_along_async(_tile_pos, dir, true)
+		U4Commands.Id.TALK:
+			var talked := _do_talk(dir)
+			if talked:
+				## Conversation owns the input loop; turn ends on Bye.
+				return
+			result = Locale.t("cmd_no_response")
 		_:
 			result = _directed_result_message(cmd)
 	if not result.is_empty():
@@ -5999,6 +6139,537 @@ func _finish_directed_command(dir: Vector2i) -> void:
 		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	await _finish_party_turn()
+
+
+func _do_talk(dir: Vector2i) -> bool:
+	## xu4 talk() path: 1–2 steps; only continue past a cell that is talk-over
+	## (shop letter counters). Ordinary townsfolk must be adjacent (1 step).
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return false
+	for dist in range(1, 3):
+		var target := Vector2i(_tile_pos.x + dir.x * dist, _tile_pos.y + dir.y * dist)
+		if (
+			target.x < 0 or target.y < 0
+			or target.x >= _CityMapData.WIDTH
+			or target.y >= _CityMapData.HEIGHT
+		):
+			break
+		var pi: int = int(_city_map.person_index_at(target.x, target.y))
+		if pi >= 0 and _talk_can_address(pi, dist):
+			var entry: Variant = _city_map.discourse_at(pi)
+			if entry != null:
+				_begin_talk(pi, entry)
+				return true
+			## Merchants / healer / inn use vendor scripts (xu4), not .TLK.
+			var role: int = int(_city_map.role_at(pi))
+			if _CityNpcRoles.is_shop_like(role):
+				_begin_special_npc_talk(pi, role)
+				return true
+		## After this cell: stop unless it is a talk-over tile (xu4 canTalkOver).
+		var cell_tid: int
+		if pi >= 0:
+			## Person object occupies the cell — not talk-over; cannot reach past them.
+			cell_tid = int(_city_map.persons[pi].z)
+		else:
+			cell_tid = int(_city_map.effective_tile_at(target.x, target.y))
+		if not _TileRules.can_talk_over(cell_tid):
+			break
+	return false
+
+
+func _begin_special_npc_talk(person_i: int, role: int) -> void:
+	## Placeholder until vendor / LB / Hawkwind systems are wired.
+	_city_map.pause_follow(person_i)
+	_open_talk_message_panel()
+	var who := _CityNpcRoles.role_name_en(role)
+	match role:
+		_CityNpcRoles.Role.LORD_BRITISH:
+			_push_message("Thou dost approach Lord British.", false)
+			_push_message("(Court audience is not ready yet.)", false)
+		_CityNpcRoles.Role.HAWKWIND:
+			_push_message("Thou dost approach Hawkwind the Seer.", false)
+			_push_message("(Seer counsel is not ready yet.)", false)
+		_:
+			_push_message("You meet a %s." % who, false)
+			_push_message("(Shop service is not ready yet.)", false)
+	_push_message("Bye.", false)
+	_close_talk_message_panel()
+	_layout_prompt_row()
+	_finish_party_turn()
+
+func _talk_can_address(person_i: int, dist: int) -> bool:
+	if person_i < 0 or person_i >= _city_map.persons.size():
+		return false
+	var tid := int(_city_map.persons[person_i].z)
+	## Undead: no counter talk (Magincia ghosts).
+	if _TalkTlk.is_undead_tile(tid) and dist > 1:
+		return false
+	## Alerted guards ignore talk (except Python).
+	if person_i < _city_map.person_move.size():
+		if int(_city_map.person_move[person_i]) == _CityMapData.MOVE_ATTACK:
+			if not _TalkTlk.is_python_tile(tid):
+				return false
+	return true
+
+
+func _begin_talk(person_i: int, entry: Variant) -> void:
+	_talk_stage = 1
+	_talk_person_i = person_i
+	_talk_entry = entry
+	_talk_buffer = ""
+	_talk_turn_away = int(entry.turn_away)
+	_talk_pending_ask = false
+	_talk_keywords = entry.highlight_keywords()
+	_city_map.pause_follow(person_i)
+	## Grow message log to full open height (Tab inventory stays closed).
+	_open_talk_message_panel()
+	## "You meet %s"
+	_push_talk_script("You meet %s" % str(entry.look))
+	## 50% self-introduction.
+	if (randi() % 2) != 0:
+		_talk_say_name()
+	_push_talk_script("Your Interest:")
+	_layout_prompt_row()
+
+
+func _open_talk_message_panel() -> void:
+	## Expand only right-bottom message strip — same target height as Tab-open.
+	## If inventory sides are already open, msg is already tall.
+	if _sides_open:
+		_talk_msg_open = false
+		## Still refresh geometry so wrap width uses the full open strip.
+		if _map_pane != null:
+			var g0 := _side_geom()
+			_msg_full_h = g0["bottom_open_h"]
+			_msg_open_x = g0["right_open_x"]
+			_msg_rw = g0["pane_w"] - _msg_open_x
+			_apply_msg_geometry()
+		return
+	_talk_msg_open = true
+	var g := _side_geom()
+	var bot_closed_h: float = g["bottom_closed_h"]
+	var bot_open_h: float = g["bottom_open_h"]
+	_msg_full_h = bot_open_h
+	_msg_open_x = g["right_open_x"]
+	_msg_rw = g["pane_w"] - _msg_open_x
+	## Apply width immediately so dialogue wrap uses the full strip before text.
+	var from_h := clampf(_msg_h if _msg_h > 8.0 else bot_closed_h, bot_closed_h, bot_open_h)
+	_msg_h = from_h
+	_apply_msg_geometry()
+	if absf(from_h - bot_open_h) < 0.5:
+		_msg_h = bot_open_h
+		_apply_msg_geometry()
+		_refresh_message_view()
+		return
+	if not is_inside_tree():
+		_msg_h = bot_open_h
+		_apply_msg_geometry()
+		_refresh_message_view()
+		return
+	if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
+		_talk_msg_tween.kill()
+	_talk_msg_tween = create_tween()
+	_talk_msg_tween.tween_method(_tween_msg_height, from_h, bot_open_h, SIDE_TWEEN_SEC) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _close_talk_message_panel() -> void:
+	## Collapse message strip after Bye, unless Tab sides leave it open.
+	if not _talk_msg_open:
+		return
+	_talk_msg_open = false
+	if _sides_open:
+		return
+	var g := _side_geom()
+	var bot_closed_h: float = g["bottom_closed_h"]
+	var bot_open_h: float = g["bottom_open_h"]
+	var from_h := clampf(_msg_h if _msg_h > 8.0 else bot_open_h, bot_closed_h, bot_open_h)
+	if absf(from_h - bot_closed_h) < 0.5:
+		_msg_h = bot_closed_h
+		_apply_msg_geometry()
+		_refresh_message_view()
+		return
+	if not is_inside_tree():
+		_msg_h = bot_closed_h
+		_apply_msg_geometry()
+		_refresh_message_view()
+		return
+	if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
+		_talk_msg_tween.kill()
+	_talk_msg_tween = create_tween()
+	_talk_msg_tween.tween_method(_tween_msg_height, from_h, bot_closed_h, SIDE_TWEEN_SEC) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _talk_say_name() -> void:
+	var e := _talk_entry
+	if e == null:
+		return
+	_push_talk_script("%s says: I am %s" % [str(e.pronoun), str(e.name)])
+
+
+func _push_talk_script(raw: String) -> void:
+	## NPC / talk script lines. Classic .TLK is modernized when lang is en_us.
+	## DOS .tlk embeds hard breaks for the tiny classic text window — reflow to
+	## the modern message strip, then soft-wrap to full content width.
+	## xu4 screenMessage: dialogue text has NO charset prompt glyph on each line.
+	## The spinning cursor lives only on the live prompt row.
+	if raw.is_empty():
+		return
+	var script := _TalkTlk.present_script(raw)
+	var flat := _reflow_talk_hard_breaks(script)
+	if flat.is_empty():
+		return
+	## Ensure geometry before measuring wrap width (first line of a talk).
+	if _msg_rw < 8.0 or (_msg_block != null and _msg_block.size.x < 8.0):
+		if _map_pane != null:
+			var g := _side_geom()
+			_msg_full_h = g["bottom_open_h"]
+			_msg_open_x = g["right_open_x"]
+			_msg_rw = float(g["pane_w"]) - _msg_open_x
+			if _msg_h < 8.0:
+				_msg_h = float(g["bottom_closed_h"] if not (_sides_open or _talk_msg_open) else g["bottom_open_h"])
+			_apply_msg_geometry()
+	for part in _wrap_msg_text(flat):
+		_msg_lines.append(_TalkTlk.colorize_keywords(part, _talk_keywords))
+	while _msg_lines.size() > MSG_KEEP:
+		_msg_lines.remove_at(0)
+	_refresh_message_view()
+
+
+func _reflow_talk_hard_breaks(text: String) -> String:
+	## Collapse classic DOS soft-layout newlines so text fills the panel width.
+	var s := text.replace("\r\n", "\n").replace("\r", "\n")
+	var joined := ""
+	for line in s.split("\n"):
+		var t := String(line).strip_edges()
+		if t.is_empty():
+			continue
+		if not joined.is_empty():
+			joined += " "
+		joined += t
+	## Collapse runs of spaces left over from tlk padding.
+	while joined.contains("  "):
+		joined = joined.replace("  ", " ")
+	return joined
+
+
+func _handle_talk_input(event: InputEvent) -> bool:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	var k := event as InputEventKey
+	## Esc always farewell — never open the options menu while talking,
+	## including Yes/No and gold prompts.
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_end_talk(true)
+		return true
+	match _talk_stage:
+		1:
+			return _talk_input_interest(k)
+		2:
+			## xu4 EventHandler::waitAnyKey before the follow-up question.
+			_talk_ask_question()
+			return true
+		3:
+			return _talk_input_yn(k)
+		4:
+			return _talk_input_give(k)
+		_:
+			return false
+
+
+func _talk_input_interest(k: InputEventKey) -> bool:
+	if _is_talk_enter(k):
+		var submitted := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		_layout_prompt_row()
+		_talk_process_keyword(submitted)
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty():
+		return false
+	if _talk_buffer.length() >= 16:
+		return true
+	_talk_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _talk_input_yn(k: InputEventKey) -> bool:
+	if _is_talk_enter(k):
+		var s := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		if s.is_empty():
+			_layout_prompt_row()
+			return true
+		var c0 := s.substr(0, 1).to_lower()
+		if c0 == "y" or c0 == "n":
+			_talk_answer_yn(c0 == "y")
+			return true
+		_push_talk_script("Yes or no!")
+		_layout_prompt_row()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty():
+		return false
+	if _talk_buffer.length() >= 3:
+		return true
+	_talk_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _talk_input_give(k: InputEventKey) -> bool:
+	if _is_talk_enter(k):
+		var s := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		_layout_prompt_row()
+		var gold_amt := int(s) if s.is_valid_int() else 0
+		_talk_finish_give(gold_amt)
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty() or not ch.is_valid_int():
+		return false
+	if _talk_buffer.length() >= 2:
+		return true
+	_talk_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _is_talk_enter(k: InputEventKey) -> bool:
+	return (
+		k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER
+		or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER
+	)
+
+
+func _is_talk_submit(k: InputEventKey) -> bool:
+	## Stage 2 any-key includes Space/Enter.
+	return _is_talk_enter(k) or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
+
+
+func _key_printable_char(k: InputEventKey) -> String:
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return ""
+	if k.unicode >= 32 and k.unicode < 127:
+		return String.chr(k.unicode)
+	## Fallback letters when unicode is 0 (some layouts).
+	var code := k.keycode if k.keycode != KEY_NONE else k.physical_keycode
+	if code >= KEY_A and code <= KEY_Z:
+		var base := code - KEY_A
+		var ch := String.chr(97 + base) ## always lower for match
+		if k.shift_pressed:
+			ch = ch.to_upper()
+		return ch
+	if code >= KEY_0 and code <= KEY_9:
+		return String.chr(48 + (code - KEY_0))
+	return ""
+
+
+func _talk_process_keyword(input: String) -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	var in_s := input.strip_edges()
+	if in_s.is_empty() or _talk_prefix(in_s, "bye", 3):
+		## Empty Enter or "bye" — same farewell as Esc / every other end.
+		_end_talk(false)
+		return
+	## Turn-away / attack chance.
+	if _talk_turn_away > 0:
+		var prob := randi() % 256
+		if prob < _talk_turn_away:
+			if _talk_turn_away - prob < 0x40:
+				_push_talk_script("%s turns away!" % str(e.pronoun))
+			else:
+				_push_talk_script("%s says: On guard! Fool!" % str(e.pronoun))
+				if _talk_person_i >= 0 and _talk_person_i < _city_map.person_move.size():
+					_city_map.person_move[_talk_person_i] = _CityMapData.MOVE_ATTACK
+			_end_talk(false)
+			return
+	var hit: Dictionary = _TalkTlk.match_keyword(e, in_s)
+	if not hit.is_empty():
+		var kind := int(hit.get("kind", 0))
+		var reply := str(hit.get("text", ""))
+		_push_talk_script(reply)
+		if _TalkTlk.should_ask_after(e, kind):
+			_talk_stage = 2
+			_talk_pending_ask = true
+			_layout_prompt_row()
+			return
+		_talk_prompt_interest()
+		return
+	## Built-ins (look / name / give / join).
+	if _talk_prefix(in_s, "look", 4):
+		_push_talk_script("You see %s" % str(e.look))
+		_talk_prompt_interest()
+		return
+	if _talk_prefix(in_s, "name", 4):
+		_talk_say_name()
+		_talk_prompt_interest()
+		return
+	if _talk_prefix(in_s, "give", 4):
+		_talk_start_give()
+		return
+	if _talk_prefix(in_s, "join", 4):
+		_talk_do_join()
+		return
+	if _talk_prefix(in_s, "ojna", 4):
+		_push_talk_script("Hi Banjo Bob!\nYour secret\nnumber is\n4F4A4E0A")
+		_talk_prompt_interest()
+		return
+	_push_talk_script("That I cannot\nhelp thee with.")
+	_talk_prompt_interest()
+
+
+func _talk_prefix(input: String, key: String, n: int) -> bool:
+	var a := input.to_lower()
+	var b := key.to_lower()
+	if a.length() < n or b.length() < n:
+		return a.begins_with(b) if not b.is_empty() else false
+	return a.substr(0, n) == b.substr(0, n)
+
+
+func _talk_prompt_interest() -> void:
+	_talk_stage = 1
+	_talk_buffer = ""
+	_talk_pending_ask = false
+	_push_talk_script("Your Interest:")
+	_layout_prompt_row()
+
+
+func _talk_ask_question() -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	_push_talk_script(str(e.question))
+	_talk_stage = 3
+	_talk_buffer = ""
+	_talk_pending_ask = false
+	_layout_prompt_row()
+
+
+func _talk_answer_yn(yes: bool) -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	if bool(e.question_humility):
+		if yes:
+			GameState.adjust_karma_bragged()
+		else:
+			GameState.adjust_karma_humble()
+	var reply := str(e.yes if yes else e.no)
+	_push_talk_script(reply)
+	_talk_prompt_interest()
+
+
+func _talk_start_give() -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	var tid := -1
+	if _talk_person_i >= 0 and _talk_person_i < _city_map.persons.size():
+		tid = int(_city_map.persons[_talk_person_i].z)
+	if _TalkTlk.is_beggar_tile(tid):
+		_talk_stage = 4
+		_talk_buffer = ""
+		_layout_prompt_row()
+		return
+	_push_talk_script("%s says: I do not need thy gold.  Keep it!" % str(e.pronoun))
+	_talk_prompt_interest()
+
+
+func _talk_finish_give(gold_amt: int) -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	if gold_amt > 0:
+		if GameState.donate_gold(gold_amt):
+			_push_talk_script(
+				"%s says: Oh Thank thee! I shall never forget thy kindness!" % str(e.pronoun)
+			)
+			_refresh_inventory_bars()
+		else:
+			_push_talk_script("Thou hast not that much gold!")
+	_talk_prompt_interest()
+
+
+func _talk_do_join() -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	var name := str(e.name)
+	if GameState.can_person_join_name(name):
+		var err := GameState.try_join_companion(name)
+		match err:
+			GameState.JoinError.SUCCEEDED:
+				_push_talk_script("I am honored to join thee!")
+				if _talk_person_i >= 0:
+					_city_map.take_person_at_index(_talk_person_i)
+					_talk_person_i = -1
+					if _map != null and _map.has_method("refresh"):
+						_map.refresh()
+				_refresh_party()
+				_end_talk(false)
+				return
+			GameState.JoinError.NOT_VIRTUOUS:
+				var virt := GameState.companion_class_by_name(name)
+				_push_talk_script(
+					"Thou art not %s enough for me to join thee."
+					% GameState.virtue_adjective_en(virt)
+				)
+			_:
+				_push_talk_script(
+					"Thou art not experienced enough for me to join thee."
+				)
+	else:
+		_push_talk_script("%s says: I cannot join thee." % str(e.pronoun))
+	_talk_prompt_interest()
+
+
+func _end_talk(_aborted: bool) -> void:
+	## Single exit for talk: always print Bye so the player sees the end.
+	## Esc / empty Enter / bye / Y-N cancel / join / turn-away all land here.
+	if _talk_stage == 0:
+		return
+	## Mark closed before farewell so Esc cannot re-enter or open the menu
+	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
+	_talk_stage = 0
+	_talk_buffer = ""
+	_push_message("Bye.", false)
+	var pi := _talk_person_i
+	_talk_person_i = -1
+	_talk_entry = null
+	_talk_keywords.clear()
+	_talk_turn_away = 0
+	_talk_pending_ask = false
+	if pi >= 0 and _city_map != null:
+		_city_map.pause_follow(pi)
+	_close_talk_message_panel()
+	_layout_prompt_row()
+	_finish_party_turn()
 
 
 func _do_attack(dir: Vector2i) -> String:
@@ -7903,10 +8574,17 @@ func _format_u4_sextant(n: int) -> String:
 func _push_message(line: String, with_prompt: bool = true) -> void:
 	if line.is_empty():
 		return
-	if with_prompt and not line.begins_with(MSG_PROMPT):
-		line = MSG_PROMPT + line
-	## Labels are single-line + clip_text — wrap like xu4 screenMessage (panel width).
-	for part in _wrap_msg_text(line):
+	## Labels are single-line — wrap like xu4 screenMessage (panel width).
+	## Prompt is a charset image mark on the first wrap line only (not Unicode ►).
+	var body := line
+	if with_prompt and body.begins_with(MSG_PROMPT_MARK):
+		body = body.substr(MSG_PROMPT_MARK.length())
+	var parts := _wrap_msg_text(body)
+	if parts.is_empty():
+		return
+	if with_prompt:
+		parts[0] = MSG_PROMPT_MARK + parts[0]
+	for part in parts:
 		_msg_lines.append(part)
 	while _msg_lines.size() > MSG_KEEP:
 		_msg_lines.remove_at(0)
@@ -7914,12 +8592,23 @@ func _push_message(line: String, with_prompt: bool = true) -> void:
 
 
 func _msg_line_max_width() -> float:
-	## Usable width of a history Label inside the message block.
-	if _msg_block != null and _msg_block.size.x > 1.0:
-		return maxf(_msg_block.size.x - 2.0, 8.0)
-	if _msg_rw > 1.0:
-		return maxf(_msg_rw - float(MSG_INSET_X) * 2.0, 8.0)
-	return 220.0
+	## Content width of MsgBlock (= right strip − horizontal insets).
+	## Geom is source of truth so wrap matches layout even if Control.size lags.
+	var content := 0.0
+	if _map_pane != null:
+		var g := _side_geom()
+		var pw: float = float(g.get("pane_w", 0.0))
+		var rx: float = float(g.get("right_open_x", 0.0))
+		if pw > rx + 8.0:
+			content = pw - rx - float(MSG_INSET_X) * 2.0
+	if content < 8.0 and _msg_rw > 8.0:
+		content = _msg_rw - float(MSG_INSET_X) * 2.0
+	if content < 8.0 and _msg_block != null and _msg_block.size.x > 8.0:
+		content = _msg_block.size.x
+	if content < 8.0 and not _msg_rows.is_empty() and is_instance_valid(_msg_rows[0]):
+		content = maxf(content, _msg_rows[0].size.x)
+	## Tiny safety pad (panel left/top border is outside MsgBlock already).
+	return maxf(content - 2.0, 48.0)
 
 
 func _msg_font_size() -> int:
@@ -7927,15 +8616,21 @@ func _msg_font_size() -> int:
 
 
 func _msg_text_width(text: String, font: Font, font_sz: int) -> float:
+	var plain := _TalkTlk.strip_bbcode(text)
+	var glyph_w := 0.0
+	if plain.begins_with(MSG_PROMPT_MARK):
+		plain = plain.substr(MSG_PROMPT_MARK.length())
+		glyph_w = _msg_prompt_glyph_side(font_sz) + 2.0
 	if font == null:
-		return float(text.length()) * float(font_sz) * 0.55
-	return font.get_string_size(
-		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
+		## D2Coding mono-ish fallback.
+		return glyph_w + float(plain.length()) * float(font_sz) * 0.6
+	return glyph_w + font.get_string_size(
+		plain, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
 	).x
 
 
 func _wrap_msg_text(text: String) -> PackedStringArray:
-	## Soft-wrap to the message pane (prefer spaces; else break mid-token / CJK).
+	## Soft-wrap to the full message pane width (prefer spaces).
 	var out: PackedStringArray = PackedStringArray()
 	if text.is_empty():
 		return out
@@ -8061,17 +8756,45 @@ func _apply_cursor_frame() -> void:
 
 func _refresh_message_view() -> void:
 	## Bottom-aligned history in the 14 slots above the prompt row.
-	## Prompt row is either "► @" or "► Attack: Dir?" while waiting (xu4).
+	## Prompt row: charset triangle glyph + optional status text + spinning @.
 	_ensure_msg_terminal()
 	if not _msg_ui_ready:
 		return
 	var hist_slots := MSG_OPEN_LINES - 1
 	for i in range(_msg_rows.size()):
-		_msg_rows[i].text = ""
+		_set_msg_row_text(_msg_rows[i], "")
 	var n := _msg_lines.size()
 	var take := mini(n, hist_slots)
 	var first_row := hist_slots - take
 	var start := n - take
 	for j in range(take):
-		_msg_rows[first_row + j].text = _msg_lines[start + j]
+		_set_msg_row_text(_msg_rows[first_row + j], _msg_lines[start + j])
 	_layout_prompt_row()
+
+
+func _set_msg_row_text(row: RichTextLabel, line: String) -> void:
+	## Prefer append_text so BBCode (keyword tint) always parses.
+	## Leading MSG_PROMPT_MARK → xu4 charset prompt image (CHARSET_PROMPT).
+	if row == null:
+		return
+	row.clear()
+	if line.is_empty():
+		return
+	var body := line
+	if body.begins_with(MSG_PROMPT_MARK):
+		body = body.substr(MSG_PROMPT_MARK.length())
+		if _prompt_tex != null:
+			var font_sz := _msg_font_size()
+			var side := int(round(_msg_prompt_glyph_side(font_sz)))
+			row.add_image(
+				_prompt_tex,
+				side,
+				side,
+				Color.WHITE,
+				INLINE_ALIGNMENT_CENTER
+			)
+			if not body.is_empty():
+				row.add_text(" ")
+	if body.is_empty():
+		return
+	row.append_text(body)

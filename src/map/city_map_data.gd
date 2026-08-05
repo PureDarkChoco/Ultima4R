@@ -6,6 +6,8 @@ extends RefCounted
 ## Prefer preload over bare class_name types (stale global class cache).
 
 const _TileRules := preload("res://src/map/tile_rules.gd")
+const _TalkTlk := preload("res://src/core/talk_tlk.gd")
+const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
 
 const WIDTH := 32
 const HEIGHT := 32
@@ -48,6 +50,14 @@ var persons: Array[Vector3i] = []
 var person_prev: Array[int] = []
 ## xu4 movement mode per person (MOVE_*).
 var person_move: Array[int] = []
+## .TLK discourse index per person (0..15), or -1 if none (xu4 convId).
+var person_conv: Array[int] = []
+## Original .ULT person slot 0..31 (for maps.b roles, 1-based id = slot+1).
+var person_file_slot: Array[int] = []
+## CityNpcRoles.Role per person.
+var person_role: Array[int] = []
+## Loaded .TLK entries for this city (TalkTlk.Entry), index = discourse id.
+var discourses: Array = []
 var loaded: bool = false
 var source_path: String = ""
 ## xu4 Map::annotations — temporary overlays (open doors, etc.).
@@ -66,6 +76,10 @@ func clear() -> void:
 	persons.clear()
 	person_prev.clear()
 	person_move.clear()
+	person_conv.clear()
+	person_file_slot.clear()
+	person_role.clear()
+	discourses.clear()
 	annotations.clear()
 	opened_chests.clear()
 	loaded = false
@@ -234,17 +248,35 @@ func take_person_at_index(i: int) -> Dictionary:
 	var move := MOVE_FIXED
 	if i < person_move.size():
 		move = int(person_move[i])
+	var conv := -1
+	if i < person_conv.size():
+		conv = int(person_conv[i])
+	var slot := -1
+	if i < person_file_slot.size():
+		slot = int(person_file_slot[i])
+	var role := _CityNpcRoles.Role.NONE
+	if i < person_role.size():
+		role = int(person_role[i])
 	persons.remove_at(i)
 	if i < person_prev.size():
 		person_prev.remove_at(i)
 	if i < person_move.size():
 		person_move.remove_at(i)
+	if i < person_conv.size():
+		person_conv.remove_at(i)
+	if i < person_file_slot.size():
+		person_file_slot.remove_at(i)
+	if i < person_role.size():
+		person_role.remove_at(i)
 	return {
 		"x": int(p.x),
 		"y": int(p.y),
 		"tile": int(p.z),
 		"prev": prev,
 		"movement": move,
+		"conv": conv,
+		"file_slot": slot,
+		"role": role,
 		"city_person": true,
 	}
 
@@ -260,6 +292,9 @@ func restore_person(foe: Dictionary) -> void:
 	persons.append(Vector3i(x, y, int(foe.get("tile", 0))))
 	person_prev.append(int(foe.get("prev", -1)))
 	person_move.append(int(foe.get("movement", MOVE_FIXED)))
+	person_conv.append(int(foe.get("conv", -1)))
+	person_file_slot.append(int(foe.get("file_slot", -1)))
+	person_role.append(int(foe.get("role", _CityNpcRoles.Role.NONE)))
 
 
 func alert_guards() -> void:
@@ -304,8 +339,34 @@ func destroy_all_except_lord_british() -> int:
 			person_prev.remove_at(i)
 		if i < person_move.size():
 			person_move.remove_at(i)
+		if i < person_conv.size():
+			person_conv.remove_at(i)
+		if i < person_file_slot.size():
+			person_file_slot.remove_at(i)
+		if i < person_role.size():
+			person_role.remove_at(i)
 		removed += 1
 	return removed
+
+
+func discourse_at(person_i: int) -> Variant:
+	## TalkTlk.Entry for person index, or null.
+	if person_i < 0 or person_i >= person_conv.size():
+		return null
+	var cid := int(person_conv[person_i])
+	if cid < 0 or cid >= discourses.size():
+		return null
+	return discourses[cid]
+
+
+func role_at(person_i: int) -> int:
+	if person_i < 0 or person_i >= person_role.size():
+		return _CityNpcRoles.Role.NONE
+	return int(person_role[person_i])
+
+
+func is_vendor_at(person_i: int) -> bool:
+	return _CityNpcRoles.is_vendor(role_at(person_i))
 
 
 func load_from_path(path: String) -> bool:
@@ -319,9 +380,21 @@ func load_from_path(path: String) -> bool:
 	source_path = path
 	tiles = bytes.slice(0, TERRAIN_BYTES)
 	_load_persons(bytes)
+	_apply_file_roles(path)
+	_load_tlk(path)
 	loaded = true
 	return true
 
+
+func _apply_file_roles(ult_path: String) -> void:
+	## xu4 maps.b roles: person id is 1-based .ULT column index.
+	var roles: Dictionary = _CityNpcRoles.roles_for_ult(ult_path)
+	if roles.is_empty() or person_file_slot.is_empty():
+		return
+	for i in person_file_slot.size():
+		var slot_1 := int(person_file_slot[i]) + 1
+		if roles.has(slot_1):
+			person_role[i] = int(roles[slot_1])
 
 func move_persons(avatar: Vector2i) -> bool:
 	## xu4 Map::moveObjects — one attempt per person after the party turn.
@@ -343,11 +416,23 @@ func pause_follow(person_i: int) -> void:
 		person_move[person_i] = MOVE_FOLLOW_PAUSE
 
 
+func _load_tlk(ult_path: String) -> void:
+	## xu4 discourse_load city .TLK beside the .ULT.
+	discourses.clear()
+	var tlk_path: String = _TalkTlk.resolve_tlk_path(ult_path)
+	if tlk_path.is_empty():
+		return
+	discourses = _TalkTlk.load_file(tlk_path)
+
+
 func _load_persons(bytes: PackedByteArray) -> void:
 	## xu4 loadCityMap person block after terrain.
 	persons.clear()
 	person_prev.clear()
 	person_move.clear()
+	person_conv.clear()
+	person_file_slot.clear()
+	person_role.clear()
 	if bytes.size() < FILE_FULL:
 		return
 	var pd := bytes.slice(TERRAIN_BYTES, FILE_FULL)
@@ -363,6 +448,11 @@ func _load_persons(bytes: PackedByteArray) -> void:
 		var prev := int(pd[PD_PREV_TILE + i])
 		person_prev.append(prev if prev != 0 else -1)
 		person_move.append(_move_behavior(int(pd[PD_MOVE + i])))
+		## xu4: conv_idx[j] == discourse+1 → setDiscourseId(discourse).
+		var conv_byte := int(pd[PD_CONV + i])
+		person_conv.append(conv_byte - 1 if conv_byte > 0 else -1)
+		person_file_slot.append(i)
+		person_role.append(_CityNpcRoles.Role.NONE)
 
 
 static func _move_behavior(ult_value: int) -> int:

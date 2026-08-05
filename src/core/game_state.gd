@@ -748,6 +748,102 @@ func add_party_member(klass: int) -> bool:
 	return true
 
 
+## xu4 CannotJoinError.
+enum JoinError {
+	SUCCEEDED = 0,
+	NOT_EXPERIENCED = 1,
+	NOT_VIRTUOUS = 2,
+	CANNOT_JOIN = 3,
+}
+
+
+func companion_class_by_name(name: String) -> int:
+	## Match off-party companion name (Iolo, Mariah, …). -1 if not a joinable NPC.
+	var n := name.strip_edges()
+	if n.is_empty():
+		return -1
+	for i in PartyRoster.COMPANION_NAMES.size():
+		if str(PartyRoster.COMPANION_NAMES[i]).to_lower() == n.to_lower():
+			return i
+	return -1
+
+
+func can_person_join_name(name: String) -> bool:
+	## xu4 Party::canPersonJoin — name is one of the 8 class characters not leading.
+	return companion_class_by_name(name) >= 0
+
+
+func try_join_companion(name: String) -> int:
+	## xu4 Party::join — returns JoinError.
+	var klass := companion_class_by_name(name)
+	if klass < 0:
+		return JoinError.CANNOT_JOIN
+	if party_order.is_empty():
+		refresh_party_order()
+	if party_order.has(klass):
+		return JoinError.CANNOT_JOIN ## already with the party (inventory slot reused)
+	## Avatar max HP / 100 must be ≥ new party size.
+	var avatar_cls := player_class if player_class >= 0 else party_leader_class()
+	var hp_max := 100
+	if avatar_cls >= 0 and avatar_cls < member_max_hp.size():
+		hp_max = maxi(100, int(member_max_hp[avatar_cls]))
+	if party_order.size() + 1 > int(hp_max / 100):
+		return JoinError.NOT_EXPERIENCED
+	## Virtue of companion's class must be 0 (avatar) or ≥ 40.
+	var virt := klass ## class index == virtue index
+	if virt >= 0 and virt < karma.size():
+		var k := int(karma[virt])
+		if k > 0 and k < 40:
+			return JoinError.NOT_VIRTUOUS
+	if add_party_member(klass):
+		return JoinError.SUCCEEDED
+	return JoinError.CANNOT_JOIN
+
+
+func virtue_adjective_en(virtue: int) -> String:
+	const ADJ := [
+		"honest", "compassionate", "valiant", "just",
+		"sacrificial", "honorable", "spiritual", "humble",
+	]
+	if virtue < 0 or virtue >= ADJ.size():
+		return "virtuous"
+	return ADJ[virtue]
+
+
+func donate_gold(quantity: int) -> bool:
+	## xu4 Party::donate — true if gold was paid.
+	if quantity <= 0:
+		return false
+	if gold < quantity:
+		return false
+	adjust_gold(-quantity)
+	if gold > 0:
+		adjust_karma_gave_to_beggar()
+	else:
+		adjust_karma_gave_all_to_beggar()
+	return true
+
+
+func adjust_karma_gave_to_beggar() -> void:
+	## xu4 KA_GAVE_TO_BEGGAR — Compassion +2.
+	adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
+
+
+func adjust_karma_gave_all_to_beggar() -> void:
+	## xu4 KA_GAVE_ALL_TO_BEGGAR — same +2 compassion in U4DOS.
+	adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
+
+
+func adjust_karma_bragged() -> void:
+	## xu4 KA_BRAGGED — Humility −5.
+	adjust_karma_virtue(Virtues.Id.HUMILITY, -5)
+
+
+func adjust_karma_humble() -> void:
+	## xu4 KA_HUMBLE — Humility +10.
+	adjust_karma_virtue(Virtues.Id.HUMILITY, 10)
+
+
 func swap_party_members(a: int, b: int) -> bool:
 	## xu4 Party::swapPlayers — exchange two roster slots (0-based).
 	if party_order.is_empty():

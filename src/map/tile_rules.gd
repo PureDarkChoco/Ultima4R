@@ -226,6 +226,13 @@ static func is_secret_door(tile_id: int) -> bool:
 	return clampi(tile_id, 0, 255) == 73
 
 
+static func can_talk_over(tile_id: int) -> bool:
+	## xu4 rule `signs` talkover:true — A–Z letters + space (tile 96..122).
+	## Shop counters are painted with these; path can reach a vendor one step beyond.
+	var t := clampi(tile_id, 0, 255)
+	return t >= 96 and t <= 122
+
+
 static func blocks_weapon_shot(tile_id: int) -> bool:
 	## Stops projectiles: walls / ship pillars, plus secret doors (past them).
 	## column 48, shipmast 53, stone_wall 57, secret_door 73, brick_wall 127.
