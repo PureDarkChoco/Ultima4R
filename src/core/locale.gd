@@ -1344,6 +1344,51 @@ const _T := {
 		"en_us": "Hmm...No effect!",
 		"ko": "흠... 아무 일도 없다!",
 	},
+	"cmd_use_no_place": {
+		"en_u4": "No place to Use them!",
+		"en_us": "No place to Use them!",
+		"ko": "사용할 곳이 없다!",
+	},
+	"cmd_use_none_owned": {
+		"en_u4": "None owned!",
+		"en_us": "None owned!",
+		"ko": "가진 것이 없다!",
+	},
+	"cmd_use_bell": {
+		"en_u4": "The Bell rings on and on!",
+		"en_us": "The Bell rings on and on!",
+		"ko": "종이 끊임없이 울린다!",
+	},
+	"cmd_use_book": {
+		"en_u4": "The words resonate with the ringing!",
+		"en_us": "The words resonate with the ringing!",
+		"ko": "글이 종의 울림과 공명한다!",
+	},
+	"cmd_use_candle": {
+		"en_u4": "As you light the Candle the Earth Trembles!",
+		"en_us": "As you light the Candle the Earth Trembles!",
+		"ko": "촛불을 밝히자 대지가 흔들린다!",
+	},
+	"cmd_use_skull_aloft": {
+		"en_u4": "You hold the evil Skull of Mondain the Wizard aloft...",
+		"en_us": "You hold the evil Skull of Mondain the Wizard aloft...",
+		"ko": "모드인의 사악한 해골을 높이 들어올린다...",
+	},
+	"cmd_use_skull_abyss": {
+		"en_u4": "You cast the Skull of Mondain into the Abyss!",
+		"en_us": "You cast the Skull of Mondain into the Abyss!",
+		"ko": "모드인의 해골을 심연에 던진다!",
+	},
+	"cmd_use_wheel_mounted": {
+		"en_u4": "Once mounted, the Wheel glows with a blue light!",
+		"en_us": "Once mounted, the Wheel glows with a blue light!",
+		"ko": "바퀴를 장착하자 파란빛으로 빛난다!",
+	},
+	"cmd_use_horn": {
+		"en_u4": "The Horn sounds an eerie tone!",
+		"en_us": "The Horn sounds an eerie tone!",
+		"ko": "은 뿔나팔이 섬뜩한 소리를 낸다!",
+	},
 	"cmd_fired": {
 		"en_u4": "%s",
 		"en_us": "%s",

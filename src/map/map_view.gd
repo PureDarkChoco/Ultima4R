@@ -672,6 +672,23 @@ func is_combat_won() -> bool:
 	return true
 
 
+func destroy_combat_foes_except_lord_british() -> int:
+	## xu4 gameDestroyAllCreatures (CTX_COMBAT) — skull wipe; keep LB.
+	var n := 0
+	for i in _combat_foes.size():
+		var f: Dictionary = _combat_foes[i]
+		if int(f.get("hp", 0)) <= 0:
+			continue
+		if _WorldCreaturesScript.is_lord_british(int(f.get("tile", 0))):
+			continue
+		f["hp"] = 0
+		_combat_foes[i] = f
+		n += 1
+	if n > 0 and _combat_map != null:
+		_rebuild()
+	return n
+
+
 func set_combat_aim_cursor(pos: Vector2i) -> void:
 	## Show U5 L-bracket aim cursor at combat-local tile (−1,−1 clears).
 	if pos == _combat_aim_pos:

@@ -289,6 +289,25 @@ func take_adjacent_attacker(avatar: Vector2i) -> Dictionary:
 	return {}
 
 
+func destroy_all_except_lord_british() -> int:
+	## xu4 gameDestroyAllCreatures — wipe Persons except Lord British (tile 94).
+	var removed := 0
+	for i in range(persons.size() - 1, -1, -1):
+		var tid := int(persons[i].z)
+		var base := tid
+		if (tid >= 32 and tid <= 47) or (tid >= 80 and tid <= 95):
+			base = tid & ~1
+		if base == 94: ## lord_british
+			continue
+		persons.remove_at(i)
+		if i < person_prev.size():
+			person_prev.remove_at(i)
+		if i < person_move.size():
+			person_move.remove_at(i)
+		removed += 1
+	return removed
+
+
 func load_from_path(path: String) -> bool:
 	clear()
 	if path.is_empty() or not FileAccess.file_exists(path):

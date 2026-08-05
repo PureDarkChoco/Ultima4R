@@ -2,6 +2,7 @@ class_name UseItems
 extends Object
 
 ## Usable quest items (xu4 itemUse shortlist) for the Use (U) command list.
+## Not listed: virtue runes, inventory keys/jimmy keys (GameState.keys count).
 
 const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 

@@ -60,9 +60,11 @@ var torches: int = 2
 var skull: int = 0 ## HUD/legacy; kept in sync with ITEM_SKULL bit
 ## Sextant required for Locate (L / Ctrl+L). xu4 starts with 0.
 var has_sextant: bool = false
-## xu4 SaveGame.shiphull — 0..50; shown while aboard a frigate.
+## xu4 SaveGame.shiphull — normally 0..50; Wheel mounts to 99 (setShipHull).
 var ship_hull: int = 50
 const SHIP_HULL_MAX := 50
+## Absolute hull after Wheel; also storage clamp (xu4 setShipHull adjusts to 0..99).
+const SHIP_HULL_WHEEL := 99
 ## xu4 SaveGame.food — centi-units (HUD shows food / 100). Cap 9999 displayed.
 var food: int = 30000 ## display 300 (xu4 finishInitiateGame)
 const FOOD_MAX := 999900
@@ -81,6 +83,18 @@ var runes: int = 0
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
 const TILE_CORPSE := 56
+
+## xu4 Aura — party-wide timed effect (spells / Silver Horn). Not saved.
+enum AuraType {
+	NONE = 0,
+	HORN = 1,
+	JINX = 2,
+	NEGATE = 3,
+	PROTECTION = 4,
+	QUICKNESS = 5,
+}
+var aura_type: int = AuraType.NONE
+var aura_duration: int = 0
 
 ## xu4 savegame.h Item / Stone / Rune enums.
 const ITEM_SKULL := 0x01
@@ -270,6 +284,7 @@ func reset_party() -> void:
 	items = 0
 	stones = 0
 	runes = 0
+	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
 
@@ -626,6 +641,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	_init_party_from_xu4(klass, selected_virtues)
 	party_order.clear()
 	party_order.append(klass)
+	clear_aura()
 
 
 func _init_party_from_xu4(avatar_klass: int, selected_virtues: Array[int]) -> void:
@@ -1383,6 +1399,24 @@ func adjust_karma_attacked_good() -> void:
 	adjust_karma_virtue(Virtues.Id.HONOR, -5)
 
 
+func adjust_karma_used_skull() -> void:
+	## xu4 KA_USED_SKULL — all eight virtues −5.
+	for v in range(8):
+		adjust_karma_virtue(v, -5)
+
+
+func adjust_karma_destroyed_skull() -> void:
+	## xu4 KA_DESTROYED_SKULL — all eight virtues +10.
+	for v in range(8):
+		adjust_karma_virtue(v, 10)
+
+
+func destroy_skull() -> void:
+	## Toss into Abyss entrance — remove from inventory permanently.
+	items = (items & ~ITEM_SKULL) | ITEM_SKULL_DESTROYED
+	skull = 0
+
+
 func try_poison_class(klass: int) -> bool:
 	## Combat ranged poison field — 50% if currently healthy.
 	if klass < 0 or is_class_dead(klass):
@@ -1545,6 +1579,44 @@ func mark_lastreagent() -> void:
 
 func has_item_flag(flag: int) -> bool:
 	return (items & flag) != 0
+
+
+func add_item_flag(flag: int) -> void:
+	## Mark used-BBC bits etc. without Search loot side effects.
+	items |= flag
+
+
+func set_aura(t: int, duration: int) -> void:
+	## xu4 Aura::set — replaces any current aura.
+	if duration <= 0 or t == AuraType.NONE:
+		aura_type = AuraType.NONE
+		aura_duration = 0
+		return
+	aura_type = t
+	aura_duration = duration
+
+
+func clear_aura() -> void:
+	set_aura(AuraType.NONE, 0)
+
+
+func is_aura(t: int) -> bool:
+	return aura_type == t and aura_duration > 0
+
+
+func is_aura_horn() -> bool:
+	## Blocks humility-shrine daemon ambush while HORN lasts.
+	return is_aura(AuraType.HORN)
+
+
+func pass_aura_turn() -> void:
+	## xu4 Aura::passTurn — once per world turn / combat party round.
+	if aura_duration <= 0:
+		return
+	aura_duration -= 1
+	if aura_duration <= 0:
+		aura_type = AuraType.NONE
+		aura_duration = 0
 
 
 func has_stone(flag: int) -> bool:
@@ -1733,7 +1805,7 @@ func _apply_fire_effect(party_slot: int, always: bool) -> int:
 
 
 func heal_ship(pts: int = 1) -> bool:
-	## xu4 Party::healShip — hull capped at 50.
+	## xu4 Party::healShip — hull capped at 50 (Wheel-boosted hull is not regenerated upward).
 	if pts <= 0 or ship_hull >= SHIP_HULL_MAX:
 		return false
 	var before := ship_hull
@@ -1750,6 +1822,19 @@ func damage_ship(pts: int) -> bool:
 		return true
 	ship_hull -= pts
 	return false
+
+
+func set_ship_hull(str_val: int) -> void:
+	## xu4 Party::setShipHull — clamp 0..99.
+	ship_hull = clampi(str_val, 0, SHIP_HULL_WHEEL)
+
+
+func try_mount_wheel() -> bool:
+	## xu4 useWheel: only when undamaged (exactly 50); becomes 99.
+	if ship_hull != SHIP_HULL_MAX:
+		return false
+	set_ship_hull(SHIP_HULL_WHEEL)
+	return true
 
 
 func damage_party_cannon(min_damage: int = 10, max_damage: int = 25) -> int:
@@ -1805,6 +1890,7 @@ func revive_party() -> void:
 		armor[a] = 0
 	food = 20099
 	gold = 200
+	clear_aura()
 
 
 func living_party_count() -> int:
@@ -1989,7 +2075,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	food = int(d.get("food", 0))
 	moves = int(d.get("moves", 0))
 	lastcamp = int(d.get("lastcamp", 0))
-	ship_hull = clampi(int(d.get("ship_hull", 0)), 0, SHIP_HULL_MAX)
+	ship_hull = clampi(int(d.get("ship_hull", 0)), 0, SHIP_HULL_WHEEL)
 	gems = maxi(0, int(d.get("gems", 0)))
 	gold = maxi(0, int(d.get("gold", 0)))
 	keys = maxi(0, int(d.get("keys", 0)))

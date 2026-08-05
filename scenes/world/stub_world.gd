@@ -644,12 +644,12 @@ func _take_ship_hull_at(tile: Vector2i) -> int:
 	if _ship_hulls.has(key):
 		var h: int = int(_ship_hulls[key])
 		_ship_hulls.erase(key)
-		return clampi(h, 0, GameState.SHIP_HULL_MAX)
+		return clampi(h, 0, GameState.SHIP_HULL_WHEEL)
 	return GameState.SHIP_HULL_MAX
 
 
 func _store_ship_hull_at(tile: Vector2i, hull: int) -> void:
-	_ship_hulls[_ship_hull_key(tile)] = clampi(hull, 0, GameState.SHIP_HULL_MAX)
+	_ship_hulls[_ship_hull_key(tile)] = clampi(hull, 0, GameState.SHIP_HULL_WHEEL)
 
 
 func _damage_ship_from_grounding(dir: Vector2i) -> void:
@@ -659,7 +659,7 @@ func _damage_ship_from_grounding(dir: Vector2i) -> void:
 		GameState.ship_hull = clampi(
 			GameState.ship_hull - dmg,
 			0,
-			GameState.SHIP_HULL_MAX
+			GameState.SHIP_HULL_WHEEL
 		)
 		_refresh_ship_hull_hud()
 	if _map != null:
@@ -1661,6 +1661,10 @@ func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true)
 	_refresh_locate_hud()
 	if with_message:
 		_push_move_message(dir)
+	## xu4: south toward Shrine of Humility — daemons unless Horn aura active.
+	if not _is_in_city() and _world_creatures != null:
+		if _world_creatures.try_humility_daemon_ambush(dir, _tile_pos) > 0:
+			_sync_creatures_to_map()
 
 
 func _reset_hold_state() -> void:
@@ -2346,7 +2350,7 @@ func _refresh_ship_hull_hud() -> void:
 	if _ship_hull_hud:
 		_ship_hull_hud.visible = aboard
 	if aboard and _ship_hull_lab:
-		var hull := clampi(GameState.ship_hull, 0, GameState.SHIP_HULL_MAX)
+		var hull := clampi(GameState.ship_hull, 0, GameState.SHIP_HULL_WHEEL)
 		_ship_hull_lab.text = "%02d" % hull
 		_ship_hull_lab.add_theme_color_override(
 			"font_color",
@@ -4546,15 +4550,153 @@ func _confirm_use_cursor() -> void:
 	var kind: int = int(_use_panel.cursor_kind())
 	if kind < 0:
 		return
-	## Effects (horn / skull / BBC…) land later — wrong place → classic line.
 	var item_name := _UseItems.display_name(kind)
 	_close_use(false)
 	_push_message(item_name, false)
-	_push_message(Locale.t("cmd_use_no_effect"), false)
+	## Run async use effects without turning the key handler into a coroutine.
+	_run_use_item.call_deferred(kind)
+
+
+func _run_use_item(kind: int) -> void:
+	await _apply_use_item(kind)
+
+
+func _apply_use_item(kind: int) -> void:
+	## xu4 itemUse handlers. Runes / inventory keys (jimmy) are never listed.
+	match kind:
+		_UseItems.Kind.SKULL:
+			await _use_skull()
+			return
+		_UseItems.Kind.WHEEL:
+			await _use_wheel()
+			return
+		_UseItems.Kind.BELL, _UseItems.Kind.BOOK, _UseItems.Kind.CANDLE:
+			await _use_bbc(kind)
+			return
+		_UseItems.Kind.HORN:
+			await _use_horn()
+			return
+		_UseItems.Kind.KEY_TRUTH, _UseItems.Kind.KEY_LOVE, _UseItems.Kind.KEY_COURAGE:
+			## xu4 useKey — always "No place to Use them!" (Codex key thirds).
+			_push_message(Locale.t("cmd_use_no_place"), false)
+			await _finish_use_command()
+			return
+		_:
+			if kind >= _UseItems.Kind.STONE_BLUE and kind <= _UseItems.Kind.STONE_BLACK:
+				## Full altar / Abyss stone flow deferred with dungeons.
+				## Wrong place for now → xu4 "No place to Use them!".
+				_push_message(Locale.t("cmd_use_no_place"), false)
+				await _finish_use_command()
+				return
+			## Remaining unported use kinds.
+			_push_message(Locale.t("cmd_use_no_effect"), false)
+			await _finish_use_command()
+
+
+func _finish_use_command() -> void:
 	if _combat_active and not _combat_resolving:
 		_combat_finish_member_turn()
 	else:
-		_finish_party_turn()
+		await _finish_party_turn()
+
+
+func _use_horn() -> void:
+	## xu4 useHorn — always succeeds: message + Aura::HORN for 10 turns.
+	## Only material effect elsewhere is blocking humility-shrine daemon ambush.
+	_push_message(Locale.t("cmd_use_horn"), false)
+	GameState.set_aura(GameState.AuraType.HORN, 10)
+	await _finish_use_command()
+
+
+func _use_bbc(kind: int) -> void:
+	## xu4 useBBC — Abyss entrance (233,233) only, Bell → Book → Candle order.
+	const ABYSS_ENTRANCE := Vector2i(233, 233)
+	var at_abyss := (
+		not _combat_active
+		and not _is_in_city()
+		and _tile_pos == ABYSS_ENTRANCE
+	)
+	if at_abyss:
+		if kind == _UseItems.Kind.BELL:
+			_push_message(Locale.t("cmd_use_bell"), false)
+			GameState.add_item_flag(GameState.ITEM_BELL_USED)
+			await _finish_use_command()
+			return
+		if kind == _UseItems.Kind.BOOK and GameState.has_item_flag(GameState.ITEM_BELL_USED):
+			_push_message(Locale.t("cmd_use_book"), false)
+			GameState.add_item_flag(GameState.ITEM_BOOK_USED)
+			await _finish_use_command()
+			return
+		if kind == _UseItems.Kind.CANDLE and GameState.has_item_flag(GameState.ITEM_BOOK_USED):
+			_push_message(Locale.t("cmd_use_candle"), false)
+			GameState.add_item_flag(GameState.ITEM_CANDLE_USED)
+			await _finish_use_command()
+			return
+	## Wrong place, wrong order, or not on Abyss gate.
+	_push_message(Locale.t("cmd_use_no_effect"), false)
+	await _finish_use_command()
+
+
+func _use_wheel() -> void:
+	## xu4 useWheel — aboard ship with undamaged hull (exactly 50) → hull becomes 99.
+	## Same rules in combat and field (transport context is not cleared for combat).
+	if _transport == Transport.SHIP and GameState.try_mount_wheel():
+		_push_message(Locale.t("cmd_use_wheel_mounted"), false)
+		_refresh_ship_hull_hud()
+	else:
+		_push_message(Locale.t("cmd_use_no_effect"), false)
+	await _finish_use_command()
+
+
+func _use_skull() -> void:
+	## xu4 useSkull — Abyss gate destroys it; elsewhere kill all creatures + bad karma.
+	if GameState.has_item_flag(GameState.ITEM_SKULL_DESTROYED):
+		_push_message(Locale.t("cmd_use_none_owned"), false)
+		await _finish_use_command()
+		return
+	if not GameState.has_item_flag(GameState.ITEM_SKULL):
+		_push_message(Locale.t("cmd_use_none_owned"), false)
+		await _finish_use_command()
+		return
+	## Abyss entrance world tile (0xe9, 0xe9).
+	const ABYSS_ENTRANCE := Vector2i(233, 233)
+	if not _combat_active and not _is_in_city() and _tile_pos == ABYSS_ENTRANCE:
+		_push_message(Locale.t("cmd_use_skull_abyss"), false)
+		GameState.destroy_skull()
+		GameState.adjust_karma_destroyed_skull()
+		_refresh_inventory_bars()
+		if _map != null:
+			await _map.await_spell_flash()
+		await _finish_use_command()
+		return
+	_push_message(Locale.t("cmd_use_skull_aloft"), false)
+	GameState.adjust_karma_used_skull()
+	if _map != null:
+		await _map.await_spell_flash()
+	## Destroy creatures (combat foes / wilderness / town Persons); spare LB.
+	if _combat_active and _map != null and _map.is_in_combat():
+		_map.destroy_combat_foes_except_lord_british()
+		_refresh_foe_roster()
+		if _is_in_city() and _city_map != null and _city_map.has_method("alert_guards"):
+			_city_map.alert_guards()
+			_city_guards_alerted = true
+		if _map.is_combat_won() and not _combat_victory_aftermath:
+			await _begin_combat_victory_aftermath()
+		elif not _combat_resolving:
+			_combat_finish_member_turn()
+		return
+	if _is_in_city() and _city_map != null:
+		if _city_map.has_method("destroy_all_except_lord_british"):
+			_city_map.destroy_all_except_lord_british()
+		if _city_map.has_method("alert_guards"):
+			_city_map.alert_guards()
+			_city_guards_alerted = true
+		if _map != null and _map.has_method("refresh"):
+			_map.refresh()
+	elif _world_creatures != null:
+		_world_creatures.destroy_all_except_lord_british()
+		_sync_creatures_to_map()
+	await _finish_use_command()
 
 
 func _close_use(show_none: bool) -> void:
@@ -5364,6 +5506,9 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 
 func _run_party_turn_once(in_combat: bool = false) -> void:
 	var result: Dictionary = GameState.end_party_turn(true, in_combat)
+	## xu4 finishTurn: aura.passTurn after Party::endTurn (world turns).
+	if not in_combat:
+		GameState.pass_aura_turn()
 	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying / combat).
 	var ground_flash := 0 if in_combat else _apply_ground_tile_effect()
 	## xu4 Map::moveObjects — town NPCs roam after the party acts.
@@ -6253,7 +6398,7 @@ func _handle_combat_input(event: InputEvent) -> bool:
 
 
 func _handle_combat_victory_input(k: InputEventKey) -> bool:
-	## Free movement, Open/Get/Cast/Klimb/Descend, ESC cascade exit — no turn clock.
+	## Free movement, Open/Get/Cast, ESC cascade exit — no turn clock.
 	_combat_resolving = false
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		_combat_victory_esc_exit_all()
@@ -6278,10 +6423,6 @@ func _handle_combat_victory_input(k: InputEventKey) -> bool:
 				U4Commands.letter_for(cmd),
 				U4Commands.label(cmd, lang),
 			]), false)
-		U4Commands.Id.KLIMB:
-			_push_message(Locale.t("cmd_klimb_what"), false)
-		U4Commands.Id.DESCEND:
-			_push_message(Locale.t("cmd_descend_what"), false)
 		U4Commands.Id.READY:
 			_do_ready()
 		U4Commands.Id.USE:
@@ -6335,13 +6476,6 @@ func _handle_combat_command(cmd: int) -> void:
 		U4Commands.Id.CAST:
 			## Cast not fully ported yet — consume the turn like a valid command start.
 			_push_message(Locale.t("cmd_stub", [letter, name]), false)
-			_combat_finish_member_turn()
-		U4Commands.Id.KLIMB:
-			## Arena has no ladders — same outcome as world with no Klimb portal.
-			_push_message(Locale.t("cmd_klimb_what"), false)
-			_combat_finish_member_turn()
-		U4Commands.Id.DESCEND:
-			_push_message(Locale.t("cmd_descend_what"), false)
 			_combat_finish_member_turn()
 		U4Commands.Id.USE:
 			_do_use()
@@ -6876,7 +7010,8 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 			_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
 		)
 		if not still_party:
-			## Party round done — creatures (xu4 wrap → moveCreatures).
+			## Party round done — creatures (xu4 wrap → endTurn / aura / moveCreatures).
+			GameState.pass_aura_turn()
 			await get_tree().create_timer(0.05).timeout
 			await _combat_run_foe_phase()
 			if not _combat_active or _map == null or not _map.is_in_combat():

@@ -136,14 +136,12 @@ const NEEDS_DIRECTION := {
 	Id.TALK: true,
 }
 
-## xu4 CombatController legal keys: A C G R U Z (+ dirs / Pass).
-## Ultima4R also allows Open (O); D/K answer like field Klimb/Descend ("what?").
+## xu4 CombatController legal keys: A C G R U Z (+ dirs / Pass / V).
+## Ultima4R also allows Open (O). Klimb/Descend stay banned ("Not here!").
 const COMBAT_ALLOWED := {
 	Id.ATTACK: true,
 	Id.CAST: true,
-	Id.DESCEND: true,
 	Id.GET_CHEST: true,
-	Id.KLIMB: true,
 	Id.OPEN: true,
 	Id.READY: true,
 	Id.USE: true,

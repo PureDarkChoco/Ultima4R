@@ -318,6 +318,19 @@ func remove_at(tile: Vector2i) -> bool:
 	return false
 
 
+func destroy_all_except_lord_british() -> int:
+	## xu4 gameDestroyAllCreatures (world) — keep Lord British if present.
+	var kept: Array[Dictionary] = []
+	var removed := 0
+	for c in creatures:
+		if is_lord_british(int(c.get("tile", 0))):
+			kept.append(c)
+		else:
+			removed += 1
+	creatures = kept
+	return removed
+
+
 static func display_name(tile_or_base: int) -> String:
 	## Short English label for messages (Attacked by …).
 	var base := _base_tile(tile_or_base)
@@ -694,6 +707,25 @@ func try_random_spawn(
 	if randi() % SPAWN_DIVISOR_WORLD != 0:
 		return false
 	return spawn_offscreen(world, avatar, view_w, view_h, moves, blocked)
+
+
+func try_humility_daemon_ambush(dir: Vector2i, avatar: Vector2i) -> int:
+	## xu4 gameCheck mixed trigger: walking south near Shrine of Humility.
+	## Spawns 8 daemons unless Silver Horn aura is active.
+	if dir != Vector2i(0, 1):
+		return 0
+	if avatar.x < 229 or avatar.x >= 234:
+		return 0
+	if avatar.y < 212 or avatar.y >= 217:
+		return 0
+	if GameState.is_aura_horn():
+		return 0
+	var y := avatar.y + 1
+	var n := 0
+	for _i in 8:
+		creatures.append(_make_creature(231, y, 240, 0))
+		n += 1
+	return n
 
 
 func spawn_offscreen(
