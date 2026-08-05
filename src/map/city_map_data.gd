@@ -382,8 +382,32 @@ func load_from_path(path: String) -> bool:
 	_load_persons(bytes)
 	_apply_file_roles(path)
 	_load_tlk(path)
+	## xu4 City::addPeople — omit companions already in the party.
+	strip_joined_companions()
 	loaded = true
 	return true
+
+
+func strip_joined_companions() -> void:
+	## xu4 City::addPeople — omit NPC_TALKER_COMPANION who is already in the party
+	## (not merely same class as the Avatar leading the party).
+	if persons.is_empty():
+		return
+	for i in range(persons.size() - 1, -1, -1):
+		var nm := _person_talk_name(i)
+		if nm.is_empty():
+			continue
+		if not GameState.is_person_joined(nm):
+			continue
+		take_person_at_index(i)
+
+
+func _person_talk_name(person_i: int) -> String:
+	## .TLK name for discourse / companion id, or empty.
+	var entry: Variant = discourse_at(person_i)
+	if entry == null:
+		return ""
+	return str(entry.name).strip_edges()
 
 
 func _apply_file_roles(ult_path: String) -> void:

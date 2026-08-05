@@ -6382,11 +6382,25 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return false
 
 
+func _push_talk_player_input(typed: String) -> void:
+	## xu4: words typed after "Your Interest:" / "You say:" stay in the log.
+	## Plain history — no keyword gold, no classic modernization, no prompt glyph.
+	var s := typed.strip_edges()
+	if s.is_empty():
+		return
+	for part in _wrap_msg_text(s):
+		_msg_lines.append(part)
+	while _msg_lines.size() > MSG_KEEP:
+		_msg_lines.remove_at(0)
+	_refresh_message_view()
+
+
 func _talk_input_interest(k: InputEventKey) -> bool:
 	if _is_talk_enter(k):
 		var submitted := _talk_buffer.strip_edges()
 		_talk_buffer = ""
 		_layout_prompt_row()
+		_push_talk_player_input(submitted)
 		_talk_process_keyword(submitted)
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
@@ -6411,6 +6425,7 @@ func _talk_input_yn(k: InputEventKey) -> bool:
 		if s.is_empty():
 			_layout_prompt_row()
 			return true
+		_push_talk_player_input(s)
 		var c0 := s.substr(0, 1).to_lower()
 		if c0 == "y" or c0 == "n":
 			_talk_answer_yn(c0 == "y")
@@ -6438,6 +6453,7 @@ func _talk_input_give(k: InputEventKey) -> bool:
 		var s := _talk_buffer.strip_edges()
 		_talk_buffer = ""
 		_layout_prompt_row()
+		_push_talk_player_input(s)
 		var gold_amt := int(s) if s.is_valid_int() else 0
 		_talk_finish_give(gold_amt)
 		return true

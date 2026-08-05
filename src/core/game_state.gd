@@ -769,8 +769,34 @@ func companion_class_by_name(name: String) -> int:
 
 
 func can_person_join_name(name: String) -> bool:
-	## xu4 Party::canPersonJoin — name is one of the 8 class characters not leading.
-	return companion_class_by_name(name) >= 0
+	## xu4 Party::canPersonJoin — joinable only if not the Avatar's own class
+	## and not already a recruited companion (xu4 slots 1..7 / roster past leader).
+	var klass := companion_class_by_name(name)
+	if klass < 0:
+		return false
+	if party_order.is_empty():
+		refresh_party_order()
+	var avatar_cls := player_class if player_class >= 0 else party_leader_class()
+	if klass == avatar_cls:
+		return false
+	if is_person_joined(name):
+		return false
+	return true
+
+
+func is_person_joined(name: String) -> bool:
+	## xu4 Party::isPersonJoined — true only if already a *party member past the avatar*.
+	## Skip slot 0: an Avatar of the same class must NOT hide that town companion.
+	## Join still fails via try_join (klass already in party_order as the avatar).
+	var klass := companion_class_by_name(name)
+	if klass < 0:
+		return false
+	if party_order.is_empty():
+		refresh_party_order()
+	for slot in range(1, party_order.size()):
+		if int(party_order[slot]) == klass:
+			return true
+	return false
 
 
 func try_join_companion(name: String) -> int:
