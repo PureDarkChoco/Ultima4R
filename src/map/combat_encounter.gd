@@ -53,6 +53,25 @@ const _CREATURES := {
 ## Creature id → base tile (for leader lookups).
 static var _id_to_tile: Dictionary = {}
 
+## xu4 config.b ambushes: true — Creature::randomAmbushing pool.
+const _AMBUSHING_TILES: Array[int] = [
+	160, ## Slime
+	164, ## Troll
+	180, ## Insect Swarm
+	192, ## Orc
+	196, ## Skeleton
+	200, ## Rogue
+	204, ## Python
+	220, ## Wisp
+]
+
+
+static func random_ambushing_tile() -> int:
+	## xu4 Creature::randomAmbushing — uniform pick among ambusher types.
+	if _AMBUSHING_TILES.is_empty():
+		return 200
+	return _AMBUSHING_TILES[randi() % _AMBUSHING_TILES.size()]
+
 
 static func _ensure_id_index() -> void:
 	if not _id_to_tile.is_empty():

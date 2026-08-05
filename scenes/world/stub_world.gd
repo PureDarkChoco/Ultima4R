@@ -137,6 +137,9 @@ var _combat_active := false
 var _combat_victory_aftermath := false
 ## True while pacing delays / foe turns run — blocks combat input.
 var _combat_resolving := false
+## xu4 combat sleep wake (1/8) allowed. Camp ambush keeps this false until
+## the first creature phase finishes so foes truly act first.
+var _combat_allow_sleep_wake := true
 ## Gap after each unit acts (xu4 screenWait≈42ms is snappy; keep readable).
 const COMBAT_TURN_GAP := 0.28
 const COMBAT_HIT_FLASH_SEC := 0.14
@@ -182,6 +185,8 @@ var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
+## True if this rest will end as an ambush (rolled at camp start, not at timer end).
+var _camp_ambush_pending := false
 var _camp_map # CombatMapData
 var _camp_guard_klass := -1
 var _camp_guard_cursor := 0
@@ -195,6 +200,8 @@ var _telescope_stage := 0
 var _immobilized_pending := false
 ## xu4 settings campTime default (Resting… animation seconds).
 const CAMP_REST_SEC := 10.0
+## Ambush fires after this many seconds at earliest (random in [min, full rest]).
+const CAMP_AMBUSH_MIN_SEC := 3.0
 ## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
 const IMMOBILIZED_SLEEP_SEC := 0.166
 ## xu4 death.cpp — deathStart(delay) + DeathController tick + revive.
@@ -1439,6 +1446,17 @@ func _process(delta: float) -> void:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
+		elif (
+			not _combat_resolving
+			and not _combat_victory_aftermath
+			and not _combat_aiming
+			and _map != null
+			and _map.is_in_combat()
+		):
+			## Sleeping/dead focus — auto-skip without waiting for a key (xu4).
+			var fk := _map.get_combat_focus_klass()
+			if fk >= 0 and GameState.is_member_disabled(fk):
+				_combat_finish_member_turn()
 		return
 	## xu4 force pass if no commands within last 20 seconds (explore only).
 	_tick_auto_pass(delta)
@@ -1455,6 +1473,11 @@ func _process(delta: float) -> void:
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return
+	## Hole-up Resting… must tick even though put_party_to_sleep immobilizes
+	## the party (solo / no-watch). Otherwise the timer never expires.
+	if _camp_stage == 1:
+		_tick_camp_rest(delta)
+		return
 	## All asleep: Zzzzzz auto-turns own the clock — no player move/cruise.
 	if _is_party_asleep_locked():
 		return
@@ -1467,9 +1490,6 @@ func _process(delta: float) -> void:
 		return
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
-		return
-	if _camp_stage == 1:
-		_tick_camp_rest(delta)
 		return
 	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
@@ -4555,6 +4575,7 @@ func _close_use(show_none: bool) -> void:
 
 func _do_hole_up() -> void:
 	## U5-style Hole up: ask for a watch, then CAMP.CON rest.
+	## Solo party — no one left to watch; skip the prompt and rest.
 	_push_message(Locale.t("cmd_hole_up"), false)
 	var deny := _hole_up_deny_message()
 	if not deny.is_empty():
@@ -4562,6 +4583,9 @@ func _do_hole_up() -> void:
 		return
 	_camp_guard_klass = -1
 	_camp_guard_cursor = 0
+	if GameState.party_size() <= 1:
+		_begin_camp_rest(-1)
+		return
 	_camp_stage = 2
 	_layout_prompt_row()
 
@@ -4995,7 +5019,18 @@ func _begin_camp_rest(guard_klass: int) -> void:
 
 	_push_message(Locale.t("cmd_camp_resting"), false)
 	_camp_stage = 1
-	_camp_rest_left = CAMP_REST_SEC
+	## Roll ambush once at rest start (xu4 1/8). If yes, interrupt early:
+	## random time in [CAMP_AMBUSH_MIN_SEC, CAMP_REST_SEC] — never wait the full
+	## rest solely to check. Safe rest always uses full CAMP_REST_SEC.
+	_camp_ambush_pending = (randi() % 8) == 0
+	if _camp_ambush_pending:
+		var lo := CAMP_AMBUSH_MIN_SEC
+		var hi := CAMP_REST_SEC
+		if hi < lo:
+			hi = lo
+		_camp_rest_left = randf_range(lo, hi)
+	else:
+		_camp_rest_left = CAMP_REST_SEC
 	_layout_prompt_row()
 
 
@@ -5011,12 +5046,13 @@ func _tick_camp_rest(delta: float) -> void:
 
 
 func _finish_camp_rest() -> void:
-	## xu4 CampController after Resting… — 1/8 ambush, else heal + exit.
+	## Outcome was decided at rest start (_camp_ambush_pending).
 	## U5 watch: guard is always excluded from heal.
-	if (randi() % 8) == 0:
-		## Combat not wired yet — interrupt rest without heal (xu4 starts fight).
+	if _camp_ambush_pending:
+		_camp_ambush_pending = false
 		_push_message(Locale.t("cmd_camp_ambushed"), false)
-		_end_camp_session(false)
+		## Async handoff: camp → combat on CAMP.CON (panels may open).
+		_begin_camp_ambush_combat()
 		return
 
 	var healed := false
@@ -5030,6 +5066,50 @@ func _finish_camp_rest() -> void:
 	_end_camp_session(true)
 
 
+func _begin_camp_ambush_combat() -> void:
+	## xu4 CampController ambush: place ambushers on CAMP.CON, foes act first.
+	## U5 watch: wake the whole party immediately; without watch stay asleep (xu4).
+	if _combat_active or _party_wiped_or_dying():
+		_end_camp_session(false)
+		return
+	var cmap = _camp_map
+	if cmap == null:
+		var path := _CombatMapData.resolve_u4_file("CAMP.CON")
+		var fresh = _CombatMapData.new()
+		if not path.is_empty() and fresh.load_from_path(path):
+			cmap = fresh
+	if cmap == null:
+		_end_camp_session(false)
+		return
+
+	var had_watch := _camp_guard_klass >= 0
+	if had_watch:
+		GameState.wake_party()
+		_refresh_party()
+	else:
+		## Re-assert sleep — avoid any edge case that cleared status during rest.
+		GameState.put_party_to_sleep(-1)
+		_refresh_party()
+
+	## Drop camp UI without ending the world turn (combat owns the session).
+	_camp_stage = 0
+	_camp_rest_left = 0.0
+	_camp_ambush_pending = false
+	_camp_guard_klass = -1
+	_camp_map = null
+	_layout_prompt_row()
+
+	var ambush_tid := _CombatEncounter.random_ambushing_tile()
+	var foe := {
+		"tile": ambush_tid,
+		"x": _tile_pos.x,
+		"y": _tile_pos.y,
+		"facing": 0,
+	}
+	## force CAMP.CON + skip "Attacked by…" (already Ambushed!) + creatures first.
+	await _begin_combat(foe, false, cmap, true)
+
+
 func _end_camp_session(_healed: bool) -> void:
 	GameState.wake_party()
 	_refresh_party()
@@ -5038,6 +5118,7 @@ func _end_camp_session(_healed: bool) -> void:
 	_camp_map = null
 	_camp_stage = 0
 	_camp_rest_left = 0.0
+	_camp_ambush_pending = false
 	_camp_guard_klass = -1
 	_layout_prompt_row()
 	_finish_party_turn()
@@ -5060,6 +5141,7 @@ func _cancel_camp(show_none: bool) -> void:
 	_camp_map = null
 	_camp_stage = 0
 	_camp_rest_left = 0.0
+	_camp_ambush_pending = false
 	_camp_guard_klass = -1
 	_layout_prompt_row()
 	if show_none:
@@ -5084,6 +5166,7 @@ func _close_camp(_show_none: bool) -> void:
 	_camp_map = null
 	_camp_stage = 0
 	_camp_rest_left = 0.0
+	_camp_ambush_pending = false
 	_camp_guard_klass = -1
 	_layout_prompt_row()
 	_finish_party_turn()
@@ -5764,8 +5847,14 @@ func _do_attack(dir: Vector2i) -> String:
 	return ""
 
 
-func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
-	## Open the .CON battlefield (placement only — turn loop later).
+func _begin_combat(
+	foe: Dictionary,
+	initiated_by_party: bool,
+	force_map = null,
+	foes_first: bool = false
+) -> void:
+	## Open the .CON battlefield. Optional force_map (camp ambush uses CAMP.CON).
+	## foes_first: xu4 camp ambush — placeCreatures then finishTurn (creatures act).
 	if _combat_active or foe.is_empty():
 		return
 	## Never open the arena on a wiped party (pirate broadsides / death cutscene).
@@ -5780,21 +5869,23 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	_combat_foe = foe.duplicate(true)
 	var foe_tid := int(foe.get("tile", 0))
 	var foe_pos := Vector2i(int(foe.get("x", _tile_pos.x)), int(foe.get("y", _tile_pos.y)))
-	var ground_tid := 4
-	if _world != null and _world.loaded:
-		ground_tid = int(_world.tile_at(_tile_pos.x, _tile_pos.y))
-	var foe_ground := ground_tid
-	if _world != null and _world.loaded:
-		foe_ground = int(_world.tile_at(foe_pos.x, foe_pos.y))
-	var cmap = _CombatMaps.load_for_encounter(
-		ground_tid,
-		foe_tid,
-		_transport == Transport.SHIP,
-		_TileRules.is_water(foe_ground)
-	)
+	var cmap = force_map
+	if cmap == null:
+		var ground_tid := 4
+		if _world != null and _world.loaded:
+			ground_tid = int(_world.tile_at(_tile_pos.x, _tile_pos.y))
+		var foe_ground := ground_tid
+		if _world != null and _world.loaded:
+			foe_ground = int(_world.tile_at(foe_pos.x, foe_pos.y))
+		cmap = _CombatMaps.load_for_encounter(
+			ground_tid,
+			foe_tid,
+			_transport == Transport.SHIP,
+			_TileRules.is_water(foe_ground)
+		)
 	if cmap == null:
 		## Put the foe back if the arena failed to load.
-		if _world_creatures != null:
+		if _world_creatures != null and not foes_first:
 			_world_creatures.creatures.append(foe)
 			_sync_creatures_to_map()
 		_push_message(Locale.t("cmd_nothing_to_attack"), false)
@@ -5803,6 +5894,9 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	_combat_active = true
 	_combat_resolving = true
 	_combat_victory_aftermath = false
+	## Camp ambush: no sleep→wake rolls until the first creature phase ends.
+	## Normal engage: party may need the 1/8 roll before any creature acts.
+	_combat_allow_sleep_wake = not foes_first
 	await _open_sides_for_combat()
 	## Place living party on .CON player_start slots.
 	var party_units: Array = []
@@ -5847,7 +5941,8 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 		_map.enter_combat(cmap, party_units, foe_units)
 		## First living party member has the turn (xu4 beginCombat focus).
 		_map.set_combat_focus(0 if not party_units.is_empty() else -1)
-	if not initiated_by_party:
+	## Camp ambush already printed "Ambushed!" — skip "Attacked by…".
+	if not initiated_by_party and not foes_first:
 		var nm := _WorldCreaturesScript.display_name(foe_tid)
 		_push_message(Locale.t("cmd_attacked_by", [nm]), false)
 	_push_message(Locale.t("cmd_combat"), false)
@@ -5855,6 +5950,24 @@ func _begin_combat(foe: Dictionary, initiated_by_party: bool) -> void:
 	_refresh_foe_roster()
 	_sync_combat_focus_roster()
 	_stamp_command_time()
+	if foes_first:
+		## xu4 CampController comment: creatures go first.
+		## (Strict: full foe phase before any sleep wake rolls.)
+		await _combat_run_foe_phase()
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			_combat_resolving = false
+			return
+		if _map.is_combat_won():
+			await _begin_combat_victory_aftermath()
+			_combat_resolving = false
+			return
+		if _map.is_combat_lost():
+			await _end_combat_lost()
+			return
+		_map.set_combat_focus(0)
+		if not await _combat_skip_to_able_focus():
+			_combat_resolving = false
+			return
 	_combat_resolving = false
 
 
@@ -5911,6 +6024,8 @@ func _begin_combat_victory_aftermath() -> void:
 	_combat_victory_aftermath = true
 	_combat_resolving = false
 	_combat_aiming = false
+	## xu4 CampController::endCombat — wake sleepers after the fight.
+	GameState.wake_party()
 	var engaged_tid := int(_combat_foe.get("tile", 0))
 	var foe_pos := Vector2i(
 		int(_combat_foe.get("x", _tile_pos.x)),
@@ -6648,6 +6763,7 @@ func _combat_apply_healthy_fled_karma(fled: Dictionary) -> void:
 func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	## xu4 finishTurn — pace, next party member; after last, foes act one-by-one.
 	## Fleeing the last member → isLost → endCombat (Battle is lost + karma).
+	## Sleeping/dead members auto-skip with no player wait (xu4 do-while).
 	if _map == null or not _map.is_in_combat() or _combat_resolving:
 		return
 	## Victory aftermath never runs the foe phase or defeat path.
@@ -6657,7 +6773,13 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		return
 	_combat_resolving = true
 	_stamp_command_time()
-	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
+	## Delay only after a real (able) action or flee — not for sleeper auto-pass.
+	var focus_klass := _map.get_combat_focus_klass()
+	var was_able := (
+		focus_klass >= 0 and not GameState.is_member_disabled(focus_klass)
+	)
+	if was_able or after_flee:
+		await get_tree().create_timer(COMBAT_TURN_GAP).timeout
 	if not _combat_active or _map == null or not _map.is_in_combat():
 		_combat_resolving = false
 		return
@@ -6668,72 +6790,80 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	if _map.is_combat_lost():
 		await _end_combat_lost()
 		return
-	var still_party := (
-		_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
-	)
-	if still_party:
-		still_party = await _combat_focus_able_member(false)
-	if still_party:
-		_sync_combat_focus_roster()
-		_refresh_party()
+	## Able unit / flee: move focus first. Sleeper auto-pass stays and rolls wake.
+	if was_able or after_flee:
+		var still_party := (
+			_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
+		)
+		if not still_party:
+			## Party round done — creatures (xu4 wrap → moveCreatures).
+			await get_tree().create_timer(0.05).timeout
+			await _combat_run_foe_phase()
+			if not _combat_active or _map == null or not _map.is_in_combat():
+				_combat_resolving = false
+				return
+			if _map.is_combat_won():
+				await _begin_combat_victory_aftermath()
+				_combat_resolving = false
+				return
+			if _map.is_combat_lost():
+				await _end_combat_lost()
+				return
+			_map.set_combat_focus(0)
+	if not await _combat_skip_to_able_focus():
 		_combat_resolving = false
 		return
-	## Party round done — creatures in placement order (xu4 moveCreatures).
-	await _combat_run_foe_phase()
-	if not _combat_active or _map == null or not _map.is_in_combat():
-		_combat_resolving = false
-		return
-	if _map.is_combat_won():
-		await _begin_combat_victory_aftermath()
-		_combat_resolving = false
-		return
-	if _map.is_combat_lost():
-		await _end_combat_lost()
-		return
-	_map.set_combat_focus(0)
-	if not await _combat_focus_able_member(true):
-		## Entire party disabled — foes act again.
-		await _combat_run_foe_phase()
-		if not _combat_active or _map == null or not _map.is_in_combat():
-			_combat_resolving = false
-			return
-		if _map.is_combat_won():
-			await _begin_combat_victory_aftermath()
-			_combat_resolving = false
-			return
-		if _map.is_combat_lost():
-			await _end_combat_lost()
-			return
-		_map.set_combat_focus(0)
-	_refresh_foe_roster()
-	_sync_combat_focus_roster()
-	_refresh_party()
 	_combat_resolving = false
 
 
-func _combat_focus_able_member(from_start: bool) -> bool:
-	## Skip sleeping/dead focus; 1/8 wake chance (xu4 sleep). false = no able member.
+func _combat_skip_to_able_focus() -> bool:
+	## xu4 finishTurn skip loop: wake 1/8 on sleepers, instant-skip disabled;
+	## when the whole party is asleep, run foe phase and retry until someone acts.
+	## true = focus is ready for input; false = combat ended or no party left.
 	if _map == null or not _map.is_in_combat():
 		return false
-	var guard := 16
+	var guard := 128
 	while guard > 0:
 		guard -= 1
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			return false
+		if _map.is_combat_won() and not _combat_victory_aftermath:
+			await _begin_combat_victory_aftermath()
+			return false
+		if _map.is_combat_lost():
+			await _end_combat_lost()
+			return false
 		var klass := _map.get_combat_focus_klass()
 		if klass < 0:
 			return false
 		if GameState.status_of_class(klass) == PartyRoster.Status.SLEEPING:
-			if (randi() % 8) == 0:
-				GameState.wake_member(klass)
+			## Camp ambush: block wake until the first foe phase has run.
+			if (
+				_combat_allow_sleep_wake
+				and (randi() % 8) == 0
+				and GameState.wake_member(klass)
+			):
+				_refresh_party()
+				_map.refresh_combat_view()
 		if not GameState.is_member_disabled(klass):
+			_sync_combat_focus_roster()
+			_refresh_party()
+			_refresh_foe_roster()
 			return true
-		## Disabled — pass this member (no message spam).
-		if from_start:
-			if not _map.advance_combat_focus():
+		## Sleeping / dead — advance focus with no turn-gap delay.
+		if not _map.advance_combat_focus():
+			## Full pass of sleepers: xu4 ~50ms then creatures act.
+			await get_tree().create_timer(0.05).timeout
+			await _combat_run_foe_phase()
+			if not _combat_active or _map == null or not _map.is_in_combat():
 				return false
-		else:
-			if not _map.advance_combat_focus():
+			if _map.is_combat_won():
+				await _begin_combat_victory_aftermath()
 				return false
-		from_start = false
+			if _map.is_combat_lost():
+				await _end_combat_lost()
+				return false
+			_map.set_combat_focus(0)
 	return false
 
 
@@ -6764,6 +6894,8 @@ func _combat_run_foe_phase() -> void:
 		await get_tree().create_timer(COMBAT_TURN_GAP).timeout
 	if _map != null:
 		_map.clear_combat_foe_focus()
+	## First (or any) creature pass done — sleepers may now roll 1/8 wake.
+	_combat_allow_sleep_wake = true
 
 
 func _combat_maybe_end_after_foes() -> bool:
@@ -6840,6 +6972,7 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 
 func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 	## Free-aim shot; xu4 monsters never miss when the missile reaches the tile.
+	## xu4 EFFECT_POISON / EFFECT_SLEEP: status only, no dealDamage (even if asleep).
 	var from: Vector2i = plan.get("from", Vector2i.ZERO)
 	var to: Vector2i = plan.get("to", Vector2i.ZERO)
 	var party_i := int(plan.get("party_i", -1))
@@ -6860,9 +6993,11 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 	await _map.await_flash_combat_tile(to, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
 	match effect:
 		"poison":
+			## xu4: STAT_GOOD + 50% only; sleepers get neither damage nor poison.
 			if GameState.try_poison_class(klass):
 				_push_message(Locale.t("cmd_poisoned"), false)
 		"sleep":
+			## xu4: STAT_GOOD + 50%; already sleeping → no effect / no HP.
 			if GameState.try_sleep_class(klass):
 				_push_message(Locale.t("cmd_combat_sleep"), false)
 		_:
@@ -6943,6 +7078,8 @@ func _end_combat_lost() -> void:
 	var good := _WorldCreaturesScript.is_good(engaged_tid)
 	if _map != null:
 		_map.exit_combat()
+	## xu4 CampController::endCombat — wake sleepers after flee / loss.
+	GameState.wake_party()
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
 	if evil:

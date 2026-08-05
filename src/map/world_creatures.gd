@@ -393,7 +393,8 @@ const _RANGED_TILES := {
 	252: true, ## Balron
 }
 
-## Ranged hit effect: damage | poison | sleep | energy (all deal damage except status fields).
+## Ranged hit effect: damage | poison | sleep | energy.
+## xu4: poison/sleep field → status only (no HP damage), requires STAT_GOOD.
 const _RANGED_EFFECT := {
 	134: "energy", ## Squid — energy field
 	152: "poison", ## Spider

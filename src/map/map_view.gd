@@ -570,6 +570,12 @@ func set_combat_focus(index: int) -> void:
 		_rebuild()
 
 
+func refresh_combat_view() -> void:
+	## Re-blit after status change (wake corpse → class tile).
+	if _combat_map != null:
+		_rebuild()
+
+
 func set_combat_foe_focus(index: int) -> void:
 	## Active foe while creatures act one-by-one (xu4 moveCreatures loop).
 	var next := index
@@ -3181,6 +3187,7 @@ func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
 
 
 func _paint_combat_party(origin_x: int, origin_y: int) -> void:
+	## xu4 PartyMember::putToSleep / getTile — asleep & dead use corpse icon.
 	for u in _combat_party:
 		var klass := int(u.get("klass", -1))
 		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
@@ -3189,7 +3196,18 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 			continue
 		var img: Image = null
-		if klass >= 0 and klass < CLASS_TILE_EVEN.size():
+		var show_corpse := (
+			klass >= 0
+			and (
+				GameState.is_member_disabled(klass)
+				or GameState.is_class_dead(klass)
+			)
+		)
+		if show_corpse:
+			if _corpse_slice == null:
+				_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
+			img = _corpse_slice
+		elif klass >= 0 and klass < CLASS_TILE_EVEN.size():
 			var even: int = CLASS_TILE_EVEN[klass]
 			var tid := even + (1 if _avatar_frame == 1 else 0)
 			img = _slice_keyed_tile(tid)
