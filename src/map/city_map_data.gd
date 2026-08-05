@@ -216,6 +216,79 @@ func person_index_at(x: int, y: int) -> int:
 	return -1
 
 
+func take_person_at(x: int, y: int) -> Dictionary:
+	## Remove and return person for combat engage (xu4 removeObject endCombat).
+	var i := person_index_at(x, y)
+	if i < 0:
+		return {}
+	return take_person_at_index(i)
+
+
+func take_person_at_index(i: int) -> Dictionary:
+	if i < 0 or i >= persons.size():
+		return {}
+	var p: Vector3i = persons[i]
+	var prev := -1
+	if i < person_prev.size():
+		prev = int(person_prev[i])
+	var move := MOVE_FIXED
+	if i < person_move.size():
+		move = int(person_move[i])
+	persons.remove_at(i)
+	if i < person_prev.size():
+		person_prev.remove_at(i)
+	if i < person_move.size():
+		person_move.remove_at(i)
+	return {
+		"x": int(p.x),
+		"y": int(p.y),
+		"tile": int(p.z),
+		"prev": prev,
+		"movement": move,
+		"city_person": true,
+	}
+
+
+func restore_person(foe: Dictionary) -> void:
+	## Put a person back if combat arena failed to load.
+	if foe.is_empty() or not bool(foe.get("city_person", false)):
+		return
+	var x := int(foe.get("x", 0))
+	var y := int(foe.get("y", 0))
+	if person_index_at(x, y) >= 0:
+		return
+	persons.append(Vector3i(x, y, int(foe.get("tile", 0))))
+	person_prev.append(int(foe.get("prev", -1)))
+	person_move.append(int(foe.get("movement", MOVE_FIXED)))
+
+
+func alert_guards() -> void:
+	## xu4 Map::alertGuards — Guard + Lord British → MOVEMENT_ATTACK_AVATAR.
+	for i in persons.size():
+		if i >= person_move.size():
+			break
+		var tid := int(persons[i].z)
+		var base := tid
+		## 2-frame animation pairs (even base).
+		if (tid >= 32 and tid <= 47) or (tid >= 80 and tid <= 95):
+			base = tid & ~1
+		if base == 80 or base == 94: ## guard / lord_british
+			person_move[i] = MOVE_ATTACK
+
+
+func take_adjacent_attacker(avatar: Vector2i) -> Dictionary:
+	## First orthogonal (manhattan 1) MOVE_ATTACK person — engages combat.
+	for i in persons.size():
+		if i >= person_move.size():
+			continue
+		if int(person_move[i]) != MOVE_ATTACK:
+			continue
+		if _manhattan(persons[i], avatar) != 1:
+			continue
+		return take_person_at_index(i)
+	return {}
+
+
 func load_from_path(path: String) -> bool:
 	clear()
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -307,7 +380,7 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 			if (randi() % 2) != 0:
 				return false
 		MOVE_ATTACK:
-			## Adjacent attacker stays put (combat hook later).
+			## Adjacent attacker stays put; stub_world engages combat after move_persons.
 			if _manhattan(persons[i], avatar) <= 1:
 				return false
 		_:

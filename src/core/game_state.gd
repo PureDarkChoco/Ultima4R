@@ -1376,6 +1376,13 @@ func adjust_karma_spared_good() -> void:
 	adjust_karma_virtue(Virtues.Id.JUSTICE, 2)
 
 
+func adjust_karma_attacked_good() -> void:
+	## xu4 KA_ATTACKED_GOOD — Compassion / Justice / Honor −5 each.
+	adjust_karma_virtue(Virtues.Id.COMPASSION, -5)
+	adjust_karma_virtue(Virtues.Id.JUSTICE, -5)
+	adjust_karma_virtue(Virtues.Id.HONOR, -5)
+
+
 func try_poison_class(klass: int) -> bool:
 	## Combat ranged poison field — 50% if currently healthy.
 	if klass < 0 or is_class_dead(klass):

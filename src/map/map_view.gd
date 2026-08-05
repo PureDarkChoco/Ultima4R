@@ -509,8 +509,8 @@ func exit_camp() -> void:
 func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	## Show a .CON arena centered in the explore view (xu4 CombatMap).
 	## `party_units` / `foe_units`: {x,y,klass?} / {x,y,tile}.
+	## Keep the city map under combat so exit returns with alerted guards etc.
 	exit_camp()
-	exit_city()
 	_combat_map = map
 	_combat_party.clear()
 	for u in party_units:

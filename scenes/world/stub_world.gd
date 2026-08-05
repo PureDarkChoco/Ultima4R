@@ -225,6 +225,9 @@ var _options_panel # OptionsPanel
 ## City / castle visit (Enter). World position restored on leave.
 var _city_map # CityMapData
 var _city_return_pos := Vector2i.ZERO
+## xu4 anger forgotten next visit; within one stay (incl. LCB floor changes), keep
+## guards/LB on MOVE_ATTACK after alertGuards until the player leaves the place.
+var _city_guards_alerted := false
 ## Per-.ULT emptied chests only (not open lids). Key = lowercase basename →
 ## { "x,y": true }. Leave/floor change closes lids; memory/save keep emptied spots.
 var _city_chest_memory: Dictionary = {}
@@ -4618,6 +4621,8 @@ func _do_enter() -> void:
 	_push_message(Locale.t("cmd_enter_type", [kind_name]), false)
 	_push_message(city_name, false)
 	_city_return_pos = _tile_pos
+	## Fresh enter from world — anger reset (xu4 forgets next visit).
+	_city_guards_alerted = false
 	_city_map = cmap
 	var start := Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 15)))
 	_tile_pos = start
@@ -4679,6 +4684,8 @@ func _use_city_floor_portal(action: int) -> void:
 		_push_message(Locale.t(msg_key), false)
 	_stash_emptied_city_chests()
 	_city_map = cmap
+	## Same stay (e.g. LCB 1↔2): re-apply alertGuards to newly loaded NPCs.
+	_apply_city_guards_alerted()
 	_tile_pos = start
 	## Keep world exit tile; rim plains still from original Enter spawn.
 	var world_portal := _WorldPortals.portal_at(_city_return_pos)
@@ -4693,6 +4700,14 @@ func _use_city_floor_portal(action: int) -> void:
 		_map.set_transport_tile(-1)
 		_map.clear_moongate()
 	_finish_party_turn()
+
+
+func _apply_city_guards_alerted() -> void:
+	## After floor load / restore while still in the same castle visit.
+	if not _city_guards_alerted or _city_map == null or not _city_map.loaded:
+		return
+	if _city_map.has_method("alert_guards"):
+		_city_map.alert_guards()
 
 
 func _is_in_city() -> bool:
@@ -4788,6 +4803,8 @@ func _exit_city() -> void:
 	if not _is_in_city():
 		return
 	_stash_emptied_city_chests()
+	## Leaving the place forgets anger (xu4 City::addPerson next visit).
+	_city_guards_alerted = false
 	_city_map = null
 	_tile_pos = _city_return_pos
 	if _map != null:
@@ -5351,7 +5368,7 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 	var ground_flash := 0 if in_combat else _apply_ground_tile_effect()
 	## xu4 Map::moveObjects — town NPCs roam after the party acts.
 	if not in_combat:
-		_move_city_persons()
+		await _move_city_persons()
 	## xu4 creatureCleanup → checkRandomCreatures (world; offscreen of explore view).
 	if not in_combat:
 		await _update_world_creatures()
@@ -5645,6 +5662,7 @@ func _death_revive() -> void:
 	_camp_map = null
 	if _is_in_city():
 		_stash_emptied_city_chests()
+		_city_guards_alerted = false
 		_city_map = null
 		if _map != null:
 			_map.exit_city()
@@ -5668,6 +5686,7 @@ func _death_revive() -> void:
 	var cmap = _CityMapData.new()
 	var entered := false
 	if not path.is_empty() and cmap.load_from_path(path):
+		_city_guards_alerted = false
 		_city_map = cmap
 		var start := DEATH_REVIVE_CASTLE
 		_tile_pos = start
@@ -5699,12 +5718,22 @@ func _death_revive() -> void:
 
 func _move_city_persons() -> void:
 	## xu4 finishTurn → location->map->moveObjects(avatar).
-	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+	## Adjacent MOVE_ATTACK persons then engage combat (like wilderness attackers).
+	if _combat_active or not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return
-	if not _city_map.move_persons(_tile_pos):
+	if _city_map.move_persons(_tile_pos):
+		if _map != null and _map.has_method("refresh"):
+			_map.refresh()
+	if _combat_active or _party_wiped_or_dying():
+		return
+	if not _city_map.has_method("take_adjacent_attacker"):
+		return
+	var foe: Dictionary = _city_map.take_adjacent_attacker(_tile_pos)
+	if foe.is_empty():
 		return
 	if _map != null and _map.has_method("refresh"):
 		_map.refresh()
+	await _begin_combat(foe, false)
 
 
 func _pass_map_annotations() -> void:
@@ -5825,11 +5854,13 @@ func _finish_directed_command(dir: Vector2i) -> void:
 
 
 func _do_attack(dir: Vector2i) -> String:
-	## xu4 attackAt — adjacent wilderness creature → engage combat map.
+	## xu4 attackAt — adjacent wilderness creature or townsfolk → engage combat.
 	if _combat_active:
 		return Locale.t("cmd_nothing_to_attack")
-	if _is_in_city() or (_map != null and _map.is_camping()):
+	if _map != null and _map.is_camping():
 		return Locale.t("cmd_nothing_to_attack")
+	if _is_in_city():
+		return await _do_city_attack(dir)
 	if _world_creatures == null or _world == null or not _world.loaded:
 		return Locale.t("cmd_nothing_to_attack")
 	## Cardinal / diagonal 1-step (remake dirs); wrap on world torus.
@@ -5843,6 +5874,45 @@ func _do_attack(dir: Vector2i) -> String:
 	if foe.is_empty():
 		return Locale.t("cmd_nothing_to_attack")
 	_sync_creatures_to_map()
+	await _begin_combat(foe, true)
+	return ""
+
+
+func _do_city_attack(dir: Vector2i) -> String:
+	## xu4 attackAt on city object — alert guards + KA_ATTACKED_GOOD + engage.
+	if _city_map == null or not _city_map.loaded:
+		return Locale.t("cmd_nothing_to_attack")
+	var target := Vector2i(_tile_pos.x + dir.x, _tile_pos.y + dir.y)
+	if (
+		target.x < 0 or target.y < 0
+		or target.x >= _CityMapData.WIDTH
+		or target.y >= _CityMapData.HEIGHT
+	):
+		return Locale.t("cmd_nothing_to_attack")
+	var idx: int = int(_city_map.person_index_at(target.x, target.y))
+	if idx < 0:
+		return Locale.t("cmd_nothing_to_attack")
+	var movement: int = _CityMapData.MOVE_FIXED
+	if idx < _city_map.person_move.size():
+		movement = int(_city_map.person_move[idx])
+	var was_hostile: bool = movement == _CityMapData.MOVE_ATTACK
+	var tid: int = int(_city_map.persons[idx].z)
+	## You're attacking a townsperson! Alert the guards!
+	if not was_hostile:
+		_city_map.alert_guards()
+		## Persist across LCB floor changes until Leave castle / exit map.
+		_city_guards_alerted = true
+	## Attacking good creatures or a docile person is bad karma.
+	if (
+		_WorldCreaturesScript.is_good(tid)
+		or not was_hostile
+	):
+		GameState.adjust_karma_attacked_good()
+	var foe: Dictionary = _city_map.take_person_at_index(idx)
+	if foe.is_empty():
+		return Locale.t("cmd_nothing_to_attack")
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
 	await _begin_combat(foe, true)
 	return ""
 
@@ -5869,13 +5939,19 @@ func _begin_combat(
 	_combat_foe = foe.duplicate(true)
 	var foe_tid := int(foe.get("tile", 0))
 	var foe_pos := Vector2i(int(foe.get("x", _tile_pos.x)), int(foe.get("y", _tile_pos.y)))
+	var town_encounter: bool = (
+		bool(foe.get("city_person", false))
+		or (_is_in_city() and _city_map != null and _city_map.loaded)
+	)
 	var cmap = force_map
 	if cmap == null:
 		var ground_tid := 4
-		if _world != null and _world.loaded:
+		var foe_ground := 4
+		if town_encounter and _city_map != null and _city_map.loaded:
+			ground_tid = int(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y))
+			foe_ground = int(_city_map.effective_tile_at(foe_pos.x, foe_pos.y))
+		elif _world != null and _world.loaded:
 			ground_tid = int(_world.tile_at(_tile_pos.x, _tile_pos.y))
-		var foe_ground := ground_tid
-		if _world != null and _world.loaded:
 			foe_ground = int(_world.tile_at(foe_pos.x, foe_pos.y))
 		cmap = _CombatMaps.load_for_encounter(
 			ground_tid,
@@ -5885,7 +5961,11 @@ func _begin_combat(
 		)
 	if cmap == null:
 		## Put the foe back if the arena failed to load.
-		if _world_creatures != null and not foes_first:
+		if bool(foe.get("city_person", false)) and _city_map != null:
+			_city_map.restore_person(foe)
+			if _map != null and _map.has_method("refresh"):
+				_map.refresh()
+		elif _world_creatures != null and not foes_first:
 			_world_creatures.creatures.append(foe)
 			_sync_creatures_to_map()
 		_push_message(Locale.t("cmd_nothing_to_attack"), false)
@@ -5914,9 +5994,9 @@ func _begin_combat(
 			"klass": mid,
 			"party_slot": i,
 		})
-	## xu4 fillCreatureTable — random count, leaders, slot placement.
+	## xu4 fillCreatureTable — town size for city; standard groups in wilderness.
 	var table: Array[int] = _CombatEncounter.fill_creature_table(
-		foe_tid, GameState.party_size()
+		foe_tid, GameState.party_size(), town_encounter
 	)
 	var foe_units: Array = _CombatEncounter.place_foes_from_table(
 		table, cmap.creature_start

@@ -29,6 +29,23 @@ const _DIRS: Array[Vector2i] = [
 
 ## (base_tile, frame_count) — consecutive tile ids are animation / pirate facing.
 const _CREATURE_BASES: Array[Vector2i] = [
+	## Townsfolk / class portraits (city combat).
+	Vector2i(32, 2), ## mage
+	Vector2i(34, 2), ## bard
+	Vector2i(36, 2), ## fighter
+	Vector2i(38, 2), ## druid
+	Vector2i(40, 2), ## tinker
+	Vector2i(42, 2), ## paladin
+	Vector2i(44, 2), ## ranger
+	Vector2i(46, 2), ## shepherd
+	Vector2i(80, 2), ## guard
+	Vector2i(82, 2), ## villager / merchant
+	Vector2i(84, 2), ## bard_singing
+	Vector2i(86, 2), ## jester
+	Vector2i(88, 2), ## beggar
+	Vector2i(90, 2), ## child
+	Vector2i(92, 2), ## bull
+	Vector2i(94, 2), ## lord british
 	Vector2i(128, 4), ## pirate WNES
 	Vector2i(132, 2), ## nixie
 	Vector2i(134, 2), ## giant squid
@@ -66,8 +83,27 @@ const _CREATURE_BASES: Array[Vector2i] = [
 	Vector2i(252, 4), ## balron
 ]
 
+const TILE_GUARD := 80
+const TILE_LORD_BRITISH := 94
+
 ## Labels for combat engage messages (xu4 creature names, short form).
 const _DISPLAY_NAMES := {
+	32: "Mage",
+	34: "Bard",
+	36: "Fighter",
+	38: "Druid",
+	40: "Tinker",
+	42: "Paladin",
+	44: "Ranger",
+	46: "Shepherd",
+	80: "Guard",
+	82: "Merchant",
+	84: "Bard",
+	86: "Jester",
+	88: "Beggar",
+	90: "Child",
+	92: "Bull",
+	94: "Lord British",
 	128: "Pirates",
 	132: "Nixie",
 	134: "Giant Squid",
@@ -107,6 +143,23 @@ const _DISPLAY_NAMES := {
 
 ## xu4 config.b basehp by creature base tile (pirate has none → 100).
 const _BASE_HP := {
+	## Townsfolk / class (xu4 ids 2–17).
+	32: 112, ## Mage
+	34: 48, ## Bard
+	36: 96, ## Fighter
+	38: 64, ## Druid
+	40: 96, ## Tinker
+	42: 128, ## Paladin
+	44: 144, ## Ranger
+	46: 48, ## Shepherd
+	80: 128, ## Guard
+	82: 48, ## Merchant
+	84: 48, ## Bard (singing)
+	86: 48, ## Jester
+	88: 32, ## Beggar
+	90: 32, ## Child
+	92: 128, ## Bull
+	94: 255, ## Lord British
 	128: 100,
 	132: 64,
 	134: 96,
@@ -271,8 +324,10 @@ static func display_name(tile_or_base: int) -> String:
 	return str(_DISPLAY_NAMES.get(base, "Creature"))
 
 
-## xu4 config.b `good: true` wilderness / water creatures (else evil for karma).
+## xu4 config.b `good: true` (townsfolk + some wilderness; else evil for karma).
 const _GOOD_TILES := {
+	32: true, 34: true, 36: true, 38: true, 40: true, 42: true, 44: true, 46: true,
+	80: true, 82: true, 84: true, 86: true, 88: true, 90: true, 92: true, 94: true,
 	138: true, ## Seahorse
 	144: true, ## Rat
 	148: true, ## Bat
@@ -285,6 +340,22 @@ const _GOOD_TILES := {
 static func is_good(tile_or_base: int) -> bool:
 	## xu4 Creature::isGood — config `good` flag.
 	return bool(_GOOD_TILES.get(_base_tile(tile_or_base), false))
+
+
+static func is_guard(tile_or_base: int) -> bool:
+	## xu4 GUARD_ID (tile guard) — city combat group size uses members×2.
+	return _base_tile(tile_or_base) == TILE_GUARD
+
+
+static func is_lord_british(tile_or_base: int) -> bool:
+	## xu4 LORDBRITISH_ID — alertGuards also sets LB to attack.
+	return _base_tile(tile_or_base) == TILE_LORD_BRITISH
+
+
+static func is_townsfolk(tile_or_base: int) -> bool:
+	## City person tiles: class sprites or civic NPCs.
+	var base := _base_tile(tile_or_base)
+	return (base >= 32 and base <= 46) or (base >= 80 and base <= 94)
 
 
 static func is_evil(tile_or_base: int) -> bool:
@@ -370,8 +441,10 @@ static func is_mage(tile_or_base: int) -> bool:
 	return bool(_MAGE_TILES.get(_base_tile(tile_or_base), false))
 
 
-## xu4 config.b `ranged: true` wilderness creatures (combat free-aim).
+## xu4 config.b `ranged: true` wilderness / town creatures (combat free-aim).
 const _RANGED_TILES := {
+	32: true, ## Town Mage
+	94: true, ## Lord British
 	132: true, ## Nixie
 	134: true, ## Giant Squid
 	136: true, ## Sea Serpent

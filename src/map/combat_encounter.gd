@@ -85,6 +85,9 @@ static func base_tile_of(tile_id: int) -> int:
 	## Collapse animation / pirate facing to the creature base tile.
 	if tile_id >= 128 and tile_id <= 131:
 		return PIRATE_TILE
+	## Townsfolk / class 2-frame pairs (even base).
+	if (tile_id >= 32 and tile_id <= 47) or (tile_id >= 80 and tile_id <= 95):
+		return tile_id & ~1
 	if _CREATURES.has(tile_id):
 		return tile_id
 	## 2-frame (even base) or 4-frame groups.
@@ -111,8 +114,18 @@ static func _tile_for_creature_id(cid: int) -> int:
 	return int(_id_to_tile.get(cid, 0))
 
 
-static func initial_number_of_creatures(base_tile: int, party_size: int) -> int:
-	## xu4 CombatController::initialNumberOfCreatures (world / dungeon path).
+static func initial_number_of_creatures(
+	base_tile: int,
+	party_size: int,
+	town_encounter: bool = false
+) -> int:
+	## xu4 CombatController::initialNumberOfCreatures.
+	## City / castle: 1 foe (Guard → members×2). World / dungeon: standard groups.
+	if town_encounter:
+		var members := maxi(1, party_size)
+		if _WorldCreaturesScript.is_guard(base_tile):
+			return clampi(members * 2, 1, AREA_CREATURES)
+		return 1
 	var info := _info_for_tile(base_tile)
 	var ncreatures := (randi() % 8) + 1
 	if ncreatures == 1:
@@ -121,13 +134,17 @@ static func initial_number_of_creatures(base_tile: int, party_size: int) -> int:
 			ncreatures = (randi() % group_size) + group_size + 1
 		else:
 			ncreatures = 8
-	var members := maxi(1, party_size)
-	while ncreatures > 2 * members:
+	var members_w := maxi(1, party_size)
+	while ncreatures > 2 * members_w:
 		ncreatures = (randi() % 16) + 1
 	return clampi(ncreatures, 1, AREA_CREATURES)
 
 
-static func fill_creature_table(base_tile: int, party_size: int) -> Array[int]:
+static func fill_creature_table(
+	base_tile: int,
+	party_size: int,
+	town_encounter: bool = false
+) -> Array[int]:
 	## xu4 fillCreatureTable — returns AREA_CREATURES tile ids (−1 = empty slot).
 	var table: Array[int] = []
 	table.resize(AREA_CREATURES)
@@ -157,13 +174,13 @@ static func fill_creature_table(base_tile: int, party_size: int) -> Array[int]:
 	if leader_tile <= 0:
 		leader_tile = base
 
-	var num := initial_number_of_creatures(base, party_size)
+	var num := initial_number_of_creatures(base, party_size, town_encounter)
 	var base_is_leader := leader_id == base_id
 
 	for i in num:
 		var current := base
-		## Must keep at least one of the encountered type (last slot never upgrades).
-		if not base_is_leader and i != (num - 1):
+		## Town: all same type. World: leader upgrades except last base creature.
+		if not town_encounter and not base_is_leader and i != (num - 1):
 			if (randi() % 32) == 0:
 				current = grand_tile
 			elif (randi() % 8) == 0:
