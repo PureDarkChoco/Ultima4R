@@ -24,6 +24,7 @@ const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _SearchItems := preload("res://src/core/search_items.gd")
 const _TalkTlk := preload("res://src/core/talk_tlk.gd")
 const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
+const _VendorShop := preload("res://src/core/vendor_shop.gd")
 const _CombatMaps := preload("res://src/map/combat_maps.gd")
 const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
@@ -140,6 +141,8 @@ var _death_fade_tween: Tween
 var _combat_active := false
 ## Victory announced; free leave via ESC / map-edge (no extra karma).
 var _combat_victory_aftermath := false
+## xu4 InnController::awardLoot empty — no combat chests after inn ambush.
+var _combat_suppress_chests := false
 ## Victory solo control: party_order slot (0..7), or −1 = sequential party mode.
 var _victory_solo_party_slot := -1
 ## True while pacing delays / foe turns run — blocks combat input.
@@ -192,6 +195,11 @@ var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
+## xu4 InnController — rest in city after paying the innkeeper.
+## 0 = idle, 1 = sleeping (corpse tile + timer).
+var _inn_stage := 0
+var _inn_rest_left := 0.0
+var _inn_prev_transport_tile := -1
 ## True if this rest will end as an ambush (rolled at camp start, not at timer end).
 var _camp_ambush_pending := false
 var _camp_map # CombatMapData
@@ -209,6 +217,8 @@ var _immobilized_pending := false
 const CAMP_REST_SEC := 10.0
 ## Ambush fires after this many seconds at earliest (random in [min, full rest]).
 const CAMP_AMBUSH_MIN_SEC := 3.0
+## xu4 settings innTime default (InnController wait before Morning!).
+const INN_REST_SEC := 8.0
 ## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
 const IMMOBILIZED_SLEEP_SEC := 0.166
 ## xu4 death.cpp — deathStart(delay) + DeathController tick + revive.
@@ -260,6 +270,7 @@ var _msg_open_content_h := 0.0
 var _msg_pitch := 0.0
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
+## 10 vendor shop (xu4 vendors.b).
 var _talk_stage := 0
 var _talk_person_i := -1
 var _talk_entry: RefCounted = null ## _TalkTlk.Entry
@@ -267,6 +278,7 @@ var _talk_buffer := ""
 var _talk_keywords: Array = []
 var _talk_turn_away := 0
 var _talk_pending_ask := false
+var _shop = null ## _VendorShop session
 ## Talk expands only the message strip (not left/right inventory).
 var _talk_msg_open := false
 var _talk_msg_tween: Tween
@@ -1184,6 +1196,8 @@ func _prompt_row_text() -> String:
 	if _talk_stage == 4:
 		## "How much?" already written to history; live row is the amount only.
 		return _talk_buffer
+	if _talk_stage == 10 and _shop != null:
+		return _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
 		return Locale.need_dir_prompt(_pending_cmd_name)
 	if _ship_yell_await_dir:
@@ -1598,6 +1612,10 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
+	## xu4 InnController — sleep timer while avatar shows corpse/lying tile.
+	if _inn_stage == 1:
+		_tick_inn_rest(delta)
+		return
 	## All asleep: Zzzzzz auto-turns own the clock — no player move/cruise.
 	if _is_party_asleep_locked():
 		return
@@ -1613,7 +1631,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -1931,6 +1949,9 @@ func _on_escape() -> void:
 	if _camp_stage == 1:
 		## Resting… — Esc does nothing (Tab alone may toggle panels).
 		return
+	if _inn_stage == 1:
+		## Inn sleep — Esc does nothing until Morning!
+		return
 	if _camp_stage == 2 or _camp_stage == 3:
 		_cancel_camp(true)
 		return
@@ -2085,6 +2106,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_camp_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _inn_stage == 1:
+		## xu4 InnController wait — swallow input while sleeping.
+		if event.is_pressed():
 			get_viewport().set_input_as_handled()
 		return
 	if _telescope_stage != 0:
@@ -6059,7 +6085,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -6183,24 +6209,209 @@ func _do_talk(dir: Vector2i) -> bool:
 
 
 func _begin_special_npc_talk(person_i: int, role: int) -> void:
-	## Placeholder until vendor / LB / Hawkwind systems are wired.
 	_city_map.pause_follow(person_i)
 	_open_talk_message_panel()
-	var who := _CityNpcRoles.role_name_en(role)
 	match role:
 		_CityNpcRoles.Role.LORD_BRITISH:
 			_push_message("Thou dost approach Lord British.", false)
 			_push_message("(Court audience is not ready yet.)", false)
+			_push_message("Bye.", false)
+			_close_talk_message_panel()
+			_layout_prompt_row()
+			_finish_party_turn()
 		_CityNpcRoles.Role.HAWKWIND:
 			_push_message("Thou dost approach Hawkwind the Seer.", false)
 			_push_message("(Seer counsel is not ready yet.)", false)
+			_push_message("Bye.", false)
+			_close_talk_message_panel()
+			_layout_prompt_row()
+			_finish_party_turn()
 		_:
-			_push_message("You meet a %s." % who, false)
-			_push_message("(Shop service is not ready yet.)", false)
-	_push_message("Bye.", false)
+			_begin_vendor_shop(person_i, role)
+
+
+func _begin_vendor_shop(person_i: int, role: int) -> void:
+	## xu4 discourse_run(vendorDisc) — full vendors.b state machine.
+	_talk_person_i = person_i
+	_talk_stage = 10
+	_talk_buffer = ""
+	_talk_entry = null
+	_shop = _VendorShop.new()
+	var locale := _VendorShop.locale_from_ult(str(_city_map.source_path) if _city_map else "")
+	if role == _CityNpcRoles.Role.VENDOR_INN and _transport == Transport.HORSE:
+		_shop.begin_inn_refuse_horse()
+	else:
+		_shop.begin(role, locale)
+	_flush_shop_output()
+
+
+func _flush_shop_output() -> void:
+	if _shop == null:
+		return
+	for line in _shop.take_lines():
+		_push_talk_script(str(line))
+	if bool(_shop.finished):
+		_end_shop()
+		return
+	_talk_buffer = ""
+	_layout_prompt_row()
+	_refresh_inventory_bars()
+	_refresh_party()
+
+
+func _end_shop() -> void:
+	if _shop == null and _talk_stage != 10:
+		return
+	## Apply deferred world effects before clearing session.
+	var horse := false
+	var rel := Vector2i(-1, -1)
+	var inn := false
+	if _shop != null:
+		horse = bool(_shop.want_horse)
+		rel = _shop.relocate_to
+		inn = bool(_shop.do_inn_rest)
+	_shop = null
+	_talk_stage = 0
+	_talk_buffer = ""
+	var pi := _talk_person_i
+	_talk_person_i = -1
+	if pi >= 0 and _city_map != null:
+		_city_map.pause_follow(pi)
+	if rel.x >= 0 and rel.y >= 0:
+		_tile_pos = rel
+		if _map != null:
+			_map.set_center(_tile_pos, false)
+			if _map.has_method("refresh"):
+				_map.refresh()
+	if horse:
+		_transport = Transport.HORSE
+		_transport_tile = MapView.TILE_HORSE_E
+		_horse_gallop = false
+		if _map != null:
+			_map.set_transport_tile(_transport_tile)
 	_close_talk_message_panel()
 	_layout_prompt_row()
+	_refresh_inventory_bars()
+	_refresh_party()
+	if inn:
+		## xu4 inn-sleep / InnController — do not end the turn until Morning!
+		_begin_inn_rest()
+		return
 	_finish_party_turn()
+
+
+func _begin_inn_rest() -> void:
+	## xu4 InnController::beginCombat sleep phase:
+	## setTransport(corpse) → wait innTime (default 8s) → restore → HT_INNHEAL → "Morning!"
+	_inn_prev_transport_tile = _transport_tile
+	if _map != null:
+		## Corpse / lying-down tile for the sleeping party marker.
+		_map.set_transport_tile(MapView.TILE_CORPSE)
+	## Sleep status: purple roster + matches putToSleep feel (not camp map).
+	GameState.put_party_to_sleep(-1)
+	_refresh_party()
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+	_inn_stage = 1
+	_inn_rest_left = INN_REST_SEC
+	_layout_prompt_row()
+
+
+func _tick_inn_rest(delta: float) -> void:
+	if _inn_stage != 1:
+		return
+	_inn_rest_left -= delta
+	if _inn_rest_left > 0.0:
+		return
+	_inn_stage = 0
+	_inn_rest_left = 0.0
+	## Async: ambush may open combat.
+	_finish_inn_rest()
+
+
+func _finish_inn_rest() -> void:
+	## xu4 InnController post-sleep: restore, HT_INNHEAL, Isaac / ambush, "Morning!"
+	## Restore walking / transport sprite.
+	if _transport == Transport.FOOT:
+		_transport_tile = -1
+		if _map != null:
+			_map.set_transport_tile(-1)
+	elif _inn_prev_transport_tile >= 0:
+		_transport_tile = _inn_prev_transport_tile
+		if _map != null:
+			_map.set_transport_tile(_transport_tile)
+	else:
+		_transport_tile = -1
+		if _map != null:
+			_map.set_transport_tile(-1)
+	_inn_prev_transport_tile = -1
+	GameState.wake_party()
+	GameState.apply_inn_rest_heal()
+	_refresh_party()
+	_refresh_inventory_bars()
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+	## Night event (after heal) — xu4 party.cpp / camp.cpp branch.
+	var leader_dead := GameState.is_party_member_dead(0)
+	if leader_dead:
+		_inn_maybe_meet_isaac()
+	elif (randi() % 8) != 0:
+		_inn_maybe_meet_isaac()
+	else:
+		await _inn_maybe_ambush()
+	_push_message("Morning!", false)
+	_layout_prompt_row()
+	if _combat_active:
+		## Combat owns the session; turn ends with combat exit.
+		return
+	_finish_party_turn()
+
+
+func _inn_maybe_meet_isaac() -> void:
+	## xu4 InnController::maybeMeetIsaac — Skara Brae only, 1/4, ghost at inn.
+	if _city_map == null or not _city_map.loaded:
+		return
+	if not _city_map.is_skara_brae():
+		return
+	if (randi() % 4) != 0:
+		return
+	## GHOST base tile 156; y = 10..12 near inn.
+	var y := 10 + (randi() % 3)
+	if _city_map.spawn_or_relocate_named("Isaac", 27, y, 156, _CityMapData.MOVE_WANDER):
+		if _map != null and _map.has_method("refresh"):
+			_map.refresh()
+
+
+func _inn_maybe_ambush() -> void:
+	## xu4 InnController::maybeAmbush — further 1/8 to actually fight.
+	if (randi() % 8) != 0:
+		return
+	if _party_wiped_or_dying() or _combat_active:
+		return
+	var rats := (randi() % 4) == 0
+	var foe_tid := 144 if rats else 200 ## rat / rogue bases
+	var con_name := "BRICK.CON" if rats else "INN.CON"
+	if not rats:
+		_push_message("In the middle of the night while out on a stroll...", false)
+	var path := _CombatMapData.resolve_u4_file(con_name)
+	if path.is_empty():
+		path = _CombatMapData.resolve_u4_file("BRICK.CON")
+	var cmap = _CombatMapData.new()
+	if path.is_empty() or not cmap.load_from_path(path):
+		return
+	var foe := {
+		"tile": foe_tid,
+		"x": _tile_pos.x,
+		"y": _tile_pos.y,
+		"facing": 0,
+		## forceStandardEncounterSize + awardLoot empty
+		"force_standard_encounters": true,
+		"no_chest_loot": true,
+		## xu4 showMessage false for rogue stroll ambush
+		"skip_attacked_by": not rats,
+	}
+	await _begin_combat(foe, false, cmap, false)
+
 
 func _talk_can_address(person_i: int, dist: int) -> bool:
 	if person_i < 0 or person_i >= _city_map.persons.size():
@@ -6366,6 +6577,10 @@ func _handle_talk_input(event: InputEvent) -> bool:
 	## Esc always farewell — never open the options menu while talking,
 	## including Yes/No and gold prompts.
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		if _talk_stage == 10 and _shop != null:
+			_shop.on_escape()
+			_flush_shop_output()
+			return true
 		_end_talk(true)
 		return true
 	match _talk_stage:
@@ -6379,8 +6594,74 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return _talk_input_yn(k)
 		4:
 			return _talk_input_give(k)
+		10:
+			return _talk_input_shop(k)
 		_:
 			return false
+
+
+func _talk_input_shop(k: InputEventKey) -> bool:
+	if _shop == null:
+		_end_shop()
+		return true
+	var mode := int(_shop.mode)
+	if mode == _VendorShop.Mode.CHOICE:
+		var ch := _key_printable_char(k)
+		if ch.is_empty():
+			return false
+		_push_talk_player_input(ch)
+		_shop.submit_choice(ch)
+		_flush_shop_output()
+		return true
+	if mode == _VendorShop.Mode.NUMBER:
+		if _is_talk_enter(k):
+			var s := _talk_buffer.strip_edges()
+			_talk_buffer = ""
+			_layout_prompt_row()
+			if not s.is_empty():
+				_push_talk_player_input(s)
+			var empty := s.is_empty()
+			var n := int(s) if s.is_valid_int() else 0
+			_shop.submit_number(n, empty or n <= 0)
+			_flush_shop_output()
+			return true
+		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+			if not _talk_buffer.is_empty():
+				_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+				_layout_prompt_row()
+			return true
+		var dig := _key_printable_char(k)
+		if dig.is_empty() or not dig.is_valid_int():
+			return false
+		if _talk_buffer.length() >= int(_shop.max_digits):
+			return true
+		_talk_buffer += dig
+		_layout_prompt_row()
+		return true
+	if mode == _VendorShop.Mode.TEXT:
+		if _is_talk_enter(k):
+			var s2 := _talk_buffer.strip_edges()
+			_talk_buffer = ""
+			_layout_prompt_row()
+			if not s2.is_empty():
+				_push_talk_player_input(s2)
+			_shop.submit_text(s2)
+			_flush_shop_output()
+			return true
+		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+			if not _talk_buffer.is_empty():
+				_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+				_layout_prompt_row()
+			return true
+		var tch := _key_printable_char(k)
+		if tch.is_empty():
+			return false
+		if _talk_buffer.length() >= 16:
+			return true
+		_talk_buffer += tch
+		_layout_prompt_row()
+		return true
+	return false
 
 
 func _push_talk_player_input(typed: String) -> void:
@@ -6681,6 +6962,13 @@ func _talk_do_join() -> void:
 func _end_talk(_aborted: bool) -> void:
 	## Single exit for talk: always print Bye so the player sees the end.
 	## Esc / empty Enter / bye / Y-N cancel / join / turn-away all land here.
+	if _talk_stage == 10:
+		if _shop != null:
+			_shop.on_escape()
+			_flush_shop_output()
+		else:
+			_end_shop()
+		return
 	if _talk_stage == 0:
 		return
 	## Mark closed before farewell so Esc cannot re-enter or open the menu
@@ -6694,6 +6982,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_keywords.clear()
 	_talk_turn_away = 0
 	_talk_pending_ask = false
+	_shop = null
 	if pi >= 0 and _city_map != null:
 		_city_map.pause_follow(pi)
 	_close_talk_message_panel()
@@ -6787,9 +7076,13 @@ func _begin_combat(
 	_combat_foe = foe.duplicate(true)
 	var foe_tid := int(foe.get("tile", 0))
 	var foe_pos := Vector2i(int(foe.get("x", _tile_pos.x)), int(foe.get("y", _tile_pos.y)))
+	var force_standard := bool(foe.get("force_standard_encounters", false))
 	var town_encounter: bool = (
-		bool(foe.get("city_person", false))
-		or (_is_in_city() and _city_map != null and _city_map.loaded)
+		not force_standard
+		and (
+			bool(foe.get("city_person", false))
+			or (_is_in_city() and _city_map != null and _city_map.loaded)
+		)
 	)
 	var cmap = force_map
 	if cmap == null:
@@ -6798,6 +7091,9 @@ func _begin_combat(
 		if town_encounter and _city_map != null and _city_map.loaded:
 			ground_tid = int(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y))
 			foe_ground = int(_city_map.effective_tile_at(foe_pos.x, foe_pos.y))
+		elif _is_in_city() and _city_map != null and _city_map.loaded and force_standard:
+			ground_tid = int(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y))
+			foe_ground = ground_tid
 		elif _world != null and _world.loaded:
 			ground_tid = int(_world.tile_at(_tile_pos.x, _tile_pos.y))
 			foe_ground = int(_world.tile_at(foe_pos.x, foe_pos.y))
@@ -6823,6 +7119,7 @@ func _begin_combat(
 	_combat_resolving = true
 	_combat_victory_aftermath = false
 	_victory_solo_party_slot = -1
+	_combat_suppress_chests = bool(foe.get("no_chest_loot", false))
 	## Camp ambush: no sleep→wake rolls until the first creature phase ends.
 	## Normal engage: party may need the 1/8 roll before any creature acts.
 	_combat_allow_sleep_wake = not foes_first
@@ -6843,7 +7140,8 @@ func _begin_combat(
 			"klass": mid,
 			"party_slot": i,
 		})
-	## xu4 fillCreatureTable — town size for city; standard groups in wilderness.
+	## xu4 fillCreatureTable — town size for city; standard groups in wilderness
+	## (inn ambush: forceStandardEncounterSize → not town).
 	var table: Array[int] = _CombatEncounter.fill_creature_table(
 		foe_tid, GameState.party_size(), town_encounter
 	)
@@ -6868,10 +7166,16 @@ func _begin_combat(
 		})
 	if _map != null:
 		_map.enter_combat(cmap, party_units, foe_units)
+		_map.suppress_combat_chests = _combat_suppress_chests
 		## First living party member has the turn (xu4 beginCombat focus).
 		_map.set_combat_focus(0 if not party_units.is_empty() else -1)
 	## Camp ambush already printed "Ambushed!" — skip "Attacked by…".
-	if not initiated_by_party and not foes_first:
+	## Inn rogue stroll line also skips it (xu4 showMessage false).
+	if (
+		not initiated_by_party
+		and not foes_first
+		and not bool(foe.get("skip_attacked_by", false))
+	):
 		var nm := _WorldCreaturesScript.display_name(foe_tid)
 		_push_message(Locale.t("cmd_attacked_by", [nm]), false)
 	_push_message(Locale.t("cmd_combat"), false)
@@ -6927,6 +7231,7 @@ func _end_combat_stub() -> void:
 	await _restore_sides_after_combat()
 	_combat_active = false
 	_combat_resolving = false
+	_combat_suppress_chests = false
 	_stamp_command_time()
 
 
@@ -7009,6 +7314,7 @@ func _finish_combat_victory_exit() -> void:
 	await _restore_sides_after_combat()
 	_combat_active = false
 	_combat_resolving = false
+	_combat_suppress_chests = false
 	_stamp_command_time()
 
 
@@ -8116,6 +8422,7 @@ func _end_combat_lost() -> void:
 	await _restore_sides_after_combat()
 	_combat_active = false
 	_combat_resolving = false
+	_combat_suppress_chests = false
 	_stamp_command_time()
 
 

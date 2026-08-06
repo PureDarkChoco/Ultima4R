@@ -876,6 +876,158 @@ func adjust_karma_gave_all_to_beggar() -> void:
 		adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
 
 
+func adjust_karma_reagent_pay(paying: int, list_total: int) -> void:
+	## xu4 vendors.b reagents you_pay — Honesty / Justice / Honor together.
+	## paying >= list: +2 each; shortfall d < 12: -4; else −floor(d/3).
+	if list_total <= 0:
+		return
+	var delta := 2
+	if paying < list_total:
+		var d := list_total - paying
+		if d < 12:
+			delta = -4
+		else:
+			delta = -int(d / 3)
+	adjust_karma_virtue(Virtues.Id.HONESTY, delta)
+	adjust_karma_virtue(Virtues.Id.JUSTICE, delta)
+	adjust_karma_virtue(Virtues.Id.HONOR, delta)
+
+
+func adjust_karma_blood_donation(donated: bool) -> void:
+	## xu4 healer give_blood — Sacrifice ±5.
+	adjust_karma_virtue(Virtues.Id.SACRIFICE, 5 if donated else -5)
+
+
+func pack_weapon_qty(weapon_id: int) -> int:
+	if weapon_id <= 0 or weapon_id >= weapons.size():
+		return 0
+	return int(weapons[weapon_id])
+
+
+func pack_armor_qty(armor_id: int) -> int:
+	if armor_id <= 0 or armor_id >= armor.size():
+		return 0
+	return int(armor[armor_id])
+
+
+func add_pack_weapons(weapon_id: int, amount: int) -> void:
+	if weapon_id <= 0 or weapon_id >= weapons.size() or amount <= 0:
+		return
+	weapons[weapon_id] = mini(99, int(weapons[weapon_id]) + amount)
+	mark_weapon_known(weapon_id)
+
+
+func remove_pack_weapons(weapon_id: int, amount: int) -> bool:
+	if weapon_id <= 0 or weapon_id >= weapons.size() or amount <= 0:
+		return false
+	if int(weapons[weapon_id]) < amount:
+		return false
+	weapons[weapon_id] = int(weapons[weapon_id]) - amount
+	return true
+
+
+func add_pack_armor(armor_id: int, amount: int) -> void:
+	if armor_id <= 0 or armor_id >= armor.size() or amount <= 0:
+		return
+	armor[armor_id] = mini(99, int(armor[armor_id]) + amount)
+	mark_armor_known(armor_id)
+
+
+func remove_pack_armor(armor_id: int, amount: int) -> bool:
+	if armor_id <= 0 or armor_id >= armor.size() or amount <= 0:
+		return false
+	if int(armor[armor_id]) < amount:
+		return false
+	armor[armor_id] = int(armor[armor_id]) - amount
+	return true
+
+
+func party_leader_hp() -> int:
+	## xu4 pc-attr 1 hp — party roster slot 0.
+	return hp_of_class(party_member_at(0))
+
+
+func damage_party_leader(amount: int) -> bool:
+	return apply_member_damage(party_member_at(0), amount)
+
+
+func member_needs_healer(slot: int, remedy: String) -> bool:
+	## xu4 pc-needs? — slot is 0-based party order.
+	var mid := party_member_at(slot)
+	if mid < 0:
+		return false
+	match remedy:
+		"cure":
+			return status_of_class(mid) == PartyRoster.Status.POISONED or is_member_poisoned(mid)
+		"fullheal", "heal":
+			if is_class_dead(mid):
+				return false
+			return hp_of_class(mid) < max_hp_of_class(mid)
+		"resurrect":
+			return is_class_dead(mid)
+		_:
+			return false
+
+
+func healer_heal_member(slot: int, remedy: String) -> bool:
+	## xu4 pc-heal /magic path without VFX — HT_CURE / FULLHEAL / RESURRECT.
+	var mid := party_member_at(slot)
+	if mid < 0:
+		return false
+	match remedy:
+		"cure":
+			if not member_needs_healer(slot, "cure"):
+				return false
+			_set_poisoned(mid, false)
+			if member_status[mid] == PartyRoster.Status.POISONED:
+				member_status[mid] = PartyRoster.Status.OK
+			return true
+		"fullheal", "heal":
+			if not member_needs_healer(slot, "fullheal"):
+				return false
+			member_hp[mid] = max_hp_of_class(mid)
+			return true
+		"resurrect":
+			if not is_class_dead(mid):
+				return false
+			member_status[mid] = PartyRoster.Status.OK
+			_set_poisoned(mid, false)
+			if int(member_hp[mid]) <= 0:
+				member_hp[mid] = 1
+			return true
+		_:
+			return false
+
+
+func apply_inn_rest_heal() -> void:
+	## xu4 HT_INNHEAL — hp += 100 + (rand 0..49)*2 for living non-full members; full MP not required in DOS inn (applyRest only HP).
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		var hp: int = int(member_hp[mid])
+		var mx: int = max_hp_of_class(mid)
+		if hp >= mx:
+			continue
+		hp += 100 + (randi() % 50) * 2
+		member_hp[mid] = mini(hp, mx)
+
+
+func add_food_units(display_units: int) -> void:
+	## xu4 add-items food — centi units (×100).
+	if display_units <= 0:
+		return
+	adjust_food(display_units * 100)
+
+
+func try_pay_gold(cost: int) -> bool:
+	## xu4 pay primitive — false if broke (no deduct).
+	if cost < 0 or gold < cost:
+		return false
+	adjust_gold(-cost)
+	return true
+
+
 func adjust_karma_bragged() -> void:
 	## xu4 KA_BRAGGED — Humility −5 (not timed).
 	adjust_karma_virtue(Virtues.Id.HUMILITY, -5)

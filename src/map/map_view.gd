@@ -250,6 +250,8 @@ var _combat_foes: Array[Dictionary] = []
 var _combat_foe_spawn_count := 0
 ## Combat loot chests: key "x,y" → { open, stack, ... }.
 var _combat_chests: Dictionary = {}
+## xu4 InnController::awardLoot empty — inn night fights drop nothing.
+var suppress_combat_chests := false
 ## Index into `_combat_party` for xu4 TileView::drawFocus (blinking white box).
 var _combat_focus := -1
 ## Index into `_combat_foes` while that creature acts (−1 = party phase).
@@ -518,6 +520,7 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 			_combat_party.append((u as Dictionary).duplicate(true))
 	_combat_foes.clear()
 	_combat_chests.clear()
+	suppress_combat_chests = false
 	for u in foe_units:
 		if typeof(u) == TYPE_DICTIONARY:
 			_combat_foes.append((u as Dictionary).duplicate(true))
@@ -545,6 +548,7 @@ func exit_combat() -> void:
 	_combat_foes.clear()
 	_combat_chests.clear()
 	_combat_foe_spawn_count = 0
+	suppress_combat_chests = false
 	_combat_focus = -1
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
@@ -882,6 +886,8 @@ func damage_combat_foe(index: int, damage: int) -> Dictionary:
 
 func try_spawn_combat_chest(pos: Vector2i, foe_tile: int) -> bool:
 	## leavesChest types only; p = 1 / spawn count. Overlays (does not alter ground).
+	if suppress_combat_chests:
+		return false
 	if not _combat_in_bounds(pos):
 		return false
 	if not _WorldCreaturesScript.leaves_chest(foe_tile):

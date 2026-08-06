@@ -359,6 +359,64 @@ func discourse_at(person_i: int) -> Variant:
 	return discourses[cid]
 
 
+func discourse_index_by_name(npc_name: String) -> int:
+	## 0-based discourse id, or -1. Case-insensitive match.
+	var want := npc_name.strip_edges().to_lower()
+	if want.is_empty():
+		return -1
+	for i in discourses.size():
+		var e = discourses[i]
+		if e == null:
+			continue
+		if str(e.name).strip_edges().to_lower() == want:
+			return i
+	return -1
+
+
+func person_index_by_discourse_name(npc_name: String) -> int:
+	var di := discourse_index_by_name(npc_name)
+	if di < 0:
+		return -1
+	for i in person_conv.size():
+		if int(person_conv[i]) == di:
+			return i
+	return -1
+
+
+func spawn_or_relocate_named(
+	npc_name: String,
+	x: int,
+	y: int,
+	tile_id: int,
+	movement: int = MOVE_WANDER
+) -> bool:
+	## xu4 InnController::maybeMeetIsaac — place named TLK NPC at (x,y).
+	var di := discourse_index_by_name(npc_name)
+	if di < 0:
+		return false
+	x = clampi(x, 0, WIDTH - 1)
+	y = clampi(y, 0, HEIGHT - 1)
+	var existing := person_index_by_discourse_name(npc_name)
+	if existing >= 0:
+		var prev_tid := int(persons[existing].z)
+		persons[existing] = Vector3i(x, y, tile_id if tile_id > 0 else prev_tid)
+		if existing < person_move.size():
+			person_move[existing] = movement
+		return true
+	persons.append(Vector3i(x, y, tile_id))
+	person_prev.append(-1)
+	person_move.append(movement)
+	person_conv.append(di)
+	person_file_slot.append(-1)
+	person_role.append(_CityNpcRoles.Role.NONE)
+	return true
+
+
+func is_skara_brae() -> bool:
+	## xu4 map id 11 — skara.ult.
+	return source_path.get_file().to_lower() == "skara.ult"
+
+
 func role_at(person_i: int) -> int:
 	if person_i < 0 or person_i >= person_role.size():
 		return _CityNpcRoles.Role.NONE
