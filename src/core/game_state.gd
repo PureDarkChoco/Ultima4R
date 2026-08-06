@@ -75,6 +75,8 @@ var moves: int = 0
 var lastcamp: int = 0
 ## xu4 SaveGame.lastreagent — (moves & 0xF0) after finding reagents / unique search loot.
 var lastreagent: int = 0
+## xu4 SaveGame.lastvirtue — (moves / 16) & 0xffff when a timed +karma last applied.
+var lastvirtue: int = 0
 ## xu4 SaveGame.items / stones / runes bitfields (Search / Use).
 var items: int = 0
 var stones: int = 0
@@ -273,6 +275,7 @@ func reset_party() -> void:
 	food = 30000
 	moves = 0
 	lastcamp = 0
+	lastvirtue = 0
 	gems = 0
 	gold = 200
 	keys = 0
@@ -637,6 +640,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	has_sextant = false
 	moves = 0
 	lastcamp = 0
+	lastvirtue = 0
 	ship_hull = 50
 	_init_party_from_xu4(klass, selected_virtues)
 	party_order.clear()
@@ -836,8 +840,18 @@ func virtue_adjective_en(virtue: int) -> String:
 	return ADJ[virtue]
 
 
+func virtue_increase_timeout() -> bool:
+	## xu4 Party::virtueIncreaseTimeout — at most one timed +karma per moves/16 bucket.
+	## Shared by give (Compassion), humble (Humility), meditation/Hawkwind (Spirituality).
+	var bucket := int(moves / 16)
+	if bucket >= 0x10000 or (bucket & 0xFFFF) != (lastvirtue & 0xFFFF):
+		lastvirtue = bucket & 0xFFFF
+		return true
+	return false
+
+
 func donate_gold(quantity: int) -> bool:
-	## xu4 Party::donate — true if gold was paid.
+	## xu4 Party::donate — true if gold was paid (gold always leaves; karma may not).
 	if quantity <= 0:
 		return false
 	if gold < quantity:
@@ -851,23 +865,26 @@ func donate_gold(quantity: int) -> bool:
 
 
 func adjust_karma_gave_to_beggar() -> void:
-	## xu4 KA_GAVE_TO_BEGGAR — Compassion +2.
-	adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
+	## xu4 KA_GAVE_TO_BEGGAR — Compassion +2 if virtueIncreaseTimeout allows.
+	if virtue_increase_timeout():
+		adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
 
 
 func adjust_karma_gave_all_to_beggar() -> void:
-	## xu4 KA_GAVE_ALL_TO_BEGGAR — same +2 compassion in U4DOS.
-	adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
+	## xu4 KA_GAVE_ALL_TO_BEGGAR — same +2 compassion in U4DOS (also timed).
+	if virtue_increase_timeout():
+		adjust_karma_virtue(Virtues.Id.COMPASSION, 2)
 
 
 func adjust_karma_bragged() -> void:
-	## xu4 KA_BRAGGED — Humility −5.
+	## xu4 KA_BRAGGED — Humility −5 (not timed).
 	adjust_karma_virtue(Virtues.Id.HUMILITY, -5)
 
 
 func adjust_karma_humble() -> void:
-	## xu4 KA_HUMBLE — Humility +10.
-	adjust_karma_virtue(Virtues.Id.HUMILITY, 10)
+	## xu4 KA_HUMBLE — Humility +10 if virtueIncreaseTimeout allows.
+	if virtue_increase_timeout():
+		adjust_karma_virtue(Virtues.Id.HUMILITY, 10)
 
 
 func swap_party_members(a: int, b: int) -> bool:
@@ -2141,6 +2158,7 @@ func to_save_dict() -> Dictionary:
 		"food": food,
 		"moves": moves,
 		"lastcamp": lastcamp,
+		"lastvirtue": lastvirtue,
 		"ship_hull": ship_hull,
 		"gems": gems,
 		"gold": gold,
@@ -2197,6 +2215,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	food = int(d.get("food", 0))
 	moves = int(d.get("moves", 0))
 	lastcamp = int(d.get("lastcamp", 0))
+	lastvirtue = int(d.get("lastvirtue", 0)) & 0xFFFF
 	ship_hull = clampi(int(d.get("ship_hull", 0)), 0, SHIP_HULL_WHEEL)
 	gems = maxi(0, int(d.get("gems", 0)))
 	gold = maxi(0, int(d.get("gold", 0)))

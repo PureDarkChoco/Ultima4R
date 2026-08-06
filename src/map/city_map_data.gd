@@ -413,12 +413,22 @@ func _person_talk_name(person_i: int) -> String:
 func _apply_file_roles(ult_path: String) -> void:
 	## xu4 maps.b roles: person id is 1-based .ULT column index.
 	var roles: Dictionary = _CityNpcRoles.roles_for_ult(ult_path)
-	if roles.is_empty() or person_file_slot.is_empty():
-		return
-	for i in person_file_slot.size():
-		var slot_1 := int(person_file_slot[i]) + 1
-		if roles.has(slot_1):
-			person_role[i] = int(roles[slot_1])
+	if not roles.is_empty() and not person_file_slot.is_empty():
+		for i in person_file_slot.size():
+			var slot_1 := int(person_file_slot[i]) + 1
+			if roles.has(slot_1):
+				person_role[i] = int(roles[slot_1])
+	## xu4 Person::initNpcType — beggar/guard tiles when no explicit maps.b role.
+	for i in persons.size():
+		if i < person_role.size() and int(person_role[i]) != _CityNpcRoles.Role.NONE:
+			continue
+		var tid := int(persons[i].z)
+		if _TalkTlk.is_beggar_tile(tid):
+			if i < person_role.size():
+				person_role[i] = _CityNpcRoles.Role.BEGGAR
+		elif _TalkTlk.is_guard_tile(tid):
+			if i < person_role.size():
+				person_role[i] = _CityNpcRoles.Role.GUARD
 
 func move_persons(avatar: Vector2i) -> bool:
 	## xu4 Map::moveObjects — one attempt per person after the party turn.

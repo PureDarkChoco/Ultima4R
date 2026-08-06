@@ -1182,7 +1182,8 @@ func _prompt_row_text() -> String:
 	if _talk_stage == 3:
 		return "You say: " + _talk_buffer
 	if _talk_stage == 4:
-		return "How much? " + _talk_buffer
+		## "How much?" already written to history; live row is the amount only.
+		return _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
 		return Locale.need_dir_prompt(_pending_cmd_name)
 	if _ship_yell_await_dir:
@@ -6453,7 +6454,8 @@ func _talk_input_give(k: InputEventKey) -> bool:
 		var s := _talk_buffer.strip_edges()
 		_talk_buffer = ""
 		_layout_prompt_row()
-		_push_talk_player_input(s)
+		if not s.is_empty():
+			_push_talk_player_input(s)
 		var gold_amt := int(s) if s.is_valid_int() else 0
 		_talk_finish_give(gold_amt)
 		return true
@@ -6610,7 +6612,12 @@ func _talk_start_give() -> void:
 	var tid := -1
 	if _talk_person_i >= 0 and _talk_person_i < _city_map.persons.size():
 		tid = int(_city_map.persons[_talk_person_i].z)
-	if _TalkTlk.is_beggar_tile(tid):
+	var is_beggar := _TalkTlk.is_beggar_tile(tid)
+	if not is_beggar and _talk_person_i >= 0:
+		is_beggar = int(_city_map.role_at(_talk_person_i)) == _CityNpcRoles.Role.BEGGAR
+	if is_beggar:
+		## xu4: message("How much? "); then readInt(2) — amount drives gold + karma.
+		_push_talk_script("How much?")
 		_talk_stage = 4
 		_talk_buffer = ""
 		_layout_prompt_row()
@@ -6624,8 +6631,10 @@ func _talk_finish_give(gold_amt: int) -> void:
 	if e == null:
 		_end_talk(false)
 		return
+	## xu4: only donate when gold > 0; 0 / cancel just returns to Interest.
 	if gold_amt > 0:
 		if GameState.donate_gold(gold_amt):
+			## donate_gold: −gold, Compassion +2 (all-gold same in U4DOS).
 			_push_talk_script(
 				"%s says: Oh Thank thee! I shall never forget thy kindness!" % str(e.pronoun)
 			)

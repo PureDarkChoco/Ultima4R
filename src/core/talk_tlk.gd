@@ -535,6 +535,14 @@ static func is_beggar_tile(tid: int) -> bool:
 	return base == 88
 
 
+static func is_guard_tile(tid: int) -> bool:
+	## shapes guard 80–81.
+	var base := tid
+	if (tid >= 32 and tid <= 47) or (tid >= 80 and tid <= 95):
+		base = tid & ~1
+	return base == 80
+
+
 static func is_undead_tile(tid: int) -> bool:
 	## ghost 156, skeleton 196 families.
 	var base := tid
