@@ -260,6 +260,16 @@ func begin(role: int, locale: String) -> void:
 func on_escape() -> void:
 	if finished:
 		return
+	## Catalog / letter pick: back to Buy or Sell (do not end talk).
+	match _phase:
+		"w_inv", "w_sell_key":
+			_w_prompt_buy_sell()
+			return
+		"a_inv", "a_sell_key":
+			_a_prompt_buy_sell()
+			return
+		_:
+			pass
 	## Soft farewell without shop-specific long adieu when aborting mid-flow.
 	_say("Bye.")
 	_finish(false)
@@ -495,6 +505,12 @@ func _start_weapons() -> void:
 	_want_choice("bs", "w_bs")
 
 
+func _w_prompt_buy_sell() -> void:
+	## After Esc from catalog / sell letter — re-ask without replaying welcome.
+	_say("%s says:\nArt thou here to\nBuy or Sell?" % _owner)
+	_want_choice("bs", "w_bs")
+
+
 func _build_stock_keys(stock: Array) -> void:
 	_list_keys = ""
 	for row in stock:
@@ -708,6 +724,12 @@ func _start_armor() -> void:
 	_owner = str(data["owner"])
 	_build_stock_keys(data["stock"])
 	_say("Welcome to\n%s\n\n%s says:\nWelcome friend!\nWant to Buy or\nSell?" % [_shop, _owner])
+	_want_choice("bs", "a_bs")
+
+
+func _a_prompt_buy_sell() -> void:
+	## After Esc from catalog / sell letter — re-ask without replaying welcome.
+	_say("%s says:\nWant to Buy or\nSell?" % _owner)
 	_want_choice("bs", "a_bs")
 
 
