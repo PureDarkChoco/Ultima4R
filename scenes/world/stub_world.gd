@@ -27,6 +27,8 @@ const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
 const _VendorShop := preload("res://src/core/vendor_shop.gd")
 const _CombatMaps := preload("res://src/map/combat_maps.gd")
 const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
+const _ShrinePortals := preload("res://src/map/shrine_portals.gd")
+const _Shrine := preload("res://src/core/shrine.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 
@@ -197,6 +199,21 @@ var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
+## xu4 Shrine::enter — 0 approach, 1 virtue, 2 cycles, 3 dots, 4 mantra, 5 key, 6 exit walk.
+var _shrine_stage := 0
+var _shrine_virtue: int = 0
+var _shrine_cycles: int = 0
+var _shrine_completed: int = 0
+var _shrine_buffer: String = ""
+var _shrine_busy := false
+## Prevent re-entrant eject while walk-out runs.
+var _shrine_ejecting := false
+## From map load until walk-out finishes — lock Tab / keep panels restored.
+var _shrine_session := false
+var _shrine_saved_sides_open := false
+const SHRINE_WALK_STEP_SEC := 0.40
+const SHRINE_WALK_START := Vector2i(5, 10) ## xu4 enhancedSequence south edge
+const SHRINE_WALK_ALTAR := Vector2i(5, 6)
 ## xu4 InnController — rest in city after paying the innkeeper.
 ## 0 = idle, 1 = sleeping (corpse tile + timer).
 var _inn_stage := 0
@@ -1205,6 +1222,14 @@ func _prompt_row_text() -> String:
 		return Locale.t("cmd_camp_set_watch")
 	if _camp_stage == 3:
 		return Locale.t("cmd_camp_who_guards")
+	if _shrine_stage == 1:
+		return _shrine_buffer
+	if _shrine_stage == 2:
+		return ""
+	if _shrine_stage == 4:
+		return _shrine_buffer
+	if _shrine_stage == 5:
+		return ""
 	if _chest_open_stage == 1:
 		return Locale.t("cmd_chest_who_opens")
 	if _telescope_stage == 1:
@@ -1608,7 +1633,7 @@ func _process(delta: float) -> void:
 	_tick_cursor(delta)
 	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
 	_tick_world_clock(delta)
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		return
 	## Combat arena: turn input is key-driven (no world cruise / no auto-pass),
 	## but Ready / Ztats / chest pick still need the same cursor repeat ticks.
@@ -1649,6 +1674,8 @@ func _process(delta: float) -> void:
 	if _camp_stage == 1:
 		_tick_camp_rest(delta)
 		return
+	if _shrine_stage != 0:
+		return
 	## xu4 InnController — sleep timer while avatar shows corpse/lying tile.
 	if _inn_stage == 1:
 		_tick_inn_rest(delta)
@@ -1668,7 +1695,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -2057,6 +2084,7 @@ func _input(event: InputEvent) -> void:
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
 			## Ztats / Ready / Wear / Mix / camp pick open: don't collapse/expand side panels.
 			## Camp rest allows Tab so inventory panels stay reachable.
+			## Shrine session: panels stay forced open; Tab locked.
 			if (
 				_ztats_stage != 0
 				or _ready_stage != 0
@@ -2064,6 +2092,10 @@ func _input(event: InputEvent) -> void:
 				or _mix_stage != 0
 				or _use_stage != 0
 				or _talk_stage != 0
+				or _shrine_session
+				or _shrine_stage != 0
+				or _shrine_busy
+				or _shrine_ejecting
 				or _camp_stage == 2
 				or _camp_stage == 3
 				or _chest_open_stage != 0
@@ -2081,8 +2113,14 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		get_viewport().set_input_as_handled()
+		return
+	if _shrine_stage != 0:
+		if _handle_shrine_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
 		return
 	if _talk_stage != 0:
 		if _handle_talk_input(event):
@@ -4983,12 +5021,18 @@ func _do_hole_up() -> void:
 
 
 func _do_enter() -> void:
-	## xu4 'e' → usePortalAt(ACTION_ENTER). Cities/castles/villages for now.
+	## xu4 'e' → usePortalAt(ACTION_ENTER). Cities + shrines.
 	if _is_in_city():
 		_push_message(Locale.t("cmd_enter_what"), false)
 		return
+	if _shrine_stage != 0:
+		return
 	if _transport == Transport.SHIP or _transport == Transport.BALLOON:
 		_push_message(Locale.t("cmd_only_on_foot"), false)
+		return
+	var shrine_p := _ShrinePortals.portal_at(_tile_pos)
+	if not shrine_p.is_empty():
+		_try_enter_shrine(shrine_p)
 		return
 	var portal := _WorldPortals.portal_at(_tile_pos)
 	if portal.is_empty():
@@ -5021,6 +5065,376 @@ func _do_enter() -> void:
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 		_map.clear_moongate()
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
+
+
+func _open_sides_for_shrine() -> void:
+	## Force both side panels + tall message strip open for the shrine script.
+	_shrine_saved_sides_open = _sides_open
+	## Talk-only tall strip is obsolete while inventory sides are forced open.
+	if _talk_msg_open:
+		_talk_msg_open = false
+	_order_opened_roster = false
+	var need_anim := not _sides_open
+	_sides_open = true
+	_refresh_party()
+	if need_anim:
+		_layout_side_panels(true)
+		await _await_side_tween()
+	else:
+		_layout_side_panels(false)
+
+
+func _restore_sides_after_shrine() -> void:
+	## Return left/right/message layout to the pre-enter state.
+	_order_opened_roster = false
+	if _shrine_saved_sides_open:
+		_sides_open = true
+		_layout_side_panels(false)
+	else:
+		_sides_open = false
+		_layout_side_panels(true)
+		await _await_side_tween()
+
+
+func _try_enter_shrine(portal: Dictionary) -> void:
+	## xu4 shrineCanEnter + setMap(shrine) + Shrine::enter (walk-in sequence).
+	var virtue := int(portal.get("virtue", -1))
+	if not _Shrine.can_enter_with_rune(virtue):
+		_push_message(Locale.t("cmd_shrine_no_rune"), false)
+		_finish_party_turn()
+		return
+	var path := _CombatMapData.resolve_u4_file("shrine.con")
+	var smap = _CombatMapData.new()
+	if path.is_empty() or not smap.load_shrine_from_path(path):
+		_push_message(Locale.t("cmd_enter_fail"), false)
+		return
+	_push_message(Locale.t("cmd_enter_shrine"), false)
+	_push_message(_ShrinePortals.shrine_name(portal), false)
+	if _map != null:
+		## Spirituality has no world shrine tile — moongate stands on gate terrain;
+		## force L/R voids to grass so the cutscene is not framed by water/gate.
+		var plain := virtue == Virtues.Id.SPIRITUALITY
+		_map.enter_shrine(smap, plain)
+		_map.set_transport_tile(-1)
+		_map.clear_moongate()
+	_shrine_virtue = virtue
+	_shrine_cycles = 0
+	_shrine_completed = 0
+	_shrine_buffer = ""
+	_shrine_ejecting = false
+	_shrine_session = true
+	_stamp_command_time()
+	_shrine_enter_async()
+
+
+func _shrine_enter_async() -> void:
+	await _open_sides_for_shrine()
+	if not _shrine_session or _shrine_ejecting:
+		return
+	_shrine_approach_async()
+
+
+func _shrine_approach_async() -> void:
+	## xu4 enhancedSequence: spawn south, step north to altar, then kneel prompts.
+	_shrine_stage = 0
+	_shrine_busy = true
+	_layout_prompt_row()
+	_push_message(Locale.t("cmd_shrine_approach"), false)
+	if _map != null:
+		_map.set_shrine_walker(SHRINE_WALK_START)
+	await get_tree().create_timer(SHRINE_WALK_STEP_SEC).timeout
+	## Four north steps: (5,10) → (5,6)
+	for step in 4:
+		if _shrine_stage != 0 or _shrine_ejecting:
+			_shrine_busy = false
+			return
+		var y := SHRINE_WALK_START.y - (step + 1)
+		if _map != null:
+			_map.set_shrine_walker(Vector2i(SHRINE_WALK_START.x, y))
+		await get_tree().create_timer(SHRINE_WALK_STEP_SEC).timeout
+	if _shrine_ejecting:
+		_shrine_busy = false
+		return
+	await get_tree().create_timer(SHRINE_WALK_STEP_SEC * 2.0).timeout
+	if _shrine_ejecting:
+		_shrine_busy = false
+		return
+	_push_message(Locale.t("cmd_shrine_kneel"), false)
+	await get_tree().create_timer(SHRINE_WALK_STEP_SEC).timeout
+	if _shrine_ejecting:
+		_shrine_busy = false
+		return
+	_push_message(Locale.t("cmd_shrine_virtue_ask"), false)
+	_shrine_busy = false
+	_shrine_stage = 1
+	_shrine_buffer = ""
+	_stamp_command_time()
+	_layout_prompt_row()
+
+
+func _handle_shrine_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _shrine_busy or _shrine_ejecting or _shrine_stage == 0 or _shrine_stage == 6:
+		return true
+	if _shrine_stage == 1:
+		return _handle_shrine_virtue_input(event)
+	if _shrine_stage == 2:
+		return _handle_shrine_cycles_input(event)
+	if _shrine_stage == 4:
+		return _handle_shrine_mantra_input(event)
+	if _shrine_stage == 5:
+		return _handle_shrine_vision_key(event)
+	return true
+
+
+func _handle_shrine_virtue_input(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return true
+	var k := event as InputEventKey
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_shrine_buffer = ""
+		_shrine_on_unfocused()
+		return true
+	if _is_order_confirm_key(k):
+		var typed := _shrine_buffer
+		_shrine_buffer = ""
+		_layout_prompt_row()
+		if typed.strip_edges().is_empty():
+			_shrine_on_unfocused()
+			return true
+		_push_message(typed.strip_edges(), false)
+		if not _Shrine.virtue_input_matches(_shrine_virtue, typed):
+			_shrine_on_unfocused()
+			return true
+		_push_message(Locale.t("cmd_shrine_cycles_ask"), false)
+		_shrine_stage = 2
+		_layout_prompt_row()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _shrine_buffer.is_empty():
+			_shrine_buffer = _shrine_buffer.substr(0, _shrine_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _shrine_char_from_key(k)
+	if ch.is_empty():
+		return true
+	if _shrine_buffer.length() >= 32:
+		return true
+	_shrine_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _handle_shrine_cycles_input(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return true
+	var k := event as InputEventKey
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_shrine_on_unfocused()
+		return true
+	if k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER:
+		## xu4 Enter → cycles = 0 → unfocused.
+		_shrine_on_unfocused()
+		return true
+	var dig := -1
+	for code in [k.keycode, k.physical_keycode]:
+		if code >= KEY_0 and code <= KEY_3:
+			dig = int(code - KEY_0)
+			break
+		if code >= KEY_KP_0 and code <= KEY_KP_3:
+			dig = int(code - KEY_KP_0)
+			break
+	if dig < 0 and k.unicode >= 48 and k.unicode <= 51:
+		dig = int(k.unicode - 48)
+	if dig < 0:
+		return true
+	_shrine_cycles = dig
+	_push_message(str(dig), false)
+	if dig == 0:
+		_shrine_on_unfocused()
+		return true
+	if not _Shrine.meditation_fatigue_ok():
+		_push_message(Locale.t("cmd_shrine_weary"), false)
+		_shrine_eject()
+		return true
+	_shrine_completed = 0
+	_shrine_begin_meditation_async()
+	return true
+
+
+func _handle_shrine_mantra_input(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return true
+	var k := event as InputEventKey
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		## xu4 Escape still submits empty → bad mantra.
+		_shrine_buffer = ""
+		_shrine_submit_mantra("")
+		return true
+	if _is_order_confirm_key(k):
+		var typed := _shrine_buffer
+		_shrine_buffer = ""
+		_layout_prompt_row()
+		_shrine_submit_mantra(typed)
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _shrine_buffer.is_empty():
+			_shrine_buffer = _shrine_buffer.substr(0, _shrine_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _shrine_char_from_key(k)
+	if ch.is_empty():
+		return true
+	if _shrine_buffer.length() >= 4:
+		return true
+	_shrine_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _handle_shrine_vision_key(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return true
+	var k := event as InputEventKey
+	## xu4 waitAnyKey after vision / advice.
+	if (
+		k.keycode == KEY_ESCAPE
+		or k.physical_keycode == KEY_ESCAPE
+		or _is_order_confirm_key(k)
+		or k.keycode == KEY_SPACE
+		or k.physical_keycode == KEY_SPACE
+	):
+		_shrine_eject()
+		return true
+	## Any printable key advances.
+	if k.unicode > 0 or (k.keycode >= KEY_A and k.keycode <= KEY_Z):
+		_shrine_eject()
+		return true
+	return true
+
+
+func _shrine_char_from_key(k: InputEventKey) -> String:
+	if k.unicode >= 32 and k.unicode < 127:
+		return String.chr(k.unicode)
+	for code in [k.keycode, k.physical_keycode]:
+		if code >= KEY_A and code <= KEY_Z:
+			var base := int(code - KEY_A)
+			return String.chr(65 + base) if k.shift_pressed else String.chr(97 + base)
+	return ""
+
+
+func _shrine_on_unfocused() -> void:
+	_push_message(Locale.t("cmd_shrine_unfocused"), false)
+	_shrine_eject()
+
+
+func _shrine_begin_meditation_async() -> void:
+	_shrine_stage = 3
+	_shrine_busy = true
+	_layout_prompt_row()
+	_push_message(Locale.t("cmd_shrine_begin"), false)
+	_Shrine.mark_meditation_done()
+	var acc := ""
+	for _i in _Shrine.MANTRAS_PER_CYCLE:
+		await get_tree().create_timer(_Shrine.DOT_INTERVAL_SEC).timeout
+		if _shrine_stage != 3:
+			_shrine_busy = false
+			return
+		acc += "."
+		_shrine_replace_or_push_dots(acc)
+	_shrine_busy = false
+	_push_message(Locale.t("cmd_shrine_mantra"), false)
+	_shrine_stage = 4
+	_shrine_buffer = ""
+	_layout_prompt_row()
+
+
+func _shrine_replace_or_push_dots(acc: String) -> void:
+	if not _msg_lines.is_empty() and str(_msg_lines[-1]).begins_with("."):
+		_msg_lines[_msg_lines.size() - 1] = acc
+	else:
+		_msg_lines.append(acc)
+	while _msg_lines.size() > MSG_KEEP:
+		_msg_lines.remove_at(0)
+	_refresh_message_view()
+
+
+func _shrine_submit_mantra(typed: String) -> void:
+	var shown := typed.strip_edges()
+	if not shown.is_empty():
+		_push_message(shown, false)
+	if not _Shrine.mantra_matches(_shrine_virtue, typed):
+		GameState.adjust_karma_bad_mantra()
+		_push_message(Locale.t("cmd_shrine_bad_mantra"), false)
+		_shrine_eject()
+		return
+	_shrine_cycles -= 1
+	_shrine_completed += 1
+	GameState.adjust_karma_meditation()
+	_refresh_party()
+	if _shrine_cycles > 0:
+		_shrine_begin_meditation_async()
+		return
+	## Final cycle complete — elevate or advice vision.
+	var elevated := _shrine_completed == 3 and GameState.attempt_elevation(_shrine_virtue)
+	if elevated:
+		_push_message(
+			Locale.t("cmd_shrine_partial", [Virtues.name_of(_shrine_virtue, "en")]),
+			false
+		)
+		if _map != null:
+			_map.play_spell_flash()
+		_push_message(Locale.t("cmd_shrine_vision_elevated"), false)
+	else:
+		_push_message(Locale.t("cmd_shrine_vision"), false)
+		var adv := _Shrine.advice_for(_shrine_virtue, _shrine_completed)
+		if not adv.is_empty():
+			_push_message(adv, false)
+	_shrine_stage = 5
+	_layout_prompt_row()
+
+
+func _shrine_eject() -> void:
+	## xu4 Shrine::eject — walk out south, then parent map + finishTurn.
+	if _shrine_ejecting:
+		return
+	_shrine_eject_async()
+
+
+func _shrine_eject_async() -> void:
+	_shrine_ejecting = true
+	_shrine_busy = true
+	_shrine_buffer = ""
+	_layout_prompt_row()
+	## Walk south from altar (or current walker) to south edge, then off-map.
+	var start_y := SHRINE_WALK_ALTAR.y
+	if _map != null:
+		## Ensure walker is visible at altar before reverse walk.
+		_map.set_shrine_walker(SHRINE_WALK_ALTAR)
+	for step in range(start_y + 1, SHRINE_WALK_START.y + 1):
+		if _map != null:
+			_map.set_shrine_walker(Vector2i(SHRINE_WALK_START.x, step))
+		await get_tree().create_timer(SHRINE_WALK_STEP_SEC).timeout
+	if _map != null:
+		## One step south of the map so the sprite vanishes before cut.
+		_map.set_shrine_walker(Vector2i(SHRINE_WALK_START.x, SHRINE_WALK_START.y + 1))
+	await get_tree().create_timer(SHRINE_WALK_STEP_SEC * 0.5).timeout
+	_shrine_stage = 0
+	_shrine_cycles = 0
+	_shrine_completed = 0
+	_shrine_busy = false
+	_shrine_ejecting = false
+	if _map != null:
+		_map.exit_shrine()
+		_map.set_center(_tile_pos, false)
+		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_sync_moongate(true)
+	await _restore_sides_after_shrine()
+	_shrine_session = false
+	_layout_prompt_row()
+	_refresh_party()
+	_finish_party_turn()
 
 
 func _do_klimb() -> void:
@@ -6216,7 +6630,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -9201,7 +9615,15 @@ func _moongate_travel_async(dest: Vector2i) -> void:
 		_refresh_locate_hud()
 		if _map != null:
 			await _map.await_spell_flash(flash_sec)
-	## Spirituality shrine (both moons full) not wired yet — stay at Felucca gate.
+	## xu4 checkMoongates — both moons full + Spirituality rune → shrine.
+	if (
+		GameState.trammel_phase == 4
+		and GameState.felucca_phase == 4
+		and _Shrine.can_enter_with_rune(Virtues.Id.SPIRITUALITY)
+	):
+		_moongate_busy = false
+		_try_enter_shrine(_ShrinePortals.spirituality_portal())
+		return
 	_moongate_busy = false
 
 

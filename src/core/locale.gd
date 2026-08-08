@@ -434,6 +434,81 @@ const _T := {
 		"en_us": "ruins",
 		"ko": "폐허",
 	},
+	"cmd_enter_shrine": {
+		"en_u4": "Enter shrine!",
+		"en_us": "Enter shrine!",
+		"ko": "사원에 들어간다!",
+	},
+	"cmd_shrine_no_rune": {
+		"en_u4": "Thou dost not bear the rune of entry!  A strange force keeps you out!",
+		"en_us": "You don't have the rune of entry! A strange force keeps you out!",
+		"ko": "입장의 룬을 지니지 않았다! 이상한 힘이 막는다!",
+	},
+	"cmd_shrine_sit": {
+		"en_u4": "You enter the ancient shrine and sit before the altar...",
+		"en_us": "You enter the ancient shrine and sit before the altar...",
+		"ko": "고대 사원에 들어가 제단 앞에 앉는다...",
+	},
+	"cmd_shrine_approach": {
+		"en_u4": "You approach the ancient shrine...",
+		"en_us": "You approach the ancient shrine...",
+		"ko": "고대 사원에 다가간다...",
+	},
+	"cmd_shrine_kneel": {
+		"en_u4": "...and kneel before the altar.",
+		"en_us": "...and kneel before the altar.",
+		"ko": "...그리고 제단 앞에 무릎을 꿇는다.",
+	},
+	"cmd_shrine_virtue_ask": {
+		"en_u4": "Upon which virtue dost thou meditate?",
+		"en_us": "Upon which virtue do you meditate?",
+		"ko": "어느 미덕에 명상하겠는가?",
+	},
+	"cmd_shrine_cycles_ask": {
+		"en_u4": "For how many Cycles (0-3)?",
+		"en_us": "For how many Cycles (0-3)?",
+		"ko": "몇 주기 명상할까 (0-3)?",
+	},
+	"cmd_shrine_unfocused": {
+		"en_u4": "Thou art unable to focus thy thoughts on this subject!",
+		"en_us": "You cannot focus your thoughts on this subject!",
+		"ko": "이 주제에 생각을 모을 수가 없다!",
+	},
+	"cmd_shrine_weary": {
+		"en_u4": "Thy mind is still weary from thy last Meditation!",
+		"en_us": "Your mind is still weary from your last meditation!",
+		"ko": "지난 명상의 피로가 아직 남아 있다!",
+	},
+	"cmd_shrine_begin": {
+		"en_u4": "Begin Meditation",
+		"en_us": "Begin Meditation",
+		"ko": "명상을 시작한다",
+	},
+	"cmd_shrine_mantra": {
+		"en_u4": "Mantra:",
+		"en_us": "Mantra:",
+		"ko": "만트라:",
+	},
+	"cmd_shrine_bad_mantra": {
+		"en_u4": "Thou art not able to focus thy thoughts with that Mantra!",
+		"en_us": "You cannot focus your thoughts with that mantra!",
+		"ko": "그 만트라로는 생각을 모을 수 없다!",
+	},
+	"cmd_shrine_partial": {
+		"en_u4": "Thou hast achieved partial Avatarhood in the Virtue of %s",
+		"en_us": "You have achieved partial Avatarhood in the Virtue of %s",
+		"ko": "%s의 미덕에서 부분 아바타가 되었다",
+	},
+	"cmd_shrine_vision": {
+		"en_u4": "Thy thoughts are pure. Thou art granted a vision!",
+		"en_us": "Your thoughts are pure. You are granted a vision!",
+		"ko": "생각이 맑다. 환영이 주어진다!",
+	},
+	"cmd_shrine_vision_elevated": {
+		"en_u4": "Thou art granted a vision!",
+		"en_us": "You are granted a vision!",
+		"ko": "환영이 주어진다!",
+	},
 	"cmd_hole_up": {
 		"en_u4": "Hole up & Camp!",
 		"en_us": "Hole up & Camp!",

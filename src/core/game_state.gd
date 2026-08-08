@@ -77,6 +77,8 @@ var lastcamp: int = 0
 var lastreagent: int = 0
 ## xu4 SaveGame.lastvirtue — (moves / 16) & 0xffff when a timed +karma last applied.
 var lastvirtue: int = 0
+## xu4 SaveGame.lastmeditation — (moves / 100) & 0xffff when shrine meditation began.
+var lastmeditation: int = 0
 ## xu4 SaveGame.items / stones / runes bitfields (Search / Use).
 var items: int = 0
 var stones: int = 0
@@ -276,6 +278,7 @@ func reset_party() -> void:
 	moves = 0
 	lastcamp = 0
 	lastvirtue = 0
+	lastmeditation = 0
 	gems = 0
 	gold = 200
 	keys = 0
@@ -641,6 +644,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	moves = 0
 	lastcamp = 0
 	lastvirtue = 0
+	lastmeditation = 0
 	ship_hull = 50
 	_init_party_from_xu4(klass, selected_virtues)
 	party_order.clear()
@@ -1037,6 +1041,27 @@ func adjust_karma_humble() -> void:
 	## xu4 KA_HUMBLE — Humility +10 if virtueIncreaseTimeout allows.
 	if virtue_increase_timeout():
 		adjust_karma_virtue(Virtues.Id.HUMILITY, 10)
+
+
+func adjust_karma_meditation() -> void:
+	## xu4 KA_MEDITATION / KA_HAWKWIND — Spirituality +3 if timeout allows.
+	if virtue_increase_timeout():
+		adjust_karma_virtue(Virtues.Id.SPIRITUALITY, 3)
+
+
+func adjust_karma_bad_mantra() -> void:
+	## xu4 KA_BAD_MANTRA — Spirituality −3 (not timed).
+	adjust_karma_virtue(Virtues.Id.SPIRITUALITY, -3)
+
+
+func attempt_elevation(virtue: int) -> bool:
+	## xu4 Party::attemptElevation — karma 99 → partial Avatar (0).
+	if virtue < 0 or virtue >= karma.size():
+		return false
+	if int(karma[virtue]) != 99:
+		return false
+	karma[virtue] = 0
+	return true
 
 
 func swap_party_members(a: int, b: int) -> bool:
@@ -2364,6 +2389,7 @@ func to_save_dict() -> Dictionary:
 		"moves": moves,
 		"lastcamp": lastcamp,
 		"lastvirtue": lastvirtue,
+		"lastmeditation": lastmeditation,
 		"ship_hull": ship_hull,
 		"gems": gems,
 		"gold": gold,
@@ -2421,6 +2447,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	moves = int(d.get("moves", 0))
 	lastcamp = int(d.get("lastcamp", 0))
 	lastvirtue = int(d.get("lastvirtue", 0)) & 0xFFFF
+	lastmeditation = int(d.get("lastmeditation", 0)) & 0xFFFF
 	ship_hull = clampi(int(d.get("ship_hull", 0)), 0, SHIP_HULL_WHEEL)
 	gems = maxi(0, int(d.get("gems", 0)))
 	gold = maxi(0, int(d.get("gold", 0)))

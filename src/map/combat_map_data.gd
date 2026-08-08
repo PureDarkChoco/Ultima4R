@@ -64,6 +64,20 @@ func load_from_path(path: String) -> bool:
 	return true
 
 
+func load_shrine_from_path(path: String) -> bool:
+	## xu4 Map::SHRINE: loadCombatMap skips creature/player starts — tiles at offset 0.
+	clear()
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return false
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() < TILE_COUNT:
+		push_warning("CombatMapData: short shrine file %s (%d bytes)" % [path, bytes.size()])
+		return false
+	source_path = path
+	tiles = bytes.slice(0, TILE_COUNT)
+	return true
+
+
 static func resolve_u4_file(fname: String) -> String:
 	## Prefer GameState path, then absolute GOG / data stubs.
 	var name := fname.get_file()

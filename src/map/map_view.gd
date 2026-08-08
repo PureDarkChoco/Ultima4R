@@ -289,6 +289,10 @@ var _camp_guard_cd := 0.0
 var _camp_guard_a: Image
 var _camp_guard_b: Image
 var _corpse_slice: Image
+## Shrine enter/exit walker on the .CON (camp paint path). Off-map = (-1,-1).
+var _shrine_walker := Vector2i(-1, -1)
+## Spirituality (moongate): side voids force grass, not moongate/world neighbours.
+var _shrine_plain_margins := false
 ## Cached BRIDGE.CON for camp/combat side margins (not the active arena).
 var _bridge_con_map
 ## Combat arena — same 11×11 centered layout as camp; units painted on top.
@@ -540,12 +544,57 @@ func enter_camp(
 	_rebuild()
 
 
+func enter_shrine(map, plain_margins: bool = false) -> void:
+	## xu4 VIEW_CUTSCENE_MAP — SHRINE.CON; baked avatar at (5,6) cleared for walk-in.
+	## `plain_margins`: Spirituality gate — fill L/R voids with grass (no moongate terrain).
+	exit_combat()
+	exit_city()
+	_camp_map = map
+	_camp_sleepers.clear()
+	_camp_guard_class = -1
+	_camp_guard_pos = Vector2i(-1, -1)
+	_camp_guard_cd = 0.0
+	_camp_guard_a = null
+	_camp_guard_b = null
+	_shrine_walker = Vector2i(-1, -1)
+	_shrine_plain_margins = plain_margins
+	## xu4 enhancedSequence annotations: static Avatar tile → grass.
+	if _camp_map != null:
+		var stand := int(_camp_map.tile_at(5, 6))
+		if stand == AVATAR_TILE_A or stand == AVATAR_TILE_B:
+			_camp_map.set_tile(5, 6, TILE_GRASS)
+	_build_camp_background()
+	_scroll_frames_left = 0
+	_rebuild()
+
+
+func set_shrine_walker(pos: Vector2i) -> void:
+	## Camp-local coord for entrance approach / exit. Use (-1,-1) to hide.
+	if _shrine_walker == pos:
+		return
+	_shrine_walker = pos
+	if _camp_map != null:
+		_rebuild()
+
+
+func clear_shrine_walker() -> void:
+	set_shrine_walker(Vector2i(-1, -1))
+
+
+func exit_shrine() -> void:
+	## Same teardown as camp view (shared _camp_map).
+	_shrine_walker = Vector2i(-1, -1)
+	_shrine_plain_margins = false
+	exit_camp()
+
+
 func exit_camp() -> void:
 	if (
 		_camp_map == null
 		and _camp_sleepers.is_empty()
 		and _camp_bg.is_empty()
 		and _camp_guard_class < 0
+		and _shrine_walker.x < 0
 	):
 		return
 	_camp_map = null
@@ -556,6 +605,8 @@ func exit_camp() -> void:
 	_camp_guard_cd = 0.0
 	_camp_guard_a = null
 	_camp_guard_b = null
+	_shrine_walker = Vector2i(-1, -1)
+	_shrine_plain_margins = false
 	_rebuild()
 
 
@@ -3233,6 +3284,7 @@ func _rebuild_camp() -> void:
 
 	_paint_camp_sleepers(origin_x, origin_y)
 	_paint_camp_guard(origin_x, origin_y)
+	_paint_shrine_walker(origin_x, origin_y)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -3649,6 +3701,11 @@ func _build_camp_background() -> void:
 	_camp_bg.fill(TILE_GRASS)
 	var origin_x := (view_w - CAMP_W) / 2
 	var right_start := origin_x + CAMP_W
+	## Spirituality shrine: leave margins as grass fill only (no world sides).
+	if _shrine_plain_margins and not is_in_combat():
+		_paint_camp_side_margin(true, origin_x, right_start, TILE_GRASS)
+		_paint_camp_side_margin(false, origin_x, right_start, TILE_GRASS)
+		return
 	## Ship combat: match water/land rows to the .CON, not world-neighbour grass.
 	if is_in_combat() and _is_ship_combat_map():
 		_paint_ship_combat_margins(origin_x, right_start)
@@ -4609,6 +4666,23 @@ func _paint_camp_guard(origin_x: int, origin_y: int) -> void:
 		return
 	var sx := origin_x + _camp_guard_pos.x
 	var sy := origin_y + _camp_guard_pos.y
+	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+		return
+	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+	_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+
+
+func _paint_shrine_walker(origin_x: int, origin_y: int) -> void:
+	## Approach / kneel / leave — leader class sprite over the shrine .CON.
+	if _shrine_walker.x < 0 or _shrine_walker.y < 0:
+		return
+	if _avatar_a == null or _cached_leader_class != GameState.party_leader_class():
+		_cache_avatar_icons()
+	var img := _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
+	if img == null or img.is_empty():
+		return
+	var sx := origin_x + _shrine_walker.x
+	var sy := origin_y + _shrine_walker.y
 	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 		return
 	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
