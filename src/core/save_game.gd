@@ -277,8 +277,12 @@ static func first_occupied_slot() -> int:
 	return 0
 
 
-static func default_load_cursor() -> int:
-	## Journey: prefer last save, else first occupied. 0-based index.
+static func default_load_cursor(session_loaded_slot: int = 0) -> int:
+	## 0-based index. In-game Load: prefer the slot this session was loaded from
+	## (or last saved into). Journey / no session: last save, else first occupied.
+	if session_loaded_slot >= 1 and session_loaded_slot <= SLOT_COUNT:
+		if slot_exists(session_loaded_slot):
+			return session_loaded_slot - 1
 	var last := last_saved_slot()
 	if last > 0:
 		return last - 1
@@ -286,12 +290,23 @@ static func default_load_cursor() -> int:
 	return maxi(occ - 1, 0)
 
 
-static func default_save_cursor(session_loaded_slot: int, session_did_save: bool) -> int:
+static func default_save_cursor(
+	session_loaded_slot: int,
+	session_did_save: bool,
+	is_new_game: bool = false
+) -> int:
 	## Q save default (0-based):
-	## - After a save this session → last saved slot
+	## - New game, not yet saved this run → first empty slot; if full → top (0)
+	## - After a save this session → bound session slot (then prefs last-saved)
 	## - Loaded game, not yet saved → last loaded slot
-	## - New game → first empty, else slot 1
+	if is_new_game and not session_did_save:
+		var empty_new := first_empty_slot()
+		if empty_new > 0:
+			return empty_new - 1
+		return 0
 	if session_did_save:
+		if session_loaded_slot >= 1 and session_loaded_slot <= SLOT_COUNT:
+			return session_loaded_slot - 1
 		var saved := last_saved_slot()
 		if saved > 0:
 			return saved - 1

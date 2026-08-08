@@ -2827,10 +2827,13 @@ func _open_slot_picker(mode: int, from_esc: bool) -> void:
 	_reset_hold_state()
 	var cursor := 0
 	if mode == _SaveSlotPanel.Mode.LOAD:
-		cursor = _SaveGame.default_load_cursor()
+		## Same session slot we Journey-loaded or last wrote (not prefs last_saved alone).
+		cursor = _SaveGame.default_load_cursor(GameState.session_loaded_slot)
 	else:
 		cursor = _SaveGame.default_save_cursor(
-			GameState.session_loaded_slot, GameState.session_did_save
+			GameState.session_loaded_slot,
+			GameState.session_did_save,
+			GameState.is_new_game
 		)
 	_save_panel.open_panel(mode, cursor)
 	_layout_prompt_row()
