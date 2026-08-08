@@ -305,8 +305,10 @@ var _talk_is_hawkwind := false
 var _talk_is_lb := false
 var _shop = null ## _VendorShop session
 ## Talk expands message strip + character roster (not left inventory unless Tab already open).
+## Shop peeks: weapon/armor/reagent Ztats lists replace the roster while trading.
 var _talk_msg_open := false
 var _talk_msg_tween: Tween
+var _shop_inv_kind := "" ## "weapons" | "armor" | "reagents" | ""
 var _sides_open := false
 ## N (New Order): temporarily show only the character roster panel.
 var _order_opened_roster := false
@@ -1441,14 +1443,14 @@ func _layout_side_panels(animate: bool) -> void:
 		if _compact_pane:
 			_compact_pane.visible = not roster_open
 			_compact_pane.modulate.a = 1.0
-	if _ztats_stage == 2:
+	if _ztats_stage == 2 or not _shop_inv_kind.is_empty():
 		if _right_top:
 			_right_top.visible = true
 		if _compact_pane:
 			_compact_pane.visible = false
 		if _roster:
 			_roster.visible = false
-		if _ztats_panel:
+		if _ztats_panel and (_ztats_stage == 2 or not _shop_inv_kind.is_empty()):
 			_ztats_panel.visible = true
 			_ztats_panel.move_to_front()
 	_layout_locate_hud()
@@ -5767,9 +5769,11 @@ func _exit_city() -> void:
 		_talk_is_hawkwind = false
 		_talk_is_lb = false
 		_talk_msg_open = false
+		_shop = null
 		if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
 			_talk_msg_tween.kill()
 			_talk_msg_tween = null
+		_clear_shop_character_inv()
 		## Drop talk-only character peek before leaving city.
 		if not _sides_open and _order_opened_roster:
 			_order_opened_roster = false
@@ -6964,6 +6968,7 @@ func _flush_shop_output() -> void:
 	_layout_prompt_row()
 	_refresh_inventory_bars()
 	_refresh_party()
+	_sync_shop_character_inv()
 
 
 func _end_shop() -> void:
@@ -6996,6 +7001,7 @@ func _end_shop() -> void:
 		_horse_gallop = false
 		if _map != null:
 			_map.set_transport_tile(_transport_tile)
+	_clear_shop_character_inv()
 	_close_talk_message_panel()
 	_layout_prompt_row()
 	_refresh_inventory_bars()
@@ -7005,6 +7011,67 @@ func _end_shop() -> void:
 		_begin_inn_rest()
 		return
 	_finish_party_turn()
+
+
+func _shop_inv_page_for_kind(kind: String) -> int:
+	match kind:
+		"weapons":
+			return ZtatsPanel.InvPage.WEAPONS
+		"armor":
+			return ZtatsPanel.InvPage.ARMOR
+		"reagents":
+			return ZtatsPanel.InvPage.REAGENTS
+		_:
+			return ZtatsPanel.InvPage.NONE
+
+
+func _sync_shop_character_inv() -> void:
+	## During weapon / armor / reagent shops, mirror the matching stock list in the character panel.
+	if _talk_stage != 10 or _shop == null:
+		_clear_shop_character_inv()
+		return
+	var kind := str(_shop.character_inv_kind())
+	if kind.is_empty():
+		_clear_shop_character_inv()
+		return
+	var page := _shop_inv_page_for_kind(kind)
+	if page == ZtatsPanel.InvPage.NONE:
+		_clear_shop_character_inv()
+		return
+	_ensure_ztats_panel()
+	if not _sides_open and not _order_opened_roster:
+		_open_order_roster()
+	if _right_top:
+		_right_top.visible = true
+	if _compact_pane:
+		_compact_pane.visible = false
+	if _roster:
+		_roster.visible = false
+	var keep_scroll: bool = (
+		_shop_inv_kind == kind
+		and _ztats_panel != null
+		and _ztats_panel.is_inventory_page()
+	)
+	_shop_inv_kind = kind
+	if _ztats_panel:
+		_ztats_panel.open_inventory(page, keep_scroll)
+
+
+func _clear_shop_character_inv() -> void:
+	## Drop shop inventory peek; restore party roster if the character panel stays open for talk.
+	_shop_inv_kind = ""
+	## Real Ztats session owns the panel — leave it alone.
+	if _ztats_stage != 0:
+		return
+	if _ztats_panel != null and _ztats_panel.is_open():
+		_ztats_panel.close_panel()
+	if _talk_stage != 0 and (_sides_open or _order_opened_roster or _talk_msg_open):
+		if _roster:
+			_roster.visible = true
+		if _right_top:
+			_right_top.visible = true
+		if _compact_pane and (_sides_open or _order_opened_roster):
+			_compact_pane.visible = false
 
 
 func _begin_inn_rest() -> void:

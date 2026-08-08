@@ -13,7 +13,16 @@ const _Virtues := preload("res://src/core/virtues.gd")
 const _Spells := preload("res://src/core/spells.gd")
 
 ## xu4 order adapted: Weapons+Armor → Items (+sextant) → Reagents → Mixtures.
-enum InvPage { NONE = -1, GEAR = 0, ITEMS = 1, REAGENTS = 2, MIXTURES = 3 }
+## WEAPONS / ARMOR are shop-side peeks (Ztats ←→ cycle stays GEAR…MIXTURES).
+enum InvPage {
+	NONE = -1,
+	GEAR = 0,
+	ITEMS = 1,
+	REAGENTS = 2,
+	MIXTURES = 3,
+	WEAPONS = 4,
+	ARMOR = 5,
+}
 
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
@@ -1168,6 +1177,12 @@ func _refresh_inventory() -> void:
 		InvPage.GEAR:
 			_inv_title.text = Locale.t("ztats_page_equipment")
 			_fill_gear_page()
+		InvPage.WEAPONS:
+			_inv_title.text = Locale.t("ztats_page_weapons")
+			_fill_weapons_page()
+		InvPage.ARMOR:
+			_inv_title.text = Locale.t("ztats_page_armor")
+			_fill_armor_page()
 		InvPage.ITEMS:
 			_inv_title.text = Locale.t("ztats_page_items")
 			_fill_items_page()
@@ -1187,8 +1202,25 @@ func _refresh_inventory() -> void:
 
 
 func _fill_gear_page() -> void:
-	## Letters match xu4 Ready/Wear indices (A=Hands/No Armor even if not listed).
-	_add_inv_section(Locale.t("ztats_page_weapons"))
+	## Combined equipment list for normal Ztats.
+	_fill_weapons_section(true)
+	_fill_armor_section(true)
+
+
+func _fill_weapons_page() -> void:
+	## Shop weapons peek — weapons only, no armor section header.
+	_fill_weapons_section(false)
+
+
+func _fill_armor_page() -> void:
+	## Shop armor peek — armor only.
+	_fill_armor_section(false)
+
+
+func _fill_weapons_section(with_section_title: bool) -> void:
+	## Letters match xu4 Ready indices (A=Hands even if not listed).
+	if with_section_title:
+		_add_inv_section(Locale.t("ztats_page_weapons"))
 	_add_gear_header(Locale.t("ztats_col_damage"))
 	for w in range(1, GameState.weapons.size()): ## skip Hands
 		## Once-owned stay listed at qty 0; never-owned stay hidden.
@@ -1202,7 +1234,12 @@ func _fill_gear_page() -> void:
 			_WeaponIcons.damage_of(w),
 			qty
 		)
-	_add_inv_section(Locale.t("ztats_page_armor"))
+
+
+func _fill_armor_section(with_section_title: bool) -> void:
+	## Letters match xu4 Wear indices (A=No Armor even if not listed).
+	if with_section_title:
+		_add_inv_section(Locale.t("ztats_page_armor"))
 	_add_gear_header(Locale.t("ztats_col_defense"))
 	for a in range(1, GameState.armor.size()): ## skip No Armor
 		if not GameState.is_armor_known(a) and int(GameState.armor[a]) <= 0:

@@ -228,6 +228,27 @@ func take_lines() -> Array[String]:
 	return lines
 
 
+func character_inv_kind() -> String:
+	## Inventory page to mirror on the character panel during this shop.
+	## "" → keep the party roster. Weapon / armor / reagent vendors only.
+	match _role:
+		_Roles.Role.VENDOR_WEAPONS:
+			## After Buy or Sell — browse/own weapons while trading.
+			if _phase == "w_bs" or _phase.is_empty():
+				return ""
+			return "weapons"
+		_Roles.Role.VENDOR_ARMOR:
+			if _phase == "a_bs" or _phase.is_empty():
+				return ""
+			return "armor"
+		_Roles.Role.VENDOR_REAGENTS:
+			if _phase == "r_need" or _phase.is_empty():
+				return ""
+			return "reagents"
+		_:
+			return ""
+
+
 func begin(role: int, locale: String) -> void:
 	_reset()
 	_role = role
