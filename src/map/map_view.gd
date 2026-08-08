@@ -2553,10 +2553,11 @@ func _ensure_buffers() -> void:
 func _cam_tile() -> Vector2:
 	if _scroll_frames_left <= 0:
 		return Vector2(center)
-	# SCROLL_STEPS → 1/N · … · 1 → arrive
+	## progress 0 at scroll start (frames==SCROLL_STEPS) … 1 after last step.
+	## Stage always includes a +1 fringe so the entering edge is already painted.
 	var n := float(SCROLL_STEPS)
-	var done := n - float(_scroll_frames_left) + 1.0
-	return Vector2(_scroll_from) + Vector2(_scroll_dir) * (done / n)
+	var progress := (n - float(_scroll_frames_left)) / n
+	return Vector2(_scroll_from) + Vector2(_scroll_dir) * progress
 
 
 func _rebuild() -> void:
@@ -4539,6 +4540,9 @@ func _terrain_tid_at(wx: int, wy: int) -> int:
 
 func _apply_los_blackout_stage(base: Vector2i) -> void:
 	## Replace hidden stage cells with black (xu4 draws tile_black).
+	## While scrolling, the stage is (view+1) so the entering edge is pre-painted.
+	## Do NOT fog tiles outside the party LOS rectangle — those fringe cells would
+	## flash black for a frame before the peel reveals them as fog-of-war cells.
 	if not los_enabled:
 		return
 	var half_x := view_w / 2
@@ -4547,7 +4551,13 @@ func _apply_los_blackout_stage(base: Vector2i) -> void:
 		for dx in view_w + 1:
 			var mx := base.x - half_x + dx
 			var my := base.y - half_y + dy
-			if is_tile_visible(mx, my):
+			## Map into the party-centered viewport (same window as _los).
+			var vx := mx - center.x + half_x
+			var vy := my - center.y + half_y
+			if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
+				## Scroll fringe: keep terrain so peel never shows black plate.
+				continue
+			if _los.is_empty() or _los[vy * view_w + vx] != 0:
 				continue
 			_stage.fill_rect(
 				Rect2i(dx * TILE_SRC, dy * TILE_SRC, TILE_SRC, TILE_SRC),
