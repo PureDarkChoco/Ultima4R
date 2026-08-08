@@ -3769,8 +3769,8 @@ func _paint_bridge_battlefield_margin(
 
 
 func _paint_ship_combat_margins(origin_x: int, right_start: int) -> void:
-	## Left/right margins follow each .CON edge row: water beside the hull stays a
-	## continuous coastline; land rows sprinkle grass / brush / forest.
+	## Left/right margins follow each .CON edge row: water depth falls off with
+	## distance from the hull (shallow → medium → deep); land rows blend terrain.
 	if _combat_map == null:
 		return
 	var origin_y := (view_h - CAMP_H) / 2
@@ -3786,9 +3786,12 @@ func _paint_ship_combat_margins(origin_x: int, right_start: int) -> void:
 		var right_base := _ship_margin_tid_from_edge(int(_combat_map.tile_at(CAMP_W - 1, map_y)))
 		for dx in view_w:
 			if dx < origin_x:
-				_camp_bg[dy * view_w + dx] = _ship_margin_cell_tid(left_base)
+				## 0 = cell flush with the arena (nearest the ship).
+				var dist_l := origin_x - 1 - dx
+				_camp_bg[dy * view_w + dx] = _ship_margin_cell_tid(left_base, dist_l)
 			elif dx >= right_start:
-				_camp_bg[dy * view_w + dx] = _ship_margin_cell_tid(right_base)
+				var dist_r := dx - right_start
+				_camp_bg[dy * view_w + dx] = _ship_margin_cell_tid(right_base, dist_r)
 
 
 func _ship_margin_tid_from_edge(edge_tid: int) -> int:
@@ -3800,10 +3803,31 @@ func _ship_margin_tid_from_edge(edge_tid: int) -> int:
 	return _normalize_camp_margin_tile(edge_tid)
 
 
-func _ship_margin_cell_tid(base: int) -> int:
-	## Keep water rows pure (coastline). On land rows, blend plains / scrub / trees.
+func _ship_sea_depth_for_dist(edge_water: int, dist: int) -> int:
+	## Open-sea side strip by distance from the hull (SHIPSEA shallow belt etc.).
+	## Near ship: keep edge depth; a short medium band; open ocean = deep.
+	## dist 0 = column beside the 11×11 .CON.
+	var d := maxi(0, dist)
+	var edge := clampi(edge_water, 0, WATER_TILE_MAX)
+	match edge:
+		2: ## shallow band at the hull waterline
+			if d <= 0:
+				return 2
+			if d <= 2:
+				return TILE_MEDIUM_WATER
+			return 0 ## deep
+		1: ## medium (open water or hull flush)
+			if d <= 1:
+				return TILE_MEDIUM_WATER
+			return 0
+		_:
+			return 0
+
+
+func _ship_margin_cell_tid(base: int, dist: int = 0) -> int:
+	## Keep water rows as a depth gradient. On land rows, blend plains / scrub / trees.
 	if base <= WATER_TILE_MAX:
-		return base
+		return _ship_sea_depth_for_dist(base, dist)
 	## Light mix; favour grass/brush with occasional forest (or swamp near marsh edges).
 	var r := randf()
 	if base == TILE_SWAMP:
