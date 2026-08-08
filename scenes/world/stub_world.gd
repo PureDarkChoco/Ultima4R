@@ -3386,7 +3386,8 @@ func _party_wiped_or_dying() -> bool:
 
 
 func _update_world_creatures() -> void:
-	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures.
+	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures
+	## → checkBridgeTrolls.
 	## Creatures act sequentially; after a lethal pirate shot, stop further AI / combat.
 	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
 		return
@@ -3434,6 +3435,48 @@ func _update_world_creatures() -> void:
 		changed = true
 	if changed:
 		_sync_creatures_to_map()
+	## xu4 checkBridgeTrolls after random spawn (same finishTurn pass).
+	if _party_wiped_or_dying() or _combat_active:
+		return
+	await _check_bridge_trolls()
+
+
+func _check_bridge_trolls() -> void:
+	## xu4 GameController::checkBridgeTrolls:
+	## world map + underfoot tile name == bridge + 1/8 → "Bridge Trolls!" on BRIDGE.CON.
+	## Note: only tile 23 (bridge), not bridge_n / bridge_s (xu4 Tile::sym.bridge).
+	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
+		return
+	if _party_wiped_or_dying():
+		return
+	var ground := int(_world.tile_at(_tile_pos.x, _tile_pos.y))
+	if ground != MapView.TILE_BRIDGE:
+		return
+	if (randi() % 8) != 0:
+		return
+	_push_message(Locale.t("cmd_bridge_trolls"), false)
+	## MAP_BRIDGE_CON = bridge.con (force map; not combatMapForTile).
+	var cmap = null
+	var path := _CombatMapData.resolve_u4_file("BRIDGE.CON")
+	if not path.is_empty():
+		var loaded: _CombatMapData = _CombatMapData.new()
+		if loaded.load_from_path(path):
+			cmap = loaded
+	if cmap == null:
+		cmap = _CombatMaps.load_for_encounter(
+			MapView.TILE_BRIDGE, 164, false, false
+		)
+	if cmap == null:
+		return
+	## TROLL_ID 30 → tile 164; skip second "Attacked by…" (xu4 only prints Bridge Trolls!).
+	var foe := {
+		"tile": 164,
+		"x": _tile_pos.x,
+		"y": _tile_pos.y,
+		"facing": 0,
+		"skip_attacked_by": true,
+	}
+	await _begin_combat(foe, false, cmap, false)
 
 
 func _cancel_save(show_none: bool) -> void:

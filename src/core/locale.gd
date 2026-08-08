@@ -443,6 +443,11 @@ const _T := {
 		"en_us": "Ambushed!",
 		"ko": "기습당했다!",
 	},
+	"cmd_bridge_trolls": {
+		"en_u4": "Bridge Trolls!",
+		"en_us": "Bridge Trolls!",
+		"ko": "다리 트롤이다!",
+	},
 	"cmd_camp_set_watch": {
 		"en_u4": "Set a watch?",
 		"en_us": "Set a watch?",
