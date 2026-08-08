@@ -1,14 +1,11 @@
 extends Control
 
-## Text layout mirrors Ultima IV TITLE.EXE menu (C_0B45):
-##   row 14 col 2  — "In another world, in a time to come."
-##   row 16 col 15 — "Options:"
-##   row 17–19 col 11 — Return / Journey / Initiate
-##   row 22 col 5  — copyright
-## Language / Quit are remake extras on the same option column.
+## Title intro host: TITLES → MAP → MENU (xu4 IntroController until menu).
+## Text layout mirrors TITLE.EXE menu (C_0B45) over options_btm band.
 
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
+const _IntroController := preload("res://src/intro/intro_controller.gd")
 
 const COLS := 40.0
 const ROWS := 25.0
@@ -22,7 +19,10 @@ const ROWS := 25.0
 @onready var _btn_quit: Button = %Quit
 @onready var _copyright: Label = %Copyright
 @onready var _hint: Label = %Hint
+@onready var _text_block: Control = %TextBlock
+@onready var _intro_view: TextureRect = %IntroView
 
+var _intro: Node ## IntroController
 var _save_panel # SaveSlotPanel
 var _load_open := false
 var _hold_arm := 0.0
@@ -34,10 +34,9 @@ const HOLD_INTERVAL := 0.10
 
 
 func _ready() -> void:
-	## Ensure title uses settings.cfg language (en_us if no file).
 	GameState.restore_menu_language()
 	UiTheme.apply_root(self)
-	$ColorRect.color = UiTheme.BG
+	$ColorRect.color = Color.BLACK
 
 	UiTheme.style_label(_tagline, 20, UiTheme.TEXT)
 	UiTheme.style_label(_options_head, 18, UiTheme.MUTED)
@@ -53,7 +52,6 @@ func _ready() -> void:
 	_btn_new.pressed.connect(_on_new)
 	_btn_lang.pressed.connect(func() -> void: _cycle_language(1))
 	_btn_lang.gui_input.connect(_on_lang_gui_input)
-	## Keep ←→ on Language for cycling (don't jump to other menu rows).
 	_btn_lang.focus_neighbor_left = _btn_lang.get_path()
 	_btn_lang.focus_neighbor_right = _btn_lang.get_path()
 	_btn_quit.pressed.connect(func() -> void: get_tree().quit())
@@ -61,12 +59,37 @@ func _ready() -> void:
 	resized.connect(_layout_u4)
 	_refresh_text()
 	call_deferred("_layout_u4")
-	_apply_pending_focus()
+
+	_intro = _IntroController.new()
+	_intro.name = "IntroController"
+	add_child(_intro)
+	_intro.mode_changed.connect(_on_intro_mode)
+	if not _intro.setup(_intro_view):
+		## Fallback: skip titles, show menu on blank canvas.
+		_text_block.visible = true
+		_apply_pending_focus()
+	else:
+		_text_block.visible = false
+		_hint.visible = false
+
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh_text())
 
 
+func _on_intro_mode(mode: int) -> void:
+	var menu_on := mode == _IntroController.Mode.MENU
+	_text_block.visible = menu_on
+	_hint.visible = menu_on
+	if menu_on:
+		call_deferred("_apply_pending_focus")
+	else:
+		var fo := get_viewport().gui_get_focus_owner()
+		if fo:
+			fo.release_focus()
+
+
 func _apply_pending_focus() -> void:
-	## Restore selection after Esc from character creation, etc.
+	if _intro and _intro.mode != _IntroController.Mode.MENU:
+		return
 	match SceneRouter.take_menu_focus():
 		"new":
 			_btn_new.grab_focus()
@@ -81,7 +104,6 @@ func _apply_pending_focus() -> void:
 
 
 func _style_menu_line(btn: Button) -> void:
-	## Flat line like original character menu — no chrome panel.
 	var empty := StyleBoxEmpty.new()
 	btn.add_theme_stylebox_override("normal", empty)
 	btn.add_theme_stylebox_override("pressed", empty)
@@ -163,8 +185,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_load_input(event):
 			accept_event()
 		return
-	## Esc does not quit — only the Quit menu item (or Q) exits.
-	if event is InputEventKey and event.pressed and not event.echo:
+
+	var pressed_key: bool = event is InputEventKey and event.pressed and not event.echo
+	var click: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	var joy: bool = event is InputEventJoypadButton and event.pressed
+
+	if _intro == null:
+		return
+
+	if _intro.mode == _IntroController.Mode.TITLES or _intro.mode == _IntroController.Mode.MAP:
+		if pressed_key or click or (joy and (event as InputEventJoypadButton).button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START]):
+			_intro.skip_titles_or_advance()
+			accept_event()
+		return
+
+	if pressed_key:
 		match event.keycode:
 			KEY_R:
 				_on_return_view()
@@ -214,12 +249,13 @@ func _refresh_text() -> void:
 
 
 func _on_return_view() -> void:
-	## Title map animation not wired yet — keep focus on the classic option.
-	_btn_return.grab_focus()
+	if _intro:
+		_intro.return_to_map()
+	else:
+		_btn_return.grab_focus()
 
 
 func _on_journey() -> void:
-	## Journey Onward → load-slot picker (default = last save).
 	if not _SaveGame.any_slot_exists():
 		_hint.text = Locale.t("load_none")
 		_btn_journey.grab_focus()
@@ -234,7 +270,6 @@ func _on_journey() -> void:
 		_SaveSlotPanel.Mode.LOAD,
 		_SaveGame.default_load_cursor()
 	)
-	## Release menu button focus so Enter goes to the slot picker.
 	if get_viewport().gui_get_focus_owner() != null:
 		get_viewport().gui_get_focus_owner().release_focus()
 
