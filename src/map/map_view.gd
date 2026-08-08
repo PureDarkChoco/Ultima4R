@@ -35,6 +35,33 @@ const NPC_FRAME_MIN := 0.22
 const NPC_FRAME_MAX := 0.85
 ## Classic U4 water (deep / medium / shallow) — vertical pixel scroll wrap.
 const WATER_TILE_MAX := 2 # ids 0..2
+## Shore masks: land freckles stamped where a water cell touches non-water.
+const SHORE_MASK_DIR := "res://assets/tiles/u4graphics/masks"
+## Cardinal land-neighbour bits (N E S W).
+const SHORE_BIT_N := 1
+const SHORE_BIT_E := 2
+const SHORE_BIT_S := 4
+const SHORE_BIT_W := 8
+## Max pixel depth from a tile edge when filtering directed shore masks.
+const SHORE_EDGE_DEPTH := 5
+## Outer corners may extend slightly past the edge for a rounder turn.
+const SHORE_CORNER_DEPTH := 8
+## Shore freckle RGB scale (1.0 = raw mask art; lower = softer).
+const SHORE_COLOR_SCALE := 0.35
+## Directed `shore_land_*` masks (no ref_ prefix) per side / corner / dual.
+const SHORE_REF_N := "top"
+const SHORE_REF_E := "right"
+const SHORE_REF_S := "bottom"
+const SHORE_REF_W := "left"
+const SHORE_REF_NW := "corner_nw"
+const SHORE_REF_NE := "corner_ne"
+const SHORE_REF_SW := "corner_sw"
+const SHORE_REF_SE := "corner_se"
+const SHORE_REF_EW := "dual_ew" ## vertical river banks
+const SHORE_REF_NS := "dual_ns" ## horizontal channel
+const SHORE_REF_FRAME := "frame" ## land on all sides
+## Sentinel: no map cell for shore neighbour lookup.
+const SHORE_NO_CELL := 0x7fffffff
 ## Seconds per 1px scroll step (xu4-like flow). Tune anytime.
 const WATER_SCROLL_PERIOD := 0.12
 ## White stone corner tiles — shallow water under white mask.
@@ -79,6 +106,20 @@ const TILE_HORSE_E := 21
 const TILE_BRIDGE := 23
 const TILE_BRIDGE_N := 25
 const TILE_BRIDGE_S := 26
+## Stone wall (no shore freckles beside masonry).
+const TILE_STONE_WALL := 57
+## Ship deck plank flooring (ship combat maps).
+const TILE_PLANKS := 63
+## White solid hull / rail used heavily on ship .CON maps.
+const TILE_WHITE_SOLID := 72
+## Ship mast / wheel (combat ship interior).
+const TILE_SHIP_MAST := 53
+const TILE_SHIP_WHEEL := 54
+## Pirate ship hull facings (xu4 tiles 128–131).
+const TILE_PIRATE_SHIP_W := 128
+const TILE_PIRATE_SHIP_S := 131
+## Medium water preferred for void beside ship hulls in combat margins.
+const TILE_MEDIUM_WATER := 1
 ## First source row of the near railing on bridge / bridge_s (32×32 art).
 const BRIDGE_NEAR_RAIL_Y := 19
 ## World terrain ids used by camp margins.
@@ -88,6 +129,11 @@ const TILE_BRUSH := 5
 const TILE_FOREST := 6
 const TILE_HILLS := 7
 const TILE_MOUNTAINS := 8
+## City shop letter signs A–Z + space (xu4 signs).
+const TILE_SIGN_A := 96
+const TILE_SIGN_SPACE := 122
+## Brick wall (city masonry).
+const TILE_BRICK_WALL := 127
 ## Mounted party marker (person on horse) — left / right.
 const HORSE_RIDER_W_PATH := "res://assets/tiles/horse_rider_w.png"
 const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
@@ -224,6 +270,8 @@ var _water_scroll := 0
 var _water_cd := WATER_SCROLL_PERIOD
 var _tile_anim_frame := 0
 var _tile_anim_cd := TILE_ANIM_PERIOD
+## shore_land_* cache: mask name → Image (RGBA freckles).
+var _shore_land_cache: Dictionary = {}
 var _gold_loot_icon: Image
 var _loot_icon_cache: Dictionary = {} ## path → scaled Image
 ## Ship grounding jolt — party/ship sprite offset while > 0.
@@ -2502,13 +2550,11 @@ func _rebuild() -> void:
 	# Stage (view+1) so fractional scroll has a strip to reveal.
 	for dy in view_h + 1:
 		for dx in view_w + 1:
-			var tid := clampi(
-				world.tile_at(base.x - half_x + dx, base.y - half_y + dy),
-				0,
-				TILE_ID_MAX
-			)
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			var tid := clampi(world.tile_at(mx, my), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			_blit_terrain_to(_stage, tid, dst)
+			_blit_terrain_to(_stage, tid, dst, mx, my)
 
 	_refresh_los()
 	_apply_los_blackout_stage(base)
@@ -2560,7 +2606,7 @@ func _rebuild_city() -> void:
 				)
 				_blit_chest_tile(_stage, dst, 1 if open else 0, true)
 			else:
-				_blit_terrain_to(_stage, tid, dst)
+				_blit_terrain_to(_stage, tid, dst, mx, my)
 
 	_refresh_los()
 	_apply_los_blackout_stage(base)
@@ -3131,7 +3177,11 @@ func _rebuild_camp() -> void:
 				if bi >= 0 and bi < _camp_bg.size():
 					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			_blit_terrain_to(_buf, tid, dst)
+			## Camp-local coords when inside the 11×11; else no shore lookup.
+			if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+				_blit_terrain_to(_buf, tid, dst, cx, cy)
+			else:
+				_blit_terrain_to(_buf, tid, dst)
 
 	_paint_camp_sleepers(origin_x, origin_y)
 	_paint_camp_guard(origin_x, origin_y)
@@ -3161,7 +3211,8 @@ func _rebuild_combat() -> void:
 				if bi >= 0 and bi < _camp_bg.size():
 					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			_blit_terrain_to(_buf, tid, dst)
+			## View-space coords so left/right beach margins get shore freckles too.
+			_blit_terrain_to(_buf, tid, dst, dx, dy)
 
 	_paint_combat_chests(origin_x, origin_y)
 	_paint_combat_foes(origin_x, origin_y)
@@ -3550,6 +3601,11 @@ func _build_camp_background() -> void:
 	_camp_bg.fill(TILE_GRASS)
 	var origin_x := (view_w - CAMP_W) / 2
 	var right_start := origin_x + CAMP_W
+	## Ship combat: match water/land rows to the .CON, not world-neighbour grass.
+	if is_in_combat() and _is_ship_combat_map():
+		_paint_ship_combat_margins(origin_x, right_start)
+		return
+
 	var left_base := TILE_GRASS
 	var right_base := TILE_GRASS
 	if world != null and world.loaded:
@@ -3569,6 +3625,71 @@ func _build_camp_background() -> void:
 		_prune_floating_camp_soft(true, origin_x, right_start, left_base)
 	if _camp_margin_uses_mix(right_base):
 		_prune_floating_camp_soft(false, origin_x, right_start, right_base)
+
+
+func _is_ship_combat_map() -> bool:
+	## Ship .CON boards use plank / white hull / mast tiles heavily.
+	if _combat_map == null:
+		return false
+	var n := 0
+	for y in CAMP_H:
+		for x in CAMP_W:
+			if _is_ship_or_deck_tile(int(_combat_map.tile_at(x, y))):
+				n += 1
+				if n >= 8:
+					return true
+	return false
+
+
+func _paint_ship_combat_margins(origin_x: int, right_start: int) -> void:
+	## Left/right margins follow each .CON edge row: water beside the hull stays a
+	## continuous coastline; land rows sprinkle grass / brush / forest.
+	if _combat_map == null:
+		return
+	var origin_y := (view_h - CAMP_H) / 2
+	for dy in view_h:
+		var map_y: int
+		if dy < origin_y:
+			map_y = 0
+		elif dy >= origin_y + CAMP_H:
+			map_y = CAMP_H - 1
+		else:
+			map_y = dy - origin_y
+		var left_base := _ship_margin_tid_from_edge(int(_combat_map.tile_at(0, map_y)))
+		var right_base := _ship_margin_tid_from_edge(int(_combat_map.tile_at(CAMP_W - 1, map_y)))
+		for dx in view_w:
+			if dx < origin_x:
+				_camp_bg[dy * view_w + dx] = _ship_margin_cell_tid(left_base)
+			elif dx >= right_start:
+				_camp_bg[dy * view_w + dx] = _ship_margin_cell_tid(right_base)
+
+
+func _ship_margin_tid_from_edge(edge_tid: int) -> int:
+	## Water stays water; ship hull/deck flush into open sea; shore land continues.
+	if edge_tid <= WATER_TILE_MAX or _TileRulesCamp.is_water(edge_tid):
+		return clampi(edge_tid, 0, WATER_TILE_MAX)
+	if _is_ship_or_deck_tile(edge_tid):
+		return TILE_MEDIUM_WATER
+	return _normalize_camp_margin_tile(edge_tid)
+
+
+func _ship_margin_cell_tid(base: int) -> int:
+	## Keep water rows pure (coastline). On land rows, blend plains / scrub / trees.
+	if base <= WATER_TILE_MAX:
+		return base
+	## Light mix; favour grass/brush with occasional forest (or swamp near marsh edges).
+	var r := randf()
+	if base == TILE_SWAMP:
+		if r < 0.70:
+			return TILE_SWAMP
+		if r < 0.88:
+			return TILE_GRASS
+		return TILE_BRUSH
+	if r < 0.55:
+		return TILE_GRASS
+	if r < 0.82:
+		return TILE_BRUSH
+	return TILE_FOREST
 
 
 func _paint_camp_side_margin(
@@ -3902,10 +4023,15 @@ func _normalize_camp_margin_tile(tid: int) -> int:
 			return TILE_GRASS
 
 
-func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
+func _blit_terrain_to(
+	target: Image, tid: int, dst: Vector2i, map_x: int = SHORE_NO_CELL, map_y: int = SHORE_NO_CELL
+) -> void:
 	## Water, fields, lava, and white-corner edges share the same Y-scroll clock.
 	if tid <= WATER_TILE_MAX or _is_y_scroll_tile(tid):
 		_U4TileBankScript.blit_water_to(target, tid, dst, _water_scroll)
+		## Classic water (0..2): stamp land freckles where neighbours are not water.
+		if tid <= WATER_TILE_MAX and map_x != SHORE_NO_CELL and map_y != SHORE_NO_CELL:
+			_apply_water_shore_masks(target, dst, map_x, map_y)
 	elif tid >= TILE_WHITE_SW and tid <= TILE_WHITE_NE:
 		_U4TileBankScript.blit_water_edge_to(target, tid, dst, _water_scroll)
 	elif tid == TILE_SPIT:
@@ -3918,6 +4044,284 @@ func _blit_terrain_to(target: Image, tid: int, dst: Vector2i) -> void:
 		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	else:
 		_U4TileBankScript.blit_to(target, tid, dst)
+
+
+func _is_shore_land_tid(tid: int) -> bool:
+	## Non-water land that should receive shore freckles on adjacent water.
+	if _TileRulesCamp.is_water(tid):
+		return false
+	## Bridges never mint a shore mask (world or combat).
+	if _is_bridge_tile(tid):
+		return false
+	## Stone / brick walls — no muddy freckles against masonry.
+	if tid == TILE_STONE_WALL or tid == TILE_BRICK_WALL:
+		return false
+	## Hills / mountains — rocky base, not a sandy shore.
+	if tid == TILE_HILLS or tid == TILE_MOUNTAINS:
+		return false
+	## City shop sign letters / space.
+	if tid >= TILE_SIGN_A and tid <= TILE_SIGN_SPACE:
+		return false
+	## Ship hull / deck / white rail — no muddy shore freckles against the vessel.
+	if _is_ship_or_deck_tile(tid):
+		return false
+	return true
+
+
+func _is_bridge_tile(tid: int) -> bool:
+	return tid == TILE_BRIDGE or tid == TILE_BRIDGE_N or tid == TILE_BRIDGE_S
+
+
+func _is_ship_or_deck_tile(tid: int) -> bool:
+	## Frigate facings, pirate hulls, plank deck, white hull rails, mast/wheel,
+	## and the white corner stones used on ship .CON boards.
+	if tid >= TILE_SHIP_W and tid <= TILE_SHIP_S:
+		return true
+	if tid >= TILE_PIRATE_SHIP_W and tid <= TILE_PIRATE_SHIP_S:
+		return true
+	if tid == TILE_PLANKS or tid == TILE_WHITE_SOLID:
+		return true
+	if tid == TILE_SHIP_MAST or tid == TILE_SHIP_WHEEL:
+		return true
+	## column + waterside whites 48–52 (ship rail/end caps in combat maps).
+	if tid >= 48 and tid <= TILE_WHITE_NE:
+		return true
+	return false
+
+
+func _render_tid_at(mx: int, my: int) -> int:
+	## Map cell for shore neighbour tests (same source as the cell being drawn).
+	## Combat uses *view* cell coords so left/right margin beaches participate.
+	if is_in_combat():
+		return _combat_view_tid_at(mx, my)
+	if _camp_map != null and not is_in_combat():
+		if mx >= 0 and my >= 0 and mx < CAMP_W and my < CAMP_H:
+			return clampi(int(_camp_map.tile_at(mx, my)), 0, TILE_ID_MAX)
+		return TILE_GRASS
+	if is_in_city():
+		return clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
+	if world != null and world.loaded:
+		return clampi(world.tile_at(mx, my), 0, TILE_ID_MAX)
+	return TILE_GRASS
+
+
+func _combat_view_tid_at(vx: int, vy: int) -> int:
+	## Tile under a combat explore-view cell (arena + left/right camp margins).
+	if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
+		return TILE_GRASS
+	var origin_x := (view_w - CAMP_W) / 2
+	var origin_y := (view_h - CAMP_H) / 2
+	var cx := vx - origin_x
+	var cy := vy - origin_y
+	if (
+		cx >= 0
+		and cy >= 0
+		and cx < CAMP_W
+		and cy < CAMP_H
+		and _combat_map != null
+	):
+		return clampi(int(_combat_map.tile_at(cx, cy)), 0, TILE_ID_MAX)
+	var bi := vy * view_w + vx
+	if bi >= 0 and bi < _camp_bg.size():
+		return clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
+	return TILE_GRASS
+
+
+func _shore_neighbour_is_land(mx: int, my: int) -> bool:
+	## Screen-exterior sides never mint a shore (but combat margin beaches do).
+	if is_in_combat():
+		if mx < 0 or my < 0 or mx >= view_w or my >= view_h:
+			return false
+		return _is_shore_land_tid(_combat_view_tid_at(mx, my))
+	return _is_shore_land_tid(_render_tid_at(mx, my))
+
+
+func _shore_land_bits_at(mx: int, my: int) -> int:
+	var bits := 0
+	if _shore_neighbour_is_land(mx, my - 1):
+		bits |= SHORE_BIT_N
+	if _shore_neighbour_is_land(mx + 1, my):
+		bits |= SHORE_BIT_E
+	if _shore_neighbour_is_land(mx, my + 1):
+		bits |= SHORE_BIT_S
+	if _shore_neighbour_is_land(mx - 1, my):
+		bits |= SHORE_BIT_W
+	return bits
+
+
+func _load_shore_land_ref(ref_name: String) -> Image:
+	if _shore_land_cache.has(ref_name):
+		return _shore_land_cache[ref_name] as Image
+	var path := "%s/shore_land_%s.png" % [SHORE_MASK_DIR, ref_name]
+	var img: Image = null
+	var abs_path := ProjectSettings.globalize_path(path)
+	if FileAccess.file_exists(abs_path):
+		img = Image.load_from_file(abs_path)
+	elif ResourceLoader.exists(path):
+		var res = load(path)
+		if res is Texture2D:
+			img = (res as Texture2D).get_image()
+			if img != null and img.is_compressed():
+				img.decompress()
+		elif res is Image:
+			img = res as Image
+	if img == null or img.is_empty():
+		push_warning("MapView: missing shore land %s" % path)
+		_shore_land_cache[ref_name] = null
+		return null
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	_shore_land_cache[ref_name] = img
+	return img
+
+
+func _apply_water_shore_masks(target: Image, dst: Vector2i, mx: int, my: int) -> void:
+	## Overlay directional `shore_land_*` freckles where N/E/S/W neighbours are land.
+	var bits := _shore_land_bits_at(mx, my)
+	if bits == 0:
+		return
+	## Solid 1px black rim against land first (no water leaks), then sparse freckles.
+	_fill_shore_edge_blackout(target, dst, bits)
+	var freckled := PackedByteArray()
+	freckled.resize(TILE_SRC * TILE_SRC)
+	freckled.fill(0)
+	## Full-ref specials for open channels / fully enclosed bays.
+	if bits == (SHORE_BIT_E | SHORE_BIT_W):
+		_blend_shore_land_full(target, dst, SHORE_REF_EW, freckled)
+		return
+	if bits == (SHORE_BIT_N | SHORE_BIT_S):
+		_blend_shore_land_full(target, dst, SHORE_REF_NS, freckled)
+		return
+	if bits == (SHORE_BIT_N | SHORE_BIT_E | SHORE_BIT_S | SHORE_BIT_W):
+		_blend_shore_land_full(target, dst, SHORE_REF_FRAME, freckled)
+		return
+	## Directed edges + outer corners (only pixels near the matching edge/corner).
+	if bits & SHORE_BIT_N:
+		_blend_shore_land_side(target, dst, SHORE_REF_N, SHORE_BIT_N, freckled)
+	if bits & SHORE_BIT_E:
+		_blend_shore_land_side(target, dst, SHORE_REF_E, SHORE_BIT_E, freckled)
+	if bits & SHORE_BIT_S:
+		_blend_shore_land_side(target, dst, SHORE_REF_S, SHORE_BIT_S, freckled)
+	if bits & SHORE_BIT_W:
+		_blend_shore_land_side(target, dst, SHORE_REF_W, SHORE_BIT_W, freckled)
+	if (bits & (SHORE_BIT_N | SHORE_BIT_W)) == (SHORE_BIT_N | SHORE_BIT_W):
+		_blend_shore_land_corner(target, dst, SHORE_REF_NW, SHORE_BIT_N | SHORE_BIT_W, freckled)
+	if (bits & (SHORE_BIT_N | SHORE_BIT_E)) == (SHORE_BIT_N | SHORE_BIT_E):
+		_blend_shore_land_corner(target, dst, SHORE_REF_NE, SHORE_BIT_N | SHORE_BIT_E, freckled)
+	if (bits & (SHORE_BIT_S | SHORE_BIT_W)) == (SHORE_BIT_S | SHORE_BIT_W):
+		_blend_shore_land_corner(target, dst, SHORE_REF_SW, SHORE_BIT_S | SHORE_BIT_W, freckled)
+	if (bits & (SHORE_BIT_S | SHORE_BIT_E)) == (SHORE_BIT_S | SHORE_BIT_E):
+		_blend_shore_land_corner(target, dst, SHORE_REF_SE, SHORE_BIT_S | SHORE_BIT_E, freckled)
+
+
+func _blend_shore_land_full(
+	target: Image, dst: Vector2i, ref_name: String, freckled: PackedByteArray
+) -> void:
+	var land := _load_shore_land_ref(ref_name)
+	if land == null:
+		return
+	_stamp_shore_land(target, dst, land, 0, freckled)
+
+
+func _blend_shore_land_side(
+	target: Image, dst: Vector2i, ref_name: String, side: int, freckled: PackedByteArray
+) -> void:
+	var land := _load_shore_land_ref(ref_name)
+	if land == null:
+		return
+	_stamp_shore_land(target, dst, land, side, freckled)
+
+
+func _blend_shore_land_corner(
+	target: Image, dst: Vector2i, ref_name: String, corner_bits: int, freckled: PackedByteArray
+) -> void:
+	var land := _load_shore_land_ref(ref_name)
+	if land == null:
+		return
+	## High bit marks "require both axes of the corner pair".
+	_stamp_shore_land(target, dst, land, corner_bits | 16, freckled)
+
+
+func _stamp_shore_land(
+	target: Image, dst: Vector2i, land: Image, filter: int, freckled: PackedByteArray
+) -> void:
+	## filter 0 = full. Bits 1/2/4/8 = edge bands. filter|16 = outer corner (both axes).
+	var tw := target.get_width()
+	var th := target.get_height()
+	var lw := mini(land.get_width(), TILE_SRC)
+	var lh := mini(land.get_height(), TILE_SRC)
+	var corner := (filter & 16) != 0
+	var sides := filter & 15
+	## Straight edges ≤6px; rounded outer-corner stamps may reach slightly further.
+	var depth := SHORE_CORNER_DEPTH if corner else SHORE_EDGE_DEPTH
+	for y in lh:
+		for x in lw:
+			if not _shore_filter_keeps(x, y, sides, corner, depth):
+				continue
+			var c := land.get_pixel(x, y)
+			if c.a < 0.5:
+				continue
+			var tx := dst.x + x
+			var ty := dst.y + y
+			if tx < 0 or ty < 0 or tx >= tw or ty >= th:
+				continue
+			## Soften mask chroma so freckles do not overpower the water tile.
+			var s := SHORE_COLOR_SCALE
+			target.set_pixel(tx, ty, Color(c.r * s, c.g * s, c.b * s, c.a))
+			freckled[y * TILE_SRC + x] = 1
+
+
+func _fill_shore_edge_blackout(target: Image, dst: Vector2i, bits: int) -> void:
+	## Full 1px rim against land — solid black so water never shows through.
+	var black := Color(0, 0, 0, 1)
+	var tw := target.get_width()
+	var th := target.get_height()
+	if bits & SHORE_BIT_N:
+		for x in TILE_SRC:
+			var tx := dst.x + x
+			var ty := dst.y
+			if tx >= 0 and ty >= 0 and tx < tw and ty < th:
+				target.set_pixel(tx, ty, black)
+	if bits & SHORE_BIT_S:
+		var y := TILE_SRC - 1
+		for x in TILE_SRC:
+			var tx2 := dst.x + x
+			var ty2 := dst.y + y
+			if tx2 >= 0 and ty2 >= 0 and tx2 < tw and ty2 < th:
+				target.set_pixel(tx2, ty2, black)
+	if bits & SHORE_BIT_W:
+		for y3 in TILE_SRC:
+			var tx3 := dst.x
+			var ty3 := dst.y + y3
+			if tx3 >= 0 and ty3 >= 0 and tx3 < tw and ty3 < th:
+				target.set_pixel(tx3, ty3, black)
+	if bits & SHORE_BIT_E:
+		var x4 := TILE_SRC - 1
+		for y4 in TILE_SRC:
+			var tx4 := dst.x + x4
+			var ty4 := dst.y + y4
+			if tx4 >= 0 and ty4 >= 0 and tx4 < tw and ty4 < th:
+				target.set_pixel(tx4, ty4, black)
+
+
+func _shore_filter_keeps(x: int, y: int, sides: int, corner: bool, depth: int) -> bool:
+	if sides == 0:
+		return true
+	var n := (sides & SHORE_BIT_N) != 0 and y < depth
+	var s := (sides & SHORE_BIT_S) != 0 and y >= TILE_SRC - depth
+	var w := (sides & SHORE_BIT_W) != 0 and x < depth
+	var e := (sides & SHORE_BIT_E) != 0 and x >= TILE_SRC - depth
+	if corner:
+		if (sides & (SHORE_BIT_N | SHORE_BIT_W)) == (SHORE_BIT_N | SHORE_BIT_W):
+			return n and w
+		if (sides & (SHORE_BIT_N | SHORE_BIT_E)) == (SHORE_BIT_N | SHORE_BIT_E):
+			return n and e
+		if (sides & (SHORE_BIT_S | SHORE_BIT_W)) == (SHORE_BIT_S | SHORE_BIT_W):
+			return s and w
+		if (sides & (SHORE_BIT_S | SHORE_BIT_E)) == (SHORE_BIT_S | SHORE_BIT_E):
+			return s and e
+		return false
+	return n or s or w or e
 
 
 func _blit_chest_tile(target: Image, dst: Vector2i, frame: int, city_floor: bool) -> void:
