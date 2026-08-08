@@ -130,6 +130,7 @@ const TILE_BRUSH := 5
 const TILE_FOREST := 6
 const TILE_HILLS := 7
 const TILE_MOUNTAINS := 8
+const TILE_DUNGEON := 9 ## World dungeon entrance
 ## City shop letter signs A–Z + space (xu4 signs).
 const TILE_SIGN_A := 96
 const TILE_SIGN_SPACE := 122
@@ -4389,8 +4390,8 @@ func _is_shore_land_tid(tid: int) -> bool:
 	## Stone / brick walls — no muddy freckles against masonry.
 	if tid == TILE_STONE_WALL or tid == TILE_BRICK_WALL:
 		return false
-	## Hills / mountains — rocky base, not a sandy shore.
-	if tid == TILE_HILLS or tid == TILE_MOUNTAINS:
+	## Hills / mountains / dungeon mouth — rocky base, not a sandy shore.
+	if tid == TILE_HILLS or tid == TILE_MOUNTAINS or tid == TILE_DUNGEON:
 		return false
 	## City shop sign letters / space.
 	if tid >= TILE_SIGN_A and tid <= TILE_SIGN_SPACE:
@@ -4457,13 +4458,13 @@ func _combat_view_tid_at(vx: int, vy: int) -> int:
 	return TILE_GRASS
 
 
-func _shore_neighbour_is_land(mx: int, my: int) -> bool:
+func _shore_neighbour_is_land(nb_x: int, nb_y: int) -> bool:
 	## Screen-exterior sides never mint a shore (but combat/camp margin beaches do).
 	if is_in_combat() or is_camping():
-		if mx < 0 or my < 0 or mx >= view_w or my >= view_h:
+		if nb_x < 0 or nb_y < 0 or nb_x >= view_w or nb_y >= view_h:
 			return false
-		return _is_shore_land_tid(_combat_view_tid_at(mx, my))
-	return _is_shore_land_tid(_render_tid_at(mx, my))
+		return _is_shore_land_tid(_combat_view_tid_at(nb_x, nb_y))
+	return _is_shore_land_tid(_render_tid_at(nb_x, nb_y))
 
 
 func _shore_land_bits_at(mx: int, my: int) -> int:

@@ -696,7 +696,8 @@ func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 func _is_shore_land_tid(tid: int) -> bool:
 	if tid <= WATER_TILE_MAX:
 		return false
-	if tid == 7 or tid == 8:
+	## Hills / mountains / dungeon mouth — no sandy shore freckles.
+	if tid == 7 or tid == 8 or tid == 9:
 		return false
 	return true
 
