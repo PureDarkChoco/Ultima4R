@@ -527,6 +527,22 @@ static func is_fleeing_hp(hp: int) -> bool:
 	return hp > 0 and hp < FLEE_HP
 
 
+static func is_swimmer(tile_or_base: int) -> bool:
+	return _swims(_base_tile(tile_or_base))
+
+
+static func is_sailor(tile_or_base: int) -> bool:
+	return _sails(_base_tile(tile_or_base))
+
+
+static func is_flyer(tile_or_base: int) -> bool:
+	return _flies(_base_tile(tile_or_base))
+
+
+static func is_incorporeal(tile_or_base: int) -> bool:
+	return _incorporeal(_base_tile(tile_or_base))
+
+
 static func creature_attack_damage(base_hp: int) -> int:
 	## xu4 Creature::getDamage — random(basehp/4) → tens*10 + ones.
 	var bh := maxi(1, base_hp)

@@ -1406,12 +1406,13 @@ func _combat_apply_advance_step(index: int, from: Vector2i, target: Vector2i) ->
 
 func _combat_valid_advance_dirs(from: Vector2i, skip_foe: int) -> Array[Vector2i]:
 	## Walkable ortho steps (no map exit, no stack, skip slowed terrain).
+	var mover_tile := _combat_foe_tile(skip_foe)
 	var out: Array[Vector2i] = []
 	for d in _combat_advance_dirs(from):
 		var dest := from + d
 		if not _combat_in_bounds(dest):
 			continue
-		if not _combat_can_walk(from, dest, d):
+		if not _combat_can_walk(from, dest, d, mover_tile):
 			continue
 		if _combat_occupied(dest, -1, skip_foe):
 			continue
@@ -1453,6 +1454,7 @@ func _combat_bfs_step_toward(
 	## wall sits on the straight line.
 	if _combat_map == null:
 		return Vector2i.ZERO
+	var mover_tile := _combat_foe_tile(skip_foe)
 	var dist := PackedInt32Array()
 	dist.resize(CAMP_W * CAMP_H)
 	dist.fill(9999)
@@ -1478,7 +1480,7 @@ func _combat_bfs_step_toward(
 				if _combat_occupied(n, -1, skip_foe):
 					continue
 				var n_tid := int(_combat_map.tile_at(n.x, n.y))
-				if not _TileRulesCamp.is_creature_walkable(n_tid):
+				if not _combat_terrain_ok_for_mover(n_tid, mover_tile):
 					continue
 				if _TileRulesCamp.slowed_by_tile(n_tid):
 					continue
@@ -1514,17 +1516,21 @@ func _combat_is_land_tile(tid: int) -> bool:
 			return false
 
 
-func _combat_flee_cell_walkable(pos: Vector2i) -> bool:
-	## Static walkability for BFS (creature-walkable terrain).
+func _combat_flee_cell_walkable(pos: Vector2i, mover_tile: int = -1) -> bool:
+	## Static walkability for BFS (mobility matches species: land / swim / sail / fly).
 	if _combat_map == null or not _combat_in_bounds(pos):
 		return false
 	var tid := int(_combat_map.tile_at(pos.x, pos.y))
-	return _TileRulesCamp.is_creature_walkable(tid)
+	return _combat_terrain_ok_for_mover(tid, mover_tile)
 
 
 func _combat_flee_cell_passable(pos: Vector2i, skip_foe: int) -> bool:
 	## Walkable and not occupied (self `skip_foe` ignored).
-	return _combat_flee_cell_walkable(pos) and not _combat_occupied(pos, -1, skip_foe)
+	var mover_tile := _combat_foe_tile(skip_foe)
+	return (
+		_combat_flee_cell_walkable(pos, mover_tile)
+		and not _combat_occupied(pos, -1, skip_foe)
+	)
 
 
 func _combat_land_path_dists(skip_foe: int) -> PackedInt32Array:
@@ -1630,6 +1636,7 @@ func _combat_pick_flee_progress(
 	## Returns {dest, leaves}; dest==from if stuck.
 	var best_score := from_score
 	var opts: Array[Dictionary] = []
+	var mover_tile := _combat_foe_tile(index)
 	for d in _DIRS_COMBAT:
 		var dest := from + d
 		var is_oob := not _combat_in_bounds(dest)
@@ -1643,7 +1650,7 @@ func _combat_pick_flee_progress(
 				elif oob_score == best_score:
 					opts.append({"dest": dest, "leaves": true, "score": oob_score})
 			continue
-		if not _combat_can_walk(from, dest, d):
+		if not _combat_can_walk(from, dest, d, mover_tile):
 			continue
 		if _combat_occupied(dest, -1, index):
 			continue
@@ -1709,6 +1716,7 @@ func _combat_apply_flee_step(
 		var land_only2 := shore and on_land
 		var cur_sep := _combat_manhattan(from, away_from)
 		var nudge: Array[Vector2i] = []
+		var mover_tile := _combat_foe_tile(index)
 		for d in _DIRS_COMBAT:
 			var dest := from + d
 			if not _combat_in_bounds(dest):
@@ -1718,7 +1726,7 @@ func _combat_apply_flee_step(
 					nudge.clear()
 					break
 				continue
-			if not _combat_can_walk(from, dest, d):
+			if not _combat_can_walk(from, dest, d, mover_tile):
 				continue
 			if _combat_occupied(dest, -1, index):
 				continue
@@ -1780,12 +1788,45 @@ func _combat_in_bounds(pos: Vector2i) -> bool:
 	return pos.x >= 0 and pos.y >= 0 and pos.x < CAMP_W and pos.y < CAMP_H
 
 
-func _combat_can_walk(from: Vector2i, dest: Vector2i, dir: Vector2i) -> bool:
-	## xu4 walking creature / combat party: walkon + walkoff + creatureWalkable.
+func _combat_foe_tile(index: int) -> int:
+	if index < 0 or index >= _combat_foes.size():
+		return -1
+	return int(_combat_foes[index].get("tile", 0))
+
+
+func _combat_terrain_ok_for_mover(dest_tid: int, mover_tile: int) -> bool:
+	## Wilderness-style mobility on combat tiles (xu4 Map::getValidMoves).
+	if mover_tile < 0:
+		return _TileRulesCamp.is_creature_walkable(dest_tid)
+	if _WorldCreaturesScript.is_flyer(mover_tile):
+		return true
+	if _WorldCreaturesScript.is_sailor(mover_tile):
+		return _TileRulesCamp.is_sailable(dest_tid)
+	if _WorldCreaturesScript.is_swimmer(mover_tile):
+		return _TileRulesCamp.is_swimable(dest_tid)
+	if _WorldCreaturesScript.is_incorporeal(mover_tile):
+		return not _TileRulesCamp.is_water(dest_tid)
+	return _TileRulesCamp.is_creature_walkable(dest_tid)
+
+
+func _combat_can_walk(
+	from: Vector2i, dest: Vector2i, dir: Vector2i, mover_tile: int = -1
+) -> bool:
+	## Party (default) uses walkon + walkoff + creatureWalkable.
+	## Foes pass their tile: swim / sail / fly / incorporeal match wilderness.
 	if _combat_map == null:
 		return false
 	var from_tid := int(_combat_map.tile_at(from.x, from.y))
 	var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+	if mover_tile >= 0:
+		if _WorldCreaturesScript.is_flyer(mover_tile):
+			return true
+		if _WorldCreaturesScript.is_sailor(mover_tile):
+			return _TileRulesCamp.is_sailable(dest_tid)
+		if _WorldCreaturesScript.is_swimmer(mover_tile):
+			return _TileRulesCamp.is_swimable(dest_tid)
+		if _WorldCreaturesScript.is_incorporeal(mover_tile):
+			return not _TileRulesCamp.is_water(dest_tid)
 	if not _TileRulesCamp.can_walk_on(dest_tid, dir):
 		return false
 	if not _TileRulesCamp.can_walk_off(from_tid, dir):
