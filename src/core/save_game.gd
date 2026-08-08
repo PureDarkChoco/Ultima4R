@@ -178,6 +178,31 @@ static func write_slot(slot: int, data: Dictionary) -> bool:
 	return true
 
 
+static func delete_slot(slot: int) -> bool:
+	## Remove slot_N.json. Clears prefs pointers if they pointed at this slot.
+	if slot < 1 or slot > SLOT_COUNT:
+		return false
+	if not slot_exists(slot):
+		return false
+	var path := slot_path(slot)
+	var abs_path := ProjectSettings.globalize_path(path)
+	var err := DirAccess.remove_absolute(abs_path)
+	if err != OK:
+		push_warning("SaveGame: cannot delete %s (err %d)" % [path, err])
+		return false
+	var prefs := read_prefs()
+	var dirty := false
+	if int(prefs.get("last_saved_slot", 0)) == slot:
+		prefs["last_saved_slot"] = 0
+		dirty = true
+	if int(prefs.get("last_loaded_slot", 0)) == slot:
+		prefs["last_loaded_slot"] = 0
+		dirty = true
+	if dirty:
+		write_prefs(prefs)
+	return true
+
+
 static func build_save(
 	game: Dictionary,
 	world: Dictionary,

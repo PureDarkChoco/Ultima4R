@@ -8,6 +8,7 @@ const LAYER_Z := 128
 enum Kind {
 	QUIT = 0,
 	RETURN_MENU = 1,
+	DELETE_SAVE = 2,
 }
 
 var _layer: CanvasLayer
@@ -18,6 +19,7 @@ var _btn_no: Button
 var _open := false
 var _kind: int = Kind.QUIT
 var _prev_focus: Control
+var _on_yes: Callable = Callable()
 
 
 func _ready() -> void:
@@ -40,6 +42,8 @@ func is_open() -> bool:
 func prompt(kind: int = Kind.QUIT) -> void:
 	## Show (or retarget) confirmation. Safe while already open.
 	_kind = kind
+	if kind != Kind.DELETE_SAVE:
+		_on_yes = Callable()
 	if _open:
 		_refresh_text()
 		_btn_no.grab_focus()
@@ -54,6 +58,12 @@ func prompt(kind: int = Kind.QUIT) -> void:
 	_layer.visible = true
 	_btn_no.grab_focus()
 	_sync_choice_style()
+
+
+func prompt_delete_save(on_yes: Callable) -> void:
+	## Load-list Del/Backspace: Yes runs `on_yes` after the dialog closes.
+	_on_yes = on_yes
+	prompt(Kind.DELETE_SAVE)
 
 
 func _build() -> void:
@@ -82,7 +92,7 @@ func _build() -> void:
 	_root.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(360, 0)
+	panel.custom_minimum_size = Vector2(420, 0)
 	panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	center.add_child(panel)
@@ -94,6 +104,8 @@ func _build() -> void:
 
 	_title = Label.new()
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_title.custom_minimum_size = Vector2(380, 0)
 	UiTheme.style_label(_title, 18, UiTheme.TEXT)
 	col.add_child(_title)
 
@@ -128,6 +140,8 @@ func _refresh_text() -> void:
 	match _kind:
 		Kind.RETURN_MENU:
 			_title.text = Locale.t("return_menu_confirm")
+		Kind.DELETE_SAVE:
+			_title.text = Locale.t("load_delete_confirm")
 		_:
 			_title.text = Locale.t("quit_confirm")
 	_btn_yes.text = Locale.t("cmd_yes")
@@ -202,10 +216,14 @@ func _accept() -> void:
 	if not _open:
 		return
 	var kind := _kind
+	var on_yes := _on_yes
 	_dismiss_ui(false)
 	match kind:
 		Kind.RETURN_MENU:
 			SceneRouter.to_menu()
+		Kind.DELETE_SAVE:
+			if on_yes.is_valid():
+				on_yes.call()
 		_:
 			get_tree().quit()
 
@@ -225,3 +243,4 @@ func _dismiss_ui(restore_focus: bool) -> void:
 		_prev_focus.grab_focus()
 	_prev_focus = null
 	_kind = Kind.QUIT
+	_on_yes = Callable()

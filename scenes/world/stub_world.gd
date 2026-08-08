@@ -3094,6 +3094,9 @@ func _handle_save_input(event: InputEvent) -> bool:
 		if _is_order_cancel_key(k):
 			_cancel_save(true)
 			return true
+		if _save_stage == 2 and _is_delete_save_key(k):
+			_prompt_delete_load_slot()
+			return true
 		if _is_order_confirm_key(k):
 			_confirm_slot_pick(_save_panel.cursor() if _save_panel else 0)
 			return true
@@ -3115,6 +3118,42 @@ func _handle_save_input(event: InputEvent) -> bool:
 		_cancel_save(true)
 		return true
 	return true
+
+
+func _is_delete_save_key(k: InputEventKey) -> bool:
+	## Windows/Linux Del, or Mac keyboard Delete (often KEY_BACKSPACE).
+	return (
+		k.keycode == KEY_DELETE or k.physical_keycode == KEY_DELETE
+		or k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE
+	)
+
+
+func _prompt_delete_load_slot() -> void:
+	if _save_stage != 2 or _save_panel == null or not _save_panel.is_open():
+		return
+	var slot_index: int = int(_save_panel.cursor())
+	var slot_n: int = slot_index + 1
+	if not _SaveGame.slot_exists(slot_n):
+		return
+	QuitConfirm.prompt_delete_save(func() -> void:
+		if not _SaveGame.delete_slot(slot_n):
+			return
+		if GameState.session_loaded_slot == slot_n:
+			GameState.session_loaded_slot = 0
+			GameState.session_did_save = false
+		if _save_stage == 2 and _save_panel != null and is_instance_valid(_save_panel) and _save_panel.is_open():
+			_save_panel.refresh()
+		if not _SaveGame.any_slot_exists():
+			var from_esc := _slot_from_esc
+			_close_save(false)
+			_push_message(Locale.t("load_deleted"), false)
+			if from_esc:
+				_open_esc_menu()
+			else:
+				_finish_party_turn()
+		else:
+			_push_message(Locale.t("load_deleted"), false)
+	)
 
 
 func _confirm_slot_pick(slot_index: int) -> void:

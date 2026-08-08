@@ -625,9 +625,9 @@ const _T := {
 		"ko": "게임 불러오기",
 	},
 	"load_hint": {
-		"en_u4": "↑↓ + Enter, or 1–4. Esc cancels.",
-		"en_us": "↑↓ + Enter, or 1–4. Esc cancels.",
-		"ko": "↑↓ + Enter, 또는 1–4. Esc 취소.",
+		"en_u4": "↑↓ + Enter, or 1–4. Del deletes. Esc cancels.",
+		"en_us": "↑↓ + Enter, or 1–4. Del deletes. Esc cancels.",
+		"ko": "↑↓ + Enter, 또는 1–4. Del 삭제. Esc 취소.",
 	},
 	"load_empty": {
 		"en_u4": "Empty!",
@@ -638,6 +638,16 @@ const _T := {
 		"en_u4": "No saved games.",
 		"en_us": "No saved games.",
 		"ko": "저장된 게임이 없다.",
+	},
+	"load_delete_confirm": {
+		"en_u4": "Delete this saved game?\nA deleted game cannot be restored.",
+		"en_us": "Delete this saved game?\nDeleted games cannot be recovered.",
+		"ko": "저장된 게임을 삭제하겠습니까?\n삭제한 게임은 복구할 수 없습니다.",
+	},
+	"load_deleted": {
+		"en_u4": "Save deleted.",
+		"en_us": "Save deleted.",
+		"ko": "저장을 삭제했다.",
 	},
 	"esc_menu_title": {
 		"en_u4": "Menu",

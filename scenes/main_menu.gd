@@ -538,6 +538,9 @@ func _handle_load_input(event: InputEvent) -> bool:
 		):
 			_confirm_load(_save_panel.cursor() if _save_panel else 0)
 			return true
+		if _is_delete_save_key(k):
+			_prompt_delete_load_slot()
+			return true
 		var dig := _digit_0_to_3(k)
 		if dig >= 0:
 			if _save_panel:
@@ -556,6 +559,34 @@ func _handle_load_input(event: InputEvent) -> bool:
 			return true
 		return true
 	return false
+
+
+func _is_delete_save_key(k: InputEventKey) -> bool:
+	## Windows/Linux Del, or Mac keyboard Delete (often KEY_BACKSPACE).
+	return (
+		k.keycode == KEY_DELETE or k.physical_keycode == KEY_DELETE
+		or k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE
+	)
+
+
+func _prompt_delete_load_slot() -> void:
+	if _save_panel == null or not _save_panel.is_open():
+		return
+	var slot_index: int = int(_save_panel.cursor())
+	var slot_n: int = slot_index + 1
+	if not _SaveGame.slot_exists(slot_n):
+		return
+	QuitConfirm.prompt_delete_save(func() -> void:
+		if not _SaveGame.delete_slot(slot_n):
+			return
+		if not _SaveGame.any_slot_exists():
+			_close_load()
+			## _close_load refreshes Journey chrome — replace tagline after.
+			_tagline.text = Locale.t("load_none")
+			return
+		if _load_open and _save_panel != null and is_instance_valid(_save_panel):
+			_save_panel.refresh()
+	)
 
 
 func _digit_0_to_3(event: InputEventKey) -> int:
