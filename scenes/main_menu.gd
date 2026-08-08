@@ -78,8 +78,11 @@ func _ready() -> void:
 func _on_intro_mode(mode: int) -> void:
 	var menu_on := mode == _IntroController.Mode.MENU
 	_text_block.visible = menu_on
-	_hint.visible = menu_on
+	## Options head + bottom input hint stay off; actions only inside the map frame.
+	_options_head.visible = false
+	_hint.visible = false
 	if menu_on:
+		call_deferred("_layout_u4")
 		call_deferred("_apply_pending_focus")
 	else:
 		var fo := get_viewport().gui_get_focus_owner()
@@ -126,9 +129,17 @@ func _cell_pos(col: float, row: float) -> Vector2:
 func _layout_u4() -> void:
 	if size.x < 32.0 or size.y < 32.0:
 		return
+	if (
+		_intro != null
+		and is_instance_valid(_intro)
+		and _intro.mode == _IntroController.Mode.MENU
+		and _intro.has_method("map_frame_inner_rect")
+	):
+		_layout_menu_in_frame()
+		return
+	## Fallback (intro failed): classic character-grid placement.
 	var line_h := maxf(size.y / ROWS, 22.0)
 	var wide := size.x * 0.7
-
 	_place(_tagline, 2.0, 14.0, wide, line_h)
 	_place(_options_head, 15.0, 16.0, wide, line_h)
 	_place(_btn_return, 11.0, 17.0, wide, line_h)
@@ -137,6 +148,90 @@ func _layout_u4() -> void:
 	_place(_btn_lang, 11.0, 20.0, wide, line_h)
 	_place(_btn_quit, 11.0, 21.0, wide, line_h)
 	_place(_copyright, 5.0, 22.5, wide, line_h)
+	_options_head.visible = false
+	_hint.visible = false
+
+
+## Place menu chrome inside the intro map frame box (centered).
+func _layout_menu_in_frame() -> void:
+	var panel := _logic_rect_to_local(_intro.map_frame_inner_rect() as Rect2i)
+	if panel.size.x < 40.0 or panel.size.y < 40.0:
+		return
+	## Modest inset so text clears the blue edge (half of earlier inset).
+	var inset := maxf(panel.size.x, panel.size.y) * 0.015
+	inset = clampf(inset, 4.0, 12.0)
+	var x0 := panel.position.x + inset
+	var y0 := panel.position.y + inset
+	var usable_w := panel.size.x - inset * 2.0
+	var usable_h := panel.size.y - inset * 2.0
+	if usable_w < 24.0 or usable_h < 24.0:
+		return
+
+	## Nudge the whole menu block slightly down inside the frame.
+	var menu_shift_y := usable_h * 0.06
+	y0 += menu_shift_y
+	usable_h = maxf(usable_h - menu_shift_y, 24.0)
+
+	## Tagline + actions share upper block; copyright pinned slightly lower toward the bottom.
+	var menu_nodes: Array[Control] = [
+		_tagline,
+		_btn_return,
+		_btn_journey,
+		_btn_new,
+		_btn_lang,
+		_btn_quit,
+	]
+	_options_head.visible = false
+	_hint.visible = false
+
+	var n_menu := menu_nodes.size()
+	## Leave space under the last action so copyright can sit lower.
+	var menu_block_h := usable_h * 0.82
+	var line_h := menu_block_h / float(n_menu)
+	var font_main := clampi(int(line_h * 0.62), 12, 28)
+	var font_muted := clampi(int(line_h * 0.50), 10, 20)
+	for i in n_menu:
+		var node := menu_nodes[i]
+		node.add_theme_font_size_override("font_size", font_main)
+		node.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		node.anchor_right = 0.0
+		node.anchor_bottom = 0.0
+		node.position = Vector2(x0, y0 + line_h * float(i))
+		node.size = Vector2(usable_w, line_h)
+		node.custom_minimum_size = Vector2(usable_w, line_h)
+		if node is Label:
+			(node as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		if node is Button:
+			(node as Button).alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	var copy_h := maxf(line_h * 0.85, font_muted + 4.0)
+	_copyright.add_theme_font_size_override("font_size", font_muted)
+	_copyright.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_copyright.anchor_right = 0.0
+	_copyright.anchor_bottom = 0.0
+	## Sit on the inner bottom edge of the remaining usable area.
+	_copyright.position = Vector2(x0, y0 + usable_h - copy_h)
+	_copyright.size = Vector2(usable_w, copy_h)
+	_copyright.custom_minimum_size = Vector2(usable_w, copy_h)
+	_copyright.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+## Convert intro logic (640×400) pixel rect → MainMenu local coords.
+func _logic_rect_to_local(r: Rect2i) -> Rect2:
+	var lw := float(_IntroController.LOGIC_W)
+	var lh := float(_IntroController.LOGIC_H)
+	var vs := _intro_view.size
+	var s := minf(vs.x / lw, vs.y / lh)
+	var cw := lw * s
+	var ch := lh * s
+	var ox := _intro_view.position.x + (vs.x - cw) * 0.5
+	var oy := _intro_view.position.y + (vs.y - ch) * 0.5
+	return Rect2(
+		ox + float(r.position.x) * s,
+		oy + float(r.position.y) * s,
+		float(r.size.x) * s,
+		float(r.size.y) * s
+	)
 
 
 func _place(node: Control, col: float, row: float, w: float, h: float) -> void:
