@@ -14,7 +14,7 @@ config/name="Ultima IV++"
 config/description="Modernized Ultima IV remake (Godot)"
 run/main_scene="res://scenes/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 
 [autoload]
 
