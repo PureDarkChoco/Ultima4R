@@ -33,65 +33,83 @@ layout_mode = 2
 custom_minimum_size = Vector2(520, 0)
 
 [node name="VBox" type="VBoxContainer" parent="Center/Panel"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 44
 
 [node name="ClassLine" type="Label" parent="Center/Panel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 
-[node name="Prompt" type="Label" parent="Center/Panel/VBox"]
+[node name="NameBlock" type="VBoxContainer" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Prompt" type="Label" parent="Center/Panel/VBox/NameBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 
-[node name="NameEdit" type="LineEdit" parent="Center/Panel/VBox"]
+[node name="NameEdit" type="LineEdit" parent="Center/Panel/VBox/NameBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 alignment = 1
 max_length = 16
 
-[node name="SexPrompt" type="Label" parent="Center/Panel/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-
 [node name="Portrait" type="TextureRect" parent="Center/Panel/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(136, 160)
+visible = false
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 size_flags_horizontal = 4
 expand_mode = 1
 stretch_mode = 5
 
-[node name="SexRow" type="HBoxContainer" parent="Center/Panel/VBox"]
+[node name="SexBlock" type="VBoxContainer" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SexPrompt" type="Label" parent="Center/Panel/VBox/SexBlock"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="SexRow" type="HBoxContainer" parent="Center/Panel/VBox/SexBlock"]
 layout_mode = 2
 alignment = 1
 theme_override_constants/separation = 12
 
-[node name="Male" type="Button" parent="Center/Panel/VBox/SexRow"]
+[node name="Male" type="Button" parent="Center/Panel/VBox/SexBlock/SexRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 44)
 layout_mode = 2
 toggle_mode = true
 
-[node name="Female" type="Button" parent="Center/Panel/VBox/SexRow"]
+[node name="Female" type="Button" parent="Center/Panel/VBox/SexBlock/SexRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 44)
 layout_mode = 2
 toggle_mode = true
 
-[node name="Continue" type="Button" parent="Center/Panel/VBox"]
+[node name="ActionRow" type="HBoxContainer" parent="Center/Panel/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="Back" type="Button" parent="Center/Panel/VBox/ActionRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 40)
 layout_mode = 2
 
-[node name="Back" type="Button" parent="Center/Panel/VBox"]
+[node name="Continue" type="Button" parent="Center/Panel/VBox/ActionRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 40)
 layout_mode = 2
 
 [node name="Hint" type="Label" parent="Center/Panel/VBox"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 horizontal_alignment = 1
 autowrap_mode = 3

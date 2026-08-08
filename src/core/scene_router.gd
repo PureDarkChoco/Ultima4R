@@ -60,7 +60,7 @@ func take_menu_focus() -> String:
 
 
 func to_new_game() -> void:
-	## xu4 initiateNewGame: name/sex first (no fade from menu), then story.
+	## Prefer main-menu embed for name/sex; full scene is fallback only.
 	go(NAME_GENDER)
 
 

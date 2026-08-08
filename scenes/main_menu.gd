@@ -6,6 +6,7 @@ extends Control
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
 const _IntroController := preload("res://src/intro/intro_controller.gd")
+const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
 const ROWS := 25.0
@@ -24,7 +25,9 @@ const ROWS := 25.0
 
 var _intro: Node ## IntroController
 var _save_panel # SaveSlotPanel
+var _name_form: Control ## NameGender scene instance
 var _load_open := false
+var _create_open := false
 var _hold_arm := 0.0
 var _move_cd := 0.0
 var _held_dir := Vector2i.ZERO
@@ -77,14 +80,14 @@ func _ready() -> void:
 
 func _on_intro_mode(mode: int) -> void:
 	var menu_on := mode == _IntroController.Mode.MENU
-	## When load list fills the frame, keep Journey lines hidden.
-	_text_block.visible = menu_on and not _load_open
+	## Load / create forms fill the frame — keep Journey lines hidden.
+	_text_block.visible = menu_on and not _load_open and not _create_open
 	## Options head + bottom input hint stay off; actions only inside the map frame.
 	_options_head.visible = false
 	_hint.visible = false
 	if menu_on:
 		call_deferred("_layout_u4")
-		if not _load_open:
+		if not _load_open and not _create_open:
 			call_deferred("_apply_pending_focus")
 	else:
 		var fo := get_viewport().gui_get_focus_owner()
@@ -131,6 +134,9 @@ func _cell_pos(col: float, row: float) -> Vector2:
 func _layout_u4() -> void:
 	if size.x < 32.0 or size.y < 32.0:
 		return
+	if _create_open and _name_form != null and is_instance_valid(_name_form):
+		_layout_name_form()
+		return
 	if _load_open and _save_panel != null and is_instance_valid(_save_panel):
 		_layout_load_list()
 		return
@@ -157,23 +163,38 @@ func _layout_u4() -> void:
 	_hint.visible = false
 
 
-## Place save-slot list inside the same map frame used by Journey menu.
-func _layout_load_list() -> void:
+## Map-frame inner rect in MainMenu local coords (shared by load / create embeds).
+func _frame_content_rect() -> Rect2:
 	if _intro == null or not _intro.has_method("map_frame_inner_rect"):
-		return
+		return Rect2()
 	var panel := _logic_rect_to_local(_intro.map_frame_inner_rect() as Rect2i)
 	if panel.size.x < 40.0 or panel.size.y < 40.0:
-		return
+		return Rect2()
 	var inset := maxf(panel.size.x, panel.size.y) * 0.02
 	inset = clampf(inset, 6.0, 14.0)
-	var r := Rect2(
+	return Rect2(
 		panel.position.x + inset,
 		panel.position.y + inset,
 		panel.size.x - inset * 2.0,
 		panel.size.y - inset * 2.0
 	)
+
+
+## Place save-slot list inside the same map frame used by Journey menu.
+func _layout_load_list() -> void:
+	var r := _frame_content_rect()
+	if r.size.x < 40.0:
+		return
 	if _save_panel.has_method("set_embed_rect"):
 		_save_panel.set_embed_rect(r)
+
+
+func _layout_name_form() -> void:
+	var r := _frame_content_rect()
+	if r.size.x < 40.0:
+		return
+	if _name_form.has_method("set_embed_rect"):
+		_name_form.set_embed_rect(r)
 
 
 ## Place menu chrome inside the intro map frame box (centered).
@@ -304,6 +325,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_load_input(event):
 			accept_event()
 		return
+	if _create_open:
+		## Name/gender form owns Esc / accept; mute menu hotkeys.
+		return
 
 	var pressed_key: bool = event is InputEventKey and event.pressed and not event.echo
 	var click: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
@@ -338,7 +362,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_lang_gui_input(event: InputEvent) -> void:
-	if _load_open:
+	if _load_open or _create_open:
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
@@ -365,9 +389,13 @@ func _refresh_text() -> void:
 	_hint.text = Locale.t("input_hint_menu") + " · R/J/I · F11"
 	if _save_panel and _save_panel.is_open():
 		_save_panel.refresh()
+	if _name_form and _create_open and _name_form.has_method("refresh_labels"):
+		_name_form.refresh_labels()
 
 
 func _on_return_view() -> void:
+	if _load_open or _create_open:
+		return
 	if _intro:
 		_intro.return_to_map()
 	else:
@@ -375,6 +403,8 @@ func _on_return_view() -> void:
 
 
 func _on_journey() -> void:
+	if _create_open:
+		return
 	if not _SaveGame.any_slot_exists():
 		## Frame-area banner when no slots (hint label is normally hidden).
 		_tagline.text = Locale.t("load_none")
@@ -392,17 +422,7 @@ func _on_journey() -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo:
 		fo.release_focus()
-	var panel_rect := Rect2()
-	if _intro != null and _intro.has_method("map_frame_inner_rect"):
-		panel_rect = _logic_rect_to_local(_intro.map_frame_inner_rect() as Rect2i)
-		var inset := maxf(panel_rect.size.x, panel_rect.size.y) * 0.02
-		inset = clampf(inset, 6.0, 14.0)
-		panel_rect = Rect2(
-			panel_rect.position.x + inset,
-			panel_rect.position.y + inset,
-			panel_rect.size.x - inset * 2.0,
-			panel_rect.size.y - inset * 2.0
-		)
+	var panel_rect := _frame_content_rect()
 	if panel_rect.size.x > 40.0 and panel_rect.size.y > 40.0 and _save_panel.has_method("open_embedded"):
 		_save_panel.open_embedded(
 			_SaveSlotPanel.Mode.LOAD,
@@ -417,8 +437,10 @@ func _on_journey() -> void:
 
 
 func _on_new() -> void:
+	if _load_open:
+		_close_load()
 	GameState.reset_party()
-	SceneRouter.to_new_game()
+	_open_name_form()
 
 
 func _cycle_language(delta: int = 1) -> void:
@@ -436,6 +458,50 @@ func _ensure_save_panel() -> void:
 	_save_panel = _SaveSlotPanel.new()
 	_save_panel.name = "SaveSlotPanel"
 	add_child(_save_panel)
+
+
+func _open_name_form() -> void:
+	_create_open = true
+	_text_block.visible = false
+	_hint.visible = false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo:
+		fo.release_focus()
+	if _name_form == null or not is_instance_valid(_name_form):
+		_name_form = _NAME_GENDER_SCN.instantiate()
+		_name_form.name = "NameGenderEmbed"
+		_name_form.set("prepare_embedded", true)
+		if _name_form.has_signal("cancelled"):
+			_name_form.cancelled.connect(_close_name_form)
+		add_child(_name_form)
+	var panel_rect := _frame_content_rect()
+	if panel_rect.size.x < 40.0:
+		## Intro frame unavailable — fall back to dedicated scene.
+		_create_open = false
+		SceneRouter.to_new_game()
+		return
+	if _name_form.has_method("begin_embedded"):
+		_name_form.begin_embedded(panel_rect)
+	else:
+		_create_open = false
+		SceneRouter.to_new_game()
+
+
+func _close_name_form() -> void:
+	_create_open = false
+	if _name_form and _name_form.has_method("close_embedded"):
+		_name_form.close_embedded()
+	elif _name_form:
+		_name_form.visible = false
+	if _intro != null and _intro.mode == _IntroController.Mode.MENU:
+		_text_block.visible = true
+		_hint.visible = false
+		_layout_menu_in_frame()
+		_refresh_text()
+		_btn_new.grab_focus()
+	else:
+		_refresh_text()
+		_btn_new.grab_focus()
 
 
 func _handle_load_input(event: InputEvent) -> bool:
