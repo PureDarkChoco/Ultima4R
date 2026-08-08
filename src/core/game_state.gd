@@ -918,6 +918,56 @@ func pack_armor_qty(armor_id: int) -> int:
 	return int(armor[armor_id])
 
 
+func equipped_weapon_count(weapon_id: int) -> int:
+	## Living party members currently readying this weapon id.
+	if weapon_id <= 0:
+		return 0
+	return _party_wielding_weapon_count(weapon_id)
+
+
+func equipped_armor_count(armor_id: int) -> int:
+	if armor_id <= 0:
+		return 0
+	var n := 0
+	for slot in party_order.size():
+		var mid := party_member_at(slot)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if armor_of_class(mid) == armor_id:
+			n += 1
+	return n
+
+
+func party_can_equip_new_weapon(weapon_id: int) -> bool:
+	## True if some living member can ready this weapon and is not already wielding it.
+	if weapon_id <= 0:
+		return false
+	for slot in party_order.size():
+		var mid := party_member_at(slot)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if weapon_of_class(mid) == weapon_id:
+			continue
+		if WeaponIcons.can_ready(weapon_id, mid):
+			return true
+	return false
+
+
+func party_can_equip_new_armor(armor_id: int) -> bool:
+	## True if some living member can wear this armor and is not already wearing it.
+	if armor_id <= 0:
+		return false
+	for slot in party_order.size():
+		var mid := party_member_at(slot)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if armor_of_class(mid) == armor_id:
+			continue
+		if ArmorIcons.can_wear(armor_id, mid):
+			return true
+	return false
+
+
 func add_pack_weapons(weapon_id: int, amount: int) -> void:
 	if weapon_id <= 0 or weapon_id >= weapons.size() or amount <= 0:
 		return

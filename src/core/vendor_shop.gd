@@ -519,15 +519,56 @@ func _on_w_bs(c0: String) -> void:
 
 
 func _w_show_inv() -> void:
-	var inv := "We Have:\n"
+	## One catalog line per item: "E - Mace / 100G / (eq / inv)".
+	_say("We Have:")
 	var data: Dictionary = WEAPON_STOCKS[_locale]
 	for row in data["stock"]:
-		var k := str(row[0]).to_upper()
-		var id := int(row[1])
-		inv += "%s-%s\n" % [k, WEAPON_NAME[id]]
-	inv += "Your\nInterest?"
-	_say(inv)
+		_say(_format_weapon_stock_line(row))
+	_say("Your Interest?")
 	_want_choice(_list_keys, "w_inv")
+
+
+func _format_weapon_stock_line(row: Array) -> String:
+	var k := str(row[0]).to_upper()
+	var id := int(row[1])
+	var price := int(row[2])
+	var name := Locale.weapon_name(id)
+	var eq_n := GameState.equipped_weapon_count(id)
+	var inv_n := GameState.pack_weapon_qty(id)
+	var can_eq := GameState.party_can_equip_new_weapon(id)
+	var icon := TalkTlk.mark_weapon_icon(id)
+	return _format_gear_stock_line(k, icon, name, price, eq_n, inv_n, can_eq)
+
+
+func _format_armor_stock_line(row: Array) -> String:
+	var k := str(row[0]).to_upper()
+	var id := int(row[1])
+	var price := int(row[2])
+	var name := Locale.armor_name(id)
+	var eq_n := GameState.equipped_armor_count(id)
+	var inv_n := GameState.pack_armor_qty(id)
+	var can_eq := GameState.party_can_equip_new_armor(id)
+	var icon := TalkTlk.mark_armor_icon(id)
+	return _format_gear_stock_line(k, icon, name, price, eq_n, inv_n, can_eq)
+
+
+func _format_gear_stock_line(
+	letter: String,
+	icon_mark: String,
+	item_name: String,
+	price: int,
+	equipped: int,
+	inventory: int,
+	can_equip: bool
+) -> String:
+	## "E - [icon]Mace / 100G / (eq / inv)". Red index / red price when applicable.
+	var key := letter
+	if not can_equip:
+		key = "[color=#e74c3c]%s[/color]" % letter
+	var price_s := "%dG" % price
+	if GameState.gold < price:
+		price_s = "[color=#e74c3c]%s[/color]" % price_s
+	return "%s - %s%s / %s / (%d / %d)" % [key, icon_mark, item_name, price_s, equipped, inventory]
 
 
 func _on_w_inv(c0: String) -> void:
@@ -680,14 +721,12 @@ func _on_a_bs(c0: String) -> void:
 
 
 func _a_show_inv() -> void:
-	var inv := "We've got:\n"
+	## One catalog line per item: "C - Leather / 200G / (eq / inv)".
+	_say("We've got:")
 	var data: Dictionary = ARMOR_STOCKS[_locale]
 	for row in data["stock"]:
-		var k := str(row[0]).to_upper()
-		var id := int(row[1])
-		inv += "%s-%s\n" % [k, ARMOR_NAME[id]]
-	inv += "What'll it\nbe?"
-	_say(inv)
+		_say(_format_armor_stock_line(row))
+	_say("What'll it be?")
 	_want_choice(_list_keys, "a_inv")
 
 

@@ -25,6 +25,17 @@ const REPLY_HEALTH := 4
 ## Keyword highlight in NPC dialogue (not player input).
 const KW_BBCODE := "[color=#f0c93a]"
 const KW_BBCODE_END := "[/color]"
+## Shop list letter keys: A-Sulfurous, B-Staff… (slightly cooler than keyword gold).
+const SHOP_INDEX_BBCODE := "[color=#7ec8ff]"
+const SHOP_INDEX_BBCODE_END := "[/color]"
+## Shop catalog letter when no party member can equip a new one of that item.
+const SHOP_INDEX_BAD_BBCODE := "[color=#e74c3c]"
+const SHOP_INDEX_BAD_BBCODE_END := "[/color]"
+## Shop verb emphasis (Buy / Sell).
+const SHOP_ACTION_KEYS: Array[String] = ["Buy", "Sell"]
+## Inline inventory icon in message log: BEGIN + 'w'|'a' + id + END.
+const MSG_ICON_BEGIN := "\u0002"
+const MSG_ICON_END := "\u0003"
 
 ## Phrase rewrites for en_us (classic U4 → modern English). Longest first.
 ## Nested Array of [from, to] string pairs (const-compatible in GDScript).
@@ -510,11 +521,111 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 	return out
 
 
+static func colorize_shop_dialogue(text: String) -> String:
+	## Vendor lines: tint Buy/Sell verbs and A-/B-/… list indexes on catalogs.
+	## Existing BBCode tags (e.g. red restricted keys) pass through unchanged.
+	if text.is_empty():
+		return text
+	var keys: Array[String] = SHOP_ACTION_KEYS.duplicate()
+	keys.sort_custom(func(a: String, b: String) -> bool: return a.length() > b.length())
+	var out := ""
+	var i := 0
+	var lower := text.to_lower()
+	while i < text.length():
+		## Pass through BBCode tags (color, /color, lb, …).
+		if text[i] == "[":
+			var close := text.find("]", i)
+			if close >= 0:
+				out += text.substr(i, close - i + 1)
+				i = close + 1
+				continue
+			out += "[lb]"
+			i += 1
+			continue
+		var hit := ""
+		var hit_len := 0
+		for k in keys:
+			var kl := k.to_lower()
+			if i + kl.length() > text.length():
+				continue
+			if lower.substr(i, kl.length()) != kl:
+				continue
+			var before_ok := i == 0 or not _is_word_char(text.unicode_at(i - 1))
+			if not before_ok:
+				continue
+			var after_i := i + kl.length()
+			var after_ok := after_i >= text.length() or not _is_word_char(text.unicode_at(after_i))
+			if after_ok and kl.length() > hit_len:
+				hit = text.substr(i, kl.length())
+				hit_len = kl.length()
+		if hit_len > 0:
+			out += KW_BBCODE + hit + KW_BBCODE_END
+			i += hit_len
+			continue
+		## Catalog keys: isolated letter + hyphen (A-Staff) or " - " (E - Mace).
+		var u := text.unicode_at(i)
+		var is_letter := (u >= 65 and u <= 90) or (u >= 97 and u <= 122)
+		if is_letter:
+			var before_letter := i == 0 or not _is_word_char(text.unicode_at(i - 1))
+			if before_letter:
+				if i + 1 < text.length() and text[i + 1] == "-":
+					out += SHOP_INDEX_BBCODE + text[i] + SHOP_INDEX_BBCODE_END + "-"
+					i += 2
+					continue
+				if i + 3 <= text.length() and text.substr(i + 1, 3) == " - ":
+					out += SHOP_INDEX_BBCODE + text[i] + SHOP_INDEX_BBCODE_END + " - "
+					i += 4
+					continue
+		out += text[i]
+		i += 1
+	return out
+
+
+static func mark_weapon_icon(weapon_id: int) -> String:
+	return "%sw%d%s" % [MSG_ICON_BEGIN, weapon_id, MSG_ICON_END]
+
+
+static func mark_armor_icon(armor_id: int) -> String:
+	return "%sa%d%s" % [MSG_ICON_BEGIN, armor_id, MSG_ICON_END]
+
+
+static func count_icon_marks(text: String) -> int:
+	var n := 0
+	var i := 0
+	while i < text.length():
+		if text.unicode_at(i) == 0x02:
+			var end := text.find(MSG_ICON_END, i + 1)
+			if end >= 0:
+				n += 1
+				i = end + 1
+				continue
+		i += 1
+	return n
+
+
+static func strip_icon_marks(text: String) -> String:
+	if text.is_empty() or not text.contains(MSG_ICON_BEGIN):
+		return text
+	var out := ""
+	var i := 0
+	while i < text.length():
+		if text.unicode_at(i) == 0x02:
+			var end := text.find(MSG_ICON_END, i + 1)
+			if end >= 0:
+				i = end + 1
+				continue
+		out += text[i]
+		i += 1
+	return out
+
+
 static func strip_bbcode(text: String) -> String:
 	var re := RegEx.new()
-	if re.compile("\\[[^\\]]*\\]") != OK:
-		return text
-	return re.sub(text, "", true).replace("[lb]", "[")
+	var s := text
+	if re.compile("\\[[^\\]]*\\]") == OK:
+		s = re.sub(s, "", true)
+	s = s.replace("[lb]", "[")
+	return strip_icon_marks(s)
 
 
 static func _is_word_char(u: int) -> bool:

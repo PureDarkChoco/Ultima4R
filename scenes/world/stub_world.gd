@@ -6938,6 +6938,7 @@ func _begin_vendor_shop(person_i: int, role: int) -> void:
 	_talk_stage = 10
 	_talk_buffer = ""
 	_talk_entry = null
+	_talk_keywords.clear()
 	_shop = _VendorShop.new()
 	var locale := _VendorShop.locale_from_ult(str(_city_map.source_path) if _city_map else "")
 	if role == _CityNpcRoles.Role.VENDOR_INN and _transport == Transport.HORSE:
@@ -7249,7 +7250,11 @@ func _push_talk_script(raw: String) -> void:
 				_msg_h = float(g["bottom_closed_h"] if not (_sides_open or _talk_msg_open) else g["bottom_open_h"])
 			_apply_msg_geometry()
 	for part in _wrap_msg_text(flat):
-		_msg_lines.append(_TalkTlk.colorize_keywords(part, _talk_keywords))
+		if _talk_stage == 10:
+			## Vendor: gold Buy/Sell + cyan A-/B- catalog letters.
+			_msg_lines.append(_TalkTlk.colorize_shop_dialogue(part))
+		else:
+			_msg_lines.append(_TalkTlk.colorize_keywords(part, _talk_keywords))
 	while _msg_lines.size() > MSG_KEEP:
 		_msg_lines.remove_at(0)
 	_refresh_message_view()
@@ -9760,12 +9765,22 @@ func _msg_text_width(text: String, font: Font, font_sz: int) -> float:
 	if plain.begins_with(MSG_PROMPT_MARK):
 		plain = plain.substr(MSG_PROMPT_MARK.length())
 		glyph_w = _msg_prompt_glyph_side(font_sz) + 2.0
+	## Inline gear icons (shop catalog) occupy a square beside the name.
+	var icon_n := _TalkTlk.count_icon_marks(text)
+	if icon_n > 0:
+		var side := float(_msg_gear_icon_side(font_sz))
+		glyph_w += icon_n * (side + 2.0)
 	if font == null:
 		## D2Coding mono-ish fallback.
 		return glyph_w + float(plain.length()) * float(font_sz) * 0.6
 	return glyph_w + font.get_string_size(
 		plain, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz
 	).x
+
+
+func _msg_gear_icon_side(font_sz: int) -> int:
+	## Slightly taller than text so sprites stay readable in the log.
+	return clampi(font_sz + 4, 14, 22)
 
 
 func _wrap_msg_text(text: String) -> PackedStringArray:
@@ -9958,6 +9973,7 @@ func _refresh_message_view() -> void:
 func _set_msg_row_text(row: RichTextLabel, line: String) -> void:
 	## Prefer append_text so BBCode (keyword tint) always parses.
 	## Leading MSG_PROMPT_MARK → xu4 charset prompt image (CHARSET_PROMPT).
+	## TalkTlk gear icon marks (weapon/armor) → inline sprites before item names.
 	if row == null:
 		return
 	row.clear()
@@ -9980,4 +9996,47 @@ func _set_msg_row_text(row: RichTextLabel, line: String) -> void:
 				row.add_text(" ")
 	if body.is_empty():
 		return
-	row.append_text(body)
+	_append_msg_body_with_icons(row, body)
+
+
+func _append_msg_body_with_icons(row: RichTextLabel, body: String) -> void:
+	## Stream BBCode text + TalkTlk weapon/armor icon marks as inline images.
+	if not body.contains(_TalkTlk.MSG_ICON_BEGIN):
+		row.append_text(body)
+		return
+	var font_sz := _msg_font_size()
+	var side := _msg_gear_icon_side(font_sz)
+	var i := 0
+	while i < body.length():
+		if body.unicode_at(i) == 0x02:
+			var end := body.find(_TalkTlk.MSG_ICON_END, i + 1)
+			if end < 0:
+				row.append_text(body.substr(i))
+				return
+			var payload := body.substr(i + 1, end - i - 1)
+			var tex: Texture2D = _msg_gear_texture_from_mark(payload)
+			if tex != null:
+				row.add_image(tex, side, side, Color.WHITE, INLINE_ALIGNMENT_CENTER)
+				row.add_text(" ")
+			i = end + 1
+			continue
+		var next := body.find(_TalkTlk.MSG_ICON_BEGIN, i)
+		if next < 0:
+			row.append_text(body.substr(i))
+			return
+		if next > i:
+			row.append_text(body.substr(i, next - i))
+		i = next
+
+
+func _msg_gear_texture_from_mark(payload: String) -> Texture2D:
+	## "w12" → weapon 12, "a3" → armor 3.
+	if payload.length() < 2:
+		return null
+	var kind := payload[0]
+	var id := int(payload.substr(1))
+	if kind == "w":
+		return WeaponIcons.texture_for_id(id)
+	if kind == "a":
+		return ArmorIcons.texture_for_id(id)
+	return null
