@@ -288,6 +288,8 @@ var _camp_guard_cd := 0.0
 var _camp_guard_a: Image
 var _camp_guard_b: Image
 var _corpse_slice: Image
+## Cached BRIDGE.CON for camp/combat side margins (not the active arena).
+var _bridge_con_map
 ## Combat arena — same 11×11 centered layout as camp; units painted on top.
 var _combat_map # CombatMapData
 ## Each: { "x", "y", "klass", "party_slot"? } — living party members.
@@ -3218,11 +3220,8 @@ func _rebuild_camp() -> void:
 				if bi >= 0 and bi < _camp_bg.size():
 					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			## Camp-local coords when inside the 11×11; else no shore lookup.
-			if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
-				_blit_terrain_to(_buf, tid, dst, cx, cy)
-			else:
-				_blit_terrain_to(_buf, tid, dst)
+			## View-space for shore masks (bridge side margins + camp water).
+			_blit_terrain_to(_buf, tid, dst, dx, dy)
 
 	_paint_camp_sleepers(origin_x, origin_y)
 	_paint_camp_guard(origin_x, origin_y)
@@ -3646,25 +3645,49 @@ func _build_camp_background() -> void:
 	if is_in_combat() and _is_ship_combat_map():
 		_paint_ship_combat_margins(origin_x, right_start)
 		return
+	## Bridge .CON fight: extend the battlefield sideways (not world grass).
+	if is_in_combat() and _is_bridge_combat_map():
+		_paint_bridge_battlefield_margin(true, origin_x, right_start)
+		_paint_bridge_battlefield_margin(false, origin_x, right_start)
+		return
 
-	var left_base := TILE_GRASS
-	var right_base := TILE_GRASS
+	var left_raw := TILE_GRASS
+	var right_raw := TILE_GRASS
 	if world != null and world.loaded:
-		left_base = _normalize_camp_margin_tile(int(world.tile_at(center.x - 1, center.y)))
-		right_base = _normalize_camp_margin_tile(int(world.tile_at(center.x + 1, center.y)))
+		left_raw = clampi(int(world.tile_at(center.x - 1, center.y)), 0, 255)
+		right_raw = clampi(int(world.tile_at(center.x + 1, center.y)), 0, 255)
 
-	_paint_camp_side_margin(true, origin_x, right_start, left_base)
-	_paint_camp_side_margin(false, origin_x, right_start, right_base)
+	## Hole-up beside a bridge: sample BRIDGE.CON on that side (not flat grass).
+	var left_bridge := _is_bridge_tile(left_raw)
+	var right_bridge := _is_bridge_tile(right_raw)
+	if left_bridge:
+		_paint_bridge_battlefield_margin(true, origin_x, right_start)
+	else:
+		_paint_camp_side_margin(
+			true, origin_x, right_start, _normalize_camp_margin_tile(left_raw)
+		)
+	if right_bridge:
+		_paint_bridge_battlefield_margin(false, origin_x, right_start)
+	else:
+		_paint_camp_side_margin(
+			false, origin_x, right_start, _normalize_camp_margin_tile(right_raw)
+		)
 
+	var left_base := _normalize_camp_margin_tile(left_raw)
+	var right_base := _normalize_camp_margin_tile(right_raw)
 	## Soften the camp | margin seam. Mixed fills keep inlets near camp.
+	## Skip blend into bridge sides so BRIDGE.CON structure is not flattened.
 	_blend_camp_edge_into_margins(
-		origin_x, right_start,
-		_camp_margin_uses_mix(left_base),
-		_camp_margin_uses_mix(right_base)
+		origin_x,
+		right_start,
+		(not left_bridge) and _camp_margin_uses_mix(left_base),
+		(not right_bridge) and _camp_margin_uses_mix(right_base),
+		not left_bridge,
+		not right_bridge
 	)
-	if _camp_margin_uses_mix(left_base):
+	if (not left_bridge) and _camp_margin_uses_mix(left_base):
 		_prune_floating_camp_soft(true, origin_x, right_start, left_base)
-	if _camp_margin_uses_mix(right_base):
+	if (not right_bridge) and _camp_margin_uses_mix(right_base):
 		_prune_floating_camp_soft(false, origin_x, right_start, right_base)
 
 
@@ -3680,6 +3703,69 @@ func _is_ship_combat_map() -> bool:
 				if n >= 8:
 					return true
 	return false
+
+
+func _is_bridge_combat_map() -> bool:
+	## BRIDGE.CON (and siblings) have bridge_n/s + plank deck across mid rows.
+	if _combat_map == null:
+		return false
+	var n := 0
+	for y in CAMP_H:
+		for x in CAMP_W:
+			var tid := int(_combat_map.tile_at(x, y))
+			if _is_bridge_tile(tid) or tid == TILE_PLANKS:
+				n += 1
+				if n >= 10:
+					return true
+	return false
+
+
+func _get_bridge_con_map():
+	## Cached BRIDGE.CON for side margins beside a bridge (camp / combat).
+	if _bridge_con_map != null:
+		return _bridge_con_map
+	var path := _CombatMapDataScript.resolve_u4_file("BRIDGE.CON")
+	if path.is_empty():
+		return null
+	var loaded = _CombatMapDataScript.new()
+	if not loaded.load_from_path(path):
+		return null
+	_bridge_con_map = loaded
+	return _bridge_con_map
+
+
+func _paint_bridge_battlefield_margin(
+	is_left: bool, origin_x: int, right_start: int
+) -> void:
+	## Project BRIDGE.CON columns into the side strip (xu4 bridge battlefield layout).
+	## Camp: enter from east bank (col 0…) when bridge is on the right; reverse for left.
+	var bmap = _get_bridge_con_map()
+	if bmap == null:
+		## Soft fallback — river feel, not flat plains.
+		_paint_camp_side_margin(is_left, origin_x, right_start, 2)
+		return
+	var origin_y := (view_h - CAMP_H) / 2
+	for dy in view_h:
+		var map_y: int
+		if dy < origin_y:
+			map_y = 0
+		elif dy >= origin_y + CAMP_H:
+			map_y = CAMP_H - 1
+		else:
+			map_y = dy - origin_y
+		for dx in view_w:
+			if not _camp_margin_col(dx, is_left, origin_x, right_start):
+				continue
+			## 0 = cell immediately beside the 11×11 arena.
+			var dist: int = (origin_x - 1 - dx) if is_left else (dx - right_start)
+			if dist < 0:
+				continue
+			var con_x: int = (
+				clampi(CAMP_W - 1 - dist, 0, CAMP_W - 1)
+				if is_left
+				else clampi(dist, 0, CAMP_W - 1)
+			)
+			_camp_bg[dy * view_w + dx] = clampi(int(bmap.tile_at(con_x, map_y)), 0, 255)
 
 
 func _paint_ship_combat_margins(origin_x: int, right_start: int) -> void:
@@ -3754,7 +3840,12 @@ func _camp_margin_uses_mix(base: int) -> bool:
 
 
 func _blend_camp_edge_into_margins(
-	origin_x: int, right_start: int, left_mix: bool, right_mix: bool
+	origin_x: int,
+	right_start: int,
+	left_mix: bool,
+	right_mix: bool,
+	extend_left: bool = true,
+	extend_right: bool = true
 ) -> void:
 	## CAMP.CON corners are brush — extend into the margin.
 	## Grass edges bleed outward. Mixed sides keep gaps so fill inlets reach the camp.
@@ -3763,17 +3854,19 @@ func _blend_camp_edge_into_margins(
 	for dy in view_h:
 		if dy < 0 or dy >= CAMP_H:
 			continue
-		_extend_camp_edge_row(
-			true, origin_x, right_start, dy, int(_camp_map.tile_at(0, dy)), left_mix
-		)
-		_extend_camp_edge_row(
-			false,
-			origin_x,
-			right_start,
-			dy,
-			int(_camp_map.tile_at(CAMP_W - 1, dy)),
-			right_mix
-		)
+		if extend_left:
+			_extend_camp_edge_row(
+				true, origin_x, right_start, dy, int(_camp_map.tile_at(0, dy)), left_mix
+			)
+		if extend_right:
+			_extend_camp_edge_row(
+				false,
+				origin_x,
+				right_start,
+				dy,
+				int(_camp_map.tile_at(CAMP_W - 1, dy)),
+				right_mix
+			)
 
 
 func _extend_camp_edge_row(
@@ -4154,14 +4247,11 @@ func _combat_view_tid_at(vx: int, vy: int) -> int:
 	var origin_y := (view_h - CAMP_H) / 2
 	var cx := vx - origin_x
 	var cy := vy - origin_y
-	if (
-		cx >= 0
-		and cy >= 0
-		and cx < CAMP_W
-		and cy < CAMP_H
-		and _combat_map != null
-	):
-		return clampi(int(_combat_map.tile_at(cx, cy)), 0, TILE_ID_MAX)
+	if cx >= 0 and cy >= 0 and cx < CAMP_W and cy < CAMP_H:
+		if is_in_combat() and _combat_map != null:
+			return clampi(int(_combat_map.tile_at(cx, cy)), 0, TILE_ID_MAX)
+		if is_camping() and _camp_map != null:
+			return clampi(int(_camp_map.tile_at(cx, cy)), 0, TILE_ID_MAX)
 	var bi := vy * view_w + vx
 	if bi >= 0 and bi < _camp_bg.size():
 		return clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
@@ -4169,8 +4259,8 @@ func _combat_view_tid_at(vx: int, vy: int) -> int:
 
 
 func _shore_neighbour_is_land(mx: int, my: int) -> bool:
-	## Screen-exterior sides never mint a shore (but combat margin beaches do).
-	if is_in_combat():
+	## Screen-exterior sides never mint a shore (but combat/camp margin beaches do).
+	if is_in_combat() or is_camping():
 		if mx < 0 or my < 0 or mx >= view_w or my >= view_h:
 			return false
 		return _is_shore_land_tid(_combat_view_tid_at(mx, my))
