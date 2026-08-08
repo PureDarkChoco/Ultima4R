@@ -11,7 +11,7 @@ enum BarKind { FULL, SKY, INVENTORY }
 
 ## Wind icons (8-way art in assets/ui/wind/{n,ne,e,se,s,sw,w,nw}.png).
 const WIND_DIR_PATH := "res://assets/ui/wind"
-## 0 N … 7 NW — matches GameState.wind_dir / xu4 headwind FROM.
+## Index 0–7 = tip bearing N…NW. refresh() maps GameState.wind_dir (FROM) → tip TO via +4.
 const WIND_FILES := ["n", "ne", "e", "se", "s", "sw", "w", "nw"]
 const HUD_GOLD_PATH := "res://assets/ui/hud/gold.png"
 const HUD_FOOD_PATH := "res://assets/ui/hud/food.png"
@@ -22,7 +22,7 @@ const HUD_GEM_PATH := "res://assets/ui/hud/gem.png"
 const MOON_DIR := "res://assets/ui/moons"
 
 ## Wind: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW
-## Arrow tip = wind FROM / headwind direction (xu4 windDirection).
+## On screen tip = blow TO / balloon drift (opposite of GameState.wind_dir FROM).
 enum Wind { N, NE, E, SE, S, SW, W, NW }
 
 const GOLD_FOOD_MAX := 9999
@@ -41,7 +41,7 @@ var keys: int = 3
 var torches: int = 12
 
 var _moon_tex: Array[Texture2D] = []
-var _wind_tex: Array[Texture2D] = [] ## 8 FROM-direction icons
+var _wind_tex: Array[Texture2D] = [] ## 8 tip-TO icons (display index after +4 flip)
 var _tram: TextureRect
 var _fel: TextureRect
 var _wind: TextureRect
@@ -139,7 +139,7 @@ func _load_hud_icon(path: String) -> Texture2D:
 
 
 func _load_wind_icons() -> void:
-	## Load n/ne/e/se/s/sw/w/nw art (tip = wind FROM that bearing).
+	## Load n/ne/e/se/s/sw/w/nw art (tip = that bearing as shown after FROM→TO flip).
 	_wind_tex.clear()
 	var side := int(ICON_SZ)
 	for name in WIND_FILES:
@@ -366,7 +366,8 @@ func refresh() -> void:
 	if _tram != null and _moon_tex.size() >= 8:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
-	var wd := posmod(wind_dir, 8)
+	## Display reverse of GameState.wind_dir (FROM → TO) so tip matches balloon_drift_dir.
+	var wd := posmod(wind_dir + 4, 8)
 	if _wind != null and _wind_tex.size() >= 8:
 		var tex: Texture2D = _wind_tex[wd]
 		if tex != null and (wd != _last_drawn_wind or _wind.texture != tex):
