@@ -77,13 +77,15 @@ func _ready() -> void:
 
 func _on_intro_mode(mode: int) -> void:
 	var menu_on := mode == _IntroController.Mode.MENU
-	_text_block.visible = menu_on
+	## When load list fills the frame, keep Journey lines hidden.
+	_text_block.visible = menu_on and not _load_open
 	## Options head + bottom input hint stay off; actions only inside the map frame.
 	_options_head.visible = false
 	_hint.visible = false
 	if menu_on:
 		call_deferred("_layout_u4")
-		call_deferred("_apply_pending_focus")
+		if not _load_open:
+			call_deferred("_apply_pending_focus")
 	else:
 		var fo := get_viewport().gui_get_focus_owner()
 		if fo:
@@ -129,6 +131,9 @@ func _cell_pos(col: float, row: float) -> Vector2:
 func _layout_u4() -> void:
 	if size.x < 32.0 or size.y < 32.0:
 		return
+	if _load_open and _save_panel != null and is_instance_valid(_save_panel):
+		_layout_load_list()
+		return
 	if (
 		_intro != null
 		and is_instance_valid(_intro)
@@ -150,6 +155,25 @@ func _layout_u4() -> void:
 	_place(_copyright, 5.0, 22.5, wide, line_h)
 	_options_head.visible = false
 	_hint.visible = false
+
+
+## Place save-slot list inside the same map frame used by Journey menu.
+func _layout_load_list() -> void:
+	if _intro == null or not _intro.has_method("map_frame_inner_rect"):
+		return
+	var panel := _logic_rect_to_local(_intro.map_frame_inner_rect() as Rect2i)
+	if panel.size.x < 40.0 or panel.size.y < 40.0:
+		return
+	var inset := maxf(panel.size.x, panel.size.y) * 0.02
+	inset = clampf(inset, 6.0, 14.0)
+	var r := Rect2(
+		panel.position.x + inset,
+		panel.position.y + inset,
+		panel.size.x - inset * 2.0,
+		panel.size.y - inset * 2.0
+	)
+	if _save_panel.has_method("set_embed_rect"):
+		_save_panel.set_embed_rect(r)
 
 
 ## Place menu chrome inside the intro map frame box (centered).
@@ -352,7 +376,8 @@ func _on_return_view() -> void:
 
 func _on_journey() -> void:
 	if not _SaveGame.any_slot_exists():
-		_hint.text = Locale.t("load_none")
+		## Frame-area banner when no slots (hint label is normally hidden).
+		_tagline.text = Locale.t("load_none")
 		_btn_journey.grab_focus()
 		return
 	_ensure_save_panel()
@@ -361,12 +386,34 @@ func _on_journey() -> void:
 	_move_repeating = false
 	_hold_arm = 0.0
 	_move_cd = 0.0
-	_save_panel.open_panel(
-		_SaveSlotPanel.Mode.LOAD,
-		_SaveGame.default_load_cursor()
-	)
-	if get_viewport().gui_get_focus_owner() != null:
-		get_viewport().gui_get_focus_owner().release_focus()
+	## Clear Journey menu chrome; show load list in the same frame box.
+	_text_block.visible = false
+	_hint.visible = false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo:
+		fo.release_focus()
+	var panel_rect := Rect2()
+	if _intro != null and _intro.has_method("map_frame_inner_rect"):
+		panel_rect = _logic_rect_to_local(_intro.map_frame_inner_rect() as Rect2i)
+		var inset := maxf(panel_rect.size.x, panel_rect.size.y) * 0.02
+		inset = clampf(inset, 6.0, 14.0)
+		panel_rect = Rect2(
+			panel_rect.position.x + inset,
+			panel_rect.position.y + inset,
+			panel_rect.size.x - inset * 2.0,
+			panel_rect.size.y - inset * 2.0
+		)
+	if panel_rect.size.x > 40.0 and panel_rect.size.y > 40.0 and _save_panel.has_method("open_embedded"):
+		_save_panel.open_embedded(
+			_SaveSlotPanel.Mode.LOAD,
+			panel_rect,
+			_SaveGame.default_load_cursor()
+		)
+	else:
+		_save_panel.open_panel(
+			_SaveSlotPanel.Mode.LOAD,
+			_SaveGame.default_load_cursor()
+		)
 
 
 func _on_new() -> void:
@@ -444,16 +491,16 @@ func _confirm_load(slot_index: int) -> void:
 		return
 	var slot_n := slot_index + 1
 	if not _SaveGame.slot_exists(slot_n):
-		_hint.text = Locale.t("load_empty")
+		## Empty slot — stay on list; flash title if present.
+		if _save_panel and _save_panel.is_open():
+			_save_panel.refresh()
 		return
 	var data := _SaveGame.read_slot(slot_n)
 	if data.is_empty():
-		_hint.text = Locale.t("load_empty")
 		return
 	var game: Variant = data.get("game", {})
 	var world: Variant = data.get("world", {})
 	if typeof(game) != TYPE_DICTIONARY:
-		_hint.text = Locale.t("load_empty")
 		return
 	GameState.apply_save_dict(game as Dictionary)
 	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
@@ -469,5 +516,13 @@ func _close_load() -> void:
 	_load_open = false
 	if _save_panel:
 		_save_panel.close_panel()
-	_refresh_text()
-	_btn_journey.grab_focus()
+	## Restore Journey menu inside the frame.
+	if _intro != null and _intro.mode == _IntroController.Mode.MENU:
+		_text_block.visible = true
+		_hint.visible = false
+		_layout_menu_in_frame()
+		_refresh_text()
+		_btn_journey.grab_focus()
+	else:
+		_refresh_text()
+		_btn_journey.grab_focus()
