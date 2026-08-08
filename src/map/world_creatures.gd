@@ -497,16 +497,78 @@ const _RANGED_TILES := {
 	252: true, ## Balron
 }
 
-## Ranged hit effect: damage | poison | sleep | energy.
-## xu4: poison/sleep field → status only (no HP damage), requires STAT_GOOD.
+## Projectile / flash tiles (shapes ids — same as MapView constants).
+const TILE_ROCKS := 55
+const TILE_FIELD_POISON := 68
+const TILE_FIELD_ENERGY := 69
+const TILE_FIELD_FIRE := 70
+const TILE_FIELD_SLEEP := 71
+const TILE_LAVA := 76
+const TILE_MISS_FLASH := 77 ## red missile (default miss)
+const TILE_MAGIC_FLASH := 78 ## intro magic sphere / mage bolts
+const TILE_HIT_FLASH := 79
+
+## xu4 rangedmisstile (default miss_flash when omitted).
+const _RANGED_MISS_TILE := {
+	32: TILE_MAGIC_FLASH,
+	94: TILE_MAGIC_FLASH,
+	134: TILE_FIELD_ENERGY, ## Squid
+	136: TILE_HIT_FLASH, ## Sea Serpent
+	138: TILE_MAGIC_FLASH, ## Seahorse
+	152: TILE_FIELD_POISON, ## Spider
+	172: TILE_FIELD_POISON, ## Mimic
+	184: TILE_FIELD_SLEEP, ## Gazer
+	204: TILE_FIELD_POISON, ## Python
+	208: TILE_ROCKS, ## Ettin
+	216: TILE_ROCKS, ## Cyclops
+	224: TILE_MAGIC_FLASH, ## Evil Mage
+	228: TILE_MAGIC_FLASH, ## Liche
+	232: TILE_LAVA, ## Lava Lizard
+	240: TILE_MAGIC_FLASH, ## Daemon
+	244: TILE_HIT_FLASH, ## Hydra
+	248: TILE_HIT_FLASH, ## Dragon
+}
+
+## xu4 rangedhittile (default hit_flash when omitted).
+const _RANGED_HIT_TILE := {
+	32: TILE_MAGIC_FLASH,
+	94: TILE_MAGIC_FLASH,
+	134: TILE_FIELD_ENERGY,
+	136: TILE_HIT_FLASH,
+	138: TILE_MAGIC_FLASH,
+	152: TILE_FIELD_POISON,
+	172: TILE_FIELD_POISON,
+	184: TILE_FIELD_SLEEP,
+	204: TILE_FIELD_POISON,
+	208: TILE_ROCKS,
+	216: TILE_ROCKS,
+	224: TILE_MAGIC_FLASH,
+	228: TILE_MAGIC_FLASH,
+	232: TILE_LAVA,
+	240: TILE_MAGIC_FLASH,
+	244: TILE_HIT_FLASH,
+	248: TILE_HIT_FLASH,
+}
+
+## xu4 hasRandomRanged — re-roll miss/hit to a random field each shot.
+const _RANDOM_RANGED := {
+	176: true, ## Reaper
+	252: true, ## Balron
+}
+
+## xu4 leavestile — leave hittile on the last path cell when the shot misses everyone.
+const _LEAVES_TILE_ON_MISS := {
+	232: true, ## Lava Lizard → lava
+}
+
+## Ranged hit status: damage | poison | sleep | energy.
+## Field/random use hit-tile effects; override only for status-only bullets.
 const _RANGED_EFFECT := {
-	134: "energy", ## Squid — energy field
+	134: "energy", ## Squid — energy field damage
 	152: "poison", ## Spider
 	172: "poison", ## Mimic
-	176: "sleep", ## Reaper (random fields → treat as sleep/cast kit)
 	184: "sleep", ## Gazer
 	204: "poison", ## Python
-	252: "sleep", ## Balron
 }
 
 const _STEALS_GOLD := {200: true} ## Rogue
@@ -523,9 +585,69 @@ static func is_ranged(tile_or_base: int) -> bool:
 	return bool(_RANGED_TILES.get(_base_tile(tile_or_base), false))
 
 
+static func has_random_ranged(tile_or_base: int) -> bool:
+	return bool(_RANDOM_RANGED.get(_base_tile(tile_or_base), false))
+
+
+static func leaves_tile_on_miss(tile_or_base: int) -> bool:
+	return bool(_LEAVES_TILE_ON_MISS.get(_base_tile(tile_or_base), false))
+
+
+static func resolve_ranged_shot(tile_or_base: int) -> Dictionary:
+	## xu4 CA_RANGED + setRandomRanged — one miss/hit pair for this shot.
+	## miss_tid: flying projectile · hit_tid: impact flash · effect · leave_tid on full miss.
+	var base := _base_tile(tile_or_base)
+	var miss_tid := TILE_MISS_FLASH
+	var hit_tid := TILE_HIT_FLASH
+	if has_random_ranged(base):
+		## Fields 0..3 — poison, energy, fire, sleep.
+		var field := TILE_FIELD_POISON + (randi() % 4)
+		miss_tid = field
+		hit_tid = field
+	else:
+		miss_tid = int(_RANGED_MISS_TILE.get(base, TILE_MISS_FLASH))
+		hit_tid = int(_RANGED_HIT_TILE.get(base, TILE_HIT_FLASH))
+	var effect := str(_RANGED_EFFECT.get(base, ""))
+	if effect.is_empty():
+		effect = _effect_for_hit_tile(hit_tid)
+	var leave_tid := -1
+	if leaves_tile_on_miss(base):
+		leave_tid = hit_tid
+	return {
+		"miss_tid": miss_tid,
+		"hit_tid": hit_tid,
+		"effect": effect,
+		"leave_tid": leave_tid,
+	}
+
+
+static func _effect_for_hit_tile(hit_tid: int) -> String:
+	match hit_tid:
+		TILE_FIELD_POISON:
+			return "poison"
+		TILE_FIELD_SLEEP:
+			return "sleep"
+		TILE_FIELD_ENERGY:
+			return "energy"
+		TILE_FIELD_FIRE, TILE_LAVA:
+			return "damage"
+		_:
+			return "damage"
+
+
 static func ranged_effect(tile_or_base: int) -> String:
-	## damage (default), poison, sleep, energy.
-	return str(_RANGED_EFFECT.get(_base_tile(tile_or_base), "damage"))
+	## damage (default), poison, sleep, energy. Prefer resolve_ranged_shot for random.
+	var base := _base_tile(tile_or_base)
+	if has_random_ranged(base):
+		return "damage"
+	if bool(_RANGED_EFFECT.has(base)):
+		return str(_RANGED_EFFECT[base])
+	var hit_tid := int(_RANGED_HIT_TILE.get(base, TILE_HIT_FLASH))
+	return _effect_for_hit_tile(hit_tid)
+
+
+static func ranged_miss_tile(tile_or_base: int) -> int:
+	return int(resolve_ranged_shot(tile_or_base).get("miss_tid", TILE_MISS_FLASH))
 
 
 static func steals_gold(tile_or_base: int) -> bool:

@@ -62,6 +62,9 @@ const TILE_MOONGATE_0 := 64
 const TILE_MOONGATE_OPEN := 67
 const MOONGATE_SUCK_FRAMES := 24
 const MOONGATE_SUCK_PERIOD := 0.06
+## TITLE.EXE intro object base 12 = shape 077 (missile). Match wilderness ship fire art.
+const TILE_MISSILE := 77
+const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
 
 const _IntroBinData := preload("res://src/intro/intro_bin_data.gd")
 const _U4Lzw := preload("res://src/intro/u4_lzw_image.gd")
@@ -87,6 +90,8 @@ var _moongate_suck_i := 0
 var _moongate_suck_cd := MOONGATE_SUCK_PERIOD
 var _moongate_col_blue := Color(0.15, 0.4, 1.0, 1.0)
 var _moongate_col_white := Color(1, 1, 1, 1)
+## Same sprite as MapView flying cannon (`cannonball.png`), not 077_missile red orb.
+var _cannonball_img: Image
 
 var _canvas: Image
 var _tex: ImageTexture
@@ -166,6 +171,8 @@ func setup(view: TextureRect) -> bool:
 		var b1 := _U4Lzw.crop(animate_img, 176 + (fi / 6) * 48, (fi % 6) * 32, BEAST1_W, BEAST1_H)
 		_beast0.append(_scale_nearest(b0, SCALE))
 		_beast1.append(_scale_nearest(b1, SCALE))
+
+	_cannonball_img = _load_cannonball_image()
 
 	_TileBank.ensure_loaded()
 	_reset_objects()
@@ -675,6 +682,9 @@ func _moongate_is_glow(c: Color) -> bool:
 
 
 func _keyed_tile_image(tile_id: int, frame: int) -> Image:
+	## Intro ship fire uses missFlash/missile slot (077); draw in-game cannonball art.
+	if tile_id == TILE_MISSILE and _cannonball_img != null and not _cannonball_img.is_empty():
+		return _cannonball_img
 	var key := "k:%d:%d" % [tile_id, frame]
 	if _tile_cache.has(key):
 		return _tile_cache[key] as Image
@@ -690,6 +700,25 @@ func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	_tile_cache[key] = img
+	return img
+
+
+func _load_cannonball_image() -> Image:
+	## MapView::CANNONBALL_PATH — opaque black → transparent so water shows under.
+	var img := Image.new()
+	if img.load(CANNONBALL_PATH) != OK:
+		return null
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	if img.get_width() != TILE_PX or img.get_height() != TILE_PX:
+		img.resize(TILE_PX, TILE_PX, Image.INTERPOLATE_NEAREST)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c: Color = img.get_pixel(x, y)
+			if c.a < 0.02:
+				continue
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return img
 
 

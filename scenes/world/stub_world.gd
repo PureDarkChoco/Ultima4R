@@ -9063,6 +9063,9 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 	var klass := int(plan.get("klass", -1))
 	var base_hp := int(plan.get("base_hp", 64))
 	var effect := str(plan.get("effect", "damage"))
+	var miss_tid := int(plan.get("miss_tid", MapView.TILE_MISS_FLASH))
+	var hit_tid := int(plan.get("hit_tid", MapView.TILE_HIT_FLASH))
+	var leave_tid := int(plan.get("leave_tid", -1))
 	if party_i < 0 or klass < 0:
 		return
 	var unit := _map.get_combat_party_unit(party_i)
@@ -9070,11 +9073,15 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 		return
 	klass = int(unit.get("klass", klass))
 	to = Vector2i(int(unit.get("x", to.x)), int(unit.get("y", to.y)))
-	await _map.await_combat_projectile(from, to)
+	await _map.await_combat_projectile(from, to, -1, miss_tid)
 	if not _map.combat_shot_reaches(from, to):
-		## Stopped on an intermediate obstacle — no effect.
+		## Blocked / empty path end — xu4 leaveTile (lava lizard lava) when walkable.
+		if leave_tid >= 0:
+			var land := _map.combat_projectile_end(from, to)
+			_map.combat_leave_field(land, leave_tid)
 		return
-	await _map.await_flash_combat_tile(to, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+	## Impact flash uses creature hittile (magic sphere, field, rocks, lava…).
+	await _map.await_flash_combat_tile(to, hit_tid, COMBAT_HIT_FLASH_SEC)
 	match effect:
 		"poison":
 			## xu4: STAT_GOOD + 50% only; sleepers get neither damage nor poison.

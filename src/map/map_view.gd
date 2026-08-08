@@ -78,7 +78,8 @@ const TILE_SPIT := 75 ## campfire spit — 2-frame fire flicker (`075_spit_1.png
 const TILE_CHEST := 60 ## closed chest; open art is frame 1 (`060_chest_1.png`)
 const TILE_BRICK_FLOOR := 62 ## underlay for city map chest tiles
 const TILE_LAVA := 76
-const TILE_MISS_FLASH := 77 ## xu4 missFlash / missile (cannon ball)
+const TILE_MISS_FLASH := 77 ## xu4 missFlash / red projectile
+const TILE_MAGIC_FLASH := 78 ## xu4 magicFlash (intro mage bolt / wand)
 const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
 ## Seconds per tile of cannon travel (matches prior per-tile miss flash).
 const CANNON_SEC_PER_TILE := 0.10
@@ -1224,10 +1225,13 @@ func await_flash_combat_tile(pos: Vector2i, tile_id: int, duration: float = 0.12
 		await tree.create_timer(dur).timeout
 
 
-func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) -> void:
+func await_combat_projectile(
+	from: Vector2i, to: Vector2i, weapon_id: int = -1, missile_tid: int = -1
+) -> void:
 	## Cannon-style flight in combat-local coords (straight line, any angle).
 	## Stops on the first wall/mast unless weapon attacks through objects (Halberd).
 	## `weapon_id` selects a custom missile sprite (sling / dagger / arrow / magic axe).
+	## `missile_tid` — creature/ranged shape override (fields, rocks, magic sphere…).
 	## Magic axe: outbound only — caller resolves hit VFX, then `await_combat_projectile_return`.
 	if from == to:
 		return
@@ -1268,6 +1272,12 @@ func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) 
 		)
 		if spinning:
 			custom_img = _spin_missile_frame(_magic_axe_missile_img, 0.0, _magic_axe_rot_cache)
+	var fly_tid := missile_tid
+	if fly_tid < 0:
+		if weapon_id == _WeaponIconsScript.Id.MAGIC_WAND:
+			fly_tid = TILE_MAGIC_FLASH
+		else:
+			fly_tid = TILE_MISS_FLASH
 	var trail_on := weapon_id == _WeaponIconsScript.Id.MAGIC_BOW and custom_img != null
 	var returning := weapon_id == _WeaponIconsScript.Id.MAGIC_AXE
 	_combat_proj = {
@@ -1275,6 +1285,7 @@ func await_combat_projectile(from: Vector2i, to: Vector2i, weapon_id: int = -1) 
 		"y": start.y,
 		"wid": weapon_id,
 		"img": custom_img,
+		"miss_tid": fly_tid,
 		"trail": [] as Array,
 		"trail_on": trail_on,
 		"trail_last": start if trail_on else Vector2.ZERO,
@@ -1455,11 +1466,15 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		if ranged.party_i >= 0:
 			var aligned := _combat_is_axis_or_diagonal(from, ranged.pos)
 			if aligned or (randi() % 100) < 40:
+				var shot := _WorldCreaturesScript.resolve_ranged_shot(tid)
 				out["action"] = "ranged"
 				out["to"] = ranged.pos
 				out["party_i"] = ranged.party_i
 				out["klass"] = ranged.klass
-				out["effect"] = _WorldCreaturesScript.ranged_effect(tid)
+				out["effect"] = str(shot.get("effect", "damage"))
+				out["miss_tid"] = int(shot.get("miss_tid", _WorldCreaturesScript.TILE_MISS_FLASH))
+				out["hit_tid"] = int(shot.get("hit_tid", _WorldCreaturesScript.TILE_HIT_FLASH))
+				out["leave_tid"] = int(shot.get("leave_tid", -1))
 				return out
 			## 60% off-axis: skip the shot and fall through to advance.
 	## 1/4: cast sleep (Reaper / Balron) when not ranging.
@@ -3661,7 +3676,8 @@ func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
 	):
 		_paint_projectile_image(_sling_missile_img, origin_x, origin_y, cx, cy, 1.0)
 		return
-	var slice := _overlay_slice(TILE_MISS_FLASH)
+	var miss_tid := int(_combat_proj.get("miss_tid", TILE_MISS_FLASH))
+	var slice := _overlay_slice(miss_tid)
 	if slice == null:
 		return
 	var px2 := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC)))
