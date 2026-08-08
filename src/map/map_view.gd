@@ -4402,8 +4402,8 @@ func _is_shore_land_tid(tid: int) -> bool:
 	## Bridges never mint a shore mask (world or combat).
 	if _is_bridge_tile(tid):
 		return false
-	## Stone / brick walls — no muddy freckles against masonry.
-	if tid == TILE_STONE_WALL or tid == TILE_BRICK_WALL:
+	## Stone / brick walls and brick floor — no muddy freckles against masonry.
+	if tid == TILE_STONE_WALL or tid == TILE_BRICK_WALL or tid == TILE_BRICK_FLOOR:
 		return false
 	## Hills / mountains / dungeon mouth — rocky base, not a sandy shore.
 	if tid == TILE_HILLS or tid == TILE_MOUNTAINS or tid == TILE_DUNGEON:
