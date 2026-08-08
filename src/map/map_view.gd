@@ -3518,15 +3518,14 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 	for u in _combat_foes:
 		if int(u.get("hp", 1)) <= 0:
 			continue
-		var tid := int(u.get("tile", 0))
+		var base_tid := int(u.get("tile", 0))
 		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
 		var sx := origin_x + pos.x
 		var sy := origin_y + pos.y
 		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 			continue
-		## 2-frame flip for non-pirate wilderness tiles (pirate keeps facing).
-		if tid >= 132 and (_avatar_frame % 2) == 1:
-			tid += 1
+		## Same multi-frame cycle as wilderness (ettin skips 208, etc.).
+		var tid: int = _WorldCreaturesScript.resolve_paint_tile(base_tid, _tile_anim_frame)
 		var img := _slice_keyed_tile(tid)
 		if img == null or img.is_empty():
 			continue

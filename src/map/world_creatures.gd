@@ -85,6 +85,7 @@ const _CREATURE_BASES: Array[Vector2i] = [
 
 const TILE_GUARD := 80
 const TILE_LORD_BRITISH := 94
+const TILE_ETTIN := 208
 
 ## Labels for combat engage messages (xu4 creature names, short form).
 const _DISPLAY_NAMES := {
@@ -280,6 +281,9 @@ static func resolve_paint_tile(stored_tid: int, anim_tick: int) -> int:
 	var frames := _frame_count(base)
 	if frames <= 1:
 		return base
+	## Ettin: skip base tile 208 (reads as a single head); cycle 209–211 only.
+	if base == TILE_ETTIN and frames >= 2:
+		return base + 1 + posmod(anim_tick, frames - 1)
 	return base + posmod(anim_tick, frames)
 
 
