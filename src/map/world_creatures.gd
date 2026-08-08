@@ -14,10 +14,24 @@ const SPAWN_DIVISOR_WORLD := 32
 const SPAWN_TRIES := 10
 ## xu4 fireAt / pirate specialAction — cannonball range (tiles).
 const CANNON_RANGE := 3
+## xu4 creatureRangeAttack path for lava lizard / sea serpent / hydra / dragon.
+const WORLD_RANGED_RANGE := 3
 
 const TILE_PIRATE := 128
 const TILE_NIXIE := 132
+const TILE_SEA_SERPENT := 136
 const TILE_ORC := 192
+const TILE_LAVA_LIZARD := 232
+const TILE_HYDRA := 244
+const TILE_DRAGON := 248
+
+## xu4 Creature::specialAction — world-map ranged (not combat free-aim).
+const _WORLD_RANGED_SPECIAL := {
+	TILE_SEA_SERPENT: true,
+	TILE_LAVA_LIZARD: true,
+	TILE_HYDRA: true,
+	TILE_DRAGON: true,
+}
 
 const MOVE_FIXED := 0
 const MOVE_WANDER := 1
@@ -611,7 +625,8 @@ func move_all(
 	world,
 	avatar: Vector2i,
 	blocked: Callable = Callable(),
-	on_pirate_fire: Callable = Callable()
+	on_pirate_fire: Callable = Callable(),
+	on_world_ranged: Callable = Callable()
 ) -> Dictionary:
 	## xu4 Map::moveObjects — specialAction then move.
 	## Returns { "changed": bool, "attacker": Dictionary } — attacker still on map.
@@ -631,9 +646,12 @@ func move_all(
 			if attacker.is_empty():
 				attacker = c.duplicate(true)
 			continue
+		## Pirate cannon consumes turn (useAction true). World ranged does not.
 		if _try_pirate_cannon(i, avatar, on_pirate_fire):
 			changed = true
 			continue
+		if _try_world_ranged(i, avatar, on_world_ranged):
+			changed = true
 		if _move_one(i, world, avatar, blocked):
 			changed = true
 	out["changed"] = changed
@@ -646,7 +664,7 @@ func _try_pirate_cannon(index: int, avatar: Vector2i, on_fire: Callable) -> bool
 	if index < 0 or index >= creatures.size():
 		return false
 	var c: Dictionary = creatures[index]
-	if int(c.get("tile", 0)) != TILE_PIRATE:
+	if _base_tile(int(c.get("tile", 0))) != TILE_PIRATE:
 		return false
 	var pos := Vector2i(int(c["x"]), int(c["y"]))
 	var delta := wrap_delta(pos, avatar)
@@ -663,6 +681,32 @@ func _try_pirate_cannon(index: int, avatar: Vector2i, on_fire: Callable) -> bool
 		shot = Vector2i(1 if delta.x > 0 else -1, 0)
 	var facing := _facing_to_dir(int(c.get("facing", 0)))
 	if not is_broadside_dir(facing, shot):
+		return false
+	if on_fire.is_valid():
+		on_fire.call(pos, shot)
+	return true
+
+
+func _try_world_ranged(index: int, avatar: Vector2i, on_fire: Callable) -> bool:
+	## xu4 specialAction lava lizard / sea serpent / hydra / dragon.
+	## 50% when Chebyshev dist ≤ 3; fires then still moves (useAction false).
+	if index < 0 or index >= creatures.size():
+		return false
+	var c: Dictionary = creatures[index]
+	var base := _base_tile(int(c.get("tile", 0)))
+	if not bool(_WORLD_RANGED_SPECIAL.get(base, false)):
+		return false
+	var pos := Vector2i(int(c["x"]), int(c["y"]))
+	if map_distance(pos, avatar) > WORLD_RANGED_RANGE:
+		return false
+	if (randi() % 2) != 0:
+		return false
+	var delta := wrap_delta(pos, avatar)
+	var shot := Vector2i(
+		0 if delta.x == 0 else (1 if delta.x > 0 else -1),
+		0 if delta.y == 0 else (1 if delta.y > 0 else -1)
+	)
+	if shot == Vector2i.ZERO:
 		return false
 	if on_fire.is_valid():
 		on_fire.call(pos, shot)

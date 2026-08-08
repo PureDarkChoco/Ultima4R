@@ -174,6 +174,7 @@ var _combat_last_aim_foe: Dictionary = {}
 var _combat_foe_dmg: Dictionary = {}
 ## Pirate shots queued during moveObjects (animated after AI step).
 var _pending_pirate_shots: Array[Dictionary] = []
+var _pending_world_ranged: Array[Dictionary] = []
 ## xu4 newOrder(): 0 = idle, 1 = Exchange #, 2 = with #.
 var _order_stage := 0
 var _order_slot_a := -1
@@ -3340,6 +3341,11 @@ func _on_pirate_cannon_fire(from: Vector2i, dir: Vector2i) -> void:
 	_pending_pirate_shots.append({"from": from, "dir": dir})
 
 
+func _on_world_ranged_fire(from: Vector2i, dir: Vector2i) -> void:
+	## xu4 sea serpent / lava lizard / hydra / dragon specialAction.
+	_pending_world_ranged.append({"from": from, "dir": dir})
+
+
 func _do_fire_cannon(dir: Vector2i) -> String:
 	## Sync probe for broadsides-only; flight is awaited in _finish_directed_command.
 	if _transport != Transport.SHIP or _is_in_city():
@@ -3476,6 +3482,51 @@ func _apply_cannon_hit_on_party() -> void:
 		_start_death_sequence(0.0)
 
 
+func _world_ranged_along_async(origin: Vector2i, dir: Vector2i) -> void:
+	## xu4 creatureRangeAttack along gameGetDirectionalActionPath(1..3).
+	## Flashes each cell; hits party (hitPartyAtRange) or one-shots map objects.
+	var path: Array[Vector2i] = _WorldCreaturesScript.cannon_path(
+		origin, dir, _WorldCreaturesScript.WORLD_RANGED_RANGE
+	)
+	if path.is_empty():
+		return
+	const MISS_SEC := 0.10
+	const HIT_SEC := 0.36
+	_cannon_busy = true
+	for pos in path:
+		if pos == _tile_pos:
+			if _map != null:
+				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
+			_apply_cannon_hit_on_party()
+			break
+		var creature_tid := -1
+		if _world_creatures != null:
+			creature_tid = _world_creatures.creature_at(pos)
+		if creature_tid >= 0:
+			if _world_creatures != null:
+				_world_creatures.take_at(pos)
+				_sync_creatures_to_map()
+			if _map != null:
+				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
+			break
+		var overlay_tid := -1
+		if _map != null:
+			overlay_tid = _map.overlay_at(pos)
+		if overlay_tid >= 0:
+			## xu4 UNKNOWN objects: destroy (ships one-shot here, not progressive).
+			if MapView.is_ship_tile(overlay_tid):
+				var key := _ship_hull_key(pos)
+				_ship_hulls.erase(key)
+			if _map != null:
+				_map.remove_overlay_at(pos)
+				await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, HIT_SEC)
+			break
+		## Empty tile: miss flash still advances along the path (xu4 flashTile 1).
+		if _map != null:
+			await _map.await_flash_world_tile(pos, MapView.TILE_HIT_FLASH, MISS_SEC)
+	_cannon_busy = false
+
+
 func _party_wiped_or_dying() -> bool:
 	## Party is fully dead, or the death cutscene already owns the screen.
 	return _death_busy or GameState.is_party_dead()
@@ -3495,11 +3546,13 @@ func _update_world_creatures() -> void:
 	if _party_wiped_or_dying():
 		return
 	_pending_pirate_shots.clear()
+	_pending_world_ranged.clear()
 	var moved: Dictionary = _world_creatures.move_all(
 		_world,
 		_tile_pos,
 		_creature_spawn_blocked,
-		_on_pirate_cannon_fire
+		_on_pirate_cannon_fire,
+		_on_world_ranged_fire
 	)
 	var changed := bool(moved.get("changed", false))
 	## Fire each broadside in order; abort if the party is wiped mid-queue.
@@ -3507,6 +3560,13 @@ func _update_world_creatures() -> void:
 		if _party_wiped_or_dying():
 			return
 		await _fire_cannon_along_async(shot["from"], shot["dir"], false)
+		if _party_wiped_or_dying():
+			return
+	## Sea serpent / lava lizard / hydra / dragon world ranged after pirate AI.
+	for shot in _pending_world_ranged:
+		if _party_wiped_or_dying():
+			return
+		await _world_ranged_along_async(shot["from"], shot["dir"])
 		if _party_wiped_or_dying():
 			return
 	## Adjacent engage only if the party still stands after all world AI.
