@@ -102,6 +102,7 @@ const TILE_SHIP_E := 18
 const TILE_SHIP_S := 19
 const TILE_HORSE_W := 20
 const TILE_HORSE_E := 21
+const TILE_BALLOON := 24
 ## Bridge tiles — near (south) white railing redrawn over sprites for depth.
 const TILE_BRIDGE := 23
 const TILE_BRIDGE_N := 25
@@ -1921,10 +1922,12 @@ func set_center(tile: Vector2i, animate: bool = true) -> void:
 	if tile == center and _scroll_frames_left == 0:
 		return
 	var step := _unwrap_step(center, tile)
+	## Orthogonal or diagonal neighbor (8-way step) — balloon diagonal wind drift.
+	var cheby := maxi(absi(step.x), absi(step.y))
 	var can_scroll := (
 		SMOOTH_SCROLL
 		and animate
-		and absi(step.x) + absi(step.y) == 1
+		and cheby == 1
 		and (is_in_city() or (world != null and world.loaded))
 	)
 	if can_scroll:
@@ -2194,6 +2197,10 @@ static func is_ship_tile(tile_id: int) -> bool:
 
 static func is_horse_tile(tile_id: int) -> bool:
 	return tile_id == TILE_HORSE_W or tile_id == TILE_HORSE_E
+
+
+static func is_balloon_tile(tile_id: int) -> bool:
+	return tile_id == TILE_BALLOON
 
 
 static func ship_tile_for_dir(dir: Vector2i) -> int:

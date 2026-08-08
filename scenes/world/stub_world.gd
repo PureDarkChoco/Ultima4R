@@ -99,10 +99,12 @@ const SHIP_HULL_ICON_SZ := 14.0
 var _world := WorldMapData.new()
 var _world_creatures = _WorldCreaturesScript.new()
 var _tile_pos := Vector2i(83, 105)
-## xu4 transportContext stub: foot / horse / ship.
-enum Transport { FOOT, HORSE, SHIP }
+## xu4 transportContext stub: foot / horse / ship / balloon.
+enum Transport { FOOT, HORSE, SHIP, BALLOON }
 var _transport: int = Transport.FOOT
 var _transport_tile := -1
+## xu4 saveGame.balloonstate — 1 while Klimb altitude (aloft).
+var _balloon_flying := false
 ## xu4 horseSpeed: Yell toggles gallop (double-step). Cleared on X-it.
 var _horse_gallop := false
 ## Ultima V-style ship cruise: Yell → Dir → keep sailing until Yell or land.
@@ -347,17 +349,31 @@ func _ready() -> void:
 
 
 func _place_temp_transports() -> void:
-	## Stub: horse on nearby land + ship on nearby water for boarding tests.
+	## New game: one balloon on nearby grass (canLandBalloon) so Klimb/D land test cleanly.
 	if _map == null or _world == null or not _world.loaded:
 		return
-	var horse := _find_nearby_tile(_tile_pos, false)
-	var ship := _find_nearby_tile(_tile_pos, true)
 	var items: Array[Vector3i] = []
-	if horse != Vector2i(-1, -1):
-		items.append(Vector3i(horse.x, horse.y, MapView.TILE_HORSE_W))
-	if ship != Vector2i(-1, -1):
-		items.append(Vector3i(ship.x, ship.y, MapView.TILE_SHIP_W))
+	var balloon := _find_nearby_land_balloon(_tile_pos)
+	if balloon != Vector2i(-1, -1):
+		items.append(Vector3i(balloon.x, balloon.y, MapView.TILE_BALLOON))
 	_map.set_overlays(items)
+
+
+func _find_nearby_land_balloon(origin: Vector2i) -> Vector2i:
+	## Prefer grass (xu4 canLandBalloon); fall back to any walkable land.
+	for radius in range(1, 8):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius:
+					continue
+				var p := Vector2i(
+					posmod(origin.x + dx, WorldMapData.WIDTH),
+					posmod(origin.y + dy, WorldMapData.HEIGHT)
+				)
+				var tid := int(_world.tile_at(p.x, p.y))
+				if _TileRules.can_land_balloon(tid):
+					return p
+	return _find_nearby_tile(origin, false)
 
 
 func _apply_world_save(w: Dictionary) -> void:
@@ -371,6 +387,9 @@ func _apply_world_save(w: Dictionary) -> void:
 	_transport = int(w.get("transport", Transport.FOOT))
 	_transport_tile = int(w.get("transport_tile", -1))
 	_horse_gallop = bool(w.get("horse_gallop", false))
+	_balloon_flying = bool(w.get("balloon_flying", false))
+	if _transport != Transport.BALLOON:
+		_balloon_flying = false
 	_parked_ship_tile = Vector2i(
 		int(w.get("parked_ship_x", -1)),
 		int(w.get("parked_ship_y", -1))
@@ -401,6 +420,7 @@ func _apply_world_save(w: Dictionary) -> void:
 			_map.set_transport_tile(_transport_tile)
 		else:
 			_map.set_transport_tile(-1)
+		_sync_balloon_view()
 		_sync_moongate(true)
 
 
@@ -456,6 +476,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_map.enter_city(cmap, local, _city_return_pos, spawn)
 	_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 	_map.clear_moongate()
+	_sync_balloon_view()
 	_sync_creatures_to_map()
 
 
@@ -546,6 +567,10 @@ func _do_board() -> void:
 		_push_message(Locale.t("cmd_board_horse"), false)
 		_transport = Transport.HORSE
 		_horse_gallop = false
+	elif MapView.is_balloon_tile(tid):
+		_push_message(Locale.t("cmd_board_balloon"), false)
+		_transport = Transport.BALLOON
+		_balloon_flying = false
 	else:
 		_push_message(Locale.t("cmd_board_what"), false)
 		_finish_party_turn()
@@ -553,22 +578,27 @@ func _do_board() -> void:
 	_map.remove_overlay_at(_tile_pos)
 	_transport_tile = tid
 	_map.set_transport_tile(_transport_tile)
+	_sync_balloon_view()
 	_refresh_ship_hull_hud()
 	_finish_party_turn()
 
 
 func _do_xit() -> void:
-	## xu4 exitTransport(): leave horse/ship as a map object underfoot.
-	if _transport == Transport.FOOT or _map == null:
+	## xu4 exitTransport(): leave horse/ship/balloon as a map object underfoot.
+	## Cannot X-it while balloon is aloft.
+	if _transport == Transport.FOOT or _map == null or _is_balloon_flying():
 		_push_message(Locale.t("cmd_xit_what"), false)
 		_finish_party_turn()
 		return
 	## Leave empty horse/ship facing as last ridden; gallop resets.
 	var leave_tid := _transport_tile
 	if leave_tid < 0:
-		leave_tid = (
-			MapView.TILE_SHIP_W if _transport == Transport.SHIP else MapView.TILE_HORSE_W
-		)
+		if _transport == Transport.SHIP:
+			leave_tid = MapView.TILE_SHIP_W
+		elif _transport == Transport.BALLOON:
+			leave_tid = MapView.TILE_BALLOON
+		else:
+			leave_tid = MapView.TILE_HORSE_W
 	if _transport == Transport.SHIP:
 		## Persist hull on this world cell so the same ship keeps its damage.
 		_store_ship_hull_at(_tile_pos, GameState.ship_hull)
@@ -577,8 +607,10 @@ func _do_xit() -> void:
 	_transport = Transport.FOOT
 	_transport_tile = -1
 	_horse_gallop = false
+	_balloon_flying = false
 	_stop_ship_cruise()
 	_map.set_transport_tile(-1)
+	_sync_balloon_view()
 	_push_message(Locale.t("cmd_xit"), false)
 	_refresh_ship_hull_hud()
 	_finish_party_turn()
@@ -700,7 +732,10 @@ func _damage_ship_from_grounding(dir: Vector2i) -> void:
 
 
 func _can_move_to(dest: Vector2i) -> bool:
-	## xu4 terrain rules via TileRules (walk / sail / horse creature-walk).
+	## xu4 terrain rules via TileRules (walk / sail / horse creature-walk / balloon).
+	## Aloft balloon: collision override (timer drift only; keys never call this).
+	if _is_balloon_flying():
+		return true
 	if _is_in_city():
 		if _city_map == null or not _city_map.loaded:
 			return false
@@ -714,7 +749,7 @@ func _can_move_to(dest: Vector2i) -> bool:
 			clampi(dest.y - _tile_pos.y, -1, 1)
 		)
 		return _TileRules.can_avatar_enter(
-			c_dest, c_from, cdir, false, _transport == Transport.HORSE
+			c_dest, c_from, cdir, false, _transport == Transport.HORSE, false
 		)
 	if _world == null or not _world.loaded:
 		return true
@@ -741,8 +776,8 @@ func _can_move_to(dest: Vector2i) -> bool:
 	## xu4 WITH_OBJECTS: standing on / entering ship|horse uses that tile's walk rule.
 	if _transport == Transport.FOOT and _map != null:
 		var over := _map.overlay_at(dest)
-		if MapView.is_ship_tile(over) or MapView.is_horse_tile(over):
-			## Ship/horse tiles are walkable; still need walk-off from previous terrain.
+		if MapView.is_ship_tile(over) or MapView.is_horse_tile(over) or MapView.is_balloon_tile(over):
+			## Ship/horse/balloon tiles are walkable; still need walk-off from previous terrain.
 			return _TileRules.can_walk_off(from_id, dir)
 
 	return _TileRules.can_avatar_enter(
@@ -750,7 +785,8 @@ func _can_move_to(dest: Vector2i) -> bool:
 		from_id,
 		dir,
 		_transport == Transport.SHIP,
-		_transport == Transport.HORSE
+		_transport == Transport.HORSE,
+		_transport == Transport.BALLOON
 	)
 
 
@@ -776,6 +812,7 @@ func _update_transport_facing(dir: Vector2i) -> void:
 		if facing >= 0:
 			_transport_tile = facing
 			_map.set_transport_tile(_transport_tile)
+	## Balloon has a single tile; facing is visual only.
 
 
 func _ship_facing_dir() -> Vector2i:
@@ -1704,6 +1741,13 @@ func _process(delta: float) -> void:
 		_block_dir_until_keyup = true
 		_move_repeating = false
 		_hold_arm = 0.0
+		return
+
+	## xu4 balloon: keys always "Drift Only!" (real movement is wind while aloft).
+	if _transport == Transport.BALLOON:
+		_push_message(Locale.t("cmd_drift_only"), false)
+		_finish_party_turn()
+		_arm_hold_after_step(true)
 		return
 
 	## xu4 ship: must face the direction before sailing (turn costs the step).
@@ -3098,6 +3142,7 @@ func _world_save_dict() -> Dictionary:
 		"transport": _transport,
 		"transport_tile": _transport_tile,
 		"horse_gallop": _horse_gallop,
+		"balloon_flying": _balloon_flying,
 		"ship_hulls": hulls,
 		"parked_ship_x": _parked_ship_tile.x,
 		"parked_ship_y": _parked_ship_tile.y,
@@ -3389,7 +3434,10 @@ func _update_world_creatures() -> void:
 	## xu4 finishTurn: moveObjects → creatureCleanup → checkRandomCreatures
 	## → checkBridgeTrolls.
 	## Creatures act sequentially; after a lethal pirate shot, stop further AI / combat.
+	## xu4: no spawn/move/attack while balloon is aloft (isFlying).
 	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
+		return
+	if _is_balloon_flying():
 		return
 	if _world_creatures == null:
 		return
@@ -4939,7 +4987,7 @@ func _do_enter() -> void:
 	if _is_in_city():
 		_push_message(Locale.t("cmd_enter_what"), false)
 		return
-	if _transport == Transport.SHIP:
+	if _transport == Transport.SHIP or _transport == Transport.BALLOON:
 		_push_message(Locale.t("cmd_only_on_foot"), false)
 		return
 	var portal := _WorldPortals.portal_at(_tile_pos)
@@ -4976,13 +5024,50 @@ func _do_enter() -> void:
 
 
 func _do_klimb() -> void:
-	## xu4 'k' → usePortalAt(ACTION_KLIMB). Castle floors first; dungeon later.
-	_use_city_floor_portal(_CityFloorPortals.Action.CLIMB)
+	## xu4 'k' → usePortalAt(ACTION_KLIMB); else balloon Klimb altitude.
+	if _try_city_floor_portal(_CityFloorPortals.Action.CLIMB):
+		return
+	if _transport == Transport.BALLOON:
+		_balloon_flying = true
+		_sync_balloon_view()
+		_push_message(Locale.t("cmd_klimb_altitude"), false)
+		_finish_party_turn()
+		return
+	_push_message(Locale.t("cmd_klimb_what"), false)
+	_finish_party_turn()
 
 
 func _do_descend() -> void:
-	## xu4 'd' → usePortalAt(ACTION_DESCEND). LCB 2→1 for now (abyss later).
-	_use_city_floor_portal(_CityFloorPortals.Action.DESCEND)
+	## xu4 'd' → usePortalAt(ACTION_DESCEND); else Land Balloon.
+	if _try_city_floor_portal(_CityFloorPortals.Action.DESCEND):
+		return
+	if _transport == Transport.BALLOON:
+		_push_message(Locale.t("cmd_land_balloon"), false)
+		if not _balloon_flying:
+			_push_message(Locale.t("cmd_already_landed"), false)
+		elif _TileRules.can_land_balloon(_terrain_tid_at(_tile_pos)):
+			_balloon_flying = false
+			_sync_balloon_view()
+		else:
+			_push_message(Locale.t("cmd_not_here"), false)
+		_finish_party_turn()
+		return
+	_push_message(Locale.t("cmd_descend_what"), false)
+	_finish_party_turn()
+
+
+func _try_city_floor_portal(action: int) -> bool:
+	## True if a city floor ladder was used (success or foot-only fail after city hit).
+	## Mirror xu4: portal attempt only when an ACTION_* portal exists; balloon handles miss.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return false
+	var fname := str(_city_map.source_path).get_file()
+	var portal := _CityFloorPortals.portal_at(fname, _tile_pos, action)
+	if portal.is_empty():
+		return false
+	## Portal exists — take the same path as before (including "Only on foot!").
+	_use_city_floor_portal(action)
+	return true
 
 
 func _use_city_floor_portal(action: int) -> void:
@@ -6104,6 +6189,9 @@ func _pass_map_annotations() -> void:
 
 func _apply_ground_tile_effect() -> int:
 	## xu4 finishTurn: map->tileTypeAt(coords)->getEffect() → Party::applyEffect.
+	## Skipped while balloon is flying (party not "standing" on the tile).
+	if _is_balloon_flying():
+		return 0
 	if _is_in_city():
 		if _city_map == null or not _city_map.loaded:
 			return 0
@@ -7247,37 +7335,6 @@ func _begin_combat(
 	_combat_resolving = false
 
 
-func _end_combat_stub() -> void:
-	## Temporary leave — restores explore UI; full victory/flee later.
-	## xu4 CombatController::endCombat — world creature is always removed
-	## (win, flee/loss, or party wipe); never put back on the map.
-	if not _combat_active:
-		return
-	if _combat_victory_aftermath:
-		## After Victory!, cascade everyone off then return to field.
-		await _combat_victory_esc_exit_all()
-		return
-	_combat_clear_aim_state()
-	_combat_resolving = true
-	_combat_victory_aftermath = false
-	_victory_solo_party_slot = -1
-	if _map != null:
-		_map.exit_combat()
-	_combat_foe = {}
-	if _foe_roster:
-		_foe_roster.clear()
-	if _roster:
-		_roster.clear_order_selection()
-	_sync_creatures_to_map()
-	_refresh_locate_hud()
-	_push_message(Locale.t("cmd_combat_stub_leave"), false)
-	await _restore_sides_after_combat()
-	_combat_active = false
-	_combat_resolving = false
-	_combat_suppress_chests = false
-	_stamp_command_time()
-
-
 func _combat_clear_aim_state() -> void:
 	## End of combat — wipe aim UI and sticky targets.
 	_combat_aiming = false
@@ -7405,7 +7462,7 @@ func _place_captured_pirate_ship(pos: Vector2i, facing: int) -> void:
 
 func _handle_combat_input(event: InputEvent) -> bool:
 	## Combat: move / Pass / Attack + xu4 letter commands; banned → "Not here!".
-	## Esc leaves (stub) or cancels aim. No idle auto-pass.
+	## No idle auto-pass. Esc only cancels aim (or victory leave after win).
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if not (event is InputEventKey):
@@ -7419,9 +7476,6 @@ func _handle_combat_input(event: InputEvent) -> bool:
 		return true
 	if _combat_aiming:
 		return _handle_combat_aim_input(k)
-	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-		_end_combat_stub()
-		return true
 	if _combat_resolving:
 		return true
 	## Sleeping / dead focus — auto-pass (wake checked when focus lands).
@@ -9059,8 +9113,44 @@ func _tick_world_clock(delta: float) -> void:
 			sky_changed = true
 		if on_world:
 			_sync_moongate(false, old_tram)
+		## xu4: balloon drifts ~4/sec while aloft (non-user move — no finishTurn).
+		_tick_balloon_drift()
 	if sky_changed and _top_bar != null and _top_bar.has_method("refresh"):
 		_top_bar.refresh()
+
+
+func _is_balloon_flying() -> bool:
+	return _transport == Transport.BALLOON and _balloon_flying
+
+
+func _sync_balloon_view() -> void:
+	## xu4 c->opacity: false while aloft → LOS ignores opaque tiles.
+	if _map != null and _map.has_method("set_los_opacity"):
+		_map.set_los_opacity(not _is_balloon_flying())
+
+
+func _tick_balloon_drift() -> void:
+	## xu4 GameController::timerFired → location->move(dirReverse(wind), false).
+	if not _is_balloon_flying():
+		return
+	if _combat_active or _death_busy or _moongate_busy or _is_in_city():
+		return
+	if _world == null or not _world.loaded:
+		return
+	var dir := GameState.balloon_drift_dir()
+	if dir == Vector2i.ZERO:
+		return
+	var next := Vector2i(
+		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+	)
+	## Aloft: collision override (can pass mountains/water/creatures).
+	_tile_pos = next
+	if _map != null:
+		if _map.is_scrolling():
+			_map.finish_scroll()
+		_map.set_center(_tile_pos, true)
+	_refresh_locate_hud()
 
 
 func _sync_moongate(_force: bool = false, _old_tram: int = -1) -> void:

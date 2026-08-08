@@ -9,9 +9,10 @@ enum BarKind { FULL, SKY, INVENTORY }
 
 @export var bar_kind: BarKind = BarKind.FULL
 
-## Filenames do not match tip direction (e.g. n.png points south).
-## Use the east-pointing sprite and rotate so tip == wind_dir compass.
-const WIND_EAST_PATH := "res://assets/ui/wind/w.png" ## visual tip = East
+## Wind icons (8-way art in assets/ui/wind/{n,ne,e,se,s,sw,w,nw}.png).
+const WIND_DIR_PATH := "res://assets/ui/wind"
+## 0 N … 7 NW — matches GameState.wind_dir / xu4 headwind FROM.
+const WIND_FILES := ["n", "ne", "e", "se", "s", "sw", "w", "nw"]
 const HUD_GOLD_PATH := "res://assets/ui/hud/gold.png"
 const HUD_FOOD_PATH := "res://assets/ui/hud/food.png"
 const HUD_KEY_PATH := "res://assets/ui/hud/key.png"
@@ -40,7 +41,7 @@ var keys: int = 3
 var torches: int = 12
 
 var _moon_tex: Array[Texture2D] = []
-var _wind_east_tex: Texture2D
+var _wind_tex: Array[Texture2D] = [] ## 8 FROM-direction icons
 var _tram: TextureRect
 var _fel: TextureRect
 var _wind: TextureRect
@@ -49,6 +50,7 @@ var _food_lab: Label
 var _keys_lab: Label
 var _torches_lab: Label
 var _gems_lab: Label
+var _last_drawn_wind: int = -1
 
 
 func _ready() -> void:
@@ -61,6 +63,22 @@ func _ready() -> void:
 		_load_wind_icons()
 	_build()
 	refresh()
+	## Keep sky icons live even if a caller forgets to refresh after clock ticks.
+	if bar_kind == BarKind.SKY or bar_kind == BarKind.FULL:
+		set_process(true)
+	else:
+		set_process(false)
+
+
+func _process(_delta: float) -> void:
+	if bar_kind != BarKind.SKY and bar_kind != BarKind.FULL:
+		return
+	if (
+		wind_dir != GameState.wind_dir
+		or trammel_phase != GameState.trammel_phase
+		or felucca_phase != GameState.felucca_phase
+	):
+		refresh()
 
 
 func _apply_blue_frame() -> void:
@@ -121,8 +139,31 @@ func _load_hud_icon(path: String) -> Texture2D:
 
 
 func _load_wind_icons() -> void:
-	## Single east-facing arrow; refresh() rotates tip to match wind_dir.
-	_wind_east_tex = _load_tex(WIND_EAST_PATH)
+	## Load n/ne/e/se/s/sw/w/nw art (tip = wind FROM that bearing).
+	_wind_tex.clear()
+	var side := int(ICON_SZ)
+	for name in WIND_FILES:
+		var path := "%s/%s.png" % [WIND_DIR_PATH, name]
+		var img := Image.new()
+		if img.load(path) != OK:
+			var loaded := load(path) as Texture2D
+			if loaded != null:
+				img = loaded.get_image()
+		if img == null or img.is_empty():
+			push_warning("StatusInfoBar: missing wind icon %s" % path)
+			_wind_tex.append(null)
+			continue
+		if img.get_format() != Image.FORMAT_RGBA8:
+			img.convert(Image.FORMAT_RGBA8)
+		## Near-black plate → transparent (art is on black).
+		for y in img.get_height():
+			for x in img.get_width():
+				var c := img.get_pixel(x, y)
+				if c.r < 0.05 and c.g < 0.05 and c.b < 0.05:
+					img.set_pixel(x, y, Color(0, 0, 0, 0))
+		if img.get_width() != side or img.get_height() != side:
+			img.resize(side, side, Image.INTERPOLATE_NEAREST)
+		_wind_tex.append(ImageTexture.create_from_image(img))
 
 
 func _load_moons() -> void:
@@ -223,13 +264,14 @@ func _make_sky_cluster() -> HBoxContainer:
 	moons.add_child(_fel)
 
 	_wind = TextureRect.new()
-	_wind.custom_minimum_size = Vector2(16, 16)
+	_wind.custom_minimum_size = Vector2(ICON_SZ, ICON_SZ)
 	_wind.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_wind.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_wind.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_wind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	## Rotate around center so tip tracks wind_dir (0=N … 7=NW).
-	_wind.pivot_offset = Vector2(8, 8)
+	## Pre-rotated textures — no Control.rotation (container layout can hide it).
+	_wind.rotation_degrees = 0.0
+	_wind.pivot_offset = Vector2.ZERO
 
 	var wind_balance := Control.new()
 	wind_balance.custom_minimum_size = _wind.custom_minimum_size
@@ -325,11 +367,12 @@ func refresh() -> void:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
 	var wd := posmod(wind_dir, 8)
-	if _wind != null and _wind_east_tex != null:
-		_wind.texture = _wind_east_tex
-		## w.png tip faces East at 0°; wind_dir 0 (N) → -90°.
-		_wind.rotation_degrees = float(wd) * 45.0 - 90.0
-		_wind.pivot_offset = _wind.size * 0.5
+	if _wind != null and _wind_tex.size() >= 8:
+		var tex: Texture2D = _wind_tex[wd]
+		if tex != null and (wd != _last_drawn_wind or _wind.texture != tex):
+			_wind.texture = tex
+			_wind.rotation_degrees = 0.0
+			_last_drawn_wind = wd
 	if _gold_lab:
 		_gold_lab.text = "%d" % mini(gold, GOLD_FOOD_MAX)
 	if _food_lab:

@@ -1,6 +1,6 @@
 # Wind direction icons (8-way)
 
-Dart / navigation arrow derived from project UI reference (paper-plane style).
+Blue dart / arrowhead art (user-supplied). Tip = wind **from** that bearing.
 
 | Index | File | Direction |
 |------:|------|-----------|
@@ -13,4 +13,5 @@ Dart / navigation arrow derived from project UI reference (paper-plane style).
 | 6 | `w.png` | West |
 | 7 | `nw.png` | Northwest |
 
-Used by `StatusInfoBar.wind_dir` (0–7).
+Used by `StatusInfoBar` via `GameState.wind_dir` (0–7).  
+Import size: 16×16, nearest. Black background keyed transparent.

@@ -258,11 +258,6 @@ const _T := {
 		"en_us": "Attacked by %s!",
 		"ko": "%s의 습격!",
 	},
-	"cmd_combat_stub_leave": {
-		"en_u4": "Combat ends (stub).",
-		"en_us": "Combat ends (stub).",
-		"ko": "전투 종료 (임시).",
-	},
 	## xu4 combat.cpp keyPressed Space
 	"cmd_pass": {
 		"en_u4": "Pass",
@@ -367,6 +362,27 @@ const _T := {
 		"en_u4": "Descend what?",
 		"en_us": "Descend what?",
 		"ko": "어디로 내려가?",
+	},
+	## xu4 balloon Klimb / Land Balloon (Descend).
+	"cmd_klimb_altitude": {
+		"en_u4": "Klimb altitude",
+		"en_us": "Klimb altitude",
+		"ko": "고도를 올린다",
+	},
+	"cmd_land_balloon": {
+		"en_u4": "Land Balloon",
+		"en_us": "Land Balloon",
+		"ko": "열기구 착륙",
+	},
+	"cmd_already_landed": {
+		"en_u4": "Already Landed!",
+		"en_us": "Already Landed!",
+		"ko": "이미 착륙했다!",
+	},
+	"cmd_drift_only": {
+		"en_u4": "Drift Only!",
+		"en_us": "Drift Only!",
+		"ko": "표류만 가능!",
 	},
 	"cmd_klimb_lcb2": {
 		"en_u4": "Klimb to second floor!",
@@ -1159,6 +1175,11 @@ const _T := {
 		"en_u4": "Mount Horse!",
 		"en_us": "Mount Horse!",
 		"ko": "말에 오른다!",
+	},
+	"cmd_board_balloon": {
+		"en_u4": "Board Balloon!",
+		"en_us": "Board Balloon!",
+		"ko": "열기구에 탄다!",
 	},
 	"cmd_xit": {
 		"en_u4": "X-it",

@@ -293,16 +293,48 @@ static func is_creature_walkable(tile_id: int) -> bool:
 	return walk_on(tile_id) != 0 and (flags(tile_id) & F_CREATURE_BLOCK) == 0
 
 
+static func can_land_balloon(tile_id: int) -> bool:
+	## xu4 Tile::canLandBalloon — grass rule only (`canlandballoon: true`).
+	return clampi(tile_id, 0, 255) == 4
+
+
+static func is_flyable(tile_id: int) -> bool:
+	## xu4 Tile::isFlyable — false when rule has `unflyable: true`.
+	match clampi(tile_id, 0, 255):
+		8: ## mountains
+			return false
+		13, 15: ## LCB solid wings (walls-like)
+			return false
+		48, 49, 50, 51, 52, 53, 54, 55, 56: ## column / watersides / mast / wheel / rocks / corpse
+			return false
+		57, 58, 59: ## stone wall / locked door / door (walls)
+			return false
+		69: ## energy field
+			return false
+		74: ## altar (dng_altar)
+			return false
+		96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111:
+			return false ## A–P brick letters
+		112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127:
+			return false ## more brick / wall
+		_:
+			return true
+
+
 static func can_avatar_enter(
 	dest_id: int,
 	from_id: int,
 	dir: Vector2i,
 	on_ship: bool,
-	on_horse: bool
+	on_horse: bool,
+	on_balloon: bool = false
 ) -> bool:
-	## xu4 Map::getValidMoves — avatar / horse / ship branches.
+	## xu4 Map::getValidMoves — avatar / horse / ship / balloon branches.
 	if on_ship:
 		return is_sailable(dest_id)
+	if on_balloon:
+		## Grounded balloon (rare path): flyable only; aloft skips collision entirely.
+		return is_flyable(dest_id)
 	if not can_walk_on(dest_id, dir):
 		return false
 	if not can_walk_off(from_id, dir):

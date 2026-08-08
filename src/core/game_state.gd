@@ -1139,6 +1139,59 @@ func wind_with_cardinals(w: int = -1) -> Array[Vector2i]:
 	return out
 
 
+func wind_from_vec(w: int = -1) -> Vector2i:
+	## Where the wind comes from (8-way). Matching top-bar Wind label.
+	## 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW
+	if w < 0:
+		w = wind_dir
+	match posmod(w, 8):
+		0:
+			return Vector2i(0, -1) ## N
+		1:
+			return Vector2i(1, -1) ## NE
+		2:
+			return Vector2i(1, 0) ## E
+		3:
+			return Vector2i(1, 1) ## SE
+		4:
+			return Vector2i(0, 1) ## S
+		5:
+			return Vector2i(-1, 1) ## SW
+		6:
+			return Vector2i(-1, 0) ## W
+		7:
+			return Vector2i(-1, -1) ## NW
+		_:
+			return Vector2i(0, -1)
+
+
+func balloon_drift_dir(w: int = -1) -> Vector2i:
+	## xu4: move(dirReverse(windDirection)) while aloft.
+	## Remake wind is 8-way (xu4 was cardinals only) — NE wind drifts SW, etc.
+	## Return a full tile step including diagonal components (never collapses to one axis).
+	if w < 0:
+		w = wind_dir
+	match posmod(w, 8):
+		0:
+			return Vector2i(0, 1) ## from N → drift S
+		1:
+			return Vector2i(-1, 1) ## from NE → drift SW
+		2:
+			return Vector2i(-1, 0) ## from E → drift W
+		3:
+			return Vector2i(-1, -1) ## from SE → drift NW
+		4:
+			return Vector2i(0, -1) ## from S → drift N
+		5:
+			return Vector2i(1, -1) ## from SW → drift NE
+		6:
+			return Vector2i(1, 0) ## from W → drift E
+		7:
+			return Vector2i(1, 1) ## from NW → drift SE
+		_:
+			return Vector2i(0, 1)
+
+
 func ship_slowed_by_wind(move_dir: Vector2i) -> bool:
 	## Into wind: 25% sail / 75% slow. With wind: 75% sail / 25% slow.
 	## (xu4 used moves%4 patterns with the same expected rates.)
@@ -2272,15 +2325,15 @@ func tick_world_clock(on_world_map: bool = true) -> bool:
 	## xu4 GameController::timerFired + updateMoons (one 0.25s game cycle).
 	## Returns true when HUD moons/wind should refresh.
 	var changed := false
+	var old_wind := wind_dir
 	wind_counter += 1
 	if wind_counter >= PHASE_TICKS:
-		## 25% chance to pick a new direction (xu4_random(4) == 1 cadence).
-		if not wind_lock and (randi() % 4) == 1:
-			var next_wind: int = WIND_DIRS[randi() % WIND_DIRS.size()]
-			if next_wind != wind_dir:
-				wind_dir = next_wind
-				changed = true
 		wind_counter = 0
+		## xu4: 25% chance to re-roll wind direction (may land on the same heading).
+		if not wind_lock and (randi() % 4) == 1:
+			wind_dir = posmod(randi(), 8)
+	if wind_dir != old_wind:
+		changed = true
 
 	if not on_world_map:
 		return changed
@@ -2416,8 +2469,9 @@ func apply_save_dict(d: Dictionary) -> void:
 	trammel_phase = clampi(int(d.get("trammel_phase", trammel_phase)), 0, 7)
 	felucca_phase = clampi(int(d.get("felucca_phase", felucca_phase)), 0, 7)
 	wind_dir = posmod(int(d.get("wind_dir", wind_dir)), 8)
-	wind_counter = int(d.get("wind_counter", wind_counter))
-	wind_lock = bool(d.get("wind_lock", wind_lock))
+	wind_counter = maxi(0, int(d.get("wind_counter", wind_counter)))
+	## Coerce lock strictly — non-falsey JSON quirks must not freeze wind forever.
+	wind_lock = d.get("wind_lock", false) == true
 	if d.has("language"):
 		## Slot language for this play session only — menu prefs stay separate.
 		apply_session_language(str(d.get("language")))
