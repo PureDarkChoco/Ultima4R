@@ -320,10 +320,17 @@ func _process(delta: float) -> void:
 		_hold_arm = HOLD_DELAY
 
 
+func _input(event: InputEvent) -> void:
+	## Cancel/confirm on load list — use _input (not unhandled) so Esc is not lost to GUI.
+	if not _load_open:
+		return
+	if _handle_load_input(event):
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _load_open:
-		if _handle_load_input(event):
-			accept_event()
+		## Already handled in _input when active.
 		return
 	if _create_open:
 		## Name/gender form owns Esc / accept; mute menu hotkeys.
@@ -507,14 +514,24 @@ func _close_name_form() -> void:
 func _handle_load_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
+	## Same cancel path as name-form Esc / Back — restore Journey menu immediately.
+	if (
+		event.is_action_pressed("ui_cancel")
+		or event.is_action_pressed("cancel")
+		or (
+			event is InputEventKey
+			and (
+				(event as InputEventKey).keycode == KEY_ESCAPE
+				or (event as InputEventKey).physical_keycode == KEY_ESCAPE
+				or (event as InputEventKey).keycode == KEY_SPACE
+				or (event as InputEventKey).physical_keycode == KEY_SPACE
+			)
+		)
+	):
+		_close_load()
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
-		if (
-			k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
-			or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
-		):
-			_close_load()
-			return true
 		if (
 			k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER
 			or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER
@@ -527,6 +544,8 @@ func _handle_load_input(event: InputEvent) -> bool:
 				_save_panel.set_cursor(dig)
 			_confirm_load(dig)
 			return true
+		## Swallow other keys so menu R/J/I shortcuts don’t fire under the list.
+		return true
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
 		if jb.button_index == JOY_BUTTON_B:
@@ -535,7 +554,8 @@ func _handle_load_input(event: InputEvent) -> bool:
 		if jb.button_index == JOY_BUTTON_A:
 			_confirm_load(_save_panel.cursor() if _save_panel else 0)
 			return true
-	return true
+		return true
+	return false
 
 
 func _digit_0_to_3(event: InputEventKey) -> int:
