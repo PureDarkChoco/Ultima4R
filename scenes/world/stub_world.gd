@@ -29,6 +29,7 @@ const _CombatMaps := preload("res://src/map/combat_maps.gd")
 const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
 const _ShrinePortals := preload("res://src/map/shrine_portals.gd")
 const _Shrine := preload("res://src/core/shrine.gd")
+const _Hawkwind := preload("res://src/core/hawkwind.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 
@@ -289,7 +290,7 @@ var _msg_open_content_h := 0.0
 var _msg_pitch := 0.0
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
-## 10 vendor shop (xu4 vendors.b).
+## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel.
 var _talk_stage := 0
 var _talk_person_i := -1
 var _talk_entry: RefCounted = null ## _TalkTlk.Entry
@@ -297,6 +298,7 @@ var _talk_buffer := ""
 var _talk_keywords: Array = []
 var _talk_turn_away := 0
 var _talk_pending_ask := false
+var _talk_is_hawkwind := false
 var _shop = null ## _VendorShop session
 ## Talk expands only the message strip (not left/right inventory).
 var _talk_msg_open := false
@@ -1257,6 +1259,8 @@ func _prompt_row_text() -> String:
 		return "You say: " + _talk_buffer
 	if _talk_stage == 4:
 		## "How much?" already written to history; live row is the amount only.
+		return _talk_buffer
+	if _talk_stage == 11:
 		return _talk_buffer
 	if _talk_stage == 10 and _shop != null:
 		return _talk_buffer
@@ -5651,6 +5655,7 @@ func _exit_city() -> void:
 		_talk_buffer = ""
 		_talk_keywords.clear()
 		_talk_pending_ask = false
+		_talk_is_hawkwind = false
 		_talk_msg_open = false
 		if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
 			_talk_msg_tween.kill()
@@ -6767,14 +6772,36 @@ func _begin_special_npc_talk(person_i: int, role: int) -> void:
 			_layout_prompt_row()
 			_finish_party_turn()
 		_CityNpcRoles.Role.HAWKWIND:
-			_push_message("Thou dost approach Hawkwind the Seer.", false)
-			_push_message("(Seer counsel is not ready yet.)", false)
-			_push_message("Bye.", false)
-			_close_talk_message_panel()
-			_layout_prompt_row()
-			_finish_party_turn()
+			_begin_hawkwind_talk(person_i)
 		_:
 			_begin_vendor_shop(person_i, role)
+
+
+func _begin_hawkwind_talk(person_i: int) -> void:
+	## xu4 Hawkwind seer — virtue counsel + KA_HAWKWIND on a living intro.
+	_talk_person_i = person_i
+	_talk_entry = null
+	_talk_buffer = ""
+	_talk_turn_away = 0
+	_talk_pending_ask = false
+	_talk_is_hawkwind = true
+	_talk_keywords = _Hawkwind.highlight_keywords()
+	_shop = null
+	if not _Hawkwind.party_leader_can_speak():
+		_talk_stage = 0
+		_push_talk_script(_Hawkwind.refuse_for_unconscious())
+		_talk_person_i = -1
+		_talk_is_hawkwind = false
+		_talk_keywords.clear()
+		_close_talk_message_panel()
+		_layout_prompt_row()
+		_finish_party_turn()
+		return
+	_talk_stage = 11
+	_Hawkwind.grant_visit_karma()
+	for line in _Hawkwind.intro_lines():
+		_push_talk_script(line)
+	_layout_prompt_row()
 
 
 func _begin_vendor_shop(person_i: int, role: int) -> void:
@@ -7143,8 +7170,40 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return _talk_input_give(k)
 		10:
 			return _talk_input_shop(k)
+		11:
+			return _talk_input_hawkwind(k)
 		_:
 			return false
+
+
+func _talk_input_hawkwind(k: InputEventKey) -> bool:
+	## Same typing as interest; keywords are the eight virtues (4-letter match).
+	if _is_talk_enter(k):
+		var submitted := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		_layout_prompt_row()
+		_push_talk_player_input(submitted)
+		var reply := _Hawkwind.reply_to_interest(submitted)
+		if reply.is_empty():
+			_end_talk(true)
+			return true
+		_push_talk_script(reply)
+		_push_talk_script(_Hawkwind.AGAIN_PROMPT)
+		_layout_prompt_row()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty():
+		return false
+	if _talk_buffer.length() >= 16:
+		return true
+	_talk_buffer += ch
+	_layout_prompt_row()
+	return true
 
 
 func _talk_input_shop(k: InputEventKey) -> bool:
@@ -7520,15 +7579,17 @@ func _end_talk(_aborted: bool) -> void:
 		return
 	## Mark closed before farewell so Esc cannot re-enter or open the menu
 	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
+	var farewell := _Hawkwind.BYE if _talk_is_hawkwind else "Bye."
 	_talk_stage = 0
 	_talk_buffer = ""
-	_push_message("Bye.", false)
+	_push_message(farewell, false)
 	var pi := _talk_person_i
 	_talk_person_i = -1
 	_talk_entry = null
 	_talk_keywords.clear()
 	_talk_turn_away = 0
 	_talk_pending_ask = false
+	_talk_is_hawkwind = false
 	_shop = null
 	if pi >= 0 and _city_map != null:
 		_city_map.pause_follow(pi)
