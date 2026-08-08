@@ -30,6 +30,7 @@ const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
 const _ShrinePortals := preload("res://src/map/shrine_portals.gd")
 const _Shrine := preload("res://src/core/shrine.gd")
 const _Hawkwind := preload("res://src/core/hawkwind.gd")
+const _LordBritish := preload("res://src/core/lord_british.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 
@@ -290,7 +291,8 @@ var _msg_open_content_h := 0.0
 var _msg_pitch := 0.0
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
-## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel.
+## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel / 12 Lord British /
+## 13 LB heal confirm (Art thou well?).
 var _talk_stage := 0
 var _talk_person_i := -1
 var _talk_entry: RefCounted = null ## _TalkTlk.Entry
@@ -299,6 +301,7 @@ var _talk_keywords: Array = []
 var _talk_turn_away := 0
 var _talk_pending_ask := false
 var _talk_is_hawkwind := false
+var _talk_is_lb := false
 var _shop = null ## _VendorShop session
 ## Talk expands only the message strip (not left/right inventory).
 var _talk_msg_open := false
@@ -899,9 +902,9 @@ func _style_side_panels() -> void:
 			"panel", _make_edge_panel(PartyRoster.ROSTER_STYLE_PAD, 2, 0, 0, 0)
 		)
 	if _right_bottom is Panel:
-		## Message strip: dark semi-transparent so map tiles faintly show (~80% cover).
+		## Message strip: dark semi-transparent so map tiles faintly show (~90% cover).
 		(_right_bottom as Panel).add_theme_stylebox_override(
-			"panel", _make_edge_panel(0, 2, 2, 0, 0, Color(0.0, 0.0, 0.0, 0.8))
+			"panel", _make_edge_panel(0, 2, 2, 0, 0, Color(0.0, 0.0, 0.0, 0.9))
 		)
 	if _compact_pane is Panel:
 		## No style content pad — compact roster offsets use full ROSTER_PAD.
@@ -1262,6 +1265,10 @@ func _prompt_row_text() -> String:
 		return _talk_buffer
 	if _talk_stage == 11:
 		return _talk_buffer
+	if _talk_stage == 12:
+		return _talk_buffer
+	if _talk_stage == 13:
+		return "You say: " + _talk_buffer
 	if _talk_stage == 10 and _shop != null:
 		return _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
@@ -5656,6 +5663,7 @@ func _exit_city() -> void:
 		_talk_keywords.clear()
 		_talk_pending_ask = false
 		_talk_is_hawkwind = false
+		_talk_is_lb = false
 		_talk_msg_open = false
 		if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
 			_talk_msg_tween.kill()
@@ -6739,14 +6747,15 @@ func _do_talk(dir: Vector2i) -> bool:
 			break
 		var pi: int = int(_city_map.person_index_at(target.x, target.y))
 		if pi >= 0 and _talk_can_address(pi, dist):
-			var entry: Variant = _city_map.discourse_at(pi)
-			if entry != null:
-				_begin_talk(pi, entry)
-				return true
-			## Merchants / healer / inn use vendor scripts (xu4), not .TLK.
+			## LB / Hawkwind / vendors: maps.b role wins, even if .ULT still has a
+			## .TLK conv id (e.g. Lord British occupying Joshua's discourse slot).
 			var role: int = int(_city_map.role_at(pi))
 			if _CityNpcRoles.is_shop_like(role):
 				_begin_special_npc_talk(pi, role)
+				return true
+			var entry: Variant = _city_map.discourse_at(pi)
+			if entry != null:
+				_begin_talk(pi, entry)
 				return true
 		## After this cell: stop unless it is a talk-over tile (xu4 canTalkOver).
 		var cell_tid: int
@@ -6765,16 +6774,32 @@ func _begin_special_npc_talk(person_i: int, role: int) -> void:
 	_open_talk_message_panel()
 	match role:
 		_CityNpcRoles.Role.LORD_BRITISH:
-			_push_message("Thou dost approach Lord British.", false)
-			_push_message("(Court audience is not ready yet.)", false)
-			_push_message("Bye.", false)
-			_close_talk_message_panel()
-			_layout_prompt_row()
-			_finish_party_turn()
+			_begin_lord_british_talk(person_i)
 		_CityNpcRoles.Role.HAWKWIND:
 			_begin_hawkwind_talk(person_i)
 		_:
 			_begin_vendor_shop(person_i, role)
+
+
+func _begin_lord_british_talk(person_i: int) -> void:
+	## xu4 Lord British audience — intro, keyword help, heal, level advance.
+	_talk_person_i = person_i
+	_talk_entry = null
+	_talk_buffer = ""
+	_talk_turn_away = 0
+	_talk_pending_ask = false
+	_talk_is_hawkwind = false
+	_talk_is_lb = true
+	_talk_keywords = _LordBritish.highlight_keywords()
+	_shop = null
+	var revive := _LordBritish.revive_leader_if_dead()
+	if not revive.is_empty():
+		_push_talk_script(revive)
+	_talk_stage = 12
+	for line in _LordBritish.intro_lines():
+		_push_talk_script(line)
+	_layout_prompt_row()
+	_refresh_party()
 
 
 func _begin_hawkwind_talk(person_i: int) -> void:
@@ -6785,6 +6810,7 @@ func _begin_hawkwind_talk(person_i: int) -> void:
 	_talk_turn_away = 0
 	_talk_pending_ask = false
 	_talk_is_hawkwind = true
+	_talk_is_lb = false
 	_talk_keywords = _Hawkwind.highlight_keywords()
 	_shop = null
 	if not _Hawkwind.party_leader_can_speak():
@@ -7172,8 +7198,93 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return _talk_input_shop(k)
 		11:
 			return _talk_input_hawkwind(k)
+		12:
+			return _talk_input_lord_british(k)
+		13:
+			return _talk_input_lb_heal_yn(k)
 		_:
 			return false
+
+
+func _talk_input_lord_british(k: InputEventKey) -> bool:
+	## Keyword interest — 4-letter match like xu4 Dialogue::Keyword.
+	if _is_talk_enter(k):
+		var submitted := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		_layout_prompt_row()
+		_push_talk_player_input(submitted)
+		var kind := _LordBritish.reply_kind(submitted)
+		if kind == "bye":
+			_end_talk(true)
+			return true
+		if kind == "heal":
+			_push_talk_script(_LordBritish.HEAL_WELL)
+			_push_talk_script(_LordBritish.HEAL_ASK)
+			_talk_stage = 13
+			_talk_buffer = ""
+			_layout_prompt_row()
+			return true
+		_push_talk_script(_LordBritish.reply_text(submitted))
+		_push_talk_script(_LordBritish.PROMPT)
+		_layout_prompt_row()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty():
+		return false
+	if _talk_buffer.length() >= 16:
+		return true
+	_talk_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
+	## xu4 CONFIRMATION — "Art thou well?" Y / N only.
+	if _is_talk_enter(k):
+		var s := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		if s.is_empty():
+			_layout_prompt_row()
+			return true
+		_push_talk_player_input(s)
+		var c0 := s.substr(0, 1).to_lower()
+		if c0 == "y":
+			_push_talk_script(_LordBritish.HEAL_GOOD)
+			_talk_stage = 12
+			_push_talk_script(_LordBritish.PROMPT)
+			_layout_prompt_row()
+			return true
+		if c0 == "n":
+			_push_talk_script(_LordBritish.HEAL_WOUNDS)
+			_LordBritish.heal_party()
+			_refresh_party()
+			_talk_stage = 12
+			_push_talk_script(_LordBritish.PROMPT)
+			_layout_prompt_row()
+			return true
+		_push_talk_script(_LordBritish.HEAL_BAD_ANSWER)
+		_talk_stage = 12
+		_push_talk_script(_LordBritish.PROMPT)
+		_layout_prompt_row()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty():
+		return false
+	if _talk_buffer.length() >= 3:
+		return true
+	_talk_buffer += ch
+	_layout_prompt_row()
+	return true
 
 
 func _talk_input_hawkwind(k: InputEventKey) -> bool:
@@ -7579,7 +7690,11 @@ func _end_talk(_aborted: bool) -> void:
 		return
 	## Mark closed before farewell so Esc cannot re-enter or open the menu
 	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
-	var farewell := _Hawkwind.BYE if _talk_is_hawkwind else "Bye."
+	var farewell := "Bye."
+	if _talk_is_hawkwind:
+		farewell = _Hawkwind.BYE
+	elif _talk_is_lb:
+		farewell = _LordBritish.farewell()
 	_talk_stage = 0
 	_talk_buffer = ""
 	_push_message(farewell, false)
@@ -7590,6 +7705,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_turn_away = 0
 	_talk_pending_ask = false
 	_talk_is_hawkwind = false
+	_talk_is_lb = false
 	_shop = null
 	if pi >= 0 and _city_map != null:
 		_city_map.pause_follow(pi)

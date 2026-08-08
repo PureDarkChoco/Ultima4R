@@ -83,6 +83,8 @@ var lastmeditation: int = 0
 var items: int = 0
 var stones: int = 0
 var runes: int = 0
+## xu4 SaveGame.lbIntro — first throne-room audience speech delivered.
+var lb_intro: bool = false
 ## xu4 camp.h — heal only when the moves/100 bucket differs from lastcamp.
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
@@ -290,6 +292,7 @@ func reset_party() -> void:
 	items = 0
 	stones = 0
 	runes = 0
+	lb_intro = false
 	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
@@ -639,6 +642,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	items = 0
 	stones = 0
 	runes = 0
+	lb_intro = false
 	lastreagent = 0
 	has_sextant = false
 	moves = 0
@@ -1810,6 +1814,58 @@ func try_sleep_class(klass: int) -> bool:
 	return put_member_to_sleep(klass, true)
 
 
+func lord_british_heal_party() -> void:
+	## xu4 FULLHEAL under LB — HT_CURE then HT_FULLHEAL for each living member.
+	for i in party_size():
+		healer_heal_member(i, "cure")
+		healer_heal_member(i, "fullheal")
+
+
+func lord_british_check_levels() -> Array[String]:
+	## xu4 gameLordBritishCheckLevels — advance any member with spare XP.
+	var lines: Array[String] = []
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0:
+			continue
+		if level_of_class(mid) >= max_level_for_xp(xp_of_class(mid)):
+			continue
+		var nm := party_member_display_name(i).strip_edges()
+		if nm.is_empty():
+			nm = "Adventurer"
+		var new_lv := advance_level_for_class(mid)
+		if new_lv > 0:
+			lines.append("%s\nThou art now Level %d" % [nm, new_lv])
+	return lines
+
+
+func advance_level_for_class(klass: int) -> int:
+	## xu4 PartyMember::advanceLevel — jump real level to max for current XP.
+	## Returns new level, or 0 if no advance.
+	if klass < 0 or klass >= member_max_hp.size():
+		return 0
+	var real_lv := level_of_class(klass)
+	var max_lv := max_level_for_xp(xp_of_class(klass))
+	if real_lv >= max_lv:
+		return 0
+	member_status[klass] = PartyRoster.Status.OK
+	_set_poisoned(klass, false)
+	member_max_hp[klass] = max_lv * 100
+	member_hp[klass] = int(member_max_hp[klass])
+	## +1..8 each stat, cap 50 (xu4).
+	if klass < member_str.size():
+		member_str[klass] = mini(50, int(member_str[klass]) + (randi() % 8) + 1)
+	if klass < member_dex.size():
+		member_dex[klass] = mini(50, int(member_dex[klass]) + (randi() % 8) + 1)
+	if klass < member_int.size():
+		member_int[klass] = mini(50, int(member_int[klass]) + (randi() % 8) + 1)
+		## MP pool may rise with INT for caster classes.
+		var mmax := max_mp_for_stats(klass, int(member_int[klass]))
+		if klass < member_mp.size() and int(member_mp[klass]) > mmax:
+			member_mp[klass] = mmax
+	return max_lv
+
+
 func award_xp_leader(amount: int) -> void:
 	## xu4 PartyMember::awardXp on party member 0 (leader). Cap 9999.
 	if amount <= 0:
@@ -2399,6 +2455,7 @@ func to_save_dict() -> Dictionary:
 		"items": items,
 		"stones": stones,
 		"runes": runes,
+		"lb_intro": lb_intro,
 		"lastreagent": lastreagent,
 		"has_sextant": has_sextant,
 		"weapons": weapons.duplicate(),
@@ -2457,6 +2514,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	items = maxi(0, int(d.get("items", 0)))
 	stones = maxi(0, int(d.get("stones", 0)))
 	runes = maxi(0, int(d.get("runes", 0)))
+	lb_intro = bool(d.get("lb_intro", false))
 	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
 	## Legacy saves stored only `skull` count — promote into the items bitfield.
 	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
