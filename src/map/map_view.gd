@@ -204,8 +204,13 @@ var _stage: Image ## (view+1) staging buffer for sub-tile scroll
 var _tex: ImageTexture
 var _avatar_a: Image
 var _avatar_b: Image
-## Viewport LOS mask relative to `center` (view_w × view_h, 0/1).
+## Viewport LOS mask relative to `center` (0/1). Sized view+2×view+2 so scroll
+## fringe (±1 beyond visible) uses real opacity blackout (no terrain pop).
 var _los: PackedByteArray = PackedByteArray()
+var _los_w: int = 0
+var _los_h: int = 0
+## Extra LOS cells beyond view so peel-in stage columns have fog answers.
+const LOS_PAD := 1
 ## Temporary world overlays: Vector3i(x, y, tile_id) — horse/ship stubs, etc.
 var _overlays: Array[Vector3i] = []
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
@@ -2037,15 +2042,20 @@ func is_tile_visible(wx: int, wy: int) -> bool:
 	## World/city tile visibility from the party (`center`).
 	if not los_enabled:
 		return true
-	var half_x := view_w / 2
-	var half_y := view_h / 2
+	if _los.is_empty() or _los_w < 1 or _los_h < 1:
+		return true
+	var half_x := _los_w / 2
+	var half_y := _los_h / 2
 	var vx := wx - center.x + half_x
 	var vy := wy - center.y + half_y
-	if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
+	if vx < 0 or vy < 0 or vx >= _los_w or vy >= _los_h:
 		return false
-	if _los.is_empty():
-		return true
-	return _los[vy * view_w + vx] != 0
+	return _los[vy * _los_w + vx] != 0
+
+
+func _los_grid_size() -> Vector2i:
+	## Pad viewport by LOS_PAD so scroll stage (view+1) fringe has LOS coverage.
+	return Vector2i(view_w + LOS_PAD * 2, view_h + LOS_PAD * 2)
 
 
 func overlay_at(tile: Vector2i) -> int:
@@ -4553,20 +4563,24 @@ func _blit_chest_tile(target: Image, dst: Vector2i, frame: int, city_floor: bool
 
 func _refresh_los() -> void:
 	## xu4 screenFindLineOfSight — blocking from front terrain around party `center`.
+	## Grid is view+2×view+2 so one-tile scroll fringe still blackouts opacity-hidden cells.
+	var dim := _los_grid_size()
+	_los_w = dim.x
+	_los_h = dim.y
 	if not los_enabled:
-		_los = _LineOfSightScript.all_visible(view_w, view_h)
+		_los = _LineOfSightScript.all_visible(_los_w, _los_h)
 		return
-	var half_x := view_w / 2
-	var half_y := view_h / 2
+	var half_x := _los_w / 2
+	var half_y := _los_h / 2
 	var blocking := PackedByteArray()
-	blocking.resize(view_w * view_h)
-	for dy in view_h:
-		for dx in view_w:
+	blocking.resize(_los_w * _los_h)
+	for dy in _los_h:
+		for dx in _los_w:
 			var tid := _terrain_tid_at(center.x - half_x + dx, center.y - half_y + dy)
 			## Balloon aloft (`los_opacity` false): nothing blocks.
 			var opaque := los_opacity and _TileRulesCamp.is_opaque(tid)
-			blocking[dy * view_w + dx] = 1 if opaque else 0
-	_los = _LineOfSightScript.compute_dos(blocking, view_w, view_h)
+			blocking[dy * _los_w + dx] = 1 if opaque else 0
+	_los = _LineOfSightScript.compute_dos(blocking, _los_w, _los_h)
 	## Ultima4R: standing in forest (opaque underfoot) still shows the 8 neighbors.
 	if los_opacity and _TileRulesCamp.is_opaque(_terrain_tid_at(center.x, center.y)):
 		_reveal_center_moore_neighbors()
@@ -4574,17 +4588,19 @@ func _refresh_los() -> void:
 
 func _reveal_center_moore_neighbors() -> void:
 	## Force-visible Moore neighborhood around the party (DOS alone blacks it all out).
-	var half_x := view_w / 2
-	var half_y := view_h / 2
+	if _los.is_empty() or _los_w < 1 or _los_h < 1:
+		return
+	var half_x := _los_w / 2
+	var half_y := _los_h / 2
 	for dy in range(-1, 2):
 		for dx in range(-1, 2):
 			if dx == 0 and dy == 0:
 				continue
 			var vx := half_x + dx
 			var vy := half_y + dy
-			if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
+			if vx < 0 or vy < 0 or vx >= _los_w or vy >= _los_h:
 				continue
-			_los[vy * view_w + vx] = 1
+			_los[vy * _los_w + vx] = 1
 
 
 func _terrain_tid_at(wx: int, wy: int) -> int:
@@ -4597,24 +4613,30 @@ func _terrain_tid_at(wx: int, wy: int) -> int:
 
 func _apply_los_blackout_stage(base: Vector2i) -> void:
 	## Replace hidden stage cells with black (xu4 draws tile_black).
-	## While scrolling, the stage is (view+1) so the entering edge is pre-painted.
-	## Do NOT fog tiles outside the party LOS rectangle — those fringe cells would
-	## flash black for a frame before the peel reveals them as fog-of-war cells.
+	## Scroll paints a view+1 stage; LOS is view+2 so the peel-in fringe is in-range
+	## and opacity-hidden cells stay black (no “show then vanish” behind mountains).
 	if not los_enabled:
 		return
-	var half_x := view_w / 2
-	var half_y := view_h / 2
+	if _los.is_empty() or _los_w < 1 or _los_h < 1:
+		return
+	var half_view_x := view_w / 2
+	var half_view_y := view_h / 2
+	var half_los_x := _los_w / 2
+	var half_los_y := _los_h / 2
 	for dy in view_h + 1:
 		for dx in view_w + 1:
-			var mx := base.x - half_x + dx
-			var my := base.y - half_y + dy
-			## Map into the party-centered viewport (same window as _los).
-			var vx := mx - center.x + half_x
-			var vy := my - center.y + half_y
-			if vx < 0 or vy < 0 or vx >= view_w or vy >= view_h:
-				## Scroll fringe: keep terrain so peel never shows black plate.
+			var mx := base.x - half_view_x + dx
+			var my := base.y - half_view_y + dy
+			var vx := mx - center.x + half_los_x
+			var vy := my - center.y + half_los_y
+			if vx < 0 or vy < 0 or vx >= _los_w or vy >= _los_h:
+				## Beyond even padded LOS — treat as fog (safe for rare cam base).
+				_stage.fill_rect(
+					Rect2i(dx * TILE_SRC, dy * TILE_SRC, TILE_SRC, TILE_SRC),
+					_LOS_BLACK
+				)
 				continue
-			if _los.is_empty() or _los[vy * view_w + vx] != 0:
+			if _los[vy * _los_w + vx] != 0:
 				continue
 			_stage.fill_rect(
 				Rect2i(dx * TILE_SRC, dy * TILE_SRC, TILE_SRC, TILE_SRC),
