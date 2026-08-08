@@ -181,6 +181,8 @@ const MOONGATE_TRAVEL_GAP_SEC := 0.35
 ## Open-gate glow: rectangular rings scroll inward (smooth blue↔white).
 const MOONGATE_SUCK_FRAMES := 24
 const MOONGATE_SUCK_PERIOD := 0.06
+## Tile-cell wipe explore → combat over 0.6s (diagonal front from top-left).
+const COMBAT_ENTER_TRANS_SEC := 0.6
 
 ## Trial: smooth one-tile camera scroll. Set false to snap instantly again.
 ## Three-frame scroll: 1/3 → 2/3 → arrive (chunky, easy to revert).
@@ -338,6 +340,8 @@ const COMBAT_AIM_CURSOR_PATH := "res://assets/ui/combat/target_cursor.png"
 var _combat_tile_flashes: Array[Dictionary] = []
 ## Ranged weapon missile in combat-local float tile space (tile centers).
 var _combat_proj: Dictionary = {}
+## True while the enter-combat tile wipe paints the buffer.
+var _scene_trans_busy := false
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -645,6 +649,97 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_build_camp_background()
 	_scroll_frames_left = 0
 	_rebuild()
+
+
+func snapshot_frame() -> Image:
+	## Copy of the current map buffer for scene transitions.
+	if _buf == null:
+		return null
+	return _buf.duplicate()
+
+
+func await_combat_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_SEC) -> void:
+	## Reveal combat one tile at a time, anti-diagonals first: cells with equal
+	## (cx + cy) flip together as a band that grows from top-left → bottom-right.
+	if from == null or _buf == null or duration <= 0.0:
+		return
+	var to: Image = _buf.duplicate()
+	var w: int = to.get_width()
+	var h: int = to.get_height()
+	if w < 1 or h < 1:
+		return
+	if from.get_width() != w or from.get_height() != h:
+		from = from.duplicate()
+		from.resize(w, h, Image.INTERPOLATE_NEAREST)
+	_scene_trans_busy = true
+	## Hold explore until the first combat tile lands.
+	_buf.blit_rect(from, Rect2i(0, 0, w, h), Vector2i.ZERO)
+	_tex.set_image(_buf)
+	texture = _tex
+	queue_redraw()
+	var cell: int = TILE_SRC
+	var gw: int = int(ceili(float(w) / float(cell)))
+	var gh: int = int(ceili(float(h) / float(cell)))
+	## Diagonals d = 0 .. (gw + gh - 2); d=0 is top-left tile only.
+	var d_max: int = maxi(0, gw + gh - 2)
+	var last_d: int = -1
+	var t0: float = Time.get_ticks_msec() / 1000.0
+	while true:
+		var elapsed: float = Time.get_ticks_msec() / 1000.0 - t0
+		var t: float = clampf(elapsed / duration, 0.0, 1.0)
+		## t=0 → no bands; t=1 → every diagonal including d_max.
+		var d_now: int = int(floor(t * float(d_max + 1) + 1e-6)) - 1
+		if t >= 1.0:
+			d_now = d_max
+		while last_d < d_now:
+			last_d += 1
+			_blit_wipe_diagonal(to, last_d, gw, gh, cell, w, h)
+		_tex.set_image(_buf)
+		texture = _tex
+		queue_redraw()
+		if t >= 1.0:
+			break
+		await get_tree().process_frame
+	_buf.blit_rect(to, Rect2i(0, 0, w, h), Vector2i.ZERO)
+	_tex.set_image(_buf)
+	texture = _tex
+	_scene_trans_busy = false
+	queue_redraw()
+
+
+func _blit_wipe_diagonal(
+	src: Image,
+	d: int,
+	gw: int,
+	gh: int,
+	cell: int,
+	w: int,
+	h: int
+) -> void:
+	## All tiles on the anti-diagonal cx + cy == d (from top-left outward).
+	if src == null or _buf == null or d < 0 or cell < 1:
+		return
+	## cx from max(0, d-(gh-1)) to min(gw-1, d)
+	var cx0: int = maxi(0, d - (gh - 1))
+	var cx1: int = mini(gw - 1, d)
+	for cx in range(cx0, cx1 + 1):
+		var cy: int = d - cx
+		_blit_wipe_cell(src, cx, cy, cell, w, h)
+
+
+func _blit_wipe_cell(src: Image, cx: int, cy: int, cell: int, w: int, h: int) -> void:
+	## Copy one hard combat tile into `_buf` (clipped at the right/bottom edge).
+	if src == null or _buf == null or cell < 1:
+		return
+	var x: int = cx * cell
+	var y: int = cy * cell
+	if x >= w or y >= h:
+		return
+	var bw: int = mini(cell, w - x)
+	var bh: int = mini(cell, h - y)
+	if bw < 1 or bh < 1:
+		return
+	_buf.blit_rect(src, Rect2i(x, y, bw, bh), Vector2i(x, y))
 
 
 func exit_combat() -> void:
@@ -2313,6 +2408,9 @@ func _unwrap_step(from: Vector2i, to: Vector2i) -> Vector2i:
 
 
 func _process(delta: float) -> void:
+	## Freeze animation rebuilds during the enter-combat wipe.
+	if _scene_trans_busy:
+		return
 	# Party #1 may change via reorder — refresh walker sprite.
 	var lead := GameState.party_leader_class()
 	if lead != _cached_leader_class and tiles_ready:
@@ -2622,6 +2720,8 @@ func _cam_tile() -> Vector2:
 
 
 func _rebuild() -> void:
+	if _scene_trans_busy:
+		return
 	_ensure_buffers()
 	_buf.fill(Color(0.05, 0.08, 0.07, 1))
 

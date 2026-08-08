@@ -1489,8 +1489,9 @@ func _await_side_tween() -> void:
 		await _side_tween.finished
 
 
-func _open_sides_for_combat() -> void:
-	## If panels were closed, animate open before the arena appears.
+func _open_sides_for_combat(await_done: bool = true) -> void:
+	## Open left/right panels for combat. Optionally wait out the tween.
+	## Enter-combat path starts this in parallel with the map wipe (no await).
 	_combat_saved_sides_open = _sides_open
 	_order_opened_roster = false
 	var need_anim := not _sides_open
@@ -1498,7 +1499,8 @@ func _open_sides_for_combat() -> void:
 	if need_anim:
 		_refresh_party()
 		_layout_side_panels(true)
-		await _await_side_tween()
+		if await_done:
+			await _await_side_tween()
 	else:
 		_layout_side_panels(false)
 
@@ -7659,7 +7661,7 @@ func _begin_combat(
 			_sync_creatures_to_map()
 		_push_message(Locale.t("cmd_nothing_to_attack"), false)
 		return
-	## Lock input; open side panels first when they were closed, then swap the map.
+	## Lock input; open panels while the map wipes explore → combat (0.6s tile diagonals).
 	_combat_active = true
 	_combat_resolving = true
 	_combat_victory_aftermath = false
@@ -7668,7 +7670,8 @@ func _begin_combat(
 	## Camp ambush: no sleep→wake rolls until the first creature phase ends.
 	## Normal engage: party may need the 1/8 roll before any creature acts.
 	_combat_allow_sleep_wake = not foes_first
-	await _open_sides_for_combat()
+	## Start side open tween without waiting — runs alongside the wipe.
+	_open_sides_for_combat(false)
 	## Place living party on .CON player_start slots.
 	var party_units: Array = []
 	for i in GameState.party_size():
@@ -7710,10 +7713,13 @@ func _begin_combat(
 			"priority": 0,
 		})
 	if _map != null:
+		var from_img: Image = _map.snapshot_frame()
 		_map.enter_combat(cmap, party_units, foe_units)
 		_map.suppress_combat_chests = _combat_suppress_chests
 		## First living party member has the turn (xu4 beginCombat focus).
 		_map.set_combat_focus(0 if not party_units.is_empty() else -1)
+		await _map.await_combat_enter_wipe(from_img, MapView.COMBAT_ENTER_TRANS_SEC)
+	await _await_side_tween()
 	## Camp ambush already printed "Ambushed!" — skip "Attacked by…".
 	## Inn rogue stroll line also skips it (xu4 showMessage false).
 	if (
