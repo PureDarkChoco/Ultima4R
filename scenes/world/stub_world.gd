@@ -304,7 +304,7 @@ var _talk_pending_ask := false
 var _talk_is_hawkwind := false
 var _talk_is_lb := false
 var _shop = null ## _VendorShop session
-## Talk expands only the message strip (not left/right inventory).
+## Talk expands message strip + character roster (not left inventory unless Tab already open).
 var _talk_msg_open := false
 var _talk_msg_tween: Tween
 var _sides_open := false
@@ -1434,7 +1434,7 @@ func _layout_side_panels(animate: bool) -> void:
 		_right_top.custom_minimum_size = Vector2(rw, top_h)
 		_right_top.position = Vector2(right_open_x if roster_open else right_closed_x, 0.0)
 		_right_top.visible = roster_open
-		## Talk can grow only the message strip without opening inventory panels.
+		## Talk grows the message strip; character roster uses order-peek if sides closed.
 		_msg_h = bot_open_h if (_sides_open or _talk_msg_open) else bot_closed_h
 		_apply_msg_geometry()
 		_refresh_message_view()
@@ -5770,6 +5770,10 @@ func _exit_city() -> void:
 		if _talk_msg_tween != null and is_instance_valid(_talk_msg_tween):
 			_talk_msg_tween.kill()
 			_talk_msg_tween = null
+		## Drop talk-only character peek before leaving city.
+		if not _sides_open and _order_opened_roster:
+			_order_opened_roster = false
+			_layout_side_panels(false)
 	_stash_emptied_city_chests()
 	## Leaving the place forgets anger (xu4 City::addPerson next visit).
 	_city_guards_alerted = false
@@ -7140,7 +7144,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_pending_ask = false
 	_talk_keywords = entry.highlight_keywords()
 	_city_map.pause_follow(person_i)
-	## Grow message log to full open height (Tab inventory stays closed).
+	## Message + character panels (left inventory stays closed unless already Tab-open).
 	_open_talk_message_panel()
 	## "You meet %s"
 	_push_talk_script("You meet %s" % str(entry.look))
@@ -7152,8 +7156,10 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 
 
 func _open_talk_message_panel() -> void:
-	## Expand only right-bottom message strip — same target height as Tab-open.
-	## If inventory sides are already open, msg is already tall.
+	## Message strip + character roster (same as New Order peek). Left inventory stays closed
+	## unless Tab sides are already open (then both sides already cover talk UI).
+	if not _sides_open:
+		_open_order_roster()
 	if _sides_open:
 		_talk_msg_open = false
 		## Still refresh geometry so wrap width uses the full open strip.
@@ -7193,7 +7199,9 @@ func _open_talk_message_panel() -> void:
 
 
 func _close_talk_message_panel() -> void:
-	## Collapse message strip after Bye, unless Tab sides leave it open.
+	## Collapse talk UI: character peek + message strip (Tab-open sides leave both open).
+	if _order_opened_roster and not _sides_open:
+		_close_order_roster()
 	if not _talk_msg_open:
 		return
 	_talk_msg_open = false
