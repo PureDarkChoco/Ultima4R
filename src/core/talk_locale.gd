@@ -278,12 +278,13 @@ static func _translate_line(en: String) -> String:
 	if n.begins_with(MEET):
 		var look := n.substr(MEET.length())
 		var look_ko := str(_lines.get(_norm(look), look))
-		return "당신은 %s" % look_ko
+		## look packs are descriptive predicates ("…다."); "You meet" needs an object clause.
+		return _you_encounter_ko(look_ko, true)
 	const SEE := "You see "
 	if n.begins_with(SEE):
 		var look2 := n.substr(SEE.length())
 		var look2_ko := str(_lines.get(_norm(look2), look2))
-		return "당신은 %s" % look2_ko
+		return _you_encounter_ko(look2_ko, false)
 	var says_i := n.find(" says: I am ")
 	if says_i > 0:
 		var pronoun := n.substr(0, says_i)
@@ -319,3 +320,37 @@ static func _translate_line(en: String) -> String:
 		)
 		return "나와 함께하기엔 %s이(가) 부족하구나." % mid
 	return en
+
+
+static func _you_encounter_ko(look_ko: String, meet: bool) -> String:
+	## "You meet/see {look}." → not "당신은 {look이다}" (that reads as "you ARE …").
+	var noun := _look_ko_to_noun(look_ko)
+	if noun.is_empty():
+		return look_ko
+	var particle := _object_particle(noun)
+	if meet:
+		return "당신은 %s%s 만났다." % [noun, particle]
+	return "당신은 %s%s 보았다." % [noun, particle]
+
+
+static func _look_ko_to_noun(look_ko: String) -> String:
+	## Strip sentence punctuation and predicate endings that packs use for LOOK.
+	var s := look_ko.strip_edges()
+	while not s.is_empty() and s.unicode_at(s.length() - 1) in [ord("."), ord("!"), ord("?")]:
+		s = s.substr(0, s.length() - 1).strip_edges()
+	if s.ends_with("이다"):
+		return s.substr(0, s.length() - 2).strip_edges()
+	if s.ends_with("다") and s.length() >= 2:
+		## "…마법사다" / "…남자다" / "…소녀다" — keep base noun phrase.
+		return s.substr(0, s.length() - 1).strip_edges()
+	return s
+
+
+static func _object_particle(word: String) -> String:
+	if word.is_empty():
+		return "를"
+	var last := word.unicode_at(word.length() - 1)
+	## Hangul syllable with batchim → 을, else 를.
+	if last >= 0xAC00 and last <= 0xD7A3 and ((last - 0xAC00) % 28) != 0:
+		return "을"
+	return "를"
