@@ -568,8 +568,8 @@ static func _is_hangul_code(u: int) -> bool:
 
 
 static func colorize_shop_dialogue(text: String) -> String:
-	## Vendor lines: tint Buy/Sell verbs and A-/B-/… list indexes on catalogs.
-	## Existing BBCode tags (e.g. red restricted keys) pass through unchanged.
+	## Vendor lines: tint Buy/Sell verbs, (B)/(S)/Y/N shortcut keys,
+	## and A-/B-/… catalog indexes. Existing BBCode passes through.
 	if text.is_empty():
 		return text
 	var keys: Array[String] = SHOP_ACTION_KEYS.duplicate()
@@ -587,6 +587,23 @@ static func colorize_shop_dialogue(text: String) -> String:
 				continue
 			out += "[lb]"
 			i += 1
+			continue
+		## Shortcut groups: (B), (Y/N), (B/S), (1/2/3)…
+		if text[i] == "(":
+			var close_p := text.find(")", i + 1)
+			if close_p > i + 1:
+				var inner := text.substr(i + 1, close_p - i - 1)
+				if _shop_key_group_ok(inner):
+					out += "("
+					out += _colorize_shop_key_group(inner)
+					out += ")"
+					i = close_p + 1
+					continue
+		## Bare key groups: B/S · Y/N · F/A (not mid-word).
+		var group_end := _shop_bare_key_group_end(text, i)
+		if group_end > i:
+			out += _colorize_shop_key_group(text.substr(i, group_end - i))
+			i = group_end
 			continue
 		var hit := ""
 		var hit_len := 0
@@ -625,6 +642,69 @@ static func colorize_shop_dialogue(text: String) -> String:
 		out += text[i]
 		i += 1
 	return out
+
+
+static func _shop_key_alnum(u: int) -> bool:
+	return (
+		(u >= 65 and u <= 90)
+		or (u >= 97 and u <= 122)
+		or (u >= 48 and u <= 57)
+	)
+
+
+static func _shop_key_group_ok(inner: String) -> bool:
+	## True for B · Y/N · B/S · 1, 2 or 3-style short key lists (no spaces ok).
+	if inner.is_empty() or inner.length() > 16:
+		return false
+	var has_key := false
+	for j in inner.length():
+		var u := inner.unicode_at(j)
+		if _shop_key_alnum(u):
+			has_key = true
+			continue
+		if inner[j] == "/" or inner[j] == "," or inner[j] == " ":
+			continue
+		return false
+	return has_key
+
+
+static func _colorize_shop_key_group(inner: String) -> String:
+	## Tint each letter/digit; leave / , space plain.
+	var out := ""
+	for j in inner.length():
+		var ch := inner[j]
+		var u := inner.unicode_at(j)
+		if _shop_key_alnum(u):
+			out += SHOP_INDEX_BBCODE + ch + SHOP_INDEX_BBCODE_END
+		else:
+			out += ch
+	return out
+
+
+static func _shop_bare_key_group_end(text: String, i: int) -> int:
+	## Match B/S or Y/N at i when not mid-word. Length ≥3 (X/Y).
+	if i + 2 >= text.length():
+		return i
+	if not _shop_key_alnum(text.unicode_at(i)):
+		return i
+	if i > 0 and _is_word_char(text.unicode_at(i - 1)):
+		return i
+	var j := i + 1
+	var keys_seen := 1
+	while j < text.length():
+		if text[j] == "/":
+			if j + 1 >= text.length() or not _shop_key_alnum(text.unicode_at(j + 1)):
+				break
+			j += 2
+			keys_seen += 1
+			continue
+		break
+	if keys_seen < 2:
+		return i
+	## Boundary after group.
+	if j < text.length() and _is_word_char(text.unicode_at(j)):
+		return i
+	return j
 
 
 static func mark_weapon_icon(weapon_id: int) -> String:

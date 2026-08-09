@@ -7862,6 +7862,7 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 		_flush_shop_output()
 		return true
 	if mode == _VendorShop.Mode.NUMBER:
+		## Qty / price / tip: digits only. Letters swallowed. Esc cancels above.
 		if _is_talk_enter(k):
 			var s := _talk_buffer.strip_edges()
 			_talk_buffer = ""
@@ -7878,8 +7879,8 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 				_talk_buffer_backspace()
 				_layout_prompt_row()
 			return true
-		var dig := _key_latin_command_char(k)
-		if dig.is_empty() or not dig.is_valid_int():
+		var dig := _key_digit_char(k)
+		if dig.is_empty():
 			return true
 		if _talk_buffer.length() >= int(_shop.max_digits):
 			return true
@@ -8015,6 +8016,7 @@ func _talk_input_yn(k: InputEventKey) -> bool:
 
 
 func _talk_input_give(k: InputEventKey) -> bool:
+	## Gold amount for Give — digits only; Esc ends talk above.
 	if _is_talk_enter(k):
 		var s := _talk_buffer.strip_edges()
 		_talk_buffer = ""
@@ -8029,9 +8031,9 @@ func _talk_input_give(k: InputEventKey) -> bool:
 			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
-	var ch := _key_printable_char(k)
-	if ch.is_empty() or not ch.is_valid_int():
-		return false
+	var ch := _key_digit_char(k)
+	if ch.is_empty():
+		return true
 	if _talk_buffer.length() >= 2:
 		return true
 	_talk_append_char(ch)
@@ -8062,8 +8064,25 @@ func _talk_buffer_backspace() -> void:
 		_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
 
 
+func _key_digit_char(k: InputEventKey) -> String:
+	## Qty / gold / tip / price typing: only 0–9 from physical / keypad keys.
+	## Letters, Hangul jamo, and other unicode are ignored.
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return ""
+	var phys := k.physical_keycode if k.physical_keycode != KEY_NONE else k.keycode
+	if phys >= KEY_0 and phys <= KEY_9:
+		return String.chr(48 + (phys - KEY_0))
+	if phys >= KEY_KP_0 and phys <= KEY_KP_9:
+		return String.chr(48 + (phys - KEY_KP_0))
+	## Fallback when only unicode is filled (rare layouts).
+	var u := k.unicode
+	if u >= 48 and u <= 57:
+		return String.chr(u)
+	return ""
+
+
 func _key_latin_command_char(k: InputEventKey) -> String:
-	## Single-letter / digit commands (shop Buy/Sell, qty digits, etc.).
+	## Single-letter / digit commands (shop Buy/Sell, etc.).
 	## Always physical US key → ASCII so Hangul [한] / OS Sebeolsik jamo
 	## never replace menu letters (B must stay "b", not ㅠ).
 	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
