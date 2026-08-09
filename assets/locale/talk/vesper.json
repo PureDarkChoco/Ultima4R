@@ -1,0 +1,607 @@
+{
+  "_meta": {
+    "city": "vesper",
+    "note": "Korean overlays for VESPER.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Twin Gates",
+      "pronoun": "He",
+      "look": "a tall mage.",
+      "job": "We welcome thee\nto Vesper.",
+      "health": "Well.",
+      "response1": "Yes, Vesper is a\nfair village.",
+      "response2": "Welcome,\nunto Vesper!",
+      "question": "Hast thou come\na long way?",
+      "yes": "We are honored\nby the visit of\none on the\nquest!",
+      "no": "We are honored\nby the visit of\none on the\nquest!",
+      "topic1": "VESP",
+      "topic2": "WELC",
+      "ko": {
+        "name": "트윈 게이츠",
+        "pronoun": "그",
+        "look": "키 큰 마법사다.",
+        "job": "베스퍼에 오신\n것을 환영하오.",
+        "health": "좋습니다.",
+        "response1": "예, 베스퍼는\n고운 마을이오.",
+        "response2": "베스퍼에\n오신 것을\n환영하오!",
+        "question": "멀리서 오셨소?",
+        "yes": "퀘스트 중인 분의\n방문에 영광이오!",
+        "no": "퀘스트 중인 분의\n방문에 영광이오!",
+        "topic1": "베스퍼",
+        "topic1_aliases": [
+          "베스퍼",
+          "vesper",
+          "vesp"
+        ],
+        "topic2": "환영",
+        "topic2_aliases": [
+          "환영",
+          "welcome",
+          "welc"
+        ]
+      }
+    },
+    {
+      "name": "Guard",
+      "pronoun": "It",
+      "look": "a hulk.",
+      "job": "Ug, me tough!",
+      "health": "Ug, me tough!",
+      "response1": "Ug, me tough!",
+      "response2": "Me tough!",
+      "question": "Ug, thee tough?",
+      "yes": "Ug, thee tough!",
+      "no": "Ug, me tough!",
+      "topic1": "TOUG",
+      "topic2": "UG",
+      "ko": {
+        "name": "경비",
+        "pronoun": "그것",
+        "look": "덩치 큰 사내다.",
+        "job": "윽, 나 세다!",
+        "health": "윽, 나 세다!",
+        "response1": "윽, 나 세다!",
+        "response2": "나 세다!",
+        "question": "윽, 너 세냐?",
+        "yes": "윽, 너 세다!",
+        "no": "윽, 나 세다!",
+        "topic1": "강함",
+        "topic1_aliases": [
+          "강함",
+          "터프",
+          "tough",
+          "toug"
+        ],
+        "topic2": "윽",
+        "topic2_aliases": [
+          "윽",
+          "ug"
+        ]
+      }
+    },
+    {
+      "name": "Servile",
+      "pronoun": "He",
+      "look": "a meek shepherd.",
+      "job": "I can help thee!",
+      "health": "Well for now.",
+      "response1": "I know of the\nskull of Mondain\nthe Wizard!",
+      "response2": "To use it for\nany reason is a\nsign of great\nevil, and no\nvirtue!",
+      "question": "Hast thou\nheard of it?",
+      "yes": "It is an\nevil artifact!",
+      "no": "It is an\nevil artifact!",
+      "topic1": "HELP",
+      "topic2": "SKUL",
+      "ko": {
+        "name": "서바일",
+        "pronoun": "그",
+        "look": "온순한 양치기다.",
+        "job": "그대를 도울 수\n있소!",
+        "health": "지금은 괜찮소.",
+        "response1": "마법사 몬데인의\n해골을 아오!",
+        "response2": "어떤 이유로든 쓰면\n큰 악이며 미덕이\n아니오!",
+        "question": "들어 본 적\n있소?",
+        "yes": "사악한\n유물이오!",
+        "no": "사악한\n유물이오!",
+        "topic1": "도움",
+        "topic1_aliases": [
+          "도움",
+          "help"
+        ],
+        "topic2": "해골",
+        "topic2_aliases": [
+          "해골",
+          "skull",
+          "skul"
+        ]
+      }
+    },
+    {
+      "name": "Traveling Dan",
+      "pronoun": "He",
+      "look": "a short rotund man with a hat and vest.",
+      "job": "Traveling dan,\nthe tinker man.",
+      "health": "I am fine,\nthank thee.",
+      "response1": "I am here to\nrepair goods at\nthe guild shop.",
+      "response2": "I know the world\nis round!",
+      "question": "Been to the\nguild shop?",
+      "yes": "Great selection!",
+      "no": "Best prices!",
+      "topic1": "TINK",
+      "topic2": "TRAV",
+      "ko": {
+        "name": "여행하는 댄",
+        "pronoun": "그",
+        "look": "모자와 조끼를 입은 키 작고 통통한 남자다.",
+        "job": "여행하는 댄,\n수리공이오.",
+        "health": "고맙소,\n괜찮소.",
+        "response1": "길드 상점에서\n물건을 고치러\n왔소.",
+        "response2": "세상이 둥글다는 걸\n아오!",
+        "question": "길드 상점에\n가 봤소?",
+        "yes": "구색이\n훌륭하오!",
+        "no": "가격도\n최고요!",
+        "topic1": "수리공",
+        "topic1_aliases": [
+          "수리공",
+          "팅커",
+          "tinker",
+          "tink"
+        ],
+        "topic2": "여행",
+        "topic2_aliases": [
+          "여행",
+          "travel",
+          "trav"
+        ]
+      }
+    },
+    {
+      "name": "Balthasar",
+      "pronoun": "He",
+      "look": "a sturdy peasant.",
+      "job": "I am a serf.",
+      "health": "I'm pooped.",
+      "response1": "Serfs work hard\nfor little pay!",
+      "response2": "I work the\nfields for my\nmaster!",
+      "question": "Dost thou have\na master?",
+      "yes": "I hope he or she\nis a kind one!",
+      "no": "Thou art lucky\nindeed!",
+      "topic1": "SERF",
+      "topic2": "WORK",
+      "ko": {
+        "name": "발타사르",
+        "pronoun": "그",
+        "look": "다부진 농부다.",
+        "job": "나는 농노요.",
+        "health": "기진맥진.",
+        "response1": "주인을 위해\n밭을 갑니다!",
+        "response2": "주인을 위해\n밭을 갑니다!",
+        "question": "주인이\n있소?",
+        "yes": "친절한 이라면\n좋겠소!",
+        "no": "참으로 운이\n좋소!",
+        "topic1": "농노",
+        "topic1_aliases": [
+          "농노",
+          "serf"
+        ],
+        "topic2": "일",
+        "topic2_aliases": [
+          "일",
+          "노동",
+          "work"
+        ]
+      }
+    },
+    {
+      "name": "Plain",
+      "pronoun": "He",
+      "look": "a small man.",
+      "job": "I seek humility.",
+      "health": "I am\nfully healed.",
+      "response1": "When the 3\nprinciples of\nvirtue combine\nin eight ways\npride has no\nvirtue!",
+      "response2": "To be proud is\nnot a virtue,\nand so Magincia\nwas destroyed!\nHumility is the\nvirtue that\nremains!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "HUMI",
+      "topic2": "PRID",
+      "ko": {
+        "name": "플레인",
+        "pronoun": "그",
+        "look": "작은 남자다.",
+        "job": "겸손을\n구하오.",
+        "health": "완전히\n회복했소.",
+        "response1": "미덕 세 원리가\n여덟 길로 합치면\n자만엔 미덕이\n없소!",
+        "response2": "자만은 미덕이 아니어\n마진시아가 멸망!\n남은 것은 겸손이오!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "겸손",
+        "topic1_aliases": [
+          "겸손",
+          "humility",
+          "humi"
+        ],
+        "topic2": "자만",
+        "topic2_aliases": [
+          "자만",
+          "교만",
+          "pride",
+          "prid"
+        ]
+      }
+    },
+    {
+      "name": "Simple",
+      "pronoun": "She",
+      "look": "a slender shepherdess.",
+      "job": "I seek the\nshrine.",
+      "health": "I am fine.",
+      "response1": "The shrine\nof humility!",
+      "response2": "The shrine lies\non the north\nbank of the isle\nof the abyss and\nis guarded by\nendless hoards\nof daemons!",
+      "question": "Know the isle?",
+      "yes": "Good.",
+      "no": "Southeast of\nBritannia!",
+      "topic1": "SHRI",
+      "topic2": "HUMI",
+      "ko": {
+        "name": "심플",
+        "pronoun": "그녀",
+        "look": "날씬한 양치기다.",
+        "job": "신전을\n찾소.",
+        "health": "괜찮소.",
+        "response1": "겸손의\n신전이오!",
+        "response2": "심연 섬 북쪽 강가에\n있고 끝없는 악마\n무리가 지키오!",
+        "question": "그 섬을\n아오?",
+        "yes": "좋소.",
+        "no": "브리타니아\n남동쪽이오!",
+        "topic1": "신전",
+        "topic1_aliases": [
+          "신전",
+          "shrine",
+          "shri"
+        ],
+        "topic2": "겸손",
+        "topic2_aliases": [
+          "겸손",
+          "humility",
+          "humi"
+        ]
+      }
+    },
+    {
+      "name": "Gem",
+      "pronoun": "She",
+      "look": "a fair woman.",
+      "job": "I do humble\nworks.",
+      "health": "I am doing well.",
+      "response1": "I can help thee\nwith the mantra!",
+      "response2": "Since humility\nis the opposite\nof pride, so is\nits mantra!",
+      "question": "Know ye the\nmantra of pride?",
+      "yes": "Then reverse it\nfor humility!",
+      "no": "When thou dost,\nreverse it!",
+      "topic1": "WORK",
+      "topic2": "MANT",
+      "ko": {
+        "name": "젬",
+        "pronoun": "그녀",
+        "look": "고운 여인이다.",
+        "job": "겸손한 일을\n하오.",
+        "health": "잘 지냅니다.",
+        "response1": "만트라를 도와드릴\n수 있소!",
+        "response2": "겸손은 자만의\n반대이니 만트라도\n그렇다오!",
+        "question": "자만 만트라를\n아오?",
+        "yes": "그럼 거꾸로 하면\n겸손!",
+        "no": "알게 되면\n거꾸로!",
+        "topic1": "일",
+        "topic1_aliases": [
+          "일",
+          "work"
+        ],
+        "topic2": "만트라",
+        "topic2_aliases": [
+          "만트라",
+          "mantra",
+          "mant"
+        ]
+      }
+    },
+    {
+      "name": "Joseph",
+      "pronoun": "He",
+      "look": "a wise shepherd.",
+      "job": "I am but a\nhumble shepherd.",
+      "health": "I am well.",
+      "response1": "I am on a\npilgrimage unto\nthe shrine of\nhumility!",
+      "response2": "It is on the\ndark island!",
+      "question": "Did thou know\nthat there is no\nshrine of pride?",
+      "yes": "Very good.",
+      "no": "Pride is not a\nvirtue of the\navatar!",
+      "topic1": "SHEP",
+      "topic2": "SHRI",
+      "ko": {
+        "name": "조셉",
+        "pronoun": "그",
+        "look": "현명한 양치기다.",
+        "job": "나는 겸손한\n양치기일 뿐.",
+        "health": "건강하오.",
+        "response1": "겸손 신전으로\n순례 중이오!",
+        "response2": "어두운 섬에\n있소!",
+        "question": "자만 신전은 없다\n알고 있소?",
+        "yes": "아주 좋소.",
+        "no": "자만은 아바타의\n미덕이 아니오!",
+        "topic1": "양치기",
+        "topic1_aliases": [
+          "양치기",
+          "shepherd",
+          "shep"
+        ],
+        "topic2": "신전",
+        "topic2_aliases": [
+          "신전",
+          "shrine",
+          "shri"
+        ]
+      }
+    },
+    {
+      "name": "Friday",
+      "pronoun": "She",
+      "look": "a beautiful and impressive guard.",
+      "job": "I shall warn\nthee against\ntaking this\ngold!",
+      "health": "I am well\nenough!",
+      "response1": "It is not thine!",
+      "response2": "It is not thine!",
+      "question": "Dost thou intend\nto take it?",
+      "yes": "That would not\nreflect well\nupon thy\nvirtues!",
+      "no": "That is good.",
+      "topic1": "GOLD",
+      "topic2": "WARN",
+      "ko": {
+        "name": "프라이데이",
+        "pronoun": "그녀",
+        "look": "아름답고 인상적인 경비병이다.",
+        "job": "이 금을 가져가지\n말라고 경고하오!",
+        "health": "그럭저럭\n좋소!",
+        "response1": "네 것이\n아니오!",
+        "response2": "네 것이\n아니오!",
+        "question": "가져갈\n셈이오?",
+        "yes": "미덕에 좋지\n않을 것이오!",
+        "no": "좋소.",
+        "topic1": "금",
+        "topic1_aliases": [
+          "금",
+          "골드",
+          "gold"
+        ],
+        "topic2": "경고",
+        "topic2_aliases": [
+          "경고",
+          "warn"
+        ]
+      }
+    },
+    {
+      "name": "Randal",
+      "pronoun": "He",
+      "look": "a solemn ranger.",
+      "job": "I teach of\nthe shrines.",
+      "health": "I am well.",
+      "response1": "One >must< visit\neach shrine for\n1, 2 & 3 cycles\neach for thy\npaths to be\nclear!",
+      "response2": "A",
+      "question": "Dost thou visit\nthem often?",
+      "yes": "Very good.",
+      "no": "Make that the\nfirst goal along\nthy path to\navatarhood!",
+      "topic1": "SHRI",
+      "topic2": "",
+      "ko": {
+        "name": "랜달",
+        "pronoun": "그",
+        "look": "엄숙한 레인저다.",
+        "job": "신전에 대해\n가르치오.",
+        "health": "건강하오.",
+        "response1": "각 신전을 1·2·3\n주기씩 찾아 길을\n밝히라!",
+        "response2": "A",
+        "question": "자주 찾소?",
+        "yes": "아주 좋소.",
+        "no": "아바타의 길에서\n그걸 첫 목표로!",
+        "topic1": "신전",
+        "topic1_aliases": [
+          "신전",
+          "shrine",
+          "shri"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Dirgen",
+      "pronoun": "He",
+      "look": "a wise man.",
+      "job": "I give wise\ncounsel.",
+      "health": "Well.",
+      "response1": "Strive ye to\nknow and\ndevelop the\nvirtue within\nthee.",
+      "response2": "The Seer\nHawkwind should\nbe consulted\n>often< for he\ncan see within\nthee!",
+      "question": "Dost thou?",
+      "yes": "Good!",
+      "no": "Thou shalt\nsurely stray\nfrom the path!",
+      "topic1": "COUN",
+      "topic2": "VIRT",
+      "ko": {
+        "name": "더건",
+        "pronoun": "그",
+        "look": "현명한 남자다.",
+        "job": "현명한 조언을\n주오.",
+        "health": "좋습니다.",
+        "response1": "그대 안의 미덕을\n알고 키우시오.",
+        "response2": "예언자 호크윈드를\n자주 찾으시오. 속을\n볼 수 있소!",
+        "question": "하오?",
+        "yes": "좋소!",
+        "no": "반드시 길을\n잃으리!",
+        "topic1": "조언",
+        "topic1_aliases": [
+          "조언",
+          "counsel",
+          "coun"
+        ],
+        "topic2": "미덕",
+        "topic2_aliases": [
+          "미덕",
+          "virtue",
+          "virt"
+        ]
+      }
+    },
+    {
+      "name": "Shazbot",
+      "pronoun": "She",
+      "look": "a funny jester.",
+      "job": "Thou thinks\nI'm funny!",
+      "health": "I've a\nslight tickle!",
+      "response1": "I dare thee to\nask me about\nNate the snake!",
+      "response2": "Well, it's a\nlong story and\nwe haven't the\ntime.",
+      "question": "Don't thou?",
+      "yes": "Well good, I\ntry to be!",
+      "no": "Ah, too bad, I\nthought I was.",
+      "topic1": "FUNN",
+      "topic2": "NATE",
+      "ko": {
+        "name": "샤즈봇",
+        "pronoun": "그녀",
+        "look": "우스운 광대다.",
+        "job": "네가 나를\n웃기게 본다고!",
+        "health": "간질간질.",
+        "response1": "뱀 네이트에 대해\n물어볼 용기가\n있소!",
+        "response2": "긴 이야긴데\n시간이 없소.",
+        "question": "그렇지\n않소?",
+        "yes": "좋소. 노력하오!",
+        "no": "아쉽소. 내가\n그런 줄 알았소.",
+        "topic1": "재미",
+        "topic1_aliases": [
+          "재미",
+          "우스움",
+          "funny",
+          "funn"
+        ],
+        "topic2": "네이트",
+        "topic2_aliases": [
+          "네이트",
+          "nate"
+        ]
+      }
+    },
+    {
+      "name": "Flatbush",
+      "pronoun": "He",
+      "look": "a slender youth.",
+      "job": "I am an\napprentice mage!",
+      "health": "I am very\npowerful!",
+      "response1": "I am the\nCalumny's\nfavorite!",
+      "response2": "He lives in Yew!",
+      "question": "Hast thou\nbeen to Yew?",
+      "yes": "Calumny knows\nthe quickness\nspell!",
+      "no": "Calumny knows\nthe quickness\nspell! Seek\nhim out!",
+      "topic1": "MAGE",
+      "topic2": "CALU",
+      "ko": {
+        "name": "플랫부시",
+        "pronoun": "그",
+        "look": "날씬한 청년이다.",
+        "job": "수습 마법사요!",
+        "health": "매우\n강력하오!",
+        "response1": "칼럼니의\n총아요!",
+        "response2": "유에 사시오!",
+        "question": "유에 가 본\n적 있소?",
+        "yes": "칼럼니가 신속\n주문을 아오!",
+        "no": "칼럼니가 신속 주문을\n아오! 찾으시오!",
+        "topic1": "마법사",
+        "topic1_aliases": [
+          "마법사",
+          "mage"
+        ],
+        "topic2": "칼럼니",
+        "topic2_aliases": [
+          "칼럼니",
+          "calumny",
+          "calu"
+        ]
+      }
+    },
+    {
+      "name": "Corkrin",
+      "pronoun": "He",
+      "look": "a bold paladin.",
+      "job": "I travel these\nfair lands to\nspread the\nvirtues!",
+      "health": "I am fully\nhealed!",
+      "response1": "To know thy\nprogress on the\npaths of virtue\none >must< visit\nthe Seer\nHawkwind often!",
+      "response2": "A",
+      "question": "Dost thou\ndo this?",
+      "yes": "Good.",
+      "no": "Thou must or\nthou may stray!",
+      "topic1": "VIRT",
+      "topic2": "",
+      "ko": {
+        "name": "코르크린",
+        "pronoun": "그",
+        "look": "대담한 성기사다.",
+        "job": "미덕을 전하려\n이 아름다운 땅을\n여행하오!",
+        "health": "완전히\n회복했소!",
+        "response1": "미덕의 길을 알려면\n호크윈드 예언자를\n자주 찾으라!",
+        "response2": "A",
+        "question": "하오?",
+        "yes": "좋소.",
+        "no": "그렇지 않으면\n길을 잃을지!",
+        "topic1": "미덕",
+        "topic1_aliases": [
+          "미덕",
+          "virtue",
+          "virt"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Dyka",
+      "pronoun": "He",
+      "look": "a tall nimble man.",
+      "job": "I am a thief, I\nlike to borrow!",
+      "health": "I am very well!",
+      "response1": "My favorite\nthings to borrow\nare horses!",
+      "response2": "You can steal\nhorses in the\ntowne Paws!",
+      "question": "Art thou\na thief?",
+      "yes": "Watch out for\nthe bull in the\ncorral!",
+      "no": "Likely, thou\nart a wimp!",
+      "topic1": "BORR",
+      "topic2": "HORS",
+      "ko": {
+        "name": "디카",
+        "pronoun": "그",
+        "look": "키 크고 날랜 남자다.",
+        "job": "나는 도둑,\n빌리기를 좋아하오!",
+        "health": "매우 좋습니다!",
+        "response1": "제일 좋아하는\n빌림은 말!",
+        "response2": "포우에서 말을\n훔칠 수 있소!",
+        "question": "도둑이오?",
+        "yes": "우리 안 황소를\n조심하시오!",
+        "no": "아마 겁쟁이\n같은 자!",
+        "topic1": "빌림",
+        "topic1_aliases": [
+          "빌림",
+          "훔침",
+          "borrow",
+          "borr"
+        ],
+        "topic2": "말",
+        "topic2_aliases": [
+          "말",
+          "말들",
+          "horse",
+          "hors"
+        ]
+      }
+    }
+  ]
+}

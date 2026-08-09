@@ -1,0 +1,614 @@
+{
+  "_meta": {
+    "city": "cove",
+    "note": "Korean overlays for COVE.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Allen",
+      "pronoun": "He",
+      "look": "a small boy.",
+      "job": "I know how to\nenter the abyss!",
+      "health": "I am fine.",
+      "response1": "The abyss\nmay only\nbe approached\nby ship!",
+      "response2": "The ship must\nhave a magically\nstrengthened\nhull!",
+      "question": "Hast thou such\na vessel?",
+      "yes": "Ask Blissful of\nthe abyss.",
+      "no": "Ask Blissful of\nthe abyss.",
+      "topic1": "ABYS",
+      "topic2": "SHIP",
+      "ko": {
+        "name": "알렌",
+        "pronoun": "그",
+        "look": "작은 소년이다.",
+        "job": "심연 들어가는\n법을 아오!",
+        "health": "괜찮아요.",
+        "response1": "심연은 배로만\n접근할 수 있어요!",
+        "response2": "배는 마법으로\n보강한 선체가\n있어야 해요!",
+        "question": "그런 배가\n있소?",
+        "yes": "심연은 블리스풀에게\n물어보시오.",
+        "no": "심연은 블리스풀에게\n물어보시오.",
+        "topic1": "심연",
+        "topic1_aliases": [
+          "심연",
+          "abyss",
+          "abys"
+        ],
+        "topic2": "배",
+        "topic2_aliases": [
+          "배",
+          "ship"
+        ]
+      }
+    },
+    {
+      "name": "Frontis",
+      "pronoun": "He",
+      "look": "a small druid.",
+      "job": "Welcome to Cove,\nthe hidden city\nof wisdom.",
+      "health": "I am well.",
+      "response1": "Herein is found\nmuch wisdom and\npeace.",
+      "response2": "Find peace in\nour shrine.",
+      "question": "Art thou well?",
+      "yes": "Very good.",
+      "no": "Visit our\nhealers, I am\nsure they can\nhelp thee!",
+      "topic1": "WISD",
+      "topic2": "PEAC",
+      "ko": {
+        "name": "프론티스",
+        "pronoun": "그",
+        "look": "작은 드루이드다.",
+        "job": "지혜의 숨은 도시\n코브에 오신 것을\n환영하오.",
+        "health": "건강하오.",
+        "response1": "여기엔 지혜와\n평화가 많소.",
+        "response2": "우리 신전에서\n평화를 찾으시오.",
+        "question": "건강하오?",
+        "yes": "아주 좋소.",
+        "no": "치유사에게 가오.\n도울 것이오!",
+        "topic1": "지혜",
+        "topic1_aliases": [
+          "지혜",
+          "wisdom",
+          "wisd"
+        ],
+        "topic2": "평화",
+        "topic2_aliases": [
+          "평화",
+          "peace",
+          "peac"
+        ]
+      }
+    },
+    {
+      "name": "Sloven",
+      "pronoun": "He",
+      "look": "an old hermit.",
+      "job": "I am a recluse.",
+      "health": "I am well.",
+      "response1": "I have withdrawn\nfrom society.",
+      "response2": "Only the ghost\nof Isaac who\nhaunts the inn\nat Skara Brae\ncan tell thee.",
+      "question": "Hast thou\nseen him?",
+      "yes": "Ask him!",
+      "no": "Stay at the inn\nuntil he shows\nhimself!",
+      "topic1": "RECL",
+      "topic2": "STON",
+      "ko": {
+        "name": "슬로벤",
+        "pronoun": "그",
+        "look": "늙은 은둔자다.",
+        "job": "나는 은둔자요.",
+        "health": "건강하오.",
+        "response1": "세상과 떨어져\n살소.",
+        "response2": "스카라 브레 여관의\n유령 아이작만이\n말할 수 있소.",
+        "question": "그를 봤소?",
+        "yes": "물어보시오!",
+        "no": "그가 나타날 때까지\n여관에 머무시오!",
+        "topic1": "은둔",
+        "topic1_aliases": [
+          "은둔",
+          "은둔자",
+          "recluse",
+          "recl"
+        ],
+        "topic2": "돌",
+        "topic2_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ]
+      }
+    },
+    {
+      "name": "Mentorian",
+      "pronoun": "He",
+      "look": "a tall wizard.",
+      "job": "I study the\nmagical arts.",
+      "health": "Well indeed.",
+      "response1": "There is truth\nin magic!",
+      "response2": "Since thou dost\nbear the ankh I\nshall tell thee.\nA gate spell\nrequires ash,\npearl, and\nmandrake root!",
+      "question": "Dost thou\ndisagree?",
+      "yes": "Well then,\nbegone!",
+      "no": "Good.",
+      "topic1": "ARTS",
+      "topic2": "GATE",
+      "ko": {
+        "name": "멘토리안",
+        "pronoun": "그",
+        "look": "키 큰 마법사다.",
+        "job": "마법 예술을\n연구하오.",
+        "health": "참으로 좋소.",
+        "response1": "마법에 진리가\n있소!",
+        "response2": "앙크를 지녔으니\n말하리. 차원문은\n재·진주·\n맨드레이크가 필요!",
+        "question": "동의하지\n않소?",
+        "yes": "그럼 가시오!",
+        "no": "좋소.",
+        "topic1": "예술",
+        "topic1_aliases": [
+          "예술",
+          "마법예술",
+          "arts"
+        ],
+        "topic2": "차원문",
+        "topic2_aliases": [
+          "차원문",
+          "문",
+          "gate"
+        ]
+      }
+    },
+    {
+      "name": "the ankh",
+      "pronoun": "It",
+      "look": "a shining ankh!",
+      "job": "I resonate\nwith thoughts.",
+      "health": "Bright.",
+      "response1": "To enter the\ncodex chamber.",
+      "response2": "One must be 8\nparts avatar,\nhave the key of\n3 parts, the\nword of passage\nand know the\npure axiom!",
+      "question": "Dost thou\nseek help?",
+      "yes": "What are thy\nthoughts?",
+      "no": "Oh.",
+      "topic1": "CODE",
+      "topic2": "CHAM",
+      "ko": {
+        "name": "앙크",
+        "pronoun": "그것",
+        "look": "빛나는 앙크다!",
+        "job": "생각과 공명하오.",
+        "health": "밝소.",
+        "response1": "코덱스 방에\n들어가려면.",
+        "response2": "아바타 여덟 부분,\n세 부분 열쇠,\n통과의 말, 순수한\n공리를 알아야 하오!",
+        "question": "도움이\n필요하오?",
+        "yes": "무슨 생각\n이오?",
+        "no": "오.",
+        "topic1": "코덱스",
+        "topic1_aliases": [
+          "코덱스",
+          "codex",
+          "code"
+        ],
+        "topic2": "방",
+        "topic2_aliases": [
+          "방",
+          "챔버",
+          "chamber",
+          "cham"
+        ]
+      }
+    },
+    {
+      "name": "Paul",
+      "pronoun": "He",
+      "look": "a strangely familiar bard.",
+      "job": "I play of love.",
+      "health": "I am well.",
+      "response1": "I light a\ncandle to our\nlove, in love\nour problems\ndisappear.",
+      "response2": "But all in all\nwe soon discover\nthat one and one\nis all we long\nto hear!",
+      "question": "Wilt thou\nlisten?",
+      "yes": "About love.",
+      "no": "Too bad.",
+      "topic1": "LOVE",
+      "topic2": "PROB",
+      "ko": {
+        "name": "폴",
+        "pronoun": "그",
+        "look": "낯익은 음유시인이다.",
+        "job": "사랑을\n연주하오.",
+        "health": "건강하오.",
+        "response1": "사랑에 촛불을 켜면\n문제들이 사라지지.",
+        "response2": "결국 하나와 하나가\n듣고 싶은 전주요!",
+        "question": "듣겠소?",
+        "yes": "사랑에 대해.",
+        "no": "아쉽소.",
+        "topic1": "사랑",
+        "topic1_aliases": [
+          "사랑",
+          "love"
+        ],
+        "topic2": "문제",
+        "topic2_aliases": [
+          "문제",
+          "problem",
+          "prob"
+        ]
+      }
+    },
+    {
+      "name": "Linda",
+      "pronoun": "She",
+      "look": "a singer.",
+      "job": "I sing of\nthe children.",
+      "health": "Fine.",
+      "response1": "All round the\nworld, little\nchildren being\nborn to the\nworld.",
+      "response2": "Got to give them\nall we can 'til\nthe quest is\nwon, then will\nthe work be\ndone!",
+      "question": "Wilt thou help?",
+      "yes": "Teach them\nsongs of joy!",
+      "no": "Hmm.",
+      "topic1": "CHIL",
+      "topic2": "WORL",
+      "ko": {
+        "name": "린다",
+        "pronoun": "그녀",
+        "look": "가수다.",
+        "job": "아이들을\n노래하오.",
+        "health": "좋습니다.",
+        "response1": "세상 어디서나\n작은 아이들이\n태어나지.",
+        "response2": "해낼 수 있는 걸\n다 주고, 퀘스트가\n끝나면 일도 끝!",
+        "question": "도우시겠소?",
+        "yes": "기쁨의 노래를\n가르치시오!",
+        "no": "흠.",
+        "topic1": "아이",
+        "topic1_aliases": [
+          "아이",
+          "아이들",
+          "child",
+          "chil"
+        ],
+        "topic2": "세상",
+        "topic2_aliases": [
+          "세상",
+          "세계",
+          "world",
+          "worl"
+        ]
+      }
+    },
+    {
+      "name": "Merlin",
+      "pronoun": "He",
+      "look": "a mystical wizard.",
+      "job": "I use magic.",
+      "health": "Fine.",
+      "response1": "The black stone\nis caught in a\nmoon gate!",
+      "response2": "Stand where the\ngate of both\nmoons dark shall\nappear. Search\nwhen the moons\ngo dark!",
+      "question": "Dost thou\nstudy magic?",
+      "yes": "Best of luck\nwith thy\nstudies!",
+      "no": "Too bad.",
+      "topic1": "STON",
+      "topic2": "GATE",
+      "ko": {
+        "name": "멀린",
+        "pronoun": "그",
+        "look": "신비로운 마법사다.",
+        "job": "마법을\n쓰오.",
+        "health": "좋습니다.",
+        "response1": "검은 돌은\n달문 안에 잡혀 있소!",
+        "response2": "두 달이 모두 어두운\n문이 뜰 곳에 서서\n달이 어두울 때\n찾으시오!",
+        "question": "마법을\n배우오?",
+        "yes": "공부에 행운을!",
+        "no": "아쉽소.",
+        "topic1": "돌",
+        "topic1_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ],
+        "topic2": "달문",
+        "topic2_aliases": [
+          "달문",
+          "문",
+          "gate"
+        ]
+      }
+    },
+    {
+      "name": "Draconian",
+      "pronoun": "He",
+      "look": "an old druid.",
+      "job": "I teach\nthe relation.",
+      "health": "I am well.",
+      "response1": "There are\neight possible\ncombinations of\ntruth, love and\ncourage. Each\nof the eight\nvirtues is one\nof those\ncombinations!",
+      "response2": "A",
+      "question": "Knew ye this?",
+      "yes": "Very good!",
+      "no": "Learn the towns\nand castles!",
+      "topic1": "RELA",
+      "topic2": "",
+      "ko": {
+        "name": "드라코니안",
+        "pronoun": "그",
+        "look": "늙은 드루이드다.",
+        "job": "관계를\n가르치오.",
+        "health": "건강하오.",
+        "response1": "진리·사랑·용기의\n조합은 여덟.\n각 미덕이 그\n하나이오!",
+        "response2": "A",
+        "question": "알고 있었소?",
+        "yes": "아주 좋소!",
+        "no": "마을과 성을\n배우시오!",
+        "topic1": "관계",
+        "topic1_aliases": [
+          "관계",
+          "relation",
+          "rela"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Blissful",
+      "pronoun": "She",
+      "look": "a majestic seahorse!",
+      "job": "I know much\nof the codex!",
+      "health": "I am doing well.",
+      "response1": "The shrine ankh\nknows how to\nenter the\nchamber of the\ncodex!",
+      "response2": "Meditate at\nthe shrines\nof honesty,\ncompassion and\nvalor for 3\ncycles to know\nhow to enter!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "CODE",
+      "topic2": "ABYS",
+      "ko": {
+        "name": "블리스풀",
+        "pronoun": "그녀",
+        "look": "장엄한 해마다!",
+        "job": "코덱스에 대해\n많이 아오!",
+        "health": "잘 지냅니다.",
+        "response1": "신전 앙크가\n코덱스 방 입장을\n아오!",
+        "response2": "정직·연민·용기\n신전에서 세 주기\n명상하면 입장을\n안다!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "코덱스",
+        "topic1_aliases": [
+          "코덱스",
+          "codex",
+          "code"
+        ],
+        "topic2": "심연",
+        "topic2_aliases": [
+          "심연",
+          "abyss",
+          "abys"
+        ]
+      }
+    },
+    {
+      "name": "Rabindranath\ntagore",
+      "pronoun": "He",
+      "look": "a wise man.",
+      "job": "I speak of love.",
+      "health": "I am old\nbut strong!",
+      "response1": "In love,\nall life's\ncontradictions\ndissolve and\ndisappear.",
+      "response2": "Carry love\nwithin it!",
+      "question": "Dost thou seek\nto carry love in\nthy heart?",
+      "yes": "Thou art a\ngood soul.",
+      "no": "Thou art a fool.",
+      "topic1": "LOVE",
+      "topic2": "HEAR",
+      "ko": {
+        "name": "라빈드라나트 타고르",
+        "pronoun": "그",
+        "look": "현명한 남자다.",
+        "job": "사랑을\n말하오.",
+        "health": "늙었으나\n강하오!",
+        "response1": "사랑 속에서\n삶의 모순이\n녹아 사라져.",
+        "response2": "그 안에 사랑을\n품으시오!",
+        "question": "마음에 사랑을\n품으려 하오?",
+        "yes": "좋은 영혼이오.",
+        "no": "어리석은 자.",
+        "topic1": "사랑",
+        "topic1_aliases": [
+          "사랑",
+          "love"
+        ],
+        "topic2": "마음",
+        "topic2_aliases": [
+          "마음",
+          "심장",
+          "heart",
+          "hear"
+        ]
+      }
+    },
+    {
+      "name": "Brother Zair",
+      "pronoun": "He",
+      "look": "an old druid.",
+      "job": "I sit and watch\nthe river.",
+      "health": "I am well.",
+      "response1": "It flows\nendlessly.",
+      "response2": "The kings of the\ncastles which\nrepresent the\nthree principles\nof virtue each\nknow but one\nsyllable of the\nword of passage!",
+      "question": "Agree?",
+      "yes": "Good.",
+      "no": "Indeed.",
+      "topic1": "RIVE",
+      "topic2": "WORD",
+      "ko": {
+        "name": "자이르 형제",
+        "pronoun": "그",
+        "look": "늙은 드루이드다.",
+        "job": "강물을 보며\n앉소.",
+        "health": "건강하오.",
+        "response1": "끝없이\n흐르오.",
+        "response2": "세 원리의 성을 다스리는\n왕들이 통과의 말\n한 음절씩을 아오!",
+        "question": "동의하오?",
+        "yes": "좋소.",
+        "no": "과연.",
+        "topic1": "강",
+        "topic1_aliases": [
+          "강",
+          "river",
+          "rive"
+        ],
+        "topic2": "말씀",
+        "topic2_aliases": [
+          "말씀",
+          "단어",
+          "word"
+        ]
+      }
+    },
+    {
+      "name": "Spellbind",
+      "pronoun": "She",
+      "look": "a slender mage.",
+      "job": "I know of\nthe codex.",
+      "health": "Well indeed.",
+      "response1": "One must know\nthe combination\nof the three\nprinciples of\nvirtue!",
+      "response2": "The combination\nof the three\nprinciples of\nvirtue equals\nthe measure of\ntime and space!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "CODE",
+      "topic2": "COMB",
+      "ko": {
+        "name": "스펠바인드",
+        "pronoun": "그녀",
+        "look": "날씬한 마법사다.",
+        "job": "코덱스를\n아오.",
+        "health": "참으로 좋소.",
+        "response1": "미덕 세 원리의\n조합을 알아야\n하오!",
+        "response2": "세 원리의 조합은\n시공의 척도와\n같소!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "코덱스",
+        "topic1_aliases": [
+          "코덱스",
+          "codex",
+          "code"
+        ],
+        "topic2": "조합",
+        "topic2_aliases": [
+          "조합",
+          "combination",
+          "comb"
+        ]
+      }
+    },
+    {
+      "name": "Shaman",
+      "pronoun": "He",
+      "look": "a tall mage.",
+      "job": "I study the\n'one' thing that\nis the secret to\nthe codex!",
+      "health": "Quite well.",
+      "response1": "I study of\nthe codex!",
+      "response2": "The one pure\naxiom is more\nendless than the\nchanging tides,\nmore eternal\nthan day and\nnight!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "STUD",
+      "topic2": "CODE",
+      "ko": {
+        "name": "샤먼",
+        "pronoun": "그",
+        "look": "키 큰 마법사다.",
+        "job": "코덱스의 비밀인\n‘하나’를\n연구하오.",
+        "health": "꽤 좋습니다.",
+        "response1": "코덱스를\n연구하오!",
+        "response2": "하나의 순수한 공리는\n변하는 조수보다 끝없고\n낮과 밤보다 영원!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "연구",
+        "topic1_aliases": [
+          "연구",
+          "study",
+          "stud"
+        ],
+        "topic2": "코덱스",
+        "topic2_aliases": [
+          "코덱스",
+          "codex",
+          "code"
+        ]
+      }
+    },
+    {
+      "name": "Charm",
+      "pronoun": "She",
+      "look": "a fair sorceress.",
+      "job": "I ponder the key\nto the axiom.",
+      "health": "Well enough.",
+      "response1": "To the axiom.",
+      "response2": "The 1 pure axiom\nencompasses\nall things.",
+      "question": "Know ye what\nthey are?",
+      "yes": "Good.",
+      "no": "The truths of\nthe universe,\nthe love of the\nheart, and the\ncourage of the\nsoul!",
+      "topic1": "KEY",
+      "topic2": "AXIO",
+      "ko": {
+        "name": "참",
+        "pronoun": "그녀",
+        "look": "고운 마녀다.",
+        "job": "공리의 열쇠를\n깊이 생각하오.",
+        "health": "그럭저럭.",
+        "response1": "공리로.",
+        "response2": "하나의 순수한 공리는\n모든 것을 아우르오.",
+        "question": "그것들을\n아오?",
+        "yes": "좋소.",
+        "no": "우주의 진리,\n마음의 사랑,\n영혼의 용기!",
+        "topic1": "열쇠",
+        "topic1_aliases": [
+          "열쇠",
+          "key"
+        ],
+        "topic2": "공리",
+        "topic2_aliases": [
+          "공리",
+          "axiom",
+          "axio"
+        ]
+      }
+    },
+    {
+      "name": "Circe",
+      "pronoun": "He",
+      "look": "a wise mage.",
+      "job": "I teach of\nthe axiom!",
+      "health": "Well.",
+      "response1": "The whole of the\naxiom is greater\nthan all its\nparts!",
+      "response2": "The measure of\nunending love,\nthe limitless\ncourage needed\nto face all\nobstacles,the\ntruth which\nencompasses all\nthings!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "AXIO",
+      "topic2": "PART",
+      "ko": {
+        "name": "키르케",
+        "pronoun": "그",
+        "look": "현명한 마법사다.",
+        "job": "공리를\n가르치오!",
+        "health": "좋습니다.",
+        "response1": "공리의 전체는\n부분들의 합보다\n크오!",
+        "response2": "끝없는 사랑의 척도,\n모든 장애를 맞설\n무한 용기, 만물을\n감싸는 진리!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "공리",
+        "topic1_aliases": [
+          "공리",
+          "axiom",
+          "axio"
+        ],
+        "topic2": "부분",
+        "topic2_aliases": [
+          "부분",
+          "part"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,604 @@
+{
+  "_meta": {
+    "city": "paws",
+    "note": "Korean overlays for PAWS.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Wilmoore",
+      "pronoun": "He",
+      "look": "a very big guard.",
+      "job": "I am the chief\nguard in the\nvillage of Paws!",
+      "health": "Excellent.",
+      "response1": "Paws is a great\nvillage and we\nkeep it safe!",
+      "response2": "Pirates come\nfrom an isle to\nthe east!",
+      "question": "Dost thou\nmean to\ncause trouble?",
+      "yes": "Then thou had\nbest leave!",
+      "no": "Good.",
+      "topic1": "GUAR",
+      "topic2": "TROU",
+      "ko": {
+        "name": "윌무어",
+        "pronoun": "그",
+        "look": "아주 큰 경비병이다.",
+        "job": "포우 마을의\n경비대장입니다!",
+        "health": "뛰어납니다.",
+        "response1": "포우는 훌륭한\n마을이고 우리가\n안전하게 지킵니다!",
+        "response2": "해적들이 동쪽\n섬에서 옵니다!",
+        "question": "문제를 일으킬\n셈이오?",
+        "yes": "그럼 떠나는 게\n좋겠소!",
+        "no": "좋소.",
+        "topic1": "경비",
+        "topic1_aliases": [
+          "경비",
+          "경비병",
+          "guard",
+          "guar"
+        ],
+        "topic2": "소란",
+        "topic2_aliases": [
+          "소란",
+          "문제",
+          "trouble",
+          "trou"
+        ]
+      }
+    },
+    {
+      "name": "Francesca",
+      "pronoun": "She",
+      "look": "a tough girl.",
+      "job": "I am the\nstable hand.",
+      "health": "Right good.",
+      "response1": "I saw the way ya\ndealt with ol'\nRed Eye!",
+      "response2": "The talking\nhorse!",
+      "question": "Ya haven't come\nto steal a horse\nI hope?",
+      "yes": "Well the master\nain't gonna like\nthat much!",
+      "no": "Then must be\nto see Smith!",
+      "topic1": "STAB",
+      "topic2": "SMIT",
+      "ko": {
+        "name": "프란체스카",
+        "pronoun": "그녀",
+        "look": "터프한 소녀다.",
+        "job": "마구간 일을\n합니다.",
+        "health": "아주 좋소.",
+        "response1": "레드 아이를\n상대하는 꼴\n봤소!",
+        "response2": "말하는\n말이요!",
+        "question": "말 훔치러\n온 건 아니죠?",
+        "yes": "주인이 아주\n싫어할 거요!",
+        "no": "그럼 스미스를\n보러 온 거겠소!",
+        "topic1": "마구간",
+        "topic1_aliases": [
+          "마구간",
+          "stable",
+          "stab"
+        ],
+        "topic2": "스미스",
+        "topic2_aliases": [
+          "스미스",
+          "말",
+          "smith",
+          "smit"
+        ]
+      }
+    },
+    {
+      "name": "Sven",
+      "pronoun": "He",
+      "look": "a tall burly man.",
+      "job": "I'm a\nlumberjack, ya.",
+      "health": "Fine, thanks.",
+      "response1": "Wit' my axe, I\ncan chop'm down\nquick, ya.",
+      "response2": "It's a big\naxe, ya.",
+      "question": "Art ya a\nlumberjack?",
+      "yes": "Good for\nyou, ya.",
+      "no": "Build up those\narms, ya!",
+      "topic1": "LUMB",
+      "topic2": "AXE",
+      "ko": {
+        "name": "스벤",
+        "pronoun": "그",
+        "look": "키 크고 건장한 남자다.",
+        "job": "벌목꾼이오,\n예.",
+        "health": "고맙소,\n괜찮소.",
+        "response1": "이 도끼면\n나무 금방\n뽑지예.",
+        "response2": "큰 도끼요,\n예.",
+        "question": "벌목꾼이오?",
+        "yes": "좋소,\n예.",
+        "no": "팔을 키우시오,\n예!",
+        "topic1": "벌목",
+        "topic1_aliases": [
+          "벌목",
+          "벌목꾼",
+          "lumber",
+          "lumb"
+        ],
+        "topic2": "도끼",
+        "topic2_aliases": [
+          "도끼",
+          "axe"
+        ]
+      }
+    },
+    {
+      "name": "Zair the Wise",
+      "pronoun": "He",
+      "look": "a man of many years.",
+      "job": "I've been near\nthe codex!",
+      "health": "Well.",
+      "response1": "Its secrets\nare boundless!",
+      "response2": "A three part key\nand a word of\npassage are\nneeded to enter\nthe chamber. Ask\nmy brother\nbeyond Lock Lake\nof the word!",
+      "question": "Seen it?",
+      "yes": "Wow!",
+      "no": "Seek it!",
+      "topic1": "CODE",
+      "topic2": "WORD",
+      "ko": {
+        "name": "지혜로운 자이르",
+        "pronoun": "그",
+        "look": "연로한 남자다.",
+        "job": "나는 코덱스\n가까이 가 봤소!",
+        "health": "좋습니다.",
+        "response1": "그 비밀은\n끝이 없소!",
+        "response2": "입장에 세 부분\n열쇠와 통과의 말이\n필요하오. 로크 호수\n너머 내 형제에게\n말을 물으시오!",
+        "question": "봤소?",
+        "yes": "와!",
+        "no": "찾으시오!",
+        "topic1": "코덱스",
+        "topic1_aliases": [
+          "코덱스",
+          "codex",
+          "code"
+        ],
+        "topic2": "말씀",
+        "topic2_aliases": [
+          "말씀",
+          "단어",
+          "word"
+        ]
+      }
+    },
+    {
+      "name": "Sal",
+      "pronoun": "She",
+      "look": "a very large woman.",
+      "job": "I am the barmaid\nI serve the ale!",
+      "health": "Stronger\nevery day!",
+      "response1": "We have the\nfinest brew in\nBritannia!",
+      "response2": "We serve only\nFolley on tap!",
+      "question": "Dost thou\nfavor Folley?",
+      "yes": "A great mug if I\nmay say so!",
+      "no": "Too bad,\nit's the best!",
+      "topic1": "ALE",
+      "topic2": "BREW",
+      "ko": {
+        "name": "살",
+        "pronoun": "그녀",
+        "look": "매우 큰 여인이다.",
+        "job": "나는 바메이드.\n에일을 내리오!",
+        "health": "날마다\n강해지오!",
+        "response1": "브리타니아 최고\n양조주를\n가졌소!",
+        "response2": "탭은 폴리만\n냅니다!",
+        "question": "폴리를\n좋아하오?",
+        "yes": "훌륭한 잔이오,\n내 말이!",
+        "no": "아쉽소. 이게\n최고요!",
+        "topic1": "에일",
+        "topic1_aliases": [
+          "에일",
+          "맥주",
+          "ale"
+        ],
+        "topic2": "양조",
+        "topic2_aliases": [
+          "양조",
+          "맥주",
+          "brew"
+        ]
+      }
+    },
+    {
+      "name": "Jingles",
+      "pronoun": "He",
+      "look": "a young mage!",
+      "job": "I seek the\nwisdom of magic.",
+      "health": "Fine.",
+      "response1": "My master knows\nthe gate travel\nspell!",
+      "response2": "My master is\nMentorian.",
+      "question": "Dost thou\nknow him?",
+      "yes": "Good.",
+      "no": "He lives in a\nhidden village\nin Lock Lake\nreachable only\nby ship, ask of\nthe gate spell!",
+      "topic1": "MAGI",
+      "topic2": "MAST",
+      "ko": {
+        "name": "징글스",
+        "pronoun": "그",
+        "look": "젊은 마법사다!",
+        "job": "마법의 지혜를\n구하오.",
+        "health": "좋습니다.",
+        "response1": "스승이 차원문\n주문을 아오!",
+        "response2": "스승은\n멘토리안이오.",
+        "question": "그분을\n아오?",
+        "yes": "좋소.",
+        "no": "로크 호수 숨은\n마을에 사시니 배로만\n가오. 차원문을\n물어보시오!",
+        "topic1": "마법",
+        "topic1_aliases": [
+          "마법",
+          "magic",
+          "magi"
+        ],
+        "topic2": "스승",
+        "topic2_aliases": [
+          "스승",
+          "master",
+          "mast"
+        ]
+      }
+    },
+    {
+      "name": "Sir Hobie",
+      "pronoun": "He",
+      "look": "a tall muscular knight.",
+      "job": "I serve\nLord British.",
+      "health": "Tired and\nhungry but\nalways faithful.",
+      "response1": "I quest always\nfor Britannia!",
+      "response2": "My quest is to\ndefeat the evils\nof the world.",
+      "question": "'tis thy\nquest also?",
+      "yes": "We are as one.",
+      "no": "A shame it is!",
+      "topic1": "FAIT",
+      "topic2": "QUES",
+      "ko": {
+        "name": "호비 경",
+        "pronoun": "그",
+        "look": "키 크고 건장한 기사다.",
+        "job": "로드 브리티시를\n섬기오.",
+        "health": "피곤하고\n배고프나\n늘 충성하오.",
+        "response1": "브리타니아를 위해\n늘 퀘스트하오!",
+        "response2": "세상의 악을\n무찌르는 것이\n제 퀘스트요.",
+        "question": "그대도 그런\n퀘스트요?",
+        "yes": "우리는\n하나요.",
+        "no": "참으로\n아쉽소!",
+        "topic1": "충성",
+        "topic1_aliases": [
+          "충성",
+          "신실",
+          "faith",
+          "fait"
+        ],
+        "topic2": "퀘스트",
+        "topic2_aliases": [
+          "퀘스트",
+          "quest",
+          "ques"
+        ]
+      }
+    },
+    {
+      "name": "Damsel",
+      "pronoun": "She",
+      "look": "a small druid.",
+      "job": "I am here to\nbuy food.",
+      "health": "A bit hungry.",
+      "response1": "Yes, I hear they\nhave the best\nrations here.",
+      "response2": "Rations are used\nin dungeons.",
+      "question": "Dost thou travel\nin the depths?",
+      "yes": "In the great\ncastle there is\na secret\nentrance!",
+      "no": "Probably a wimp.",
+      "topic1": "FOOD",
+      "topic2": "RATI",
+      "ko": {
+        "name": "댐즐",
+        "pronoun": "그녀",
+        "look": "작은 드루이드다.",
+        "job": "음식을 사러\n왔소.",
+        "health": "좀 배고프오.",
+        "response1": "여기 식량이\n최고라는군요.",
+        "response2": "식량은 던전에서\n씁니다.",
+        "question": "깊은 곳을\n여행하오?",
+        "yes": "큰 성에 비밀\n입구가 있소!",
+        "no": "겁쟁이\n같군.",
+        "topic1": "음식",
+        "topic1_aliases": [
+          "음식",
+          "food"
+        ],
+        "topic2": "식량",
+        "topic2_aliases": [
+          "식량",
+          "ration",
+          "rati"
+        ]
+      }
+    },
+    {
+      "name": "Wheatpin",
+      "pronoun": "He",
+      "look": "a meek shepherd.",
+      "job": "I just sit here.",
+      "health": "Fine.",
+      "response1": "Around there in\nthe nook of the\nmountains!",
+      "response2": "A",
+      "question": "Art thou looking\nfor something?",
+      "yes": "What?",
+      "no": "I see.",
+      "topic1": "RUNE",
+      "topic2": "",
+      "ko": {
+        "name": "휘트핀",
+        "pronoun": "그",
+        "look": "온순한 양치기다.",
+        "job": "여기 앉아\n있을 뿐이오.",
+        "health": "좋습니다.",
+        "response1": "산자락 구석\n저쪽에!",
+        "response2": "A",
+        "question": "무엇을 찾고\n있소?",
+        "yes": "뭐를?",
+        "no": "그렇군.",
+        "topic1": "룬",
+        "topic1_aliases": [
+          "룬",
+          "rune"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Barren",
+      "pronoun": "He",
+      "look": "a hooded ranger.",
+      "job": "I travel\nthe land.",
+      "health": "I am well.",
+      "response1": "Britannia.",
+      "response2": "Search the\nhills in the\nsouth-east\ncorner of town!",
+      "question": "Art thou dim?",
+      "yes": "I thought so.",
+      "no": "We shall see.",
+      "topic1": "LAND",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "바렌",
+        "pronoun": "그",
+        "look": "두건 쓴 레인저다.",
+        "job": "이 땅을\n여행하오.",
+        "health": "건강하오.",
+        "response1": "브리타니아요.",
+        "response2": "마을 남동쪽\n언덕을 찾으시오!",
+        "question": "어리석소?",
+        "yes": "그럴 줄\n알았소.",
+        "no": "두고 봅시다.",
+        "topic1": "땅",
+        "topic1_aliases": [
+          "땅",
+          "국토",
+          "land"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Pix",
+      "pronoun": "She",
+      "look": "a small girl.",
+      "job": "What's a job?",
+      "health": "Good, thanks.",
+      "response1": "A",
+      "response2": "A",
+      "question": "And thee?",
+      "yes": "Good.",
+      "no": "Too bad.",
+      "topic1": "",
+      "topic2": "",
+      "ko": {
+        "name": "픽스",
+        "pronoun": "그녀",
+        "look": "작은 소녀다.",
+        "job": "직업이 뭐예요?",
+        "health": "고맙아요,\n좋아요.",
+        "response1": "A",
+        "response2": "A",
+        "question": "당신은?",
+        "yes": "좋아요.",
+        "no": "아쉽네요.",
+        "topic1": "",
+        "topic1_aliases": [],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Sir Simon",
+      "pronoun": "He",
+      "look": "a wise lord.",
+      "job": "I am the keeper.",
+      "health": "I am fine.",
+      "response1": "Of what I\ncannot say!",
+      "response2": "Mystics can be\nfound by an\neight parts\navatar!",
+      "question": "Hast thou\nattained\nenlightenment in\nall eight\nvirtues?",
+      "yes": "The mystic\narmour lies in\nthe center of\nthe oak grove!",
+      "no": "Alas.",
+      "topic1": "KEEP",
+      "topic2": "MYST",
+      "ko": {
+        "name": "사이먼 경",
+        "pronoun": "그",
+        "look": "현명한 영주다.",
+        "job": "지키는 자요.",
+        "health": "괜찮소.",
+        "response1": "무엇을 지키는지는\n말할 수 없소!",
+        "response2": "미덕 여덟을 이룬\n아바타만이 신비를\n찾을 수 있소!",
+        "question": "여덟 미덕 모두\n깨달았소?",
+        "yes": "신비 갑옷은\n참나무 숲 한복판에!",
+        "no": "아아.",
+        "topic1": "수호",
+        "topic1_aliases": [
+          "수호",
+          "지키는",
+          "keeper",
+          "keep"
+        ],
+        "topic2": "신비",
+        "topic2_aliases": [
+          "신비",
+          "미스틱",
+          "mystic",
+          "myst"
+        ]
+      }
+    },
+    {
+      "name": "Lady Tessa",
+      "pronoun": "She",
+      "look": "a wise lady.",
+      "job": "I am the keeper.",
+      "health": "Well.",
+      "response1": "I cannot say.",
+      "response2": "Mystics can be\nfound by an\neight parts\navatar!",
+      "question": "Hast thou\nattained\nenlightenment in\nall eight\nvirtues?",
+      "yes": "The mystic\nweapons lie in\nthe training\nroom of Serpent\ncastle!",
+      "no": "Alas.",
+      "topic1": "KEEP",
+      "topic2": "MYST",
+      "ko": {
+        "name": "테사 부인",
+        "pronoun": "그녀",
+        "look": "현명한 부인이다.",
+        "job": "지키는 자요.",
+        "health": "좋습니다.",
+        "response1": "말할 수\n없소.",
+        "response2": "미덕 여덟을 이룬\n아바타만이 신비를\n찾을 수 있소!",
+        "question": "여덟 미덕 모두\n깨달았소?",
+        "yes": "신비 무기는\n뱀성 훈련장에!",
+        "no": "아아.",
+        "topic1": "수호",
+        "topic1_aliases": [
+          "수호",
+          "지키는",
+          "keeper",
+          "keep"
+        ],
+        "topic2": "신비",
+        "topic2_aliases": [
+          "신비",
+          "미스틱",
+          "mystic",
+          "myst"
+        ]
+      }
+    },
+    {
+      "name": "Asemly",
+      "pronoun": "He",
+      "look": "a short jester.",
+      "job": "I am here to\nserve thee.",
+      "health": "Jolly good.",
+      "response1": "Well, I can\ndance and sing!",
+      "response2": "And sing,\ntra la la...",
+      "question": "Does that\ninterest thee?",
+      "yes": "Good!",
+      "no": "Well then, I\nguess I'm no\nhelp at all\nthen.",
+      "topic1": "SERV",
+      "topic2": "DANC",
+      "ko": {
+        "name": "어셈리",
+        "pronoun": "그",
+        "look": "키 작은 광대다.",
+        "job": "그대를 섬기러\n왔소.",
+        "health": "유쾌하오.",
+        "response1": "춤추고 노래할 수\n있소!",
+        "response2": "그리고 노래,\n트라 라 라…",
+        "question": "관심 있소?",
+        "yes": "좋소!",
+        "no": "그럼 내 도움이\n전혀 없겠군.",
+        "topic1": "섬김",
+        "topic1_aliases": [
+          "섬김",
+          "봉사",
+          "serve",
+          "serv"
+        ],
+        "topic2": "춤",
+        "topic2_aliases": [
+          "춤",
+          "댄스",
+          "dance",
+          "danc"
+        ]
+      }
+    },
+    {
+      "name": "Little Jon",
+      "pronoun": "He",
+      "look": "a singing bard.",
+      "job": "I sing of\nBritannia.",
+      "health": "Quite well\nindeed!",
+      "response1": "Britannia is a\nland so fair,\nto other lands I\nwould not dare!",
+      "response2": "I hope someday\nthou may return!",
+      "question": "I hear that thou\nart from another\nworld?",
+      "yes": "What is\nit called?",
+      "no": "Just a rumor.",
+      "topic1": "BRIT",
+      "topic2": "EART",
+      "ko": {
+        "name": "리틀 존",
+        "pronoun": "그",
+        "look": "노래하는 음유시인이다.",
+        "job": "브리타니아를\n노래하오.",
+        "health": "참으로\n좋습니다!",
+        "response1": "브리타니아는 아름다운\n땅, 다른 땅엔\n감히 가지 않소!",
+        "response2": "언젠가 그대가\n돌아오길!",
+        "question": "다른 세상에서\n왔다 들었소?",
+        "yes": "그곳 이름이\n무엇이오?",
+        "no": "소문일 뿐이오.",
+        "topic1": "브리타니아",
+        "topic1_aliases": [
+          "브리타니아",
+          "britannia",
+          "brit"
+        ],
+        "topic2": "지구",
+        "topic2_aliases": [
+          "지구",
+          "세상",
+          "earth",
+          "eart"
+        ]
+      }
+    },
+    {
+      "name": "Smith",
+      "pronoun": "He",
+      "look": "a white stallion.",
+      "job": "Oh, not much.",
+      "health": "Good, good.",
+      "response1": "A",
+      "response2": "A",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "",
+      "topic2": "",
+      "ko": {
+        "name": "스미스",
+        "pronoun": "그",
+        "look": "흰 수말이다.",
+        "job": "별로 할 일\n없소.",
+        "health": "좋소, 좋소.",
+        "response1": "A",
+        "response2": "A",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "",
+        "topic1_aliases": [],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    }
+  ]
+}
