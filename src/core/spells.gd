@@ -6,6 +6,12 @@ extends Object
 const COUNT := 26
 const REAGENT_COUNT := 8
 const MIXTURE_MAX := 99
+## Spell letter indices (0 = A … 25 = Z).
+const GATE := 6 ## G
+const MAGIC_MISSILE := 12 ## M
+const QUICKNESS := 16 ## Q
+const RESURRECT := 17 ## R
+const SLEEP := 18 ## S
 
 ## xu4 Reagent bit masks (spell.cpp).
 const ASH := 1 << 0

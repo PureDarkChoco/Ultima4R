@@ -465,6 +465,57 @@ static func should_ask_after(entry: Entry, kind: int) -> bool:
 			return false
 
 
+static func apply_keyword_rewards(entry: Entry, kind: int) -> void:
+	## Side effects after a matched keyword line is shown (recipe learning, etc.).
+	## Book-of-Wisdom “double portion” corrections (PC U4: one of each type only).
+	if entry == null:
+		return
+	var nm := _speaker_key(entry)
+	match nm:
+		"cosima", "seanna":
+			## Sleep — one spider silk (not two). Cosima REAG / Seanna SLEE.
+			if kind == REPLY_TOPIC2:
+				GameState.mark_spell_known(Spells.SLEEP)
+		"starlight":
+			## Magic Missile — one pearl + one ash (not two ash). MIX topic.
+			if kind == REPLY_TOPIC2:
+				GameState.mark_spell_known(Spells.MAGIC_MISSILE)
+		"nigel":
+			## Lycaeum Nigel — RECA lists full Resurrect reagents.
+			if kind == REPLY_TOPIC2:
+				GameState.mark_spell_known(Spells.RESURRECT)
+		"mentorian":
+			## Cove Mentorian — GATE lists ash, pearl, mandrake.
+			if kind == REPLY_TOPIC2:
+				GameState.mark_spell_known(Spells.GATE)
+
+
+static func apply_yesno_rewards(entry: Entry, yes: bool) -> void:
+	## Recipe corrections that live on the Y answer after a follow-up question.
+	if entry == null or not yes:
+		return
+	var nm := _speaker_key(entry)
+	match nm:
+		"carlyle":
+			## Magic Missile — need but 1 part ash (after “believe in magic?”).
+			GameState.mark_spell_known(Spells.MAGIC_MISSILE)
+		"calumny":
+			## Quickness — but one bloodmoss (after “can thou cast it?”).
+			GameState.mark_spell_known(Spells.QUICKNESS)
+
+
+static func _speaker_key(entry: Entry) -> String:
+	## TLK names may wrap ("Nigel, at thy\\nservice.") — use the first word.
+	var raw := str(entry.name).replace("\r", " ").replace("\n", " ").strip_edges().to_lower()
+	if raw.is_empty():
+		return ""
+	## "Nigel, at thy service." → "nigel"
+	var first := raw.split(" ", false)
+	if first.is_empty():
+		return raw
+	return str(first[0]).trim_suffix(",").strip_edges()
+
+
 static func _prefix_ci(needle: String, hay: String, force_len: int = -1) -> bool:
 	var n := needle.to_lower()
 	var h := hay.to_lower()

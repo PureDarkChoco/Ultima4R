@@ -8236,6 +8236,7 @@ func _talk_process_keyword(input: String) -> void:
 		var kind := int(hit.get("kind", 0))
 		var reply := str(hit.get("text", ""))
 		_push_talk_script(reply)
+		_TalkTlk.apply_keyword_rewards(e, kind)
 		if _TalkTlk.should_ask_after(e, kind):
 			_talk_stage = 2
 			_talk_pending_ask = true
@@ -8309,6 +8310,7 @@ func _talk_answer_yn(yes: bool) -> void:
 			GameState.adjust_karma_humble()
 	var reply := str(e.yes if yes else e.no)
 	_push_talk_script(reply)
+	_TalkTlk.apply_yesno_rewards(e, yes)
 	_talk_prompt_interest()
 
 
