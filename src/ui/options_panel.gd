@@ -2,8 +2,9 @@ class_name OptionsPanel
 extends Control
 
 ## In-game Esc → Options submenu.
+## Also embedded in the title map frame (main menu).
 ## Items: language, window resolution (scale %), fullscreen (same as ⌘/Ctrl+F).
-## Left/right (or Enter) cycles the selected item; Esc returns to Esc menu.
+## Left/right (or Enter) cycles the selected item; Esc closes.
 
 enum Item {
 	LANGUAGE = 0,
@@ -21,12 +22,17 @@ const ROW_H := 30
 const PANEL_W := 400.0
 
 var _backdrop: ColorRect
+var _center: CenterContainer
 var _panel: PanelContainer
 var _title: Label
+var _list: VBoxContainer
 var _row_labs: Array[Label] = []
 var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[ColorRect] = []
+var _row_wraps: Array[Control] = []
 var _cursor := 0
+var _embedded := false
+var _embed_rect := Rect2()
 
 
 func _ready() -> void:
@@ -48,20 +54,47 @@ func is_open() -> bool:
 	return visible
 
 
+func is_embedded() -> bool:
+	return _embedded
+
+
 func cursor() -> int:
 	return _cursor
 
 
 func open_panel(default_cursor: int = 0) -> void:
+	_embedded = false
+	_embed_rect = Rect2()
 	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
+	_apply_presentation()
 	_refresh_labels()
 	_sync_cursor()
 	visible = true
 	move_to_front()
 
 
+## Title map frame — no modal backdrop; same rows as the Esc options panel.
+func open_embedded(rect: Rect2, default_cursor: int = 0) -> void:
+	_embedded = true
+	_embed_rect = rect
+	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
+	_apply_presentation()
+	_refresh_labels()
+	_sync_cursor()
+	visible = true
+	move_to_front()
+
+
+func set_embed_rect(rect: Rect2) -> void:
+	if not visible or not _embedded:
+		return
+	_embed_rect = rect
+	_apply_presentation()
+
+
 func close_panel() -> void:
 	visible = false
+	_embedded = false
 
 
 func nudge_cursor(delta: int) -> void:
@@ -107,6 +140,18 @@ func cycle_fullscreen(_delta: int = 1) -> void:
 	_sync_cursor()
 
 
+func cycle_current(delta: int = 1) -> void:
+	match _cursor:
+		Item.LANGUAGE:
+			cycle_language(delta)
+		Item.RESOLUTION:
+			cycle_resolution(delta)
+		Item.FULLSCREEN:
+			cycle_fullscreen(delta)
+		_:
+			pass
+
+
 func _build() -> void:
 	_backdrop = ColorRect.new()
 	_backdrop.color = Color(0, 0, 0, 0.55)
@@ -114,16 +159,16 @@ func _build() -> void:
 	_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_backdrop)
 
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(center)
+	_center = CenterContainer.new()
+	_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_center)
 
 	_panel = PanelContainer.new()
 	_panel.custom_minimum_size = Vector2(PANEL_W, 0)
 	_panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	center.add_child(_panel)
+	_center.add_child(_panel)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
@@ -137,20 +182,21 @@ func _build() -> void:
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_title)
 
-	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 4)
-	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(list)
+	_list = VBoxContainer.new()
+	_list.add_theme_constant_override("separation", 4)
+	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_list)
 
 	_row_labs.clear()
 	_row_bgs.clear()
 	_row_edges.clear()
+	_row_wraps.clear()
 	for i in ITEM_COUNT:
 		var wrap := Control.new()
 		wrap.custom_minimum_size = Vector2(0, ROW_H)
 		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		list.add_child(wrap)
+		_list.add_child(wrap)
 
 		var bg := ColorRect.new()
 		bg.color = Color(0, 0, 0, 0)
@@ -176,11 +222,58 @@ func _build() -> void:
 		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		wrap.add_child(lab)
 
+		_row_wraps.append(wrap)
 		_row_labs.append(lab)
 		_row_bgs.append(bg)
 		_row_edges.append(edge)
 
 	_refresh_labels()
+
+
+func _apply_presentation() -> void:
+	if _backdrop == null or _panel == null or _center == null:
+		return
+	if _embedded and _embed_rect.size.x > 8.0 and _embed_rect.size.y > 8.0:
+		_backdrop.visible = false
+		set_anchors_preset(Control.PRESET_TOP_LEFT)
+		anchor_right = 0.0
+		anchor_bottom = 0.0
+		position = _embed_rect.position
+		size = _embed_rect.size
+		custom_minimum_size = _embed_rect.size
+		_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		## Full-bleed rows inside the map frame (same item text as Esc options).
+		var bare := StyleBoxEmpty.new()
+		_panel.add_theme_stylebox_override("panel", bare)
+		_panel.custom_minimum_size = Vector2(_embed_rect.size.x, 0)
+		_title.visible = true
+		_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var row_h := clampf(_embed_rect.size.y / 6.0, 24.0, 40.0)
+		var font_sz := clampi(int(row_h * 0.55), 14, 24)
+		_title.add_theme_font_size_override("font_size", font_sz + 2)
+		for i in ITEM_COUNT:
+			_row_wraps[i].custom_minimum_size = Vector2(0, row_h)
+			_row_labs[i].add_theme_font_size_override("font_size", font_sz)
+			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_row_labs[i].offset_left = 8
+			_row_labs[i].offset_right = -8
+	else:
+		_backdrop.visible = true
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		position = Vector2.ZERO
+		custom_minimum_size = Vector2.ZERO
+		_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_panel.custom_minimum_size = Vector2(PANEL_W, 0)
+		_panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
+		_title.visible = true
+		_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_title.add_theme_font_size_override("font_size", FONT_SIZE + 2)
+		for i in ITEM_COUNT:
+			_row_wraps[i].custom_minimum_size = Vector2(0, ROW_H)
+			_row_labs[i].add_theme_font_size_override("font_size", FONT_SIZE)
+			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			_row_labs[i].offset_left = 12
+			_row_labs[i].offset_right = -8
 
 
 func _refresh_labels() -> void:

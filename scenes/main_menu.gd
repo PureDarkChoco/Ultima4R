@@ -6,6 +6,7 @@ extends Control
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
 const _SaveGame := preload("res://src/core/save_game.gd")
 const _IntroController := preload("res://src/intro/intro_controller.gd")
+const _OptionsPanel := preload("res://src/ui/options_panel.gd")
 const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
@@ -16,7 +17,7 @@ const ROWS := 25.0
 @onready var _btn_return: Button = %ReturnView
 @onready var _btn_journey: Button = %Journey
 @onready var _btn_new: Button = %NewGame
-@onready var _btn_lang: Button = %Language
+@onready var _btn_options: Button = %Language
 @onready var _btn_quit: Button = %Quit
 @onready var _copyright: Label = %Copyright
 @onready var _hint: Label = %Hint
@@ -25,9 +26,11 @@ const ROWS := 25.0
 
 var _intro: Node ## IntroController
 var _save_panel # SaveSlotPanel
+var _options_panel # OptionsPanel
 var _name_form: Control ## NameGender scene instance
 var _load_open := false
 var _create_open := false
+var _options_open := false
 var _hold_arm := 0.0
 var _move_cd := 0.0
 var _held_dir := Vector2i.ZERO
@@ -46,17 +49,14 @@ func _ready() -> void:
 	UiTheme.style_label(_copyright, 14, UiTheme.MUTED)
 	UiTheme.style_label(_hint, 13, UiTheme.MUTED)
 
-	for b in [_btn_return, _btn_journey, _btn_new, _btn_lang, _btn_quit]:
+	for b in [_btn_return, _btn_journey, _btn_new, _btn_options, _btn_quit]:
 		_style_menu_line(b)
 		b.focus_mode = Control.FOCUS_ALL
 
 	_btn_return.pressed.connect(_on_return_view)
 	_btn_journey.pressed.connect(_on_journey)
 	_btn_new.pressed.connect(_on_new)
-	_btn_lang.pressed.connect(func() -> void: _cycle_language(1))
-	_btn_lang.gui_input.connect(_on_lang_gui_input)
-	_btn_lang.focus_neighbor_left = _btn_lang.get_path()
-	_btn_lang.focus_neighbor_right = _btn_lang.get_path()
+	_btn_options.pressed.connect(_on_options)
 	_btn_quit.pressed.connect(func() -> void: get_tree().quit())
 
 	resized.connect(_layout_u4)
@@ -76,18 +76,19 @@ func _ready() -> void:
 		_hint.visible = false
 
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh_text())
+	_ensure_options_panel()
 
 
 func _on_intro_mode(mode: int) -> void:
 	var menu_on := mode == _IntroController.Mode.MENU
-	## Load / create forms fill the frame — keep Journey lines hidden.
-	_text_block.visible = menu_on and not _load_open and not _create_open
+	## Load / create / options forms fill the frame — keep Journey lines hidden.
+	_text_block.visible = menu_on and not _load_open and not _create_open and not _options_open
 	## Options head + bottom input hint stay off; actions only inside the map frame.
 	_options_head.visible = false
 	_hint.visible = false
 	if menu_on:
 		call_deferred("_layout_u4")
-		if not _load_open and not _create_open:
+		if not _load_open and not _create_open and not _options_open:
 			call_deferred("_apply_pending_focus")
 	else:
 		var fo := get_viewport().gui_get_focus_owner()
@@ -103,8 +104,8 @@ func _apply_pending_focus() -> void:
 			_btn_new.grab_focus()
 		"return":
 			_btn_return.grab_focus()
-		"language":
-			_btn_lang.grab_focus()
+		"language", "options":
+			_btn_options.grab_focus()
 		"quit":
 			_btn_quit.grab_focus()
 		_:
@@ -140,6 +141,9 @@ func _layout_u4() -> void:
 	if _load_open and _save_panel != null and is_instance_valid(_save_panel):
 		_layout_load_list()
 		return
+	if _options_open and _options_panel != null and is_instance_valid(_options_panel):
+		_layout_options_embed()
+		return
 	if (
 		_intro != null
 		and is_instance_valid(_intro)
@@ -156,7 +160,7 @@ func _layout_u4() -> void:
 	_place(_btn_return, 11.0, 17.0, wide, line_h)
 	_place(_btn_journey, 11.0, 18.0, wide, line_h)
 	_place(_btn_new, 11.0, 19.0, wide, line_h)
-	_place(_btn_lang, 11.0, 20.0, wide, line_h)
+	_place(_btn_options, 11.0, 20.0, wide, line_h)
 	_place(_btn_quit, 11.0, 21.0, wide, line_h)
 	_place(_copyright, 5.0, 22.5, wide, line_h)
 	_options_head.visible = false
@@ -187,6 +191,14 @@ func _layout_load_list() -> void:
 		return
 	if _save_panel.has_method("set_embed_rect"):
 		_save_panel.set_embed_rect(r)
+
+
+func _layout_options_embed() -> void:
+	var r := _frame_content_rect()
+	if r.size.x < 40.0:
+		return
+	if _options_panel.has_method("set_embed_rect"):
+		_options_panel.set_embed_rect(r)
 
 
 func _layout_name_form() -> void:
@@ -223,7 +235,7 @@ func _layout_menu_in_frame() -> void:
 		_btn_return,
 		_btn_journey,
 		_btn_new,
-		_btn_lang,
+		_btn_options,
 		_btn_quit,
 	]
 	_options_head.visible = false
@@ -287,7 +299,7 @@ func _place(node: Control, col: float, row: float, w: float, h: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if not _load_open:
+	if not _load_open and not _options_open:
 		return
 	_move_cd = maxf(0.0, _move_cd - delta)
 	_hold_arm = maxf(0.0, _hold_arm - delta)
@@ -310,8 +322,10 @@ func _process(delta: float) -> void:
 		return
 	if _move_repeating and _hold_arm > 0.0:
 		return
-	if _save_panel:
+	if _load_open and _save_panel:
 		_save_panel.nudge_cursor(step)
+	elif _options_open and _options_panel:
+		_options_panel.nudge_cursor(step)
 	_move_cd = HOLD_INTERVAL
 	if _move_repeating:
 		_hold_arm = 0.0
@@ -321,15 +335,19 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	## Cancel/confirm on load list — use _input (not unhandled) so Esc is not lost to GUI.
-	if not _load_open:
+	## Cancel/confirm on load/options list — use _input so Esc is not lost to GUI.
+	if _load_open:
+		if _handle_load_input(event):
+			get_viewport().set_input_as_handled()
 		return
-	if _handle_load_input(event):
-		get_viewport().set_input_as_handled()
+	if _options_open:
+		if _handle_options_input(event):
+			get_viewport().set_input_as_handled()
+		return
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _load_open:
+	if _load_open or _options_open:
 		## Already handled in _input when active.
 		return
 	if _create_open:
@@ -350,38 +368,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if pressed_key:
-		match event.keycode:
-			KEY_R:
-				_on_return_view()
-				accept_event()
-			KEY_J:
-				_on_journey()
-				accept_event()
-			KEY_I:
-				_on_new()
-				accept_event()
-			KEY_L:
-				_cycle_language(1)
-				accept_event()
-			KEY_Q:
-				get_tree().quit()
-				accept_event()
-
-
-func _on_lang_gui_input(event: InputEvent) -> void:
-	if _load_open or _create_open:
-		return
-	if not (event is InputEventKey and event.pressed and not event.echo):
-		return
-	var k := event as InputEventKey
-	var code := k.keycode
-	var phys := k.physical_keycode
-	if code == KEY_LEFT or phys == KEY_LEFT or event.is_action_pressed("ui_left"):
-		_cycle_language(-1)
-		_btn_lang.accept_event()
-	elif code == KEY_RIGHT or phys == KEY_RIGHT or event.is_action_pressed("ui_right"):
-		_cycle_language(1)
-		_btn_lang.accept_event()
+		var k := event as InputEventKey
+		var code := k.keycode
+		var phys := k.physical_keycode
+		if code == KEY_R or phys == KEY_R:
+			_on_return_view()
+			accept_event()
+		elif code == KEY_J or phys == KEY_J:
+			_on_journey()
+			accept_event()
+		elif code == KEY_I or phys == KEY_I:
+			_on_new()
+			accept_event()
+		elif code == KEY_O or phys == KEY_O:
+			_on_options()
+			accept_event()
+		elif code == KEY_Q or phys == KEY_Q:
+			get_tree().quit()
+			accept_event()
 
 
 func _refresh_text() -> void:
@@ -390,18 +394,20 @@ func _refresh_text() -> void:
 	_btn_return.text = Locale.t("menu_return")
 	_btn_journey.text = Locale.t("menu_journey")
 	_btn_new.text = Locale.t("menu_new")
-	_btn_lang.text = "%s: ◂ %s ▸" % [Locale.t("menu_language"), Locale.lang_label()]
+	_btn_options.text = Locale.t("esc_options_title")
 	_btn_quit.text = Locale.t("menu_quit")
 	_copyright.text = Locale.t("menu_copyright")
-	_hint.text = Locale.t("input_hint_menu") + " · R/J/I · ⌘F"
+	_hint.text = Locale.t("input_hint_menu") + " · R/J/I/O · ⌘F"
 	if _save_panel and _save_panel.is_open():
 		_save_panel.refresh()
+	if _options_panel and _options_panel.is_open():
+		_options_panel.refresh()
 	if _name_form and _create_open and _name_form.has_method("refresh_labels"):
 		_name_form.refresh_labels()
 
 
 func _on_return_view() -> void:
-	if _load_open or _create_open:
+	if _load_open or _create_open or _options_open:
 		return
 	if _intro:
 		_intro.return_to_map()
@@ -410,7 +416,7 @@ func _on_return_view() -> void:
 
 
 func _on_journey() -> void:
-	if _create_open:
+	if _create_open or _options_open:
 		return
 	if not _SaveGame.any_slot_exists():
 		## Frame-area banner when no slots (hint label is normally hidden).
@@ -444,19 +450,43 @@ func _on_journey() -> void:
 
 
 func _on_new() -> void:
+	if _options_open:
+		_close_options()
 	if _load_open:
 		_close_load()
 	GameState.reset_party()
 	_open_name_form()
 
 
-func _cycle_language(delta: int = 1) -> void:
-	var langs := GameState.LANG_IDS
-	var i := langs.find(GameState.language)
-	if i < 0:
-		i = 0
-	GameState.language = langs[posmod(i + delta, langs.size())]
-	_btn_lang.grab_focus()
+func _on_options() -> void:
+	if _load_open or _create_open:
+		return
+	if _options_open:
+		return
+	_ensure_options_panel()
+	_options_open = true
+	_held_dir = Vector2i.ZERO
+	_move_repeating = false
+	_hold_arm = 0.0
+	_move_cd = 0.0
+	_text_block.visible = false
+	_hint.visible = false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo:
+		fo.release_focus()
+	var panel_rect := _frame_content_rect()
+	if panel_rect.size.x > 40.0 and panel_rect.size.y > 40.0:
+		_options_panel.open_embedded(panel_rect, 0)
+	else:
+		_options_panel.open_panel(0)
+
+
+func _ensure_options_panel() -> void:
+	if _options_panel != null:
+		return
+	_options_panel = _OptionsPanel.new()
+	_options_panel.name = "OptionsPanel"
+	add_child(_options_panel)
 
 
 func _ensure_save_panel() -> void:
@@ -509,6 +539,95 @@ func _close_name_form() -> void:
 	else:
 		_refresh_text()
 		_btn_new.grab_focus()
+
+
+func _handle_options_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _options_horizontal_nudge(event):
+		var dir := _options_value_delta(event)
+		if dir != 0 and _options_panel:
+			_options_panel.cycle_current(dir)
+			return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if (
+			k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
+			or event.is_action_pressed("ui_cancel")
+			or event.is_action_pressed("cancel")
+		):
+			_close_options()
+			return true
+		if (
+			k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER
+			or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER
+			or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
+		):
+			if _options_panel:
+				_options_panel.cycle_current(1)
+			return true
+		## Swallow other letter keys so menu R/J/I/O don't fire under options.
+		return true
+	if event is InputEventJoypadButton:
+		var jb := event as InputEventJoypadButton
+		if jb.button_index == JOY_BUTTON_B:
+			_close_options()
+			return true
+		if jb.button_index == JOY_BUTTON_A:
+			if _options_panel:
+				_options_panel.cycle_current(1)
+			return true
+		return true
+	return false
+
+
+func _options_horizontal_nudge(event: InputEvent) -> bool:
+	return (
+		event.is_action_pressed("ui_left")
+		or event.is_action_pressed("ui_right")
+		or event.is_action_pressed("move_left")
+		or event.is_action_pressed("move_right")
+		or (
+			event is InputEventKey
+			and (
+				event.keycode == KEY_LEFT
+				or event.physical_keycode == KEY_LEFT
+				or event.keycode == KEY_RIGHT
+				or event.physical_keycode == KEY_RIGHT
+			)
+		)
+	)
+
+
+func _options_value_delta(event: InputEvent) -> int:
+	if (
+		event.is_action_pressed("ui_left")
+		or event.is_action_pressed("move_left")
+		or (event is InputEventKey and (event.keycode == KEY_LEFT or event.physical_keycode == KEY_LEFT))
+	):
+		return -1
+	if (
+		event.is_action_pressed("ui_right")
+		or event.is_action_pressed("move_right")
+		or (event is InputEventKey and (event.keycode == KEY_RIGHT or event.physical_keycode == KEY_RIGHT))
+	):
+		return 1
+	return 0
+
+
+func _close_options() -> void:
+	_options_open = false
+	if _options_panel:
+		_options_panel.close_panel()
+	if _intro != null and _intro.mode == _IntroController.Mode.MENU:
+		_text_block.visible = true
+		_hint.visible = false
+		_layout_menu_in_frame()
+		_refresh_text()
+		_btn_options.grab_focus()
+	else:
+		_refresh_text()
+		_btn_options.grab_focus()
 
 
 func _handle_load_input(event: InputEvent) -> bool:
