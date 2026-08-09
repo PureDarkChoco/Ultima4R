@@ -111,7 +111,7 @@ func open_embedded(p_mode: int, rect: Rect2, default_cursor: int = 0) -> void:
 	_cache_class_tiles()
 	_mode = p_mode
 	_embedded = true
-	_embed_rect = rect
+	_embed_rect = _snap_rect(rect)
 	_cursor = clampi(default_cursor, 0, SLOT_COUNT - 1)
 	_apply_presentation()
 	_refresh_rows()
@@ -124,7 +124,7 @@ func set_embed_rect(rect: Rect2) -> void:
 	## Resize while open (window resize).
 	if not visible or not _embedded:
 		return
-	_embed_rect = rect
+	_embed_rect = _snap_rect(rect)
 	_apply_presentation()
 
 
@@ -152,6 +152,20 @@ func set_cursor(slot_index: int) -> void:
 func refresh() -> void:
 	_refresh_rows()
 	_sync_cursor()
+
+
+## Whole-pixel frame so TTF glyphs are not drawn on half pixels (blurry).
+func _snap_rect(r: Rect2) -> Rect2:
+	var px := int(round(r.position.x))
+	var py := int(round(r.position.y))
+	var sx := maxi(int(round(r.size.x)), 80)
+	var sy := maxi(int(round(r.size.y)), 80)
+	## Even size → CenterContainer left/top offsets stay integer.
+	if sx % 2 != 0:
+		sx -= 1
+	if sy % 2 != 0:
+		sy -= 1
+	return Rect2(Vector2(px, py), Vector2(sx, sy))
 
 
 func _apply_presentation() -> void:
@@ -185,6 +199,15 @@ func _apply_presentation() -> void:
 		_scale_metrics(true)
 		_panel.custom_minimum_size = content
 		_panel.size = content
+		## Force even content size so centering stays on whole pixels.
+		var cw := int(round(content.x))
+		var ch := int(round(content.y))
+		if cw % 2 != 0:
+			cw -= 1
+		if ch % 2 != 0:
+			ch -= 1
+		_panel.custom_minimum_size = Vector2(cw, ch)
+		_panel.size = Vector2(cw, ch)
 	else:
 		_backdrop.visible = true
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -212,15 +235,15 @@ func _apply_presentation() -> void:
 func _embed_content_size() -> Vector2:
 	var frame_w := maxf(_embed_rect.size.x, 80.0)
 	var frame_h := maxf(_embed_rect.size.y, 80.0)
-	var h := frame_h * EMBED_HEIGHT_FRAC
-	var sep := EMBED_ROW_SEP
-	var row_h := (h - float(SLOT_COUNT - 1) * sep) / float(SLOT_COUNT)
-	## Grow faces with row height (larger slots).
-	_e_face = clampf(row_h * 0.52, 36.0, 56.0)
-	_e_comp = clampf(_e_face * 0.8, 28.0, 46.0)
-	_e_name_w = clampf(EMBED_NAME_W_BASE * (_e_face / EMBED_FACE_BASE), 150.0, 200.0)
-	_e_font = clampi(int(round(EMBED_FONT * (_e_face / EMBED_FACE_BASE))), 14, 18)
-	_e_font_sub = maxi(_e_font - 3, 11)
+	var h := floorf(frame_h * EMBED_HEIGHT_FRAC)
+	var sep := float(EMBED_ROW_SEP)
+	var row_h := floorf((h - float(SLOT_COUNT - 1) * sep) / float(SLOT_COUNT))
+	## Icons scale with row; fonts stay modal size (never shrink) for sharp TTF.
+	_e_face = float(clampi(int(round(row_h * 0.52)), 36, 56))
+	_e_comp = float(clampi(int(round(_e_face * 0.8)), 28, 46))
+	_e_name_w = float(clampi(int(round(EMBED_NAME_W_BASE * (_e_face / EMBED_FACE_BASE))), 150, 200))
+	_e_font = FONT_SIZE
+	_e_font_sub = FONT_SIZE_SUB
 
 	var max_comps := EMBED_MAX_PARTY - 1
 	var comps_w := float(max_comps) * _e_comp + float(maxi(0, max_comps - 1)) * EMBED_COMP_SEP
@@ -240,18 +263,23 @@ func _embed_content_size() -> Vector2:
 	if w > max_w:
 		var s := max_w / w
 		w = max_w
-		_e_face *= s
-		_e_comp *= s
-		_e_name_w *= s
-	return Vector2(w, h)
+		_e_face = maxf(float(int(round(_e_face * s))), 24.0)
+		_e_comp = maxf(float(int(round(_e_comp * s))), 20.0)
+		_e_name_w = maxf(float(int(round(_e_name_w * s))), 100.0)
+	return Vector2(floorf(w), floorf(h))
 
 
 func _scale_metrics(embed: bool) -> void:
-	var face := _e_face if embed else FACE_SZ
+	var face := FACE_SZ
 	var row_h := ROW_H if not embed else 0.0
-	var font := _e_font if embed else FONT_SIZE
-	var font_sub := _e_font_sub if embed else FONT_SIZE_SUB
-	var comp := _e_comp if embed else COMP_SZ
+	var font := FONT_SIZE
+	var font_sub := FONT_SIZE_SUB
+	var comp := COMP_SZ
+	if embed:
+		face = float(int(round(_e_face)))
+		comp = float(int(round(_e_comp)))
+		font = _e_font
+		font_sub = _e_font_sub
 	var max_comps := EMBED_MAX_PARTY - 1
 	var comp_sep := EMBED_COMP_SEP if embed else 3.0
 	var comps_w := float(max_comps) * comp + float(maxi(0, max_comps - 1)) * comp_sep
@@ -276,9 +304,9 @@ func _scale_metrics(embed: bool) -> void:
 		_sub_labs[i].add_theme_font_size_override("font_size", font_sub)
 		_comp_rows[i].add_theme_constant_override("separation", int(comp_sep))
 		if embed:
-			_name_labs[i].custom_minimum_size = Vector2(_e_name_w, 0)
+			_name_labs[i].custom_minimum_size = Vector2(float(int(round(_e_name_w))), 0)
 			_name_labs[i].size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-			_comp_wraps[i].custom_minimum_size = Vector2(comps_w, 0)
+			_comp_wraps[i].custom_minimum_size = Vector2(float(int(round(comps_w))), 0)
 			_comp_wraps[i].size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		else:
 			_name_labs[i].custom_minimum_size = Vector2.ZERO

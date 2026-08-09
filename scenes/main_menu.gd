@@ -283,11 +283,16 @@ func _logic_rect_to_local(r: Rect2i) -> Rect2:
 	var ch := lh * s
 	var ox := _intro_view.position.x + (vs.x - cw) * 0.5
 	var oy := _intro_view.position.y + (vs.y - ch) * 0.5
+	## Snap to whole pixels so embedded UI fonts stay crisp.
 	return Rect2(
-		ox + float(r.position.x) * s,
-		oy + float(r.position.y) * s,
-		float(r.size.x) * s,
-		float(r.size.y) * s
+		Vector2(
+			round(ox + float(r.position.x) * s),
+			round(oy + float(r.position.y) * s)
+		),
+		Vector2(
+			round(float(r.size.x) * s),
+			round(float(r.size.y) * s)
+		)
 	)
 
 
