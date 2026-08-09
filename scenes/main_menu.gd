@@ -175,8 +175,8 @@ func _layout_u4() -> void:
 	_place(_btn_journey, 11.0, 18.0, wide, line_h)
 	_place(_btn_new, 11.0, 19.0, wide, line_h)
 	_place(_btn_options, 11.0, 20.0, wide, line_h)
-	_place(_btn_quit, 11.0, 21.0, wide, line_h)
-	_place(_btn_licenses, 11.0, 22.0, wide, line_h)
+	_place(_btn_licenses, 11.0, 21.0, wide, line_h)
+	_place(_btn_quit, 11.0, 22.0, wide, line_h)
 	_place(_copyright, 5.0, 23.0, wide, line_h)
 	_options_head.visible = false
 	_hint.visible = false
@@ -259,8 +259,8 @@ func _layout_menu_in_frame() -> void:
 		_btn_journey,
 		_btn_new,
 		_btn_options,
-		_btn_quit,
 		_btn_licenses,
+		_btn_quit,
 	]
 	_options_head.visible = false
 	_hint.visible = false

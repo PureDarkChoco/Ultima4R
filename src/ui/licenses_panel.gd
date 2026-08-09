@@ -14,7 +14,6 @@ var _panel: PanelContainer
 var _title: Label
 var _scroll: ScrollContainer
 var _body: RichTextLabel
-var _close: Button
 var _embedded := false
 var _embed_rect := Rect2()
 
@@ -37,7 +36,6 @@ func open_panel() -> void:
 	refresh()
 	visible = true
 	move_to_front()
-	_close.grab_focus()
 
 
 func open_embedded(rect: Rect2) -> void:
@@ -47,7 +45,6 @@ func open_embedded(rect: Rect2) -> void:
 	refresh()
 	visible = true
 	move_to_front()
-	_close.grab_focus()
 
 
 func set_embed_rect(rect: Rect2) -> void:
@@ -67,7 +64,6 @@ func close_panel() -> void:
 
 func refresh() -> void:
 	_title.text = Locale.t("licenses_title")
-	_close.text = Locale.t("licenses_close")
 	_body.text = _text_ko() if str(GameState.language) == "ko" else _text_en()
 	_scroll.scroll_vertical = 0
 
@@ -111,7 +107,7 @@ func _build() -> void:
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll.custom_minimum_size = Vector2(0, PANEL_H - 100.0)
+	_scroll.custom_minimum_size = Vector2(0, PANEL_H - 48.0)
 	col.add_child(_scroll)
 
 	_body = RichTextLabel.new()
@@ -127,11 +123,6 @@ func _build() -> void:
 	_body.add_theme_color_override("default_color", UiTheme.TEXT)
 	_scroll.add_child(_body)
 
-	_close = Button.new()
-	UiTheme.style_button(_close)
-	_close.pressed.connect(close_panel)
-	col.add_child(_close)
-
 
 func _apply_presentation() -> void:
 	if _embedded and _embed_rect.size.x > 40.0 and _embed_rect.size.y > 40.0:
@@ -145,7 +136,7 @@ func _apply_presentation() -> void:
 		_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		_panel.custom_minimum_size = _embed_rect.size
-		_scroll.custom_minimum_size = Vector2(0, maxf(_embed_rect.size.y - 86.0, 80.0))
+		_scroll.custom_minimum_size = Vector2(0, maxf(_embed_rect.size.y - 48.0, 80.0))
 		_body.custom_minimum_size = Vector2(maxf(_embed_rect.size.x - 40.0, 80.0), 0)
 	else:
 		_backdrop.visible = true
@@ -155,7 +146,7 @@ func _apply_presentation() -> void:
 		_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
 		_panel.custom_minimum_size = Vector2(PANEL_W, PANEL_H)
-		_scroll.custom_minimum_size = Vector2(0, PANEL_H - 100.0)
+		_scroll.custom_minimum_size = Vector2(0, PANEL_H - 48.0)
 		_body.custom_minimum_size = Vector2(PANEL_W - 64.0, 0)
 
 

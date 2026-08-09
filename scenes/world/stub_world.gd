@@ -7849,9 +7849,14 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 		## Weapon/armor sell: ↑↓ moves the character-panel cursor; Enter accepts.
 		if bool(_shop.is_sell_letter_pick()) and _talk_input_shop_sell_nav(k):
 			return true
-		var ch := _key_printable_char(k)
+		## Buy/Sell (bs), stock letters (b–p), reagents, etc.: only keys listed in
+		## choice_keys. Esc is handled above. Everything else is swallowed.
+		var ch := _key_latin_command_char(k)
 		if ch.is_empty():
-			return false
+			return true
+		var keys := str(_shop.choice_keys).to_lower()
+		if keys.is_empty() or not keys.contains(ch):
+			return true
 		_push_talk_player_input(ch)
 		_shop.submit_choice(ch)
 		_flush_shop_output()
@@ -7873,9 +7878,9 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 				_talk_buffer_backspace()
 				_layout_prompt_row()
 			return true
-		var dig := _key_printable_char(k)
+		var dig := _key_latin_command_char(k)
 		if dig.is_empty() or not dig.is_valid_int():
-			return false
+			return true
 		if _talk_buffer.length() >= int(_shop.max_digits):
 			return true
 		_talk_append_char(dig)
@@ -7899,7 +7904,7 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			return true
 		var tch := _key_printable_char(k)
 		if tch.is_empty():
-			return false
+			return true
 		if _talk_buffer.length() >= 16:
 			return true
 		_talk_append_char(tch)
@@ -8055,6 +8060,22 @@ func _talk_append_char(ch: String) -> void:
 func _talk_buffer_backspace() -> void:
 	if not _talk_buffer.is_empty():
 		_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+
+
+func _key_latin_command_char(k: InputEventKey) -> String:
+	## Single-letter / digit commands (shop Buy/Sell, qty digits, etc.).
+	## Always physical US key → ASCII so Hangul [한] / OS Sebeolsik jamo
+	## never replace menu letters (B must stay "b", not ㅠ).
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return ""
+	var phys := k.physical_keycode if k.physical_keycode != KEY_NONE else k.keycode
+	if phys >= KEY_A and phys <= KEY_Z:
+		return String.chr(97 + (phys - KEY_A))
+	if phys >= KEY_0 and phys <= KEY_9:
+		return String.chr(48 + (phys - KEY_0))
+	if phys >= KEY_KP_0 and phys <= KEY_KP_9:
+		return String.chr(48 + (phys - KEY_KP_0))
+	return ""
 
 
 func _key_printable_char(k: InputEventKey) -> String:
