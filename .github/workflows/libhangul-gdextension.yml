@@ -1,0 +1,43 @@
+name: Build libhangul GDExtension
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "native/libhangul_gdext/**"
+      - ".github/workflows/libhangul-gdextension.yml"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: macos
+          - os: windows-2025
+            platform: windows
+          - os: ubuntu-24.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure and build debug
+        shell: bash
+        run: |
+          cmake -S native/libhangul_gdext -B native/libhangul_gdext/build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build native/libhangul_gdext/build-debug --target ultima4r_hangul_input
+
+      - name: Configure and build release
+        shell: bash
+        run: |
+          cmake -S native/libhangul_gdext -B native/libhangul_gdext/build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/libhangul_gdext/build-release --target ultima4r_hangul_input
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libhangul-gdextension-${{ matrix.platform }}
+          path: native/libhangul_gdext/bin/${{ matrix.platform }}/
+          if-no-files-found: error
