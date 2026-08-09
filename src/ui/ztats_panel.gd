@@ -87,6 +87,9 @@ const INV_PAD_V := 6
 const INV_SCROLLBAR_GAP := 10
 ## Spell A–Z index beside Korean names — brighter gold than body text.
 const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
+## Shop sell cursor (matches Ready / Wear highlight).
+const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
+const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
 
 
 var _title: Label
@@ -100,6 +103,11 @@ var _inv_page: int = InvPage.NONE
 var _inv_saved_scroll: Dictionary = {}
 ## When true, next refresh restores saved scroll instead of starting at top.
 var _inv_keep_scroll := false
+## Weapon/armor shop sell: highlight a letter row for ↑↓ / Enter.
+var _shop_pick := false
+var _pick_ids: Array[int] = []
+var _pick_row_wraps: Array[Control] = []
+var _pick_cursor := 0
 ## Cancels in-flight face sync awaits when a newer sync is requested.
 var _face_sync_gen := 0
 var _tile_host: Control
@@ -174,10 +182,11 @@ func open_member(slot: int) -> void:
 	_request_face_sync()
 
 
-func open_inventory(page: int, restore_scroll: bool = true) -> void:
+func open_inventory(page: int, restore_scroll: bool = true, shop_pick: bool = false) -> void:
 	_remember_inv_view()
 	_slot = -1
 	_inv_page = page
+	_shop_pick = shop_pick and (page == InvPage.WEAPONS or page == InvPage.ARMOR)
 	_inv_keep_scroll = restore_scroll and _inv_saved_scroll.has(page)
 	_show_char(false)
 	_refresh_inventory()
@@ -185,6 +194,29 @@ func open_inventory(page: int, restore_scroll: bool = true) -> void:
 	visible = true
 	move_to_front()
 	set_process(false)
+
+
+func has_shop_pick() -> bool:
+	return _shop_pick and not _pick_ids.is_empty()
+
+
+func shop_pick_nudge(delta: int) -> void:
+	if not has_shop_pick() or delta == 0:
+		return
+	var n := _pick_ids.size()
+	_pick_cursor = posmod(_pick_cursor + delta, n)
+	_sync_shop_pick_hilite()
+	_ensure_shop_pick_visible()
+
+
+func shop_pick_letter() -> String:
+	## Letter key for current row (B=1 …) so vendor sell letter paths stay in sync.
+	if not has_shop_pick():
+		return ""
+	var id := int(_pick_ids[_pick_cursor])
+	if id < 0 or id > 25:
+		return ""
+	return String.chr(65 + id).to_lower()
 
 
 func scroll_inventory(lines: int) -> void:
@@ -255,6 +287,10 @@ func _inv_scroll_max_step() -> int:
 func close_panel() -> void:
 	_slot = -1
 	_inv_page = InvPage.NONE
+	_shop_pick = false
+	_pick_ids.clear()
+	_pick_row_wraps.clear()
+	_pick_cursor = 0
 	_inv_saved_scroll.clear()
 	_inv_keep_scroll = false
 	visible = false
@@ -1168,6 +1204,9 @@ func _build_inv() -> void:
 func _refresh_inventory() -> void:
 	if _inv_list == null:
 		return
+	_pick_ids.clear()
+	_pick_row_wraps.clear()
+	_pick_cursor = 0
 	for c in _inv_list.get_children():
 		c.queue_free()
 	_inv_scroll.scroll_vertical = 0
@@ -1194,11 +1233,63 @@ func _refresh_inventory() -> void:
 			_fill_mixtures_page()
 		_:
 			_inv_title.text = "?"
+	if _shop_pick:
+		_finalize_shop_pick()
 	if _inv_keep_scroll and _inv_saved_scroll.has(_inv_page):
 		call_deferred("_restore_inv_scroll")
 	else:
 		_inv_saved_scroll[_inv_page] = 0
 	_inv_keep_scroll = false
+
+
+func _finalize_shop_pick() -> void:
+	## Prefer first pack item with qty > 0; else top of list.
+	if _pick_ids.is_empty():
+		return
+	_pick_cursor = 0
+	for i in _pick_ids.size():
+		var id := int(_pick_ids[i])
+		var own := 0
+		if _inv_page == InvPage.WEAPONS:
+			own = GameState.pack_weapon_qty(id)
+		elif _inv_page == InvPage.ARMOR:
+			own = GameState.pack_armor_qty(id)
+		if own > 0:
+			_pick_cursor = i
+			break
+	_sync_shop_pick_hilite()
+	call_deferred("_ensure_shop_pick_visible")
+
+
+func _sync_shop_pick_hilite() -> void:
+	for i in _pick_row_wraps.size():
+		var wrap := _pick_row_wraps[i]
+		if wrap == null or not is_instance_valid(wrap):
+			continue
+		var on := i == _pick_cursor
+		for c in wrap.get_children():
+			if c is ColorRect and c.has_meta("shop_pick_bg"):
+				(c as ColorRect).color = COL_CURSOR if on else Color(0, 0, 0, 0)
+			elif c is ColorRect and c.has_meta("shop_pick_edge"):
+				(c as ColorRect).color = COL_CURSOR_EDGE if on else Color(0, 0, 0, 0)
+
+
+func _ensure_shop_pick_visible() -> void:
+	if not has_shop_pick() or _inv_scroll == null:
+		return
+	if _pick_cursor < 0 or _pick_cursor >= _pick_row_wraps.size():
+		return
+	var wrap := _pick_row_wraps[_pick_cursor]
+	if wrap == null or not is_instance_valid(wrap):
+		return
+	_inv_scroll.ensure_control_visible(wrap)
+
+
+func _register_shop_pick_row(wrap: Control, item_id: int) -> void:
+	if not _shop_pick or wrap == null:
+		return
+	_pick_ids.append(item_id)
+	_pick_row_wraps.append(wrap)
 
 
 func _fill_gear_page() -> void:
@@ -1228,12 +1319,13 @@ func _fill_weapons_section(with_section_title: bool) -> void:
 			continue
 		var qty := int(GameState.weapons[w])
 		var wname := "%s. %s" % [String.chr(65 + w), Locale.weapon_name(w)]
-		_add_gear_item_row(
+		var wrap := _add_gear_item_row(
 			_load_keyed_gear_path(_WeaponIcons.path_for_id(w)),
 			wname,
 			_WeaponIcons.damage_of(w),
 			qty
 		)
+		_register_shop_pick_row(wrap, w)
 
 
 func _fill_armor_section(with_section_title: bool) -> void:
@@ -1246,12 +1338,13 @@ func _fill_armor_section(with_section_title: bool) -> void:
 			continue
 		var qty2 := int(GameState.armor[a])
 		var aname := "%s. %s" % [String.chr(65 + a), Locale.armor_name(a)]
-		_add_gear_item_row(
+		var wrap := _add_gear_item_row(
 			_load_keyed_gear_path(_ArmorIcons.path_for_id(a)),
 			aname,
 			_ArmorIcons.defense_of(a),
 			qty2
 		)
+		_register_shop_pick_row(wrap, a)
 
 
 func _fill_items_page() -> void:
@@ -1479,13 +1572,13 @@ func _add_gear_header(stat_label: String, show_stat: bool = true) -> void:
 	_inv_list.add_child(wrap)
 
 
-func _add_gear_item_row(tex: Texture2D, name: String, stat: int, qty: int) -> void:
+func _add_gear_item_row(tex: Texture2D, name: String, stat: int, qty: int) -> Control:
 	var inner := _make_inv_inner_row()
 	_add_inv_icon(inner, tex)
 	_add_inv_name(inner, name)
 	_add_inv_num(inner, str(stat), INV_STAT_W)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
-	_add_inv_static_row(inner)
+	return _add_inv_static_row(inner, _shop_pick)
 
 
 func _add_icon_qty_row(tex: Texture2D, name: String, qty: int) -> void:
@@ -1493,19 +1586,34 @@ func _add_icon_qty_row(tex: Texture2D, name: String, qty: int) -> void:
 	_add_inv_icon(inner, tex)
 	_add_inv_name(inner, name)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
-	_add_inv_static_row(inner)
+	_add_inv_static_row(inner, false)
 
 
-func _add_inv_static_row(inner: HBoxContainer) -> void:
-	## Inventory list row — no selection cursor (xu4 Ztats is read-only).
+func _add_inv_static_row(inner: HBoxContainer, with_pick_chrome: bool = false) -> Control:
+	## Inventory list row. Shop sell adds Ready-style cursor chrome under the content.
 	var wrap := Control.new()
 	wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.clip_contents = true
+	if with_pick_chrome:
+		var bg := ColorRect.new()
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		bg.color = Color(0, 0, 0, 0)
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bg.set_meta("shop_pick_bg", true)
+		wrap.add_child(bg)
+		var edge := ColorRect.new()
+		edge.color = Color(0, 0, 0, 0)
+		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		edge.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+		edge.offset_right = 2
+		edge.set_meta("shop_pick_edge", true)
+		wrap.add_child(edge)
 	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	wrap.add_child(inner)
 	_inv_list.add_child(wrap)
+	return wrap
 
 
 func _add_mix_header() -> void:

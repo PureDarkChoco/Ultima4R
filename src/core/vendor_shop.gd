@@ -249,6 +249,11 @@ func character_inv_kind() -> String:
 			return ""
 
 
+func is_sell_letter_pick() -> bool:
+	## Letter (or ↑↓ / Enter) selection of which pack item to sell.
+	return _phase == "w_sell_key" or _phase == "a_sell_key"
+
+
 func begin(role: int, locale: String) -> void:
 	_reset()
 	_role = role
