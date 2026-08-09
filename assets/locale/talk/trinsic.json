@@ -1,0 +1,620 @@
+{
+  "_meta": {
+    "city": "trinsic",
+    "note": "Korean overlays for TRINSIC.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Dupre",
+      "pronoun": "He",
+      "look": "a handsome fighter.",
+      "job": "I am towne leader",
+      "health": "Very well.",
+      "response1": "'tis an honor!",
+      "response2": "It gives\nlife meaning!",
+      "question": "Dost thou try to\nlive honorably?",
+      "yes": "It is a constant\nquest. Honor is\nlike finely\npolished armour.\nWithout constant\ncare, it will\nsoon tarnish!",
+      "no": "Fool!",
+      "topic1": "LEAD",
+      "topic2": "HONO",
+      "ko": {
+        "name": "뒤프레",
+        "pronoun": "그",
+        "look": "잘생긴 전사다.",
+        "job": "도시의 지도자요.",
+        "health": "매우 좋습니다.",
+        "response1": "영광이오!",
+        "response2": "삶에 의미를\n주오!",
+        "question": "명예롭게 살려고\n하오?",
+        "yes": "끊임없는 퀘스트요.\n명예는 잘 닦은\n갑옷 같으니 돌보지\n않으면 곧 녹슬지!",
+        "no": "어리석은 자!",
+        "topic1": "지도",
+        "topic1_aliases": [
+          "지도",
+          "지도자",
+          "leader",
+          "lead"
+        ],
+        "topic2": "명예",
+        "topic2_aliases": [
+          "명예",
+          "honor",
+          "hono"
+        ]
+      }
+    },
+    {
+      "name": "Virgil",
+      "pronoun": "He",
+      "look": "a mystic wizard.",
+      "job": "I create magical\nfields.",
+      "health": "I am well.",
+      "response1": "Poison is my\nfavorite.",
+      "response2": "Nightshade may\nbe found only\nnear lat-J'F\"\nlong-C'O\" only on\nthe darkest of\nnights!",
+      "question": "'tis it thine?",
+      "yes": "Bravo!",
+      "no": "Well I\ndon't care!",
+      "topic1": "FIEL",
+      "topic2": "NIGH",
+      "ko": {
+        "name": "버질",
+        "pronoun": "그",
+        "look": "신비로운 마법사다.",
+        "job": "마법의 장을\n만듭니다.",
+        "health": "건강하오.",
+        "response1": "독이 제\n취향이오.",
+        "response2": "나이트셰이드는\n위도 J'F\"\n경도 C'O\" 근처\n가장 어두운 밤에만!",
+        "question": "네 것이오?",
+        "yes": "브라보!",
+        "no": "관심 없소!",
+        "topic1": "장",
+        "topic1_aliases": [
+          "장",
+          "필드",
+          "field",
+          "fiel"
+        ],
+        "topic2": "나이트셰이드",
+        "topic2_aliases": [
+          "나이트셰이드",
+          "nightshade",
+          "nigh"
+        ]
+      }
+    },
+    {
+      "name": "Publius",
+      "pronoun": "He",
+      "look": "a sleepy fighter.",
+      "job": "I drink a toast\nto honor!",
+      "health": "Tired.",
+      "response1": "What is left\nwhen honor is\nlost?",
+      "response2": "Right, take\nhonor from me\nand my life is\ndone!",
+      "question": "Dost thou strive\nto live an\nhonorable life?",
+      "yes": "Honor gives\ngreatness.",
+      "no": "No honor,\nno meaning!",
+      "topic1": "HONO",
+      "topic2": "NOTH",
+      "ko": {
+        "name": "푸블리우스",
+        "pronoun": "그",
+        "look": "졸린 전사다.",
+        "job": "명예에 건배!",
+        "health": "피곤하오.",
+        "response1": "명예를 잃으면\n무엇이 남소?",
+        "response2": "맞소. 명예를 빼면\n내 삶은 끝이오!",
+        "question": "명예로운 삶을\n살려고 하오?",
+        "yes": "명예는 위대함을\n주오.",
+        "no": "명예 없으면\n의미 없소!",
+        "topic1": "명예",
+        "topic1_aliases": [
+          "명예",
+          "honor",
+          "hono"
+        ],
+        "topic2": "무",
+        "topic2_aliases": [
+          "무",
+          "없음",
+          "nothing",
+          "noth"
+        ]
+      }
+    },
+    {
+      "name": "Skitle",
+      "pronoun": "It",
+      "look": "a bony skeleton.",
+      "job": "I hail from\ndungeon deep.",
+      "health": "What do\nyou mean?",
+      "response1": "I come from the\ndungeon 'Shame'!",
+      "response2": "I have seen the\npurple stone\nused in the\naltars of\ntruth and\ncourage!",
+      "question": "Ever been there?",
+      "yes": "Good.",
+      "no": "It holds items\nthou shalt need.",
+      "topic1": "DUNG",
+      "topic2": "STON",
+      "ko": {
+        "name": "스키틀",
+        "pronoun": "그것",
+        "look": "뼈대 해골이다.",
+        "job": "깊은 던전에서\n왔소.",
+        "health": "무슨 뜻이오?",
+        "response1": "던전 ‘수치’에서\n왔소!",
+        "response2": "진리와 용기의\n제단에 쓰인\n자색 돌을 봤소!",
+        "question": "가 본 적 있소?",
+        "yes": "좋소.",
+        "no": "필요한 물건이\n있소.",
+        "topic1": "던전",
+        "topic1_aliases": [
+          "던전",
+          "dungeon",
+          "dung"
+        ],
+        "topic2": "돌",
+        "topic2_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ]
+      }
+    },
+    {
+      "name": "Sailor Sam",
+      "pronoun": "He",
+      "look": "an ugly sailor.",
+      "job": "I sail the\nthe seas of\nBritannia!",
+      "health": "A bit\nwaterlogged.",
+      "response1": "My specialty is\nnavigation!",
+      "response2": "Go to the pub in\nJhelom and ask\nof sextants.",
+      "question": "Is it thy\nspecialty?",
+      "yes": "Good show mate!",
+      "no": "Thou must\nnot own a\nsextant, eh?",
+      "topic1": "SEAS",
+      "topic2": "SEXT",
+      "ko": {
+        "name": "선원 샘",
+        "pronoun": "그",
+        "look": "못생긴 선원이다.",
+        "job": "브리타니아 바다를\n항해하오!",
+        "health": "좀 물에\n젖었소.",
+        "response1": "항해가 제\n특기요!",
+        "response2": "예울롬 술집에서\n육분의를 물으시오.",
+        "question": "그게 특기요?",
+        "yes": "잘 했네 선원!",
+        "no": "육분의가 없는\n모양이군?",
+        "topic1": "바다",
+        "topic1_aliases": [
+          "바다",
+          "항해",
+          "seas",
+          "sea"
+        ],
+        "topic2": "육분의",
+        "topic2_aliases": [
+          "육분의",
+          "sextant",
+          "sext"
+        ]
+      }
+    },
+    {
+      "name": "Aristotle",
+      "pronoun": "He",
+      "look": "a dignified paladin.",
+      "job": "I search\nfor honor.",
+      "health": "I am well.",
+      "response1": "Dignity\nconsists not\nin possessing\nhonors, but in\ndeserving them.",
+      "response2": "Honor no one,\nbut honor\nitself!",
+      "question": "Art thou\nhonorable at all\ntimes?",
+      "yes": "That is\nimpressive.",
+      "no": "Strive to be as\nsuch.",
+      "topic1": "HONO",
+      "topic2": "DIGN",
+      "ko": {
+        "name": "아리스토텔레스",
+        "pronoun": "그",
+        "look": "위엄 있는 성기사다.",
+        "job": "명예를\n찾소.",
+        "health": "건강하오.",
+        "response1": "위엄은 명예를\n소유함에 있지 않고\n받을 자격이 있음에.",
+        "response2": "누구도 말고\n명예 그 자체를\n존중하시오!",
+        "question": "언제나 명예롭소?",
+        "yes": "인상적이오.",
+        "no": "그렇게 되려\n노력하시오.",
+        "topic1": "명예",
+        "topic1_aliases": [
+          "명예",
+          "honor",
+          "hono"
+        ],
+        "topic2": "위엄",
+        "topic2_aliases": [
+          "위엄",
+          "존엄",
+          "dignity",
+          "dign"
+        ]
+      }
+    },
+    {
+      "name": "Terrin",
+      "pronoun": "He",
+      "look": "a cowering child.",
+      "job": "I ran from\nthe bull!",
+      "health": "Scared!",
+      "response1": "A big one, with\nlong, pointy\nhorns!",
+      "response2": "It is buried in\nthe southwest\ncorner of towne.",
+      "question": "Is it gone yet?",
+      "yes": "Whew, I thought\nit would get me!",
+      "no": "Save me!",
+      "topic1": "BULL",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "테린",
+        "pronoun": "그",
+        "look": "겁먹은 아이다.",
+        "job": "황소에게서\n달아났어요!",
+        "health": "무서워요!",
+        "response1": "크고 뿔이\n날카로워요!",
+        "response2": "마을 남서쪽\n모서리에 묻혔어요.",
+        "question": "이제 갔나요?",
+        "yes": "휴, 잡히는 줄\n알았어요!",
+        "no": "살려 주세요!",
+        "topic1": "황소",
+        "topic1_aliases": [
+          "황소",
+          "소",
+          "bull"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Rigmore",
+      "pronoun": "He",
+      "look": "a strong paladin.",
+      "job": "I am\nthe welcomer.",
+      "health": "Extra good.",
+      "response1": "Yes, welcome to\nTrinsic city of\nhonor!",
+      "response2": "Wisdom on the\nvirtue of honor\nis found\nthroughout this\ntowne.",
+      "question": "Dost thou seek\nthis wisdom?",
+      "yes": "Enter and find\nthy path.",
+      "no": "This is the\nwrong place!",
+      "topic1": "WELC",
+      "topic2": "HONO",
+      "ko": {
+        "name": "리그모어",
+        "pronoun": "그",
+        "look": "강한 성기사다.",
+        "job": "환영 담당이오.",
+        "health": "아주 좋소.",
+        "response1": "명예의 도시\n트린식에 오신 것을\n환영하오!",
+        "response2": "명예의 미덕 지혜가\n이 마을 곳곳에.",
+        "question": "그 지혜를\n구하오?",
+        "yes": "들어와 길을\n찾으시오.",
+        "no": "이곳이\n아닙니다!",
+        "topic1": "환영",
+        "topic1_aliases": [
+          "환영",
+          "welcome",
+          "welc"
+        ],
+        "topic2": "명예",
+        "topic2_aliases": [
+          "명예",
+          "honor",
+          "hono"
+        ]
+      }
+    },
+    {
+      "name": "Winthrop",
+      "pronoun": "He",
+      "look": "a scruffy merchant.",
+      "job": "A trade\nin rumors.",
+      "health": "A bit\nragged out.",
+      "response1": "About what?",
+      "response2": "There is a small\nchild who knew\nnamed... Terrin.",
+      "question": "Dost thou\nknow him?",
+      "yes": "Ask him of\nthe rune.",
+      "no": "Find him and ask\nof the rune!",
+      "topic1": "RUMO",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "윈스롭",
+        "pronoun": "그",
+        "look": "헐벗은 상인이다.",
+        "job": "소문 거래요.",
+        "health": "좀 초췌하오.",
+        "response1": "무엇에 대해?",
+        "response2": "테린이란 아이가\n알았소…",
+        "question": "그를 아오?",
+        "yes": "룬을 물어보시오.",
+        "no": "그를 찾아 룬을\n물어보시오!",
+        "topic1": "소문",
+        "topic1_aliases": [
+          "소문",
+          "rumor",
+          "rumo"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Swindrik",
+      "pronoun": "He",
+      "look": "a tall wizard.",
+      "job": "I cast spells.",
+      "health": "Fully healed.",
+      "response1": "Spells of\ngreat power.",
+      "response2": "Ask at the\nFolley tavern\nof mandrake.",
+      "question": "Dost thou cast\nspells of great\npower?",
+      "yes": "What is the\nmost powerful\nreagent?",
+      "no": "Dost thou know\ntheir main\ningredient?",
+      "topic1": "SPEL",
+      "topic2": "MAND",
+      "ko": {
+        "name": "스윈드릭",
+        "pronoun": "그",
+        "look": "키 큰 마법사다.",
+        "job": "주문을\n시전하오.",
+        "health": "완전 회복.",
+        "response1": "거대한 힘의\n주문.",
+        "response2": "맨드레이크는\n폴리 여관에서\n물으시오.",
+        "question": "강한 주문을\n쓰오?",
+        "yes": "가장 강한\n시약은?",
+        "no": "주된 재료를\n아오?",
+        "topic1": "주문",
+        "topic1_aliases": [
+          "주문",
+          "spell",
+          "spel"
+        ],
+        "topic2": "맨드레이크",
+        "topic2_aliases": [
+          "맨드레이크",
+          "mandrake",
+          "mand"
+        ]
+      }
+    },
+    {
+      "name": "Kline",
+      "pronoun": "He",
+      "look": "a searching paladin!",
+      "job": "I seek entry to\nthe shrine of\nhonor!",
+      "health": "Well.",
+      "response1": "The mantra\nis 'SUMM'.",
+      "response2": "A man named\nWinthrop knows\nof the rune!",
+      "question": "Know ye the two\nrequirements to\nenter and use\nthe shrine?",
+      "yes": "What are they?",
+      "no": "What dost\nthou think?",
+      "topic1": "MANT",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "클라인",
+        "pronoun": "그",
+        "look": "찾는 성기사다!",
+        "job": "명예 신전\n입구를 찾소!",
+        "health": "좋습니다.",
+        "response1": "만트라는\n‘SUMM’이오.",
+        "response2": "윈스롭이 룬을\n아오!",
+        "question": "신전 입장 요건\n둘을 아오?",
+        "yes": "그게 무엇이오?",
+        "no": "어떻게\n생각하오?",
+        "topic1": "만트라",
+        "topic1_aliases": [
+          "만트라",
+          "mantra",
+          "mant"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Lexington",
+      "pronoun": "He",
+      "look": "a shining paladin.",
+      "job": "I am warlord\nof Trinsic.",
+      "health": "Superb.",
+      "response1": "I have solved\nmany quests!",
+      "response2": "The solving of\nquests brings ye\nhonor!",
+      "question": "Strive ye\nfor honor?",
+      "yes": "Then solve\nquests but\nattack not\nnon-evil\ncreatures, and\nget not\nothers gold!",
+      "no": "Oh.",
+      "topic1": "WARL",
+      "topic2": "QUES",
+      "ko": {
+        "name": "렉싱턴",
+        "pronoun": "그",
+        "look": "빛나는 성기사다.",
+        "job": "트린식의\n전쟁 군주요.",
+        "health": "뛰어납니다.",
+        "response1": "많은 퀘스트를\n풀었소!",
+        "response2": "퀘스트를 풀면\n명예가 오르오!",
+        "question": "명예를 위해\n힘쓰오?",
+        "yes": "퀘스트를 풀되\n악하지 않은 생물을\n공격하지 말고\n남의 금도 마시오!",
+        "no": "오.",
+        "topic1": "군주",
+        "topic1_aliases": [
+          "군주",
+          "전쟁군주",
+          "warlord",
+          "warl"
+        ],
+        "topic2": "퀘스트",
+        "topic2_aliases": [
+          "퀘스트",
+          "quest",
+          "ques"
+        ]
+      }
+    },
+    {
+      "name": "Dergin",
+      "pronoun": "He",
+      "look": "a soulful fighter.",
+      "job": "I seek a place\nto rest.",
+      "health": "Tired.",
+      "response1": "I have quested\nlong and hard.",
+      "response2": "I seek\nenlightenment\nat the shrine of\nhonor!",
+      "question": "Art thou\nenlightened\nin honor?",
+      "yes": "Good.",
+      "no": "The shrine lies\nto the south and\nwest beyond the\nswamps!",
+      "topic1": "REST",
+      "topic2": "QUES",
+      "ko": {
+        "name": "더긴",
+        "pronoun": "그",
+        "look": "애틋한 전사다.",
+        "job": "쉴 곳을\n찾소.",
+        "health": "피곤하오.",
+        "response1": "길고 힘든\n퀘스트를 했소.",
+        "response2": "명예 신전에서\n깨달음을 구하오!",
+        "question": "명예에서\n깨달았소?",
+        "yes": "좋소.",
+        "no": "신전은 남서,\n늪 너머에!",
+        "topic1": "휴식",
+        "topic1_aliases": [
+          "휴식",
+          "rest"
+        ],
+        "topic2": "퀘스트",
+        "topic2_aliases": [
+          "퀘스트",
+          "quest",
+          "ques"
+        ]
+      }
+    },
+    {
+      "name": "a guard",
+      "pronoun": "He",
+      "look": "a big guard.",
+      "job": "We guard\nthe gate.",
+      "health": "Excellent.",
+      "response1": "Into and out\nof Trinsic.",
+      "response2": "'tis an\nhonorable job!",
+      "question": "Dost thou strive\nto bring honor\nupon the peers?",
+      "yes": "Dupre, the\nleader of our\ntowne, joins\nmany honorable\nquests!",
+      "no": "Dolt.",
+      "topic1": "GATE",
+      "topic2": "GUAR",
+      "ko": {
+        "name": "경비병",
+        "pronoun": "그",
+        "look": "덩치 큰 경비병이다.",
+        "job": "문을 지킵니다.",
+        "health": "뛰어납니다.",
+        "response1": "트린식 안팎으로.",
+        "response2": "명예로운 일이오!",
+        "question": "동료에게 명예를\n가져오려 하오?",
+        "yes": "지도자 뒤프레는\n많은 명예 퀘스트에\n합류하오!",
+        "no": "바보.",
+        "topic1": "문",
+        "topic1_aliases": [
+          "문",
+          "gate"
+        ],
+        "topic2": "경비",
+        "topic2_aliases": [
+          "경비",
+          "경비병",
+          "guard",
+          "guar"
+        ]
+      }
+    },
+    {
+      "name": "Quix",
+      "pronoun": "She",
+      "look": "a wandering mage.",
+      "job": "I seek the\nskeleton!",
+      "health": "Adequate.",
+      "response1": "It knows a\ngreat secret.",
+      "response2": "About the purple\nstone of honor!",
+      "question": "Dost thou have\nthe purple\nstone?",
+      "yes": "Use it wisely!",
+      "no": "Seek it for it\nis very useful!",
+      "topic1": "SKEL",
+      "topic2": "SECR",
+      "ko": {
+        "name": "퀵스",
+        "pronoun": "그녀",
+        "look": "떠도는 마법사다.",
+        "job": "해골을\n찾소!",
+        "health": "그럭저럭.",
+        "response1": "큰 비밀을\n알고 있소.",
+        "response2": "명예의 자색 돌에\n대해!",
+        "question": "자색 돌이\n있소?",
+        "yes": "지혜롭게 쓰시오!",
+        "no": "매우 쓸모 있으니\n찾으시오!",
+        "topic1": "해골",
+        "topic1_aliases": [
+          "해골",
+          "skeleton",
+          "skel"
+        ],
+        "topic2": "비밀",
+        "topic2_aliases": [
+          "비밀",
+          "secret",
+          "secr"
+        ]
+      }
+    },
+    {
+      "name": "a guard",
+      "pronoun": "She",
+      "look": "a strong guard.",
+      "job": "To guard.",
+      "health": "Guarded.",
+      "response1": "Guarding.",
+      "response2": "Guard",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "GUAR",
+      "topic2": "STRO",
+      "ko": {
+        "name": "경비병",
+        "pronoun": "그녀",
+        "look": "강한 경비병이다.",
+        "job": "경비를.",
+        "health": "경계 중.",
+        "response1": "경비 중.",
+        "response2": "경비",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "경비",
+        "topic1_aliases": [
+          "경비",
+          "guard",
+          "guar"
+        ],
+        "topic2": "강함",
+        "topic2_aliases": [
+          "강함",
+          "강한",
+          "strong",
+          "stro"
+        ]
+      }
+    }
+  ]
+}

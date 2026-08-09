@@ -1,0 +1,608 @@
+{
+  "_meta": {
+    "city": "magincia",
+    "note": "Korean overlays for MAGINCIA.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Katrina",
+      "pronoun": "She",
+      "look": "a shepherd.",
+      "job": "A survivor.",
+      "health": "Well.",
+      "response1": "Magincia was\ndestroyed by its\npride.",
+      "response2": "Pride flourishes\nin the absence\nof truth, love\nand courage.",
+      "question": "Art thou proud?",
+      "yes": "Thy efforts\nare meaningless.",
+      "no": "Humility is the\nvirtue that\nmust overcome\npride!",
+      "topic1": "SURV",
+      "topic2": "PRID",
+      "ko": {
+        "name": "카트리나",
+        "pronoun": "그녀",
+        "look": "양치기다.",
+        "job": "생존자요.",
+        "health": "좋습니다.",
+        "response1": "마진시아는\n자만으로 멸망했소.",
+        "response2": "자만은 진리·사랑·\n용기가 없을 때\n피어오.",
+        "question": "자만하오?",
+        "yes": "네 노력은\n무의미하오.",
+        "no": "겸손이 자만을\n이겨야 할\n미덕이오!",
+        "topic1": "생존",
+        "topic1_aliases": [
+          "생존",
+          "survivor",
+          "surv"
+        ],
+        "topic2": "자만",
+        "topic2_aliases": [
+          "자만",
+          "교만",
+          "pride",
+          "prid"
+        ]
+      }
+    },
+    {
+      "name": "Ghostly",
+      "pronoun": "It",
+      "look": "a shadowy ghost.",
+      "job": "I haunt Magincia",
+      "health": "Undead in search\nof peace.",
+      "response1": "Peace I can\nnever find,\nforever banished\nunto the realm\nof earthbound\nspirits.",
+      "response2": "Be not proud of\nthy little deeds\nlest ye too fall\nfrom the light!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "PEAC",
+      "topic2": "SPIR",
+      "ko": {
+        "name": "고스트리",
+        "pronoun": "그것",
+        "look": "그림자의 유령이다.",
+        "job": "마진시아를\n떠돕니다.",
+        "health": "평화를 찾는\n언데드.",
+        "response1": "평화는 찾을 수 없고\n지상 영혼의 영역으로\n영원히 추방되오.",
+        "response2": "작은 업적에 자만하지\n말라. 빛에서 떨어질까!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "평화",
+        "topic1_aliases": [
+          "평화",
+          "peace",
+          "peac"
+        ],
+        "topic2": "영혼",
+        "topic2_aliases": [
+          "영혼",
+          "spirit",
+          "spir"
+        ]
+      }
+    },
+    {
+      "name": "Skullface",
+      "pronoun": "It",
+      "look": "a jabbering skeleton.",
+      "job": "I am a nobleman\nof great birth.",
+      "health": "Most superb.",
+      "response1": "Me and my\nbrother are the\nlast two of the\ngreat Meridid\nfamily.",
+      "response2": "A",
+      "question": "Thou hast heard\nof us of course,\nyes?",
+      "yes": "I thought so.",
+      "no": "You must not be\nfrom near these\nparts!",
+      "topic1": "NOBL",
+      "topic2": "",
+      "ko": {
+        "name": "스컬페이스",
+        "pronoun": "그것",
+        "look": "지껄이는 해골이다.",
+        "job": "고귀한 혈통의\n귀족이오.",
+        "health": "최상의 상태.",
+        "response1": "형과 나는 위대한\n메리디드 가의\n마지막 둘이오.",
+        "response2": "A",
+        "question": "물론 우리를\n들었겠지?",
+        "yes": "그럴 줄\n알았소.",
+        "no": "이 근처 사람이\n아니로군!",
+        "topic1": "귀족",
+        "topic1_aliases": [
+          "귀족",
+          "noble",
+          "nobl"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Casperin",
+      "pronoun": "It",
+      "look": "a small ghost.",
+      "job": "To haunt\nthis shop.",
+      "health": "Feeling a bit\ntranslucent.",
+      "response1": "A lot of\nhaunting goes on\nround here.",
+      "response2": "Seek ye the\nmantra for\nhumility, ask ye\nHeywood!",
+      "question": "Know thee why?",
+      "yes": "Pride is the\nsurest measure\nof goals never\nattained!",
+      "no": "Pride!",
+      "topic1": "HAUN",
+      "topic2": "PRID",
+      "ko": {
+        "name": "캐스퍼린",
+        "pronoun": "그것",
+        "look": "작은 유령이다.",
+        "job": "이 가게를\n떠돕니다.",
+        "health": "조금 투명해\n보입니다.",
+        "response1": "여기선 유령이\n많소.",
+        "response2": "겸손 만트라는\n헤이우드에게!",
+        "question": "왜인 줄\n아오?",
+        "yes": "자만은 이루지 못한\n목표의 확실한\n척도요!",
+        "no": "자만!",
+        "topic1": "유령",
+        "topic1_aliases": [
+          "유령",
+          "haunt",
+          "haun"
+        ],
+        "topic2": "자만",
+        "topic2_aliases": [
+          "자만",
+          "pride",
+          "prid"
+        ]
+      }
+    },
+    {
+      "name": "Faultless",
+      "pronoun": "It",
+      "look": "a tall ghost.",
+      "job": "Oh, I just\nhang around!",
+      "health": "Been better.",
+      "response1": "I was hung for\nmy sin of pride!",
+      "response2": "The mantra for\npride, being\nthe antithesis\nof humility,\nis 'MUL'.",
+      "question": "Art thou proud?",
+      "yes": "A grave sin!",
+      "no": "Pride is evil's\nfavorite sin!",
+      "topic1": "HANG",
+      "topic2": "MANT",
+      "ko": {
+        "name": "폴트리스",
+        "pronoun": "그것",
+        "look": "키 큰 유령이다.",
+        "job": "그냥 떠돌 뿐!",
+        "health": "더 나았었소.",
+        "response1": "자만의 죄로\n목매달렸소!",
+        "response2": "겸손의 반대인\n자만의 만트라는\n‘MUL’이오.",
+        "question": "자만하오?",
+        "yes": "큰 죄요!",
+        "no": "자만은 악의\n총애 죄요!",
+        "topic1": "교수",
+        "topic1_aliases": [
+          "교수",
+          "목맴",
+          "hang"
+        ],
+        "topic2": "만트라",
+        "topic2_aliases": [
+          "만트라",
+          "mantra",
+          "mant"
+        ]
+      }
+    },
+    {
+      "name": "Heywood",
+      "pronoun": "It",
+      "look": "a tall ghost.",
+      "job": "Haunt eternally.",
+      "health": "As well as can\nbe expected.",
+      "response1": "Pride goeth\nbefore, shame\ncometh after!",
+      "response2": "Faultless knows\nthe mantra of\npride ask him!",
+      "question": "Art thou proud?",
+      "yes": "Thou shalt\nfind shame!",
+      "no": "A proud soul\nsurely knows not\nits worth!",
+      "topic1": "HAUN",
+      "topic2": "MANT",
+      "ko": {
+        "name": "헤이우드",
+        "pronoun": "그것",
+        "look": "키 큰 유령이다.",
+        "job": "영원히 떠돕니다.",
+        "health": "기대만큼.",
+        "response1": "자만 가면 뒤엔\n수치가!",
+        "response2": "폴트리스가 자만\n만트라를 아오!",
+        "question": "자만하오?",
+        "yes": "수치를\n찾으리!",
+        "no": "자만한 혼은\n자기 값을\n모르오!",
+        "topic1": "유령",
+        "topic1_aliases": [
+          "유령",
+          "haunt",
+          "haun"
+        ],
+        "topic2": "만트라",
+        "topic2_aliases": [
+          "만트라",
+          "mantra",
+          "mant"
+        ]
+      }
+    },
+    {
+      "name": "Slim",
+      "pronoun": "It",
+      "look": "a skinny skeleton.",
+      "job": "I rattle\nmy bones.",
+      "health": "A bit on the\nthin side.",
+      "response1": "I did value\nmyself far too\ngreatly, that\npride was my\ndownfall.",
+      "response2": "A terrible\nthing!",
+      "question": "Art thou\nalways humble?",
+      "yes": "Doubtful.",
+      "no": "Take no pride in\nhumility, lest\nye destroy it!",
+      "topic1": "BONE",
+      "topic2": "PRID",
+      "ko": {
+        "name": "슬림",
+        "pronoun": "그것",
+        "look": "마른 해골이다.",
+        "job": "뼈를\n흔듭니다.",
+        "health": "좀 마른 편.",
+        "response1": "자신을 너무 높게\n여겼고 그 자만이\n몰락이오.",
+        "response2": "끔찍한 일이오!",
+        "question": "언제나\n겸손하오?",
+        "yes": "의심스럽소.",
+        "no": "겸손에 자만하지\n말라. 파괴하리니!",
+        "topic1": "뼈",
+        "topic1_aliases": [
+          "뼈",
+          "bone"
+        ],
+        "topic2": "자만",
+        "topic2_aliases": [
+          "자만",
+          "pride",
+          "prid"
+        ]
+      }
+    },
+    {
+      "name": "Banter",
+      "pronoun": "It",
+      "look": "a crumbling skeleton.",
+      "job": "I once held the\nsilver horn.",
+      "health": "A bit bony.",
+      "response1": "The silver horn\nmust be used to\npass the daemon\nguard of the\nshrine.",
+      "response2": "Wierdrum has\nbeen to the\nshrine of\nhumility!",
+      "question": "Seek ye\nthe horn?",
+      "yes": "Ask Demitry!",
+      "no": "Oh.",
+      "topic1": "HORN",
+      "topic2": "SHRI",
+      "ko": {
+        "name": "밴터",
+        "pronoun": "그것",
+        "look": "부스러지는 해골이다.",
+        "job": "한때 은 뿔을\n지녔소.",
+        "health": "좀 뼈뿐이오.",
+        "response1": "은 뿔로 신전\n악마 수호자를\n지나야 하오.",
+        "response2": "위어드럼이 겸손\n신전에 가 봤소!",
+        "question": "뿔을 구하오?",
+        "yes": "데미트리에게\n물으시오!",
+        "no": "오.",
+        "topic1": "뿔",
+        "topic1_aliases": [
+          "뿔",
+          "혼",
+          "horn"
+        ],
+        "topic2": "신전",
+        "topic2_aliases": [
+          "신전",
+          "shrine",
+          "shri"
+        ]
+      }
+    },
+    {
+      "name": "Demitry",
+      "pronoun": "It",
+      "look": "a thin skeleton.",
+      "job": "I rattle\nmy bones.",
+      "health": "'bout the same\nas yesterday.",
+      "response1": "Bones, them\nbones, them\ndry bones...",
+      "response2": "The queen of\nlove has a lady\nin waiting, she\ncan tell thee\nmore of the\nhorn!",
+      "question": "Art thou dead?",
+      "yes": "Ah, too bad!",
+      "no": "Watch out\nfor Nate!",
+      "topic1": "BONE",
+      "topic2": "HORN",
+      "ko": {
+        "name": "데미트리",
+        "pronoun": "그것",
+        "look": "마른 해골이다.",
+        "job": "뼈를\n흔듭니다.",
+        "health": "어제와\n비슷하오.",
+        "response1": "뼈, 그 뼈,\n마른 뼈…",
+        "response2": "사랑의 여왕 곁\n시녀가 은 뿔을\n더 알려 주오!",
+        "question": "죽었소?",
+        "yes": "아, 안됐소!",
+        "no": "네이트를\n조심하시오!",
+        "topic1": "뼈",
+        "topic1_aliases": [
+          "뼈",
+          "bone"
+        ],
+        "topic2": "뿔",
+        "topic2_aliases": [
+          "뿔",
+          "혼",
+          "horn"
+        ]
+      }
+    },
+    {
+      "name": "Wierdrum",
+      "pronoun": "It",
+      "look": "rattling bones.",
+      "job": "I haunt,\nand I haunt,\nand I haunt!",
+      "health": "Haunted.",
+      "response1": "A haunting job\ntakes more than\na lifetime, it\ntakes forever!",
+      "response2": "Yes, I have been\nto the shrine,\nit lies on the\nnorth bank in\nthe isle of the\nabyss!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "HAUN",
+      "topic2": "SHRI",
+      "ko": {
+        "name": "위어드럼",
+        "pronoun": "그것",
+        "look": "달그락거리는 뼈다.",
+        "job": "떠돌고,\n또 떠돌고!",
+        "health": "떠도는 중.",
+        "response1": "유령 일은 평생이\n아니라 영원!\n",
+        "response2": "신전에 갔소.\n심연 섬 북쪽\n강가에!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "유령",
+        "topic1_aliases": [
+          "유령",
+          "haunt",
+          "haun"
+        ],
+        "topic2": "신전",
+        "topic2_aliases": [
+          "신전",
+          "shrine",
+          "shri"
+        ]
+      }
+    },
+    {
+      "name": "Boozer",
+      "pronoun": "It",
+      "look": "a dumpy ghost.",
+      "job": "I was once\na powerful\nmerchant!",
+      "health": "Hic...",
+      "response1": "My wealth\nwas boundless,\nI held great\npower!",
+      "response2": "A proud soul\nsurely knows not\nit's worth!",
+      "question": "Dost thou see?",
+      "yes": "The world goes\non without me.",
+      "no": "The world goes\non without me.",
+      "topic1": "MERC",
+      "topic2": "POWE",
+      "ko": {
+        "name": "부저",
+        "pronoun": "그것",
+        "look": "뚱뚱한 유령이다.",
+        "job": "한때 강력한\n상인이었소!",
+        "health": "딸꾹…",
+        "response1": "부는 끝없고\n권력도 컸소!",
+        "response2": "자만한 혼은\n제값을 모르오!",
+        "question": "보오?",
+        "yes": "세상은 나 없이도\n돌아갑니다.",
+        "no": "세상은 나 없이도\n돌아갑니다.",
+        "topic1": "상인",
+        "topic1_aliases": [
+          "상인",
+          "merchant",
+          "merc"
+        ],
+        "topic2": "권력",
+        "topic2_aliases": [
+          "권력",
+          "힘",
+          "power",
+          "powe"
+        ]
+      }
+    },
+    {
+      "name": "Bulbous",
+      "pronoun": "It",
+      "look": "a fat skeleton.",
+      "job": "I run this shop.",
+      "health": "Couldn't\nbe better.",
+      "response1": "Why, the food\nshop of course.",
+      "response2": "Well, we're\nexpecting more\nany day!",
+      "question": "Can I interest\nthee in some\nrations?",
+      "yes": "Hmmm, our stock\nseems to have\nspoiled....",
+      "no": "I sell only the\nvery best.",
+      "topic1": "SHOP",
+      "topic2": "SPOI",
+      "ko": {
+        "name": "벌버스",
+        "pronoun": "그것",
+        "look": "뚱뚱한 해골이다.",
+        "job": "이 가게를\n돌보오.",
+        "health": "더할 나위\n없소.",
+        "response1": "식량 가게지요.",
+        "response2": "곧 더 들어올\n예정이오!",
+        "question": "식량 관심\n있소?",
+        "yes": "흠, 재고가\n상했군요…",
+        "no": "최고만\n팝니다.",
+        "topic1": "가게",
+        "topic1_aliases": [
+          "가게",
+          "상점",
+          "shop"
+        ],
+        "topic2": "상함",
+        "topic2_aliases": [
+          "상함",
+          "부패",
+          "spoil",
+          "spoi"
+        ]
+      }
+    },
+    {
+      "name": "Splot",
+      "pronoun": "It",
+      "look": "a weeping skeleton.",
+      "job": "I regret.",
+      "health": "Been better.",
+      "response1": "I was proud,\nstrip thyself of\nconceits, only\nthe humble are\npure!",
+      "response2": "The root from\nwhich all\nvirtues grow!",
+      "question": "Dost thou\nseek purity?",
+      "yes": "Then ask the\nsnake of the\nrune and stone!",
+      "no": "Fool!",
+      "topic1": "REGR",
+      "topic2": "HUMB",
+      "ko": {
+        "name": "스플롯",
+        "pronoun": "그것",
+        "look": "우는 해골이다.",
+        "job": "후회하오.",
+        "health": "더 나았었소.",
+        "response1": "자만했소. 허영을\n벗으시오. 겸손한\n자만이 순수!",
+        "response2": "모든 미덕이\n자라는 뿌리!",
+        "question": "순수를\n구하오?",
+        "yes": "뱀에게 룬과 돌을\n물으시오!",
+        "no": "바보!",
+        "topic1": "후회",
+        "topic1_aliases": [
+          "후회",
+          "regret",
+          "regr"
+        ],
+        "topic2": "겸손",
+        "topic2_aliases": [
+          "겸손",
+          "humility",
+          "humb"
+        ]
+      }
+    },
+    {
+      "name": "Ruskin",
+      "pronoun": "It",
+      "look": "a blue ghost.",
+      "job": "I now try to\nunderstand\nhumility.",
+      "health": "Not well.",
+      "response1": "The first test\nof a great soul\nis humility!",
+      "response2": "Ask the snake of\nthe rune, just\nbefore it\nstrikes!",
+      "question": "Dost thou seek\nto know\nhumility?",
+      "yes": "Thou shalt need\nthe rune!",
+      "no": "A shame.",
+      "topic1": "HUMI",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "러스킨",
+        "pronoun": "그것",
+        "look": "파란 유령이다.",
+        "job": "이제 겸손을\n이해하려 하오.",
+        "health": "좋지 않소.",
+        "response1": "위대한 혼의 첫\n시험은 겸손!",
+        "response2": "치는 직전 뱀에게\n룬을 물으시오!",
+        "question": "겸손을\n알고 싶소?",
+        "yes": "룬이 필요하오!",
+        "no": "아쉽소.",
+        "topic1": "겸손",
+        "topic1_aliases": [
+          "겸손",
+          "humility",
+          "humi"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Nate",
+      "pronoun": "He",
+      "look": "a mean looking viper!",
+      "job": "I bring death\nto all life in\nMagincia!",
+      "health": "Bloodthirsty!",
+      "response1": "Those who seek\nthe black stone\nneed ask at the\npub in Britain!",
+      "response2": "The sacred rune\nof humility was\nbanished from\nthis city. Ask\nBarren in Paws!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "STON",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "네이트",
+        "pronoun": "그",
+        "look": "험상궂은 독사다!",
+        "job": "마진시아의 모든\n생명에 죽음을!",
+        "health": "피에 목마른!",
+        "response1": "검은 돌을 구하면\n브리튼 술집에서\n물으시오!",
+        "response2": "겸손의 성스런 룬은\n이 도시에서 추방.\n포우의 바렌에게!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "돌",
+        "topic1_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Virtuebane",
+      "pronoun": "It",
+      "look": "a horrible ghastly devil!",
+      "job": "I welcome thee\nto Magincia!\nProud city of\nthe high seas!",
+      "health": "Devilish!",
+      "response1": "Magincia fell\nunto the realm\nof darkness for\nthe foundation\nof their virtue\nwas ill-placed\nin pride!",
+      "response2": "A",
+      "question": "Art thou proud?",
+      "yes": "Good!",
+      "no": "Ah.",
+      "topic1": "MAGI",
+      "topic2": "",
+      "ko": {
+        "name": "버추베인",
+        "pronoun": "그것",
+        "look": "무시무시한 악마다!",
+        "job": "마진시아에\n환영하오!\n바다의 자만 도시!",
+        "health": "악마답게!",
+        "response1": "마진시아는 자만을\n미덕의 뿌리로 삼아\n어둠으로 떨어졌소!",
+        "response2": "A",
+        "question": "자만하오?",
+        "yes": "좋소!",
+        "no": "아.",
+        "topic1": "마진시아",
+        "topic1_aliases": [
+          "마진시아",
+          "magincia",
+          "magi"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,633 @@
+{
+  "_meta": {
+    "city": "jhelom",
+    "note": "Korean overlays for JHELOM.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Geoffrey",
+      "pronoun": "He",
+      "look": "a 6 foot 5, great warrior.",
+      "job": "I lead into\nbattle!",
+      "health": "I am good\nand strong!",
+      "response1": "A great warrior\nis a valiant\nwarrior!",
+      "response2": "I desire to\nfight again in\nbattle!",
+      "question": "Art thou\nvaliant!",
+      "yes": "Perhaps I could\nsomeday join\nthee!",
+      "no": "To flee battle\nshows cowardice!",
+      "topic1": "WARR",
+      "topic2": "BATT",
+      "ko": {
+        "name": "제프리",
+        "pronoun": "그",
+        "look": "2미터에 가까운 장신의 위대한 전사다.",
+        "job": "전투를 이끕니다!",
+        "health": "건강하고\n강합니다!",
+        "response1": "위대한 전사는\n용맹한 전사라오!",
+        "response2": "다시 전장에서\n싸우고 싶소!",
+        "question": "그대는 용맹하오!",
+        "yes": "언젠가 함께할 수도\n있겠소!",
+        "no": "전투에서 도망치는\n것은 비겁하오!",
+        "topic1": "전사",
+        "topic1_aliases": [
+          "전사",
+          "전사자",
+          "warrior",
+          "warr"
+        ],
+        "topic2": "전투",
+        "topic2_aliases": [
+          "전투",
+          "싸움",
+          "battle",
+          "batt"
+        ]
+      }
+    },
+    {
+      "name": "Lord Robert",
+      "pronoun": "He",
+      "look": "a mysterious warrior.",
+      "job": "I battle for\nLord British!",
+      "health": "Outstanding!",
+      "response1": "Thou must battle\nlong and hard\nto be a warrior.",
+      "response2": "Battles are few\nand too many!",
+      "question": "Are you a\nvaliant warrior?",
+      "yes": "Thou dost\ndeserve the\nrune, ask\nNostro!",
+      "no": "Thou art a wimp!",
+      "topic1": "WARR",
+      "topic2": "BATT",
+      "ko": {
+        "name": "로버트 경",
+        "pronoun": "그",
+        "look": "수수께끼 같은 전사다.",
+        "job": "로드 브리티시를\n위해 싸웁니다!",
+        "health": "훌륭합니다!",
+        "response1": "전사가 되려면\n길고 치열한\n전투를 해야 하오.",
+        "response2": "전투는 너무 적고\n또 너무 많소!",
+        "question": "용맹한 전사요?",
+        "yes": "그대는 룬을 받을\n자격이 있소.\n노스트로에게\n물어보시오!",
+        "no": "겁쟁이로군!",
+        "topic1": "전사",
+        "topic1_aliases": [
+          "전사",
+          "warrior",
+          "warr"
+        ],
+        "topic2": "전투",
+        "topic2_aliases": [
+          "전투",
+          "싸움",
+          "battle",
+          "batt"
+        ]
+      }
+    },
+    {
+      "name": "Lady Donna",
+      "pronoun": "She",
+      "look": "a 5 foot pregnant woman.",
+      "job": "I watch over\nmy sheep.",
+      "health": "Fine, all but\nthe lump in\nmy stomach.",
+      "response1": "It's no fun\nto be pregnant.",
+      "response2": "I can't stand\nsheep!",
+      "question": "Why, art thou\nthe father?",
+      "yes": "Wait till I\ntell my husband!",
+      "no": "Thank god!",
+      "topic1": "PREG",
+      "topic2": "SHEE",
+      "ko": {
+        "name": "도나 부인",
+        "pronoun": "그녀",
+        "look": "임신한 여인이다.",
+        "job": "양을 돌봅니다.",
+        "health": "괜찮아요. 다만\n뱃속 덩어리만…",
+        "response1": "임신은\n즐겁지 않아요.",
+        "response2": "양이 질색이에요!",
+        "question": "어이, 아버지가\n당신인가요?",
+        "yes": "남편에게 말할\n테니 기다리세요!",
+        "no": "다행히도!",
+        "topic1": "임신",
+        "topic1_aliases": [
+          "임신",
+          "뱃속",
+          "pregnant",
+          "preg"
+        ],
+        "topic2": "양",
+        "topic2_aliases": [
+          "양",
+          "양떼",
+          "sheep",
+          "shee"
+        ]
+      }
+    },
+    {
+      "name": "Bengrod",
+      "pronoun": "He",
+      "look": "a wounded fighter!",
+      "job": "I search the\ndungeons!",
+      "health": "Poor.",
+      "response1": "I fell in\nthe dungeon\n'Destard'.",
+      "response2": "Therein use the\nstones found in\nthe connecting\ndungeons!",
+      "question": "Hast thou found\nits altar room?",
+      "yes": "It connects with\nCovetous, Shame\nand Hythloth!",
+      "no": "Find it!",
+      "topic1": "DUNG",
+      "topic2": "ROOM",
+      "ko": {
+        "name": "벵그로드",
+        "pronoun": "그",
+        "look": "상처 입은 전사다!",
+        "job": "던전을 탐색하오!",
+        "health": "좋지 않소.",
+        "response1": "던전 ‘데스타드’에서\n떨어졌소.",
+        "response2": "이어진 던전에서\n찾은 돌을\n쓰시오!",
+        "question": "제단의 방을\n찾았소?",
+        "yes": "탐욕·수치·히슬로스와\n연결되오!",
+        "no": "찾으시오!",
+        "topic1": "던전",
+        "topic1_aliases": [
+          "던전",
+          "지하",
+          "dungeon",
+          "dung"
+        ],
+        "topic2": "방",
+        "topic2_aliases": [
+          "방",
+          "제단",
+          "room"
+        ]
+      }
+    },
+    {
+      "name": "Sir William",
+      "pronoun": "He",
+      "look": "a noble fighter.",
+      "job": "I search\nfor valiant\nfighters!",
+      "health": "Very well.",
+      "response1": "Kill not\nnon-evil\ncreatures but\nstill always\nstand thy\nground!",
+      "response2": "Let them flee\ninstead.\nnever\nflee uninjured!",
+      "question": "Art thou\nvaliant?",
+      "yes": "Strive ye to\ndefeat all evil!",
+      "no": "I see.",
+      "topic1": "EVIL",
+      "topic2": "KILL",
+      "ko": {
+        "name": "윌리엄 경",
+        "pronoun": "그",
+        "look": "고귀한 전사다.",
+        "job": "용맹한 전사를\n찾고 있소!",
+        "health": "매우 좋소.",
+        "response1": "악하지 않은 생물을\n죽이지 말고\n그러나 자리를\n지키시오!",
+        "response2": "도망치게 두시오.\n부상 없이 절대\n도망치지 마시오!",
+        "question": "그대는 용맹하오?",
+        "yes": "모든 악을\n무찌르시오!",
+        "no": "그렇군.",
+        "topic1": "악",
+        "topic1_aliases": [
+          "악",
+          "evil"
+        ],
+        "topic2": "살해",
+        "topic2_aliases": [
+          "살해",
+          "죽임",
+          "kill"
+        ]
+      }
+    },
+    {
+      "name": "Sir Hrothgar",
+      "pronoun": "He",
+      "look": "a mighty warrior!",
+      "job": "I fight for\nvalor!",
+      "health": "Excellent.",
+      "response1": "The valiant soul\nfears not its\nown visage!",
+      "response2": "The mantra need\nbe known, ask\nAesop!",
+      "question": "Art thou the\nmost valiant of\nsouls?",
+      "yes": "This is not\nlikely!",
+      "no": "Thou should seek\nthe shrine of\nvalor!",
+      "topic1": "VALO",
+      "topic2": "SHRI",
+      "ko": {
+        "name": "흐로스가르 경",
+        "pronoun": "그",
+        "look": "강력한 전사다!",
+        "job": "용기를 위해\n싸웁니다!",
+        "health": "뛰어납니다.",
+        "response1": "용맹한 영혼은\n자기 얼굴을\n두려워하지 않소!",
+        "response2": "만트라가 필요하오.\n이솝에게 물으시오!",
+        "question": "가장 용맹한\n영혼이오?",
+        "yes": "그럴 리 없소!",
+        "no": "용기의 신전을\n찾으시오!",
+        "topic1": "용기",
+        "topic1_aliases": [
+          "용기",
+          "용맹",
+          "valor",
+          "valo"
+        ],
+        "topic2": "신전",
+        "topic2_aliases": [
+          "신전",
+          "제단",
+          "shrine",
+          "shri"
+        ]
+      }
+    },
+    {
+      "name": "a guard",
+      "pronoun": "He",
+      "look": "a stern guard.",
+      "job": "We guard the\ngates and these\npassages!",
+      "health": "Well.",
+      "response1": "The gates\nof Jhelom.",
+      "response2": "These passages\nare restricted.",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "GATE",
+      "topic2": "PASS",
+      "ko": {
+        "name": "경비병",
+        "pronoun": "그",
+        "look": "엄한 경비병이다.",
+        "job": "문과 통로를\n지킵니다!",
+        "health": "좋습니다.",
+        "response1": "예울롬의 문이오.",
+        "response2": "이 통로는 제한되어\n있소.",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "문",
+        "topic1_aliases": [
+          "문",
+          "성문",
+          "gate"
+        ],
+        "topic2": "통로",
+        "topic2_aliases": [
+          "통로",
+          "통행",
+          "passage",
+          "pass"
+        ]
+      }
+    },
+    {
+      "name": "Aesop",
+      "pronoun": "He",
+      "look": "a small man.",
+      "job": "I search\nfor valor!",
+      "health": "Well enough.",
+      "response1": "I find that 'tis\neasy to be brave\nfrom a safe\ndistance!",
+      "response2": "The mantra of\nvalor is 'RA'\nuse it in the\nshrine on the\nnext isle!",
+      "question": "Know what\nI mean?",
+      "yes": "Thats my\nproblem.",
+      "no": "Thou art brave!",
+      "topic1": "VALO",
+      "topic2": "MANT",
+      "ko": {
+        "name": "이솝",
+        "pronoun": "그",
+        "look": "작은 남자다.",
+        "job": "용기를 찾고\n있소!",
+        "health": "그럭저럭.",
+        "response1": "안전한 거리에선\n용기가 쉽소!",
+        "response2": "용기의 만트라는\n‘RA’. 옆 섬\n신전에서 쓰시오!",
+        "question": "내 뜻을\n알겠소?",
+        "yes": "그게 제 문제요.",
+        "no": "그대는 용감하오!",
+        "topic1": "용기",
+        "topic1_aliases": [
+          "용기",
+          "용맹",
+          "valor",
+          "valo"
+        ],
+        "topic2": "만트라",
+        "topic2_aliases": [
+          "만트라",
+          "진언",
+          "mantra",
+          "mant"
+        ]
+      }
+    },
+    {
+      "name": "Gravnor",
+      "pronoun": "He",
+      "look": "a grave fighter.",
+      "job": "I search the\ndungeons.",
+      "health": "So so.",
+      "response1": "I seek the\nred stone.",
+      "response2": "It is found on\nan altar!",
+      "question": "Dost thou\nhave it?",
+      "yes": "No wonder I\ncan't find it!",
+      "no": "It lies in the\ndungeon Destard!",
+      "topic1": "DUNG",
+      "topic2": "STON",
+      "ko": {
+        "name": "그라브노르",
+        "pronoun": "그",
+        "look": "침울한 전사다.",
+        "job": "던전을 탐색하오.",
+        "health": "그저 그렇소.",
+        "response1": "붉은 돌을\n찾소.",
+        "response2": "제단 위에\n있소!",
+        "question": "가지고 있소?",
+        "yes": "그래서 못 찾았군!",
+        "no": "던전 데스타드에\n있소!",
+        "topic1": "던전",
+        "topic1_aliases": [
+          "던전",
+          "dungeon",
+          "dung"
+        ],
+        "topic2": "돌",
+        "topic2_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ]
+      }
+    },
+    {
+      "name": "Senora",
+      "pronoun": "She",
+      "look": "a beautiful mage.",
+      "job": "I am locked up\nin this tower.",
+      "health": "Well enough.",
+      "response1": "I am being\npunished for my\ncrimes.",
+      "response2": "Does not matter,\nI can help thee!",
+      "question": "Dost thou have\na ship?",
+      "yes": "Then thou dost\nneed a sextant\nask the barkeep\nfor he knows\nmore!",
+      "no": "Too bad.",
+      "topic1": "TOWE",
+      "topic2": "CRIM",
+      "ko": {
+        "name": "세노라",
+        "pronoun": "그녀",
+        "look": "아름다운 마법사다.",
+        "job": "이 탑에\n갇혀 있소.",
+        "health": "그럭저럭.",
+        "response1": "죄로 벌을\n받는 중이라오.",
+        "response2": "상관없소.\n도와줄 수 있소!",
+        "question": "배가 있소?",
+        "yes": "그럼 육분의가\n필요하오. 술집\n주인에게 물으시오!",
+        "no": "아쉽소.",
+        "topic1": "탑",
+        "topic1_aliases": [
+          "탑",
+          "망루",
+          "tower",
+          "towe"
+        ],
+        "topic2": "죄",
+        "topic2_aliases": [
+          "죄",
+          "범죄",
+          "crime",
+          "crim"
+        ]
+      }
+    },
+    {
+      "name": "Nostro",
+      "pronoun": "He",
+      "look": "a withering soul.",
+      "job": "I built these\npassages and\nthey walled\nme in!",
+      "health": "Very near death!",
+      "response1": "This passage\nruns around the\ncity!",
+      "response2": "The rune is\nburied in a\ntower!",
+      "question": "Wilt thou lead\nme out?",
+      "yes": "I am saved!",
+      "no": "Thou art a cad!\nand I will still\nfollow!",
+      "topic1": "PASS",
+      "topic2": "RUNE",
+      "ko": {
+        "name": "노스트로",
+        "pronoun": "그",
+        "look": "시들어가는 영혼이다.",
+        "job": "이 통로를 지었더니\n그들이 날\n가뒀소!",
+        "health": "거의 죽음 직전이오!",
+        "response1": "이 통로는 도시\n주변을 돕니다!",
+        "response2": "룬은 탑에\n묻혀 있소!",
+        "question": "나를 밖으로\n인도해 주겠소?",
+        "yes": "살았소!",
+        "no": "비열한 자!\n그래도 따라가겠소!",
+        "topic1": "통로",
+        "topic1_aliases": [
+          "통로",
+          "passage",
+          "pass"
+        ],
+        "topic2": "룬",
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
+      }
+    },
+    {
+      "name": "Luke",
+      "pronoun": "He",
+      "look": "a ranger with a far away look.",
+      "job": "I seek the\ninner light!",
+      "health": "Quite well.",
+      "response1": "I come from\nSkara Brae and\nam on my way to\nYew.",
+      "response2": "'tis a city\nbased in the\nvirtue of\njustice!",
+      "question": "Hast thou been\nto Skara Brae?",
+      "yes": "A fine city!",
+      "no": "'tis a spiritual\ncity!",
+      "topic1": "LIGH",
+      "topic2": "YEW",
+      "ko": {
+        "name": "루크",
+        "pronoun": "그",
+        "look": "먼 곳을 응시하는 레인저다.",
+        "job": "내면의 빛을\n구하오!",
+        "health": "꽤 좋습니다.",
+        "response1": "스카라 브레에서 와\n유로\n가는 길이오.",
+        "response2": "정의의 미덕을 세운\n도시요!",
+        "question": "스카라 브레에\n가 본 적 있소?",
+        "yes": "좋은 도시요!",
+        "no": "영성의 도시요!",
+        "topic1": "빛",
+        "topic1_aliases": [
+          "빛",
+          "광명",
+          "light",
+          "ligh"
+        ],
+        "topic2": "유",
+        "topic2_aliases": [
+          "유",
+          "유 시",
+          "yew"
+        ]
+      }
+    },
+    {
+      "name": "Max",
+      "pronoun": "He",
+      "look": "the housekeeper.",
+      "job": "I am the\nhousekeeper.",
+      "health": "Good!",
+      "response1": "I clean\nthe rooms.",
+      "response2": "That's a strange\none at the\nend. People\noften disappear.",
+      "question": "Is there some\nproblem with thy\nroom?",
+      "yes": "I am very sorry\nI will correct\nit right away!",
+      "no": "Oh, thou had\nme worried!",
+      "topic1": "HOUS",
+      "topic2": "ROOM",
+      "ko": {
+        "name": "맥스",
+        "pronoun": "그",
+        "look": "하숙 관리인이다.",
+        "job": "하숙 관리인이오.",
+        "health": "좋습니다!",
+        "response1": "방을 청소하오.",
+        "response2": "끝 방은 이상하오.\n사람이 자주\n사라지오.",
+        "question": "방에 문제가\n있소?",
+        "yes": "죄송하오. 당장\n고치겠소!",
+        "no": "걱정하게\n만들었군!",
+        "topic1": "숙소",
+        "topic1_aliases": [
+          "숙소",
+          "방",
+          "house",
+          "hous"
+        ],
+        "topic2": "방",
+        "topic2_aliases": [
+          "방",
+          "room"
+        ]
+      }
+    },
+    {
+      "name": "X",
+      "pronoun": "He",
+      "look": "a strange person.",
+      "job": "I seek the stone",
+      "health": "O.K.",
+      "response1": "The red stone.",
+      "response2": "Red is for valor\na virtue of the\navatar!",
+      "question": "Art thou an\navatar?",
+      "yes": "Wow!",
+      "no": "Then thou shalt\nneed the red\nstone in one\naltar room to\nget the third\npart of a key!",
+      "topic1": "STON",
+      "topic2": "RED",
+      "ko": {
+        "name": "엑스",
+        "pronoun": "그",
+        "look": "이상한 사람이다.",
+        "job": "돌을 찾소.",
+        "health": "괜찮소.",
+        "response1": "붉은 돌이오.",
+        "response2": "빨강은 용기,\n아바타의 미덕이오!",
+        "question": "그대는 아바타요?",
+        "yes": "와!",
+        "no": "그럼 제단 방에서\n붉은 돌이 필요하오.\n열쇠 세 번째 조각을\n얻으려면!",
+        "topic1": "돌",
+        "topic1_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ],
+        "topic2": "빨강",
+        "topic2_aliases": [
+          "빨강",
+          "붉은",
+          "red"
+        ]
+      }
+    },
+    {
+      "name": "Slithe",
+      "pronoun": "He",
+      "look": "a valiant warrior.",
+      "job": "I fight battles!",
+      "health": "Only minor\nwounds!",
+      "response1": "True valor is\nseen not in the\nforce of arms,\nbut in the force\nof will!",
+      "response2": "I display my\nvalor in battle.",
+      "question": "Art thou\nvaliant?",
+      "yes": "Then never flee\nunless the need\nis dire!",
+      "no": "Coward.",
+      "topic1": "BATT",
+      "topic2": "VALO",
+      "ko": {
+        "name": "슬라이드",
+        "pronoun": "그",
+        "look": "용맹한 전사다.",
+        "job": "전투를 하오!",
+        "health": "작은 상처뿐!",
+        "response1": "참된 용기는 무력에\n있지 않고 의지의\n힘에 있소!",
+        "response2": "전투에서 용기를\n보여 주오.",
+        "question": "그대는 용맹하오?",
+        "yes": "필사적이 아니면\n절대 도망치지\n마시오!",
+        "no": "겁쟁이.",
+        "topic1": "전투",
+        "topic1_aliases": [
+          "전투",
+          "싸움",
+          "battle",
+          "batt"
+        ],
+        "topic2": "용기",
+        "topic2_aliases": [
+          "용기",
+          "용맹",
+          "valor",
+          "valo"
+        ]
+      }
+    },
+    {
+      "name": "Timrod",
+      "pronoun": "He",
+      "look": "a thin fighter.",
+      "job": "I fight\nwith valor!",
+      "health": "Couldn't be\nbetter!",
+      "response1": "There is no\nholier spot of\nground than\nwhere defeated\nvalor lies.",
+      "response2": "Be brave for\nthere is much\nto dare!",
+      "question": "Art thou brave?",
+      "yes": "Fortune helps\nthe brave!",
+      "no": "Coward.",
+      "topic1": "VALO",
+      "topic2": "BRAV",
+      "ko": {
+        "name": "팀로드",
+        "pronoun": "그",
+        "look": "마른 전사다.",
+        "job": "용기로\n싸웁니다!",
+        "health": "더할 나위 없소!",
+        "response1": "패배한 용기가\n누운 곳보다\n성스러운 땅은\n없소.",
+        "response2": "용감하시오.\n도전할 것이\n많소!",
+        "question": "그대는 용감하오?",
+        "yes": "행운은 용감한\n자를 돕소!",
+        "no": "겁쟁이.",
+        "topic1": "용기",
+        "topic1_aliases": [
+          "용기",
+          "용맹",
+          "valor",
+          "valo"
+        ],
+        "topic2": "용감",
+        "topic2_aliases": [
+          "용감",
+          "brave",
+          "brav"
+        ]
+      }
+    }
+  ]
+}

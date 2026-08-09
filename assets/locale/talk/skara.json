@@ -1,0 +1,619 @@
+{
+  "_meta": {
+    "city": "skara",
+    "note": "Korean overlays for SKARA.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Shamino",
+      "pronoun": "He",
+      "look": "a solemn ranger.",
+      "job": "I seek the\ninner light.",
+      "health": "I am well.",
+      "response1": "I seek the \"one\ngreat truth\"!",
+      "response2": "That which\nlies within\nthe codex!",
+      "question": "Dost thou seek\nthis \"truth\"?",
+      "yes": "Some things take\nforever but\nbrick by brick\nmountains can be\nbuilt!",
+      "no": "Alas.",
+      "topic1": "LIGH",
+      "topic2": "TRUT",
+      "ko": {
+        "name": "샤미노",
+        "pronoun": "그",
+        "look": "엄숙한 레인저다.",
+        "job": "내면의 빛을\n구하오.",
+        "health": "건강하오.",
+        "response1": "‘하나의 큰 진리’를\n찾소!",
+        "response2": "코덱스 안에\n있는 것!",
+        "question": "이 진리를\n구하오?",
+        "yes": "어떤 일은 영원하나\n벽돌을 쌓으면\n산도 세우지!",
+        "no": "아아.",
+        "topic1": "빛",
+        "topic1_aliases": [
+          "빛",
+          "광명",
+          "light",
+          "ligh"
+        ],
+        "topic2": "진리",
+        "topic2_aliases": [
+          "진리",
+          "truth",
+          "trut"
+        ]
+      }
+    },
+    {
+      "name": "Emerson",
+      "pronoun": "He",
+      "look": "an injured man.",
+      "job": "I seek the\nspiritual path.",
+      "health": "I am grievously\nwounded.",
+      "response1": "Spiritual is\nstronger than\nany material\nforce.",
+      "response2": "Nothing can\nbring thee peace\nbut the triumph\nof principles!",
+      "question": "Art thou good\nin spirit?",
+      "yes": "A good path.",
+      "no": "An evil path!",
+      "topic1": "SPIR",
+      "topic2": "WOUN",
+      "ko": {
+        "name": "에머슨",
+        "pronoun": "그",
+        "look": "다친 남자다.",
+        "job": "영성의 길을\n찾소.",
+        "health": "심각하게\n부상했소.",
+        "response1": "영성은 어떤\n물질의 힘보다\n강하오.",
+        "response2": "원칙의 승리만이\n평화를 주오!",
+        "question": "영혼이\n선하오?",
+        "yes": "선한 길이오.",
+        "no": "사악한 길!",
+        "topic1": "영성",
+        "topic1_aliases": [
+          "영성",
+          "정신",
+          "spirit",
+          "spir"
+        ],
+        "topic2": "부상",
+        "topic2_aliases": [
+          "부상",
+          "상처",
+          "wound",
+          "woun"
+        ]
+      }
+    },
+    {
+      "name": "Santayana",
+      "pronoun": "He",
+      "look": "a tall ranger.",
+      "job": "I carry the\nlight within my\nheart.",
+      "health": "I am alive.",
+      "response1": "The light of\nphilosophy.",
+      "response2": "In philosophical\nminds the\nfamiliar excites\nwonder!",
+      "question": "Dost thou always\ntread the right\npath?",
+      "yes": "Doubtful!",
+      "no": "Few can, but\nstrive to do so!",
+      "topic1": "LIGH",
+      "topic2": "PHIL",
+      "ko": {
+        "name": "산타야나",
+        "pronoun": "그",
+        "look": "키 큰 레인저다.",
+        "job": "마음에 빛을\n품소.",
+        "health": "살아 있소.",
+        "response1": "철학의 빛.",
+        "response2": "철학하는 마음에선\n익숙한 것이\n경이를 일으키지!",
+        "question": "언제나 바른 길을\n걷소?",
+        "yes": "의심스럽소!",
+        "no": "드물지만\n노력하시오!",
+        "topic1": "빛",
+        "topic1_aliases": [
+          "빛",
+          "light",
+          "ligh"
+        ],
+        "topic2": "철학",
+        "topic2_aliases": [
+          "철학",
+          "philosophy",
+          "phil"
+        ]
+      }
+    },
+    {
+      "name": "Presto",
+      "pronoun": "He",
+      "look": "a very small wizard.",
+      "job": "I cast great\nbig spells!",
+      "health": "Superior!",
+      "response1": "I can cast:\njinx, kill,\nand view!",
+      "response2": "Yes, ask the\nbarkeep at\n'The Axe-n-Ale'\nin Vesper about\nnightshade.",
+      "question": "Dost thou know\nwhat these\nspells have in\ncommon?",
+      "yes": "What?",
+      "no": "Guess!",
+      "topic1": "SPEL",
+      "topic2": "NIGH",
+      "ko": {
+        "name": "프레스토",
+        "pronoun": "그",
+        "look": "아주 작은 마법사다.",
+        "job": "아주 큰 주문을\n다룹니다!",
+        "health": "최고요!",
+        "response1": "교란, 죽음,\n투시!",
+        "response2": "베스퍼 ‘도끼와 에일’\n주인에게\n나이트셰이드를\n물으시오.",
+        "question": "이 주문들의 공통점을\n아오?",
+        "yes": "뭔가?",
+        "no": "맞춰 보시오!",
+        "topic1": "주문",
+        "topic1_aliases": [
+          "주문",
+          "spell",
+          "spel"
+        ],
+        "topic2": "나이트셰이드",
+        "topic2_aliases": [
+          "나이트셰이드",
+          "nightshade",
+          "nigh"
+        ]
+      }
+    },
+    {
+      "name": "Granted",
+      "pronoun": "She",
+      "look": "a hungry beggar.",
+      "job": "I beg for food\nand money.",
+      "health": "I am not\nat all well.",
+      "response1": "To eat!",
+      "response2": "To buy food!",
+      "question": "Wilt thou give\nme food or\nmoney?",
+      "yes": "In return I will\ntell thee that\nthe ankh knows\nof the rune and\nmy friend Ambule\nknows the\nmantra!",
+      "no": "Jerk!",
+      "topic1": "FOOD",
+      "topic2": "MONE",
+      "ko": {
+        "name": "그랜티드",
+        "pronoun": "그녀",
+        "look": "배고픈 거지다.",
+        "job": "음식과 돈을\n구걸합니다.",
+        "health": "전혀 좋지\n않습니다.",
+        "response1": "먹으려고!",
+        "response2": "음식을 사려고!",
+        "question": "음식이나 돈을\n주시겠습니까?",
+        "yes": "대가로 말씀드리면,\n앙크가 룬을 알고\n친구 앰뷸이\n만트라를 압니다!",
+        "no": "인색하군요!",
+        "topic1": "음식",
+        "topic1_aliases": [
+          "음식",
+          "밥",
+          "food"
+        ],
+        "topic2": "돈",
+        "topic2_aliases": [
+          "돈",
+          "금",
+          "money",
+          "mone"
+        ]
+      }
+    },
+    {
+      "name": "Mitre",
+      "pronoun": "She",
+      "look": "a radiant ranger.",
+      "job": "I am reading the\nwizard's journal.",
+      "health": "I am fine.",
+      "response1": "It tells of the\nwhite stone.",
+      "response2": "It is no longer\nin the dungeon\nHythloth, it\nis gone!",
+      "question": "Wilt thou try to\nrecover it?",
+      "yes": "Ask of the stone\nat the Tap in\nTrinsic!",
+      "no": "Too bad.",
+      "topic1": "JOUR",
+      "topic2": "STON",
+      "ko": {
+        "name": "미트레",
+        "pronoun": "그녀",
+        "look": "빛나는 레인저다.",
+        "job": "마법사 일기를\n읽고 있소.",
+        "health": "괜찮소.",
+        "response1": "흰 돌 이야기를\n하오.",
+        "response2": "히슬로스 던전에는\n더 이상 없고\n사라졌소!",
+        "question": "되찾으려 하오?",
+        "yes": "트린식의 탭에서\n돌을 물으시오!",
+        "no": "아쉽소.",
+        "topic1": "일기",
+        "topic1_aliases": [
+          "일기",
+          "저널",
+          "journal",
+          "jour"
+        ],
+        "topic2": "돌",
+        "topic2_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ]
+      }
+    },
+    {
+      "name": "Buddha",
+      "pronoun": "He",
+      "look": "a great philosopher.",
+      "job": "I teach.",
+      "health": "I am well.",
+      "response1": "When one has\npity on all\nliving creatures\nthen is one\nnoble.",
+      "response2": "If one speaks or\nacts with pure\nthought,\nhappiness will\nfollow like a\nshadow that\nnever leaves.",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "TEAC",
+      "topic2": "NOBL",
+      "ko": {
+        "name": "부처",
+        "pronoun": "그",
+        "look": "위대한 철학자다.",
+        "job": "가르칩니다.",
+        "health": "건강하오.",
+        "response1": "모든 생명에\n연민을 품을 때\n고귀해지오.",
+        "response2": "순수 생각으로\n말하고 행하면\n행복이 그림자처럼\n따라오오.",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "가르침",
+        "topic1_aliases": [
+          "가르침",
+          "교사",
+          "teach",
+          "teac"
+        ],
+        "topic2": "고귀",
+        "topic2_aliases": [
+          "고귀",
+          "noble",
+          "nobl"
+        ]
+      }
+    },
+    {
+      "name": "Michaelangelo",
+      "pronoun": "He",
+      "look": "a skilled ranger.",
+      "job": "I strive along\nthe path.",
+      "health": "Well.",
+      "response1": "Success is a\njourney, not a\ndestination.",
+      "response2": "May thou always\ndesire more than\nthou can\naccomplish!",
+      "question": "Art thou far\nalong the path?",
+      "yes": "This is good.",
+      "no": "Fear not thou\nshalt be.",
+      "topic1": "PATH",
+      "topic2": "JOUR",
+      "ko": {
+        "name": "미켈란젤로",
+        "pronoun": "그",
+        "look": "능숙한 레인저다.",
+        "job": "길을 따라\n노력하오.",
+        "health": "좋습니다.",
+        "response1": "성공은 목적지가\n아니라 여정이오.",
+        "response2": "이룰 수 있는 것보다\n늘 더 바라게\n되시기를!",
+        "question": "길을 멀리\n왔소?",
+        "yes": "좋소.",
+        "no": "두려워 말소.\n그렇게 되리.",
+        "topic1": "길",
+        "topic1_aliases": [
+          "길",
+          "path"
+        ],
+        "topic2": "여정",
+        "topic2_aliases": [
+          "여정",
+          "journey",
+          "jour"
+        ]
+      }
+    },
+    {
+      "name": "Romasco",
+      "pronoun": "He",
+      "look": "a short dumpy man with a book.",
+      "job": "I am a teacher,\nI enrich young\nminds.",
+      "health": "I am fine.",
+      "response1": "I teach of\nthe abyss.",
+      "response2": "Seek Zair the\nWise in Paws for\nmore on the\nword.",
+      "question": "Know ye of\nthe abyss?",
+      "yes": "A word of\npassage is\nneeded at the\nlast gate!",
+      "no": "Learn!",
+      "topic1": "TEAC",
+      "topic2": "WORD",
+      "ko": {
+        "name": "로마스코",
+        "pronoun": "그",
+        "look": "책을 든 자그마한 남자다.",
+        "job": "선생이오. 어린\n마음을 키우오.",
+        "health": "괜찮소.",
+        "response1": "심연을\n가르치오.",
+        "response2": "말(진언)에 대해선\n포우의 자이르에게\n물으시오.",
+        "question": "심연을 아오?",
+        "yes": "마지막 문에\n통과의 말이\n필요하오!",
+        "no": "배우시오!",
+        "topic1": "가르침",
+        "topic1_aliases": [
+          "가르침",
+          "교사",
+          "teach",
+          "teac"
+        ],
+        "topic2": "말씀",
+        "topic2_aliases": [
+          "말씀",
+          "단어",
+          "word"
+        ]
+      }
+    },
+    {
+      "name": "Carlyle",
+      "pronoun": "He",
+      "look": "a wise mage.",
+      "job": "I write magic.",
+      "health": "Fine.",
+      "response1": "One lives by\nbelieving in\nsomething.",
+      "response2": "Great\ndiscoveries are\nmade by those\nwhose feelings\nrun ahead of\ntheir thinking.",
+      "question": "Dost thou\nbelieve in\nmagic?",
+      "yes": "Magic missiles\nneed but 1\npart ash!",
+      "no": "I see.",
+      "topic1": "MAGI",
+      "topic2": "BELI",
+      "ko": {
+        "name": "칼라일",
+        "pronoun": "그",
+        "look": "현명한 마법사다.",
+        "job": "마법을\n쓰오.",
+        "health": "좋습니다.",
+        "response1": "무언가 믿으며\n살소.",
+        "response2": "큰 발견은 생각이\n앞서기 전 감정으로\n달린 자가 하오.",
+        "question": "마법을\n믿소?",
+        "yes": "마법 화살은\n유황재 한 부분이면\n되오!",
+        "no": "그렇군.",
+        "topic1": "마법",
+        "topic1_aliases": [
+          "마법",
+          "magic",
+          "magi"
+        ],
+        "topic2": "믿음",
+        "topic2_aliases": [
+          "믿음",
+          "belief",
+          "beli"
+        ]
+      }
+    },
+    {
+      "name": "Dickens",
+      "pronoun": "He",
+      "look": "a wise bard.",
+      "job": "I write stories.",
+      "health": "O.K.",
+      "response1": "Stories are good\nfor the spirit!",
+      "response2": "Remember,\nno one is\nuseless in this\nworld who\nlightens the\nburdens of\nothers!",
+      "question": "Art thou good\nin nature?",
+      "yes": "Be sure thy net\ngood well\nexceeds thy\nnet evil!",
+      "no": "I see.",
+      "topic1": "STOR",
+      "topic2": "SPIR",
+      "ko": {
+        "name": "디킨스",
+        "pronoun": "그",
+        "look": "현명한 음유시인이다.",
+        "job": "이야기를\n쓰오.",
+        "health": "괜찮소.",
+        "response1": "이야기는 영혼에\n좋소!",
+        "response2": "타인의 짐을\n가볍게 하는 자는\n이 세상에서\n쓸모없지 않소!",
+        "question": "본성이\n선하오?",
+        "yes": "선의 합이 악의\n합보다 크도록!",
+        "no": "그렇군.",
+        "topic1": "이야기",
+        "topic1_aliases": [
+          "이야기",
+          "story",
+          "stor"
+        ],
+        "topic2": "영성",
+        "topic2_aliases": [
+          "영성",
+          "영혼",
+          "spirit",
+          "spir"
+        ]
+      }
+    },
+    {
+      "name": "White",
+      "pronoun": "He",
+      "look": "a gallant fighter.",
+      "job": "I quest.",
+      "health": "Excellent!",
+      "response1": "Many quests are\nvery dangerous!",
+      "response2": "I am not afraid\nof tomorrow; I\nhave seen\nyesterday and I\nlove today.",
+      "question": "Art thou\nfearless in all\nthing?",
+      "yes": "Boastful fool!",
+      "no": "Danger is real!",
+      "topic1": "QUES",
+      "topic2": "DANG",
+      "ko": {
+        "name": "화이트",
+        "pronoun": "그",
+        "look": "용맹한 전사다.",
+        "job": "퀘스트를 하오.",
+        "health": "뛰어납니다!",
+        "response1": "많은 퀘스트는\n위험하오!",
+        "response2": "내일은 두렵지 않소.\n어제를 보았고\n오늘을 사랑하오.",
+        "question": "모든 일에\n겁이 없소?",
+        "yes": "허풍 부리는\n바보!",
+        "no": "위험은\n실재하오!",
+        "topic1": "퀘스트",
+        "topic1_aliases": [
+          "퀘스트",
+          "quest",
+          "ques"
+        ],
+        "topic2": "위험",
+        "topic2_aliases": [
+          "위험",
+          "danger",
+          "dang"
+        ]
+      }
+    },
+    {
+      "name": "the Ankh of\nSpirituality",
+      "pronoun": "It",
+      "look": "a silver ankh.",
+      "job": "I keep the\nsecret of\nthe rune.",
+      "health": "Strong.",
+      "response1": "Mantra?",
+      "response2": "Search for\nthe rune of\nspirituality in\nthe treasure\nchamber of\nBritannia!",
+      "question": "Hast thou found\nthe shrine?",
+      "yes": "Good!",
+      "no": "Enter the gate\nof full moons!",
+      "topic1": "RUNE",
+      "topic2": "OM",
+      "ko": {
+        "name": "영성의 앙크",
+        "pronoun": "그것",
+        "look": "은빛 앙크다.",
+        "job": "룬의 비밀을\n지키오.",
+        "health": "강하오.",
+        "response1": "만트라?",
+        "response2": "영성의 룬은\n브리타니아 보물\n창고에서 찾으시오!",
+        "question": "신전을\n찾았소?",
+        "yes": "좋소!",
+        "no": "보름달 문으로\n들어가시오!",
+        "topic1": "룬",
+        "topic1_aliases": [
+          "룬",
+          "rune"
+        ],
+        "topic2": "옴",
+        "topic2_aliases": [
+          "옴",
+          "om"
+        ]
+      }
+    },
+    {
+      "name": "Ambule",
+      "pronoun": "She",
+      "look": "a grimy beggar.",
+      "job": "I beg for but\nfor a single\ngold piece!",
+      "health": "So-so.",
+      "response1": "Oh, please...\nOh, please...",
+      "response2": "Ask the child\nnamed Barren.",
+      "question": "Wilt thou please\ngive me a\ngold piece?",
+      "yes": "Dear kind soul.",
+      "no": "Stingy, I know\nthou hast many!",
+      "topic1": "BEG",
+      "topic2": "MANT",
+      "ko": {
+        "name": "앰뷸",
+        "pronoun": "그녀",
+        "look": "때묻은 거지다.",
+        "job": "금화 한 닢만\n구걸합니다!",
+        "health": "그저 그렇소.",
+        "response1": "제발…\n제발…",
+        "response2": "바렌이라는 아이에게\n물어보세요.",
+        "question": "금화 한 닢을\n주시겠습니까?",
+        "yes": "친절한 분.",
+        "no": "인색하군요. 많이\n가졌을 텐데요!",
+        "topic1": "구걸",
+        "topic1_aliases": [
+          "구걸",
+          "거지",
+          "beg"
+        ],
+        "topic2": "만트라",
+        "topic2_aliases": [
+          "만트라",
+          "mantra",
+          "mant"
+        ]
+      }
+    },
+    {
+      "name": "Barren",
+      "pronoun": "He",
+      "look": "a small child.",
+      "job": "No job.",
+      "health": "O.K.",
+      "response1": "I know it well,\nit is 'OM'.",
+      "response2": "A",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "MANT",
+      "topic2": "",
+      "ko": {
+        "name": "바렌",
+        "pronoun": "그",
+        "look": "작은 아이다.",
+        "job": "직업 없어요.",
+        "health": "괜찮아요.",
+        "response1": "잘 알아요.\n‘OM’이에요.",
+        "response2": "A",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "만트라",
+        "topic1_aliases": [
+          "만트라",
+          "mantra",
+          "mant"
+        ],
+        "topic2": "",
+        "topic2_aliases": []
+      }
+    },
+    {
+      "name": "Isaac",
+      "pronoun": "He",
+      "look": "a ghostly figure.",
+      "job": "I haunt\nthis inn!",
+      "health": "I am many\nyears dead.",
+      "response1": "The quest is\nnot complete!",
+      "response2": "The white stone\nsits atop the\nSerpent's Spine.\nIt can only be\nreached by one\nwho floats\nwithin the\nclouds.",
+      "question": "Art thou on\nthe quest?",
+      "yes": "Hope!",
+      "no": "Alas.",
+      "topic1": "HAUN",
+      "topic2": "STON",
+      "ko": {
+        "name": "아이작",
+        "pronoun": "그",
+        "look": "유령 같은 형체다.",
+        "job": "이 여관을\n떠돕니다!",
+        "health": "죽은 지\n오래요.",
+        "response1": "퀘스트는\n끝나지 않았소!",
+        "response2": "흰 돌은 뱀의\n등뼈 꼭대기.\n구름 속에 떠야\n닿을 수 있소.",
+        "question": "퀘스트 중이오?",
+        "yes": "희망!",
+        "no": "아아.",
+        "topic1": "유령",
+        "topic1_aliases": [
+          "유령",
+          "haunt",
+          "haun"
+        ],
+        "topic2": "돌",
+        "topic2_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ]
+      }
+    }
+  ]
+}
