@@ -358,7 +358,6 @@ func _ready() -> void:
 		else:
 			## Snap — animate would fire if start is 1 tile from MapView's default center.
 			_map.set_center(_tile_pos, false)
-			_place_temp_transports()
 		_sync_moongate(true)
 
 	call_deferred("_fit_explore_map")
@@ -371,34 +370,6 @@ func _ready() -> void:
 	else:
 		_refresh_party()
 		_refresh_ship_hull_hud()
-
-
-func _place_temp_transports() -> void:
-	## New game: one balloon on nearby grass (canLandBalloon) so Klimb/D land test cleanly.
-	if _map == null or _world == null or not _world.loaded:
-		return
-	var items: Array[Vector3i] = []
-	var balloon := _find_nearby_land_balloon(_tile_pos)
-	if balloon != Vector2i(-1, -1):
-		items.append(Vector3i(balloon.x, balloon.y, MapView.TILE_BALLOON))
-	_map.set_overlays(items)
-
-
-func _find_nearby_land_balloon(origin: Vector2i) -> Vector2i:
-	## Prefer grass (xu4 canLandBalloon); fall back to any walkable land.
-	for radius in range(1, 8):
-		for dy in range(-radius, radius + 1):
-			for dx in range(-radius, radius + 1):
-				if maxi(absi(dx), absi(dy)) != radius:
-					continue
-				var p := Vector2i(
-					posmod(origin.x + dx, WorldMapData.WIDTH),
-					posmod(origin.y + dy, WorldMapData.HEIGHT)
-				)
-				var tid := int(_world.tile_at(p.x, p.y))
-				if _TileRules.can_land_balloon(tid):
-					return p
-	return _find_nearby_tile(origin, false)
 
 
 func _apply_world_save(w: Dictionary) -> void:
@@ -545,26 +516,6 @@ func _overlays_from_hull_fallback() -> Array[Vector3i]:
 		if not already:
 			items.append(Vector3i(_parked_ship_tile.x, _parked_ship_tile.y, MapView.TILE_SHIP_W))
 	return items
-
-
-func _find_nearby_tile(origin: Vector2i, want_water: bool) -> Vector2i:
-	## Spiral search (skip origin): sailable water vs walkable land.
-	for radius in range(1, 8):
-		for dy in range(-radius, radius + 1):
-			for dx in range(-radius, radius + 1):
-				if maxi(absi(dx), absi(dy)) != radius:
-					continue
-				var p := Vector2i(
-					posmod(origin.x + dx, WorldMapData.WIDTH),
-					posmod(origin.y + dy, WorldMapData.HEIGHT)
-				)
-				var tid := _world.tile_at(p.x, p.y)
-				if want_water:
-					if _TileRules.is_sailable(tid):
-						return p
-				elif _TileRules.walk_on(tid) != 0 and not _TileRules.is_water(tid):
-					return p
-	return Vector2i(-1, -1)
 
 
 func _do_board() -> void:
