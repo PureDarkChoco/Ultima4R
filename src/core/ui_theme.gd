@@ -10,6 +10,8 @@ const TEXT := Color("e8f0e9")
 const MUTED := Color("8aa39a")
 const ACCENT := Color("d4a84b")
 const ACCENT_DIM := Color("8a6a2e")
+## Selected choice (not keyboard focus) — cool blue so it differs from ACCENT focus.
+const SELECT := Color("4aa3d4")
 const DANGER := Color("c45c4a")
 
 const FONT_PATH := "res://assets/fonts/d2coding/D2Coding.ttf"
@@ -80,9 +82,10 @@ static func make_button_focus() -> StyleBoxFlat:
 
 
 static func make_button_selected() -> StyleBoxFlat:
+	## Committed selection (gender, Y/N, …) — blue border, not ACCENT focus gold.
 	var sb := make_button_normal()
-	sb.bg_color = Color("2a4a38")
-	sb.border_color = ACCENT
+	sb.bg_color = Color("1a3548")
+	sb.border_color = SELECT
 	sb.set_border_width_all(2)
 	return sb
 
@@ -105,8 +108,16 @@ static func style_button(btn: Button) -> void:
 static func style_choice_button(btn: Button, selected: bool) -> void:
 	style_button(btn)
 	if selected:
-		btn.add_theme_stylebox_override("normal", make_button_selected())
-		btn.add_theme_color_override("font_color", ACCENT)
+		var sel := make_button_selected()
+		btn.add_theme_stylebox_override("normal", sel)
+		btn.add_theme_stylebox_override("hover", sel)
+		btn.add_theme_stylebox_override("pressed", sel)
+		## Focus stays gold so keyboard cursor is never mistaken for the selection.
+		btn.add_theme_stylebox_override("focus", make_button_focus())
+		btn.add_theme_color_override("font_color", SELECT)
+		btn.add_theme_color_override("font_hover_color", SELECT)
+		btn.add_theme_color_override("font_pressed_color", SELECT)
+		btn.add_theme_color_override("font_focus_color", ACCENT)
 
 
 
