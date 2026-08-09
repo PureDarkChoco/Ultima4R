@@ -1,0 +1,618 @@
+{
+  "_meta": {
+    "city": "lycaeum",
+    "note": "Korean overlays for LYCAEUM.TLK. Keys are classic English as TalkTlk loads them (look after fix_look). Noun-first topicN / topicN_aliases only. See .cursor/rules/talk-locale-ko-nouns.mdc"
+  },
+  "npcs": [
+    {
+      "name": "Robert Frasier",
+      "pronoun": "He",
+      "look": "a stately baron.",
+      "job": "I rule this\nprovince.",
+      "health": "Very well.",
+      "response1": "My Lady Beth can\ntell thee more!",
+      "response2": "I know but\none of three\nsyllables.",
+      "question": "Dost thou wish\nto know it now?",
+      "yes": "It is 'ver'! Seek\nye now the\nother parts!",
+      "no": "Perhaps\nanother time.",
+      "topic1": "PROV",
+      "topic2": "WORD",
+      "ko": {
+        "name": "로버트 프레지어",
+        "pronoun": "그",
+        "look": "위엄 있는 남작이다.",
+        "job": "이 영지를\n다스리오.",
+        "health": "매우 좋습니다.",
+        "response1": "베스 부인이 더\n말해 줄 수 있소!",
+        "response2": "세 음절 중\n하나만 아오.",
+        "question": "지금 듣고\n싶소?",
+        "yes": "‘ver’이오! 이제\n나머지를 찾으시오!",
+        "no": "다음에 또.",
+        "topic1": "영지",
+        "topic1_aliases": [
+          "영지",
+          "지방",
+          "province",
+          "prov"
+        ],
+        "topic2": "말씀",
+        "topic2_aliases": [
+          "말씀",
+          "단어",
+          "word"
+        ]
+      }
+    },
+    {
+      "name": "Beth Frasier",
+      "pronoun": "She",
+      "look": "a charming lady.",
+      "job": "I rule with\nmy Lord.",
+      "health": "Well.",
+      "response1": "This province.",
+      "response2": "Our people\nbelieve in truth\nas a way of life\nand live it to\nthe fullest!",
+      "question": "Dost thou\nseek truth?",
+      "yes": "Then may thou\nfind it!",
+      "no": "Then thou shalt\nnot find it!",
+      "topic1": "RULE",
+      "topic2": "PROV",
+      "ko": {
+        "name": "베스 프레지어",
+        "pronoun": "그녀",
+        "look": "매력적인 부인이다.",
+        "job": "영주와 함께\n다스리오.",
+        "health": "좋습니다.",
+        "response1": "이 영지요.",
+        "response2": "우리 백성은 진리를\n삶의 길로 믿으며\n충만히 살아가오!",
+        "question": "진리를 구하오?",
+        "yes": "그럼 찾게\n되기를!",
+        "no": "그러면\n못 찾을 것이오!",
+        "topic1": "통치",
+        "topic1_aliases": [
+          "통치",
+          "다스림",
+          "rule"
+        ],
+        "topic2": "영지",
+        "topic2_aliases": [
+          "영지",
+          "province",
+          "prov"
+        ]
+      }
+    },
+    {
+      "name": "a guard",
+      "pronoun": "He",
+      "look": "a sleepy guard.",
+      "job": "Guard the gate,\nguard the baron,\nguard the\nbaroness, watch\nthe towers....",
+      "health": "Very sleepy.",
+      "response1": "I have been here\nfor hours!",
+      "response2": "Yes, many hours!",
+      "question": "See why\nI'm tired?",
+      "yes": "It's hard work\nand long hours\nin the baronial\nguard!",
+      "no": "Bum!",
+      "topic1": "GUAR",
+      "topic2": "HOUR",
+      "ko": {
+        "name": "경비병",
+        "pronoun": "그",
+        "look": "졸린 경비병이다.",
+        "job": "문 경비, 남작 경비,\n남작부인 경비,\n탑 감시….",
+        "health": "매우 졸리오.",
+        "response1": "여기 몇 시간째\n있소!",
+        "response2": "예, 긴 시간!",
+        "question": "왜 피곤한지\n알겠소?",
+        "yes": "남작 경호는 고되고\n근무가 길소!",
+        "no": "인색한 자!",
+        "topic1": "경비",
+        "topic1_aliases": [
+          "경비",
+          "guard",
+          "guar"
+        ],
+        "topic2": "시간",
+        "topic2_aliases": [
+          "시간",
+          "근무",
+          "hour"
+        ]
+      }
+    },
+    {
+      "name": "Palamar",
+      "pronoun": "He",
+      "look": "a wise old sage.",
+      "job": "I am an old\nwizard, but have\nmuch to show!",
+      "health": "My bones ache\nbut my mind\nis sharp!",
+      "response1": "Here in my\ntelescope!",
+      "response2": "Search there by\nthe end, thou\nshalt find\na knob.",
+      "question": "Dost thou\nsee where?",
+      "yes": "Set the dial and\nthou shalt see!",
+      "no": "Look!!!",
+      "topic1": "SHOW",
+      "topic2": "TELE",
+      "ko": {
+        "name": "팔라마르",
+        "pronoun": "그",
+        "look": "현명한 늙은 현자다.",
+        "job": "늙은 마법사이나\n보여 줄 것이\n많소!",
+        "health": "뼈는 아프나\n머리는 맑소!",
+        "response1": "여기 내\n망원경 안에!",
+        "response2": "끝 쪽을 찾으면\n손잡이가 있소.",
+        "question": "어디인지\n보이오?",
+        "yes": "다이얼을 맞추면\n보일 것이오!",
+        "no": "보라!!!",
+        "topic1": "보여 줌",
+        "topic1_aliases": [
+          "보여",
+          "전시",
+          "show"
+        ],
+        "topic2": "망원경",
+        "topic2_aliases": [
+          "망원경",
+          "telescope",
+          "tele"
+        ]
+      }
+    },
+    {
+      "name": "Father Antos",
+      "pronoun": "He",
+      "look": "an old druid, who looks strangely familiar.",
+      "job": "I hold great\nknowledge.",
+      "health": "Old and frail,\nI've seen many\nquests!",
+      "response1": "What is it\nyou seek?",
+      "response2": "Seek ye the book\nof truth where\nother books lie.",
+      "question": "Art thou on\nthe quest?",
+      "yes": "May thou\nsucceed!",
+      "no": "Oh.",
+      "topic1": "KNOW",
+      "topic2": "BOOK",
+      "ko": {
+        "name": "안토스 신부",
+        "pronoun": "그",
+        "look": "낯익은 늙은 드루이드다.",
+        "job": "큰 지식을\n지니오.",
+        "health": "늙고 쇠약하나 많은\n퀘스트를 봤소!",
+        "response1": "무엇을 구하오?",
+        "response2": "책이 있는 곳에서\n진리의 책을\n찾으시오.",
+        "question": "퀘스트 중이오?",
+        "yes": "성공하기를!",
+        "no": "오.",
+        "topic1": "지식",
+        "topic1_aliases": [
+          "지식",
+          "know"
+        ],
+        "topic2": "책",
+        "topic2_aliases": [
+          "책",
+          "book"
+        ]
+      }
+    },
+    {
+      "name": "Jon",
+      "pronoun": "He",
+      "look": "a brawny guard.",
+      "job": "I guard the\nthrone room.",
+      "health": "Bit tired.",
+      "response1": "Throne of truth!",
+      "response2": "There are four\ntownes that\nfollow the\nprinciple of\ntruth.",
+      "question": "Know which?",
+      "yes": "Good!",
+      "no": "There are\neight possible\ncombinations of\nthe three\nprinciples,\nthere are eight\ncities!",
+      "topic1": "THRO",
+      "topic2": "TRUT",
+      "ko": {
+        "name": "존",
+        "pronoun": "그",
+        "look": "건장한 경비병이다.",
+        "job": "알현실을\n지킵니다.",
+        "health": "좀 피곤하오.",
+        "response1": "진리의 왕좌!",
+        "response2": "진리의 원리를 따르는\n마을이 넷이오.",
+        "question": "어느 곳인지\n아오?",
+        "yes": "좋소!",
+        "no": "원리 세 가지의\n조합은 여덟,\n도시도 여덟!",
+        "topic1": "왕좌",
+        "topic1_aliases": [
+          "왕좌",
+          "알현",
+          "throne",
+          "thro"
+        ],
+        "topic2": "진리",
+        "topic2_aliases": [
+          "진리",
+          "truth",
+          "trut"
+        ]
+      }
+    },
+    {
+      "name": "Scatu",
+      "pronoun": "He",
+      "look": "a tall mage wearing strange armour.",
+      "job": "I advise.",
+      "health": "Well!",
+      "response1": "Thou would be\nwell advised to\nvisit the Seer\noften!",
+      "response2": "I wear\nmystic armour.",
+      "question": "Art thou a\npartial avatar?",
+      "yes": "When thou art 8\nparts avatar,\nseek Zircon in\nMinoc and ask of\nmystics!",
+      "no": "Alas.",
+      "topic1": "ADVI",
+      "topic2": "ARMO",
+      "ko": {
+        "name": "스카투",
+        "pronoun": "그",
+        "look": "이상한 갑옷을 입은 키 큰 마법사다.",
+        "job": "조언을\n하오.",
+        "health": "좋소!",
+        "response1": "예언자를 자주\n찾는 것이\n현명한 조언이오!",
+        "response2": "신비 갑옷을\n입소.",
+        "question": "부분 아바타요?",
+        "yes": "여덟 부분이 되면\n미녹의 지르콘에게\n신비를 물으시오!",
+        "no": "아아.",
+        "topic1": "조언",
+        "topic1_aliases": [
+          "조언",
+          "advice",
+          "advi"
+        ],
+        "topic2": "갑옷",
+        "topic2_aliases": [
+          "갑옷",
+          "armor",
+          "armo"
+        ]
+      }
+    },
+    {
+      "name": "Estro",
+      "pronoun": "He",
+      "look": "a short druid.",
+      "job": "Research",
+      "health": "Why I am fine,\nyou too I hope.",
+      "response1": "I am looking for\nthe book of\njustice!",
+      "response2": "It must be here\nsomewhere!",
+      "question": "Hast thou never\ncommitted *any*\ncrime!?",
+      "yes": "I believe thou\nart boasting\na lie!",
+      "no": "Then speak to\nthe judge in\nYew!",
+      "topic1": "REAS",
+      "topic2": "JUST",
+      "ko": {
+        "name": "에스트로",
+        "pronoun": "그",
+        "look": "키 작은 드루이드다.",
+        "job": "연구.",
+        "health": "좋습니다. 그대도\n그렇기를.",
+        "response1": "정의의 책을\n찾고 있소!",
+        "response2": "분명 여기\n어딘가에!",
+        "question": "범죄를 *전혀*\n저지른 적 없소?",
+        "yes": "허풍 부리는\n거짓이로군!",
+        "no": "그러면 유의\n판사에게 말하시오!",
+        "topic1": "연구",
+        "topic1_aliases": [
+          "연구",
+          "research",
+          "reas"
+        ],
+        "topic2": "정의",
+        "topic2_aliases": [
+          "정의",
+          "justice",
+          "just"
+        ]
+      }
+    },
+    {
+      "name": "Tymus",
+      "pronoun": "He",
+      "look": "a stately wizard.",
+      "job": "To welcome thee!",
+      "health": "Very well,\nthanks!",
+      "response1": "Yes, welcome to\nthe Lycaeum, the\nkeep of truth!",
+      "response2": "The dungeon\naltar rooms need\n4 stones each!",
+      "question": "Know ye how many\ncities follow\nthe principles\nof truth?",
+      "yes": "How many?",
+      "no": "Travel and\nlearn!",
+      "topic1": "WELC",
+      "topic2": "FOUR",
+      "ko": {
+        "name": "티무스",
+        "pronoun": "그",
+        "look": "위엄 있는 마법사다.",
+        "job": "그대를 환영하려고!",
+        "health": "매우 좋소,\n고맙소!",
+        "response1": "예, 진리의 성\n리케이엄에\n오신 것을 환영!",
+        "response2": "던전 제단 방은\n돌이 각각 넷\n필요하오!",
+        "question": "진리 원리를 따르는\n도시가 몇이오?",
+        "yes": "몇이오?",
+        "no": "여행하며\n배우시오!",
+        "topic1": "환영",
+        "topic1_aliases": [
+          "환영",
+          "welcome",
+          "welc"
+        ],
+        "topic2": "넷",
+        "topic2_aliases": [
+          "넷",
+          "네",
+          "four"
+        ]
+      }
+    },
+    {
+      "name": "a truth\nseeker.",
+      "pronoun": "He",
+      "look": "a person lost in thought.",
+      "job": "I seek to\nknow truth.",
+      "health": "I am in a\nmeditative\nstate.",
+      "response1": "The principle\nupon which I\nmeditate.",
+      "response2": "Meditate at each\nshrine for 1, 2\nand 3 minutes,\nthen shalt thou\nknow the paths\nof goodness!",
+      "question": "A",
+      "yes": "A",
+      "no": "A",
+      "topic1": "TRUT",
+      "topic2": "MEDI",
+      "ko": {
+        "name": "진리 구도자",
+        "pronoun": "그",
+        "look": "생각에 잠긴 사람이다.",
+        "job": "진리를 알고자\n하오.",
+        "health": "명상 중이오.",
+        "response1": "내가 명상하는\n원리요.",
+        "response2": "각 신전에서 1·2·3분\n명상하면 선의 길을\n알게 되오!",
+        "question": "A",
+        "yes": "A",
+        "no": "A",
+        "topic1": "진리",
+        "topic1_aliases": [
+          "진리",
+          "truth",
+          "trut"
+        ],
+        "topic2": "명상",
+        "topic2_aliases": [
+          "명상",
+          "meditate",
+          "medi"
+        ]
+      }
+    },
+    {
+      "name": "a fighter",
+      "pronoun": "He",
+      "look": "an injured warrior.",
+      "job": "None now!",
+      "health": "My wounds are\ngrievous!",
+      "response1": "No more!",
+      "response2": "I lost in a\ndungeon altar\nroom!",
+      "question": "Hast thou\nseen one?",
+      "yes": "Notice that\neach of the\nthree rooms\nconnect to four\ndungeons each!",
+      "no": "They connect the\ndungeons unto\neach other!",
+      "topic1": "WARR",
+      "topic2": "WOUN",
+      "ko": {
+        "name": "전사",
+        "pronoun": "그",
+        "look": "부상 입은 전사다.",
+        "job": "이제 없소!",
+        "health": "상처가\n심하오!",
+        "response1": "더는 안 하오!",
+        "response2": "던전 제단 방에서\n패배했소!",
+        "question": "본 적 있소?",
+        "yes": "세 방 각각이\n던전 넷과 연결됨을\n주의하시오!",
+        "no": "던전들을\n서로 잇소!",
+        "topic1": "전사",
+        "topic1_aliases": [
+          "전사",
+          "warrior",
+          "warr"
+        ],
+        "topic2": "부상",
+        "topic2_aliases": [
+          "부상",
+          "상처",
+          "wound",
+          "woun"
+        ]
+      }
+    },
+    {
+      "name": "Lord Terence",
+      "pronoun": "He",
+      "look": "a tall agile man.",
+      "job": "I am the\nlibrarian.",
+      "health": "I am well.",
+      "response1": "Herein is the\nlargest store\nof knowledge in\nBritannia except\nthe codex!",
+      "response2": "Look under 't'",
+      "question": "Art thou looking\nfor a particular\nbook?",
+      "yes": "Which book?",
+      "no": "Feel free\nto browse.",
+      "topic1": "LIBR",
+      "topic2": "TRUT",
+      "ko": {
+        "name": "테렌스 경",
+        "pronoun": "그",
+        "look": "키 크고 민첩한 남자다.",
+        "job": "나는 사서요.",
+        "health": "건강하오.",
+        "response1": "여기가 코덱스를\n제외하면 브리타니아\n최대 지식 창고!",
+        "response2": "‘t’ 아래를\n보시오.",
+        "question": "특정 책을\n찾소?",
+        "yes": "어느 책이오?",
+        "no": "마음껏\n둘러보시오.",
+        "topic1": "도서관",
+        "topic1_aliases": [
+          "도서관",
+          "사서",
+          "library",
+          "libr"
+        ],
+        "topic2": "진리",
+        "topic2_aliases": [
+          "진리",
+          "truth",
+          "trut"
+        ]
+      }
+    },
+    {
+      "name": "Zajac",
+      "pronoun": "He",
+      "look": "a flighty jester.",
+      "job": "To entertain!",
+      "health": "Unhappy.",
+      "response1": "Ah, not now.",
+      "response2": "Because my\nfriend Chuckles\nwon't tell me\nhis secret!",
+      "question": "Dost thou know\nchuckles?",
+      "yes": "Why dost thou\nnot ask him for\nhis clue!",
+      "no": "He lives in\nthe castle\nBritannia ask\nhim of his clue!",
+      "topic1": "ENTE",
+      "topic2": "UNHA",
+      "ko": {
+        "name": "자자크",
+        "pronoun": "그",
+        "look": "경박한 광대다.",
+        "job": "즐기게\n하려고!",
+        "health": "불행하오.",
+        "response1": "아, 지금은.",
+        "response2": "친구 처클스가\n비밀을\n안 알려 줘서!",
+        "question": "처클스를\n아오?",
+        "yes": "그에게 단서를\n물어보시오!",
+        "no": "브리타니아 성에\n살며 단서를\n물어보시오!",
+        "topic1": "연예",
+        "topic1_aliases": [
+          "연예",
+          "오락",
+          "entertain",
+          "ente"
+        ],
+        "topic2": "불행",
+        "topic2_aliases": [
+          "불행",
+          "unhappy",
+          "unha"
+        ]
+      }
+    },
+    {
+      "name": "Catriona",
+      "pronoun": "She",
+      "look": "a strong guard.",
+      "job": "To watch the\ntreasures.",
+      "health": "Very good.",
+      "response1": "The treasures\nare of great\nvalue!",
+      "response2": "Yes, much gold.",
+      "question": "Dost thou intend\nto steal?",
+      "yes": "I shan't stop\nthee",
+      "no": "Good, you had\nme worried!",
+      "topic1": "TREA",
+      "topic2": "VALU",
+      "ko": {
+        "name": "카트리오나",
+        "pronoun": "그녀",
+        "look": "강한 경비병이다.",
+        "job": "보물을\n지키오.",
+        "health": "매우 좋습니다.",
+        "response1": "보물은 큰\n가치를 지녔소!",
+        "response2": "예, 금이\n많소.",
+        "question": "훔칠 셈이오?",
+        "yes": "막지는\n않겠소.",
+        "no": "좋소, 걱정\n했소!",
+        "topic1": "보물",
+        "topic1_aliases": [
+          "보물",
+          "treasure",
+          "trea"
+        ],
+        "topic2": "가치",
+        "topic2_aliases": [
+          "가치",
+          "value",
+          "valu"
+        ]
+      }
+    },
+    {
+      "name": "Nigel, at thy\nservice.",
+      "pronoun": "He",
+      "look": "a noble wizard.",
+      "job": "I teach magical\nspells.",
+      "health": "Good enough.",
+      "response1": "I have a\nspecialty!",
+      "response2": "Yes,\nresurrection\nit takes: ash,\nginseng, garlic,\nsilk, bloodmoss,\nand mandrake!",
+      "question": "Dost thou know\nwhat it is?",
+      "yes": "What do I call\nthe spell?",
+      "no": "Sorry.",
+      "topic1": "SPEL",
+      "topic2": "RECA",
+      "ko": {
+        "name": "나이젤",
+        "pronoun": "그",
+        "look": "고귀한 마법사다.",
+        "job": "마법 주문을\n가르치오.",
+        "health": "괜찮소.",
+        "response1": "특기가\n있소!",
+        "response2": "예, 부활이오.\n재·인삼·마늘·\n거미실·블러드모스·\n맨드레이크!",
+        "question": "무엇인지\n아오?",
+        "yes": "그 주문 이름을\n뭐라고 하오?",
+        "no": "미안하오.",
+        "topic1": "주문",
+        "topic1_aliases": [
+          "주문",
+          "spell",
+          "spel"
+        ],
+        "topic2": "회상",
+        "topic2_aliases": [
+          "회상",
+          "부활",
+          "recall",
+          "reca"
+        ]
+      }
+    },
+    {
+      "name": "Shylock the Meek",
+      "pronoun": "He",
+      "look": "a pitiful beggar.",
+      "job": "I sit and beg\noh... please...",
+      "health": "I am cold\nand sick!\noh... please...",
+      "response1": "Yes, please\ngive me money!\noh... please...",
+      "response2": "I have the\nblack plague!",
+      "question": "Wilt thou\nhelp me?\nOh... please...",
+      "yes": "Oh... please...",
+      "no": "Oh... please...",
+      "topic1": "BEG",
+      "topic2": "SICK",
+      "ko": {
+        "name": "온유한 샤일록",
+        "pronoun": "그",
+        "look": "가련한 거지다.",
+        "job": "앉아서 구걸…\n오… 제발…",
+        "health": "춥고 아픕니다!\n오… 제발…",
+        "response1": "예, 제발 돈을!\n오… 제발…",
+        "response2": "흑사병이 있소!",
+        "question": "도와 주시겠소?\n오… 제발…",
+        "yes": "오… 제발…",
+        "no": "오… 제발…",
+        "topic1": "구걸",
+        "topic1_aliases": [
+          "구걸",
+          "beg"
+        ],
+        "topic2": "병",
+        "topic2_aliases": [
+          "병",
+          "sick"
+        ]
+      }
+    }
+  ]
+}
