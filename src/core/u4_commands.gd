@@ -168,6 +168,9 @@ static func from_keycode(keycode: int) -> int:
 static func from_event(event: InputEventKey) -> int:
 	if event.echo:
 		return Id.NONE
+	## Modifier chords (⌘F fullscreen, ⌘S save, …) are not letter commands.
+	if event.meta_pressed or event.ctrl_pressed or event.alt_pressed:
+		return Id.NONE
 	# Prefer physical letter so layout/shift doesn't break commands.
 	var code := event.keycode
 	if code == KEY_NONE:

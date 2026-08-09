@@ -1,6 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+/build/
 
 # Ultima IV original data (symlink or copy — never commit)
 /data/u4

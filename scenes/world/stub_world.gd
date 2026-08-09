@@ -2226,6 +2226,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_do_quick_save()
 			get_viewport().set_input_as_handled()
 			return
+		## ⌘F / Ctrl+F — toggle fullscreen (before F=Fire). Match ⌘S detection style.
+		if _is_fullscreen_key(event):
+			DisplaySettings.toggle_fullscreen()
+			get_viewport().set_input_as_handled()
+			return
 		## xu4 immobilized (all asleep): no commands until someone wakes.
 		if _is_party_asleep_locked():
 			get_viewport().set_input_as_handled()
@@ -2734,6 +2739,17 @@ func _is_quick_save_key(event: InputEventKey) -> bool:
 	var code := event.keycode
 	var phys := event.physical_keycode
 	return code == KEY_S or phys == KEY_S
+
+
+func _is_fullscreen_key(event: InputEventKey) -> bool:
+	## ⌘F (macOS) or Ctrl+F (Windows/Linux) — same modifier check as quick-save.
+	if event.alt_pressed or event.shift_pressed:
+		return false
+	if not (event.ctrl_pressed or event.meta_pressed):
+		return false
+	var code := event.keycode
+	var phys := event.physical_keycode
+	return code == KEY_F or phys == KEY_F or event.key_label == KEY_F
 
 
 func _do_quick_save() -> void:

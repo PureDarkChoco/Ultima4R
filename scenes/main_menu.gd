@@ -393,7 +393,7 @@ func _refresh_text() -> void:
 	_btn_lang.text = "%s: ◂ %s ▸" % [Locale.t("menu_language"), Locale.lang_label()]
 	_btn_quit.text = Locale.t("menu_quit")
 	_copyright.text = Locale.t("menu_copyright")
-	_hint.text = Locale.t("input_hint_menu") + " · R/J/I · F11"
+	_hint.text = Locale.t("input_hint_menu") + " · R/J/I · ⌘F"
 	if _save_panel and _save_panel.is_open():
 		_save_panel.refresh()
 	if _name_form and _create_open and _name_form.has_method("refresh_labels"):

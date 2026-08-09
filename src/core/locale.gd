@@ -212,9 +212,9 @@ const _T := {
 		"ko": "클릭으로 선택 · A/B 또는 방향키+Enter · 패드 X/Y 또는 D-패드+A",
 	},
 	"input_hint_world": {
-		"en_u4": "Arrows move · A–Z commands · Esc menu · F11 fullscreen",
-		"en_us": "Arrow keys move · A–Z = commands (not WASD) · Esc menu · F11 fullscreen",
-		"ko": "방향키 이동 · A–Z 명령키 · Esc 메뉴 · F11 전체화면",
+		"en_u4": "Arrows move · A–Z commands · Esc menu · ⌘F fullscreen",
+		"en_us": "Arrow keys move · A–Z = commands (not WASD) · Esc menu · ⌘F fullscreen",
+		"ko": "방향키 이동 · A–Z 명령키 · Esc 메뉴 · ⌘F 전체화면",
 	},
 	"cmd_need_dir": {
 		"en_u4": "%s: %s",
