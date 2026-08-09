@@ -26,7 +26,20 @@ When adding or editing `assets/locale/talk/<city>.json` (or any town dialogue KO
   (e.g. `음식이 필요해요` not only `배가 고파요` when the topic is `음식` / `배고픔`).
 - Builtin interests stay noun-ish too: `직업`, `건강`, `이름`, `모습`, `주기`, `합류`, `관심사`.
 
+## LOOK + meet/see (required check)
+
+Engine builds: `당신은 {명사}을/를 만났다/보았다.` from `ko.look` via `TalkLocale._look_ko_to_noun`.
+
+- Write LOOK as a **predicate sentence** ending `다.` / `이다.` / `다!` (e.g. `키 큰 마법사다.`, `장난기 많은 아이다.`).
+- After each city pack (or when changing look lines), verify meet for **every** NPC:
+  - Copula strip must leave a **full noun**: `아이` not `아`, `대장장이` not `대장장`, `여인` not `여인이`.
+  - Nouns that end in **이** + `다` (아이, ~장이) are especially easy to mangle if stripped as `이다`.
+  - Result particle must fit (받침 → 을, else 를).
+- If a new stem ends in open-syllable **이** and is not already handled (`아이`, `장이` in `_look_stem_ends_with_open_i_noun`), extend that list or rephrase the look (e.g. prefer `…이다` after batchim stems).
+- Never write LOOK so that “You meet” reads as **“당신은 …이다”** identity (“you are …”).
+
 ## Reference
 
 - Pack format: `TalkLocale` + `assets/locale/talk/minoc.json`
 - Matching: prefix on normalized Hangul; highlight tints **keyword only** (조사 제외)
+- Meet/see conversion: `src/core/talk_locale.gd` (`_you_encounter_ko`, `_look_ko_to_noun`)
