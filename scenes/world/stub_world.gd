@@ -1662,6 +1662,68 @@ func _toggle_side_panels() -> void:
 	_layout_side_panels(true)
 
 
+func _toggle_left_panel_during_talk() -> void:
+	## Talk keeps the character roster + tall message. Tab only shows/hides inventory.
+	## `_sides_open` still records the post-talk panel preference.
+	if _left_pane == null:
+		return
+	_cancel_order_roster_close()
+	if not _sides_open:
+		_sides_open = true
+		_order_opened_roster = false
+		_refresh_party()
+		_animate_left_panel_only(true)
+	else:
+		_sides_open = false
+		## Inventory out; keep talk character panel + log while dialogue continues.
+		if not _order_opened_roster:
+			_order_opened_roster = true
+		if not _talk_msg_open:
+			_talk_msg_open = true
+		_refresh_party()
+		_animate_left_panel_only(false)
+		if _right_top:
+			_right_top.visible = true
+		if _compact_pane:
+			_compact_pane.visible = false
+		if _roster:
+			_roster.visible = true
+		## Don't collapse the tall log when the left side leaves.
+		if _msg_full_h > 8.0:
+			_msg_h = _msg_full_h
+			_apply_msg_geometry()
+			_refresh_message_view()
+
+
+func _animate_left_panel_only(open: bool) -> void:
+	if _left_pane == null or _map_pane == null:
+		return
+	var g := _side_geom()
+	var lw: float = g["left_w"]
+	var ph: float = g["pane_h"]
+	var target_x: float = g["left_open_x"] if open else g["left_closed_x"]
+	_left_pane.custom_minimum_size = Vector2(lw, ph)
+	_left_pane.size = Vector2(lw, ph)
+	_left_pane.visible = true
+	if open and _compact_pane:
+		_compact_pane.visible = false
+	if not is_inside_tree():
+		_left_pane.position = Vector2(target_x, 0.0)
+		if not open:
+			_left_pane.visible = false
+		return
+	if _side_tween != null and is_instance_valid(_side_tween):
+		_side_tween.kill()
+	_side_tween = create_tween()
+	_side_tween.tween_property(_left_pane, "position", Vector2(target_x, 0.0), SIDE_TWEEN_SEC) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if not open:
+		_side_tween.chain().tween_callback(func() -> void:
+			if not _sides_open and _left_pane:
+				_left_pane.visible = false
+		)
+
+
 func _open_order_roster() -> void:
 	## Slide out only the character panel for New Order (not left / message).
 	_cancel_order_roster_close()
@@ -2223,13 +2285,13 @@ func _input(event: InputEvent) -> void:
 			## Ztats / Ready / Wear / Mix / camp pick open: don't collapse/expand side panels.
 			## Camp rest allows Tab so inventory panels stay reachable.
 			## Shrine session: panels stay forced open; Tab locked.
+			## Talk: Tab only toggles the left inventory panel; state persists after Bye.
 			if (
 				_ztats_stage != 0
 				or _ready_stage != 0
 				or _wear_stage != 0
 				or _mix_stage != 0
 				or _use_stage != 0
-				or _talk_stage != 0
 				or _shrine_session
 				or _shrine_stage != 0
 				or _shrine_busy
@@ -2242,6 +2304,10 @@ func _input(event: InputEvent) -> void:
 				or _esc_menu_is_open()
 				or _options_panel_is_open()
 			):
+				get_viewport().set_input_as_handled()
+				return
+			if _talk_stage != 0:
+				_toggle_left_panel_during_talk()
 				get_viewport().set_input_as_handled()
 				return
 			_toggle_side_panels()
@@ -7462,14 +7528,19 @@ func _open_talk_message_panel() -> void:
 
 
 func _close_talk_message_panel() -> void:
-	## Collapse talk UI: character peek + message strip (Tab-open sides leave both open).
-	if _order_opened_roster and not _sides_open:
+	## Collapse talk UI: character peek + message strip.
+	## If the player opened left inventory (Tab / `_sides_open`) during talk, keep
+	## full sides open after Bye.
+	if _sides_open:
+		_talk_msg_open = false
+		_order_opened_roster = false
+		_layout_side_panels(false)
+		return
+	if _order_opened_roster:
 		_close_order_roster()
 	if not _talk_msg_open:
 		return
 	_talk_msg_open = false
-	if _sides_open:
-		return
 	var g := _side_geom()
 	var bot_closed_h: float = g["bottom_closed_h"]
 	var bot_open_h: float = g["bottom_open_h"]
