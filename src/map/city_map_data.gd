@@ -7,6 +7,7 @@ extends RefCounted
 
 const _TileRules := preload("res://src/map/tile_rules.gd")
 const _TalkTlk := preload("res://src/core/talk_tlk.gd")
+const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
 
 const WIDTH := 32
@@ -514,7 +515,9 @@ func _load_tlk(ult_path: String) -> void:
 	var tlk_path: String = _TalkTlk.resolve_tlk_path(ult_path)
 	if tlk_path.is_empty():
 		return
+	## Always load discourse first — locale overlay must never block .TLK.
 	discourses = _TalkTlk.load_file(tlk_path)
+	_TalkLocale.ensure_city_for_path(ult_path)
 
 
 func _load_persons(bytes: PackedByteArray) -> void:

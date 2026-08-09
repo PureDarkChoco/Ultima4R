@@ -4,6 +4,8 @@ extends RefCounted
 ## Ultima IV city conversation (.TLK) — 288-byte records, max 16 NPCs.
 ## English script strings as stored in the original data (no localisation).
 
+const _TalkLocale := preload("res://src/core/talk_locale.gd")
+
 const RECORD_SIZE := 288
 const MAX_NPCS := 16
 const STR_COUNT := 12 ## name … topic2
@@ -102,10 +104,12 @@ const _MODERN_PHRASES: Array = [
 
 
 static func present_script(text: String) -> String:
-	## Original TLK is classic English. en_us modernizes; en_u4 keeps as-is.
-	## Korean localisation of talk lines is not wired yet (classic English for now).
+	## Original TLK is classic English. en_us modernizes; en_u4 keeps as-is;
+	## ko uses city talk packs (TalkLocale) with classic keys from .TLK.
 	if text.is_empty():
 		return text
+	if _TalkLocale.is_korean():
+		return _TalkLocale.line(text)
 	if not _wants_modern_en():
 		return text
 	return modernize_en(text)
@@ -246,6 +250,8 @@ class Entry:
 		## Omit "bye" — farewell is a system line, not an in-dialogue topic hint.
 		for t: String in ["job", "heal", "health", "name", "look", "give", "join"]:
 			_add_kw(out, seen, t)
+		for extra in _TalkLocale.highlight_extras(topic1, topic2):
+			_add_kw(out, seen, str(extra))
 		return out
 
 	func _add_kw(out: Array[String], seen: Dictionary, s: String) -> void:
@@ -428,13 +434,19 @@ static func match_keyword(entry: Entry, input: String) -> Dictionary:
 	var in_s := input.strip_edges()
 	if in_s.is_empty():
 		return {}
-	if not entry.topic1.is_empty() and _prefix_ci(entry.topic1, in_s):
+	if not entry.topic1.is_empty() and (
+		_prefix_ci(entry.topic1, in_s) or _TalkLocale.match_topic_alias(entry.topic1, in_s)
+	):
 		return {"kind": REPLY_TOPIC1, "text": entry.response1}
-	if not entry.topic2.is_empty() and _prefix_ci(entry.topic2, in_s):
+	if not entry.topic2.is_empty() and (
+		_prefix_ci(entry.topic2, in_s) or _TalkLocale.match_topic_alias(entry.topic2, in_s)
+	):
 		return {"kind": REPLY_TOPIC2, "text": entry.response2}
-	if _prefix_ci("job", in_s, 3):
+	## Builtins: Latin + Hangul (language-independent so 직업/이름 always work).
+	var bi := _TalkLocale.match_builtin_interest(in_s)
+	if bi == "job" or _prefix_ci("job", in_s, 3):
 		return {"kind": REPLY_JOB, "text": entry.job}
-	if _prefix_ci("heal", in_s, 4):
+	if bi == "heal" or _prefix_ci("heal", in_s, 4):
 		return {"kind": REPLY_HEALTH, "text": entry.health}
 	return {}
 
@@ -468,13 +480,14 @@ static func _prefix_ci(needle: String, hay: String, force_len: int = -1) -> bool
 
 static func colorize_keywords(text: String, keywords: Array) -> String:
 	## Wrap keyword occurrences in NPC spoken lines (case-insensitive).
-	## Whole-word match, or topic stem at the start of a longer word (PLAY→playing).
+	## Latin: whole word or stem (PLAY→playing).
+	## Hangul: tint only the keyword itself so particles (을/를/이/가/의…) stay plain.
 	if text.is_empty() or keywords.is_empty():
 		return text
 	var keys: Array[String] = []
 	for k in keywords:
 		var s := str(k).strip_edges()
-		if s.length() >= 2:
+		if _colorize_key_ok(s):
 			keys.append(s)
 	if keys.is_empty():
 		return text
@@ -494,14 +507,21 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 			var before_ok := i == 0 or not _is_word_char(text.unicode_at(i - 1))
 			if not before_ok:
 				continue
+			var hangul_kw := _is_hangul_code(kl.unicode_at(0))
+			if hangul_kw:
+				## Exact keyword only — never pull in 조사 / conjugations after it.
+				if kl.length() > hit_len:
+					hit = text.substr(i, kl.length())
+					hit_len = kl.length()
+				continue
 			var after_i := i + kl.length()
 			var after_ok := after_i >= text.length() or not _is_word_char(text.unicode_at(after_i))
 			if after_ok:
 				if kl.length() > hit_len:
 					hit = text.substr(i, kl.length())
 					hit_len = kl.length()
-			elif kl.length() >= 3:
-				## Stem: highlight full word starting with keyword.
+			elif _colorize_stem_ok(kl):
+				## Latin stem: highlight full word starting with keyword.
 				var end := after_i
 				while end < text.length() and _is_word_char(text.unicode_at(end)):
 					end += 1
@@ -519,6 +539,32 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 				out += ch
 			i += 1
 	return out
+
+
+static func _colorize_key_ok(s: String) -> bool:
+	## Latin needs ≥2 letters; Hangul allows 1-syllable topics (룬, 꽃, 방…).
+	if s.is_empty():
+		return false
+	if s.length() >= 2:
+		return true
+	return _is_hangul_code(s.unicode_at(0))
+
+
+static func _colorize_stem_ok(kl: String) -> bool:
+	## PLAY→playing (len≥3 Latin). Hangul never stem-extends (particles stay plain).
+	if kl.is_empty() or _is_hangul_code(kl.unicode_at(0)):
+		return false
+	return kl.length() >= 3
+
+
+static func _is_hangul_code(u: int) -> bool:
+	return (
+		(u >= 0x1100 and u <= 0x11FF)
+		or (u >= 0x3130 and u <= 0x318F)
+		or (u >= 0xA960 and u <= 0xA97F)
+		or (u >= 0xAC00 and u <= 0xD7A3)
+		or (u >= 0xD7B0 and u <= 0xD7FF)
+	)
 
 
 static func colorize_shop_dialogue(text: String) -> String:
@@ -635,7 +681,8 @@ static func _is_word_char(u: int) -> bool:
 		or (u >= 97 and u <= 122)
 		or u == 95
 		or u == 39
-	) ## digits, letters, _, '
+		or _is_hangul_code(u)
+	) ## digits, letters, _, ', Hangul
 
 
 static func is_beggar_tile(tid: int) -> bool:

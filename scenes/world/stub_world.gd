@@ -23,6 +23,7 @@ const _Moongates := preload("res://src/map/moongates.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _SearchItems := preload("res://src/core/search_items.gd")
 const _TalkTlk := preload("res://src/core/talk_tlk.gd")
+const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
 const _VendorShop := preload("res://src/core/vendor_shop.gd")
 const _CombatMaps := preload("res://src/map/combat_maps.gd")
@@ -1213,7 +1214,8 @@ func _prompt_row_text() -> String:
 	if _talk_stage == 2:
 		return "" ## wait any key before yes/no question
 	if _talk_stage == 3:
-		return "You say: " + _talk_buffer
+		var say_pfx := "당신은 말한다: " if str(GameState.language) == "ko" else "You say: "
+		return say_pfx + _talk_buffer
 	if _talk_stage == 4:
 		## "How much?" already written to history; live row is the amount only.
 		return _talk_buffer
@@ -1222,7 +1224,8 @@ func _prompt_row_text() -> String:
 	if _talk_stage == 12:
 		return _talk_buffer
 	if _talk_stage == 13:
-		return "You say: " + _talk_buffer
+		var say_pfx2 := "당신은 말한다: " if str(GameState.language) == "ko" else "You say: "
+		return say_pfx2 + _talk_buffer
 	if _talk_stage == 10 and _shop != null:
 		return _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
@@ -7218,6 +7221,8 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 		_talk_say_name()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
+	if focus_mode != Control.FOCUS_NONE:
+		grab_focus()
 
 
 func _open_talk_message_panel() -> void:
@@ -7401,10 +7406,11 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 	## Keyword interest — 4-letter match like xu4 Dialogue::Keyword.
 	if _is_talk_enter(k):
 		var submitted := _talk_buffer.strip_edges()
+		var match_input := _TalkLocale.normalize_interest(submitted)
 		_talk_buffer = ""
 		_layout_prompt_row()
 		_push_talk_player_input(submitted)
-		var kind := _LordBritish.reply_kind(submitted)
+		var kind := _LordBritish.reply_kind(match_input)
 		if kind == "bye":
 			_end_talk(true)
 			return true
@@ -7415,7 +7421,7 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 			_talk_buffer = ""
 			_layout_prompt_row()
 			return true
-		_push_talk_script(_LordBritish.reply_text(submitted))
+		_push_talk_script(_LordBritish.reply_text(match_input))
 		_push_talk_script(_LordBritish.PROMPT)
 		_layout_prompt_row()
 		return true
@@ -7429,13 +7435,13 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 		return false
 	if _talk_buffer.length() >= 16:
 		return true
-	_talk_buffer += ch
+	_talk_append_char(ch)
 	_layout_prompt_row()
 	return true
 
 
 func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
-	## xu4 CONFIRMATION — "Art thou well?" Y / N only.
+	## xu4 CONFIRMATION — "Art thou well?" Y / N / 예 / 아니.
 	if _is_talk_enter(k):
 		var s := _talk_buffer.strip_edges()
 		_talk_buffer = ""
@@ -7443,14 +7449,14 @@ func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
 			_layout_prompt_row()
 			return true
 		_push_talk_player_input(s)
-		var c0 := s.substr(0, 1).to_lower()
-		if c0 == "y":
+		var yn := _talk_parse_yn(s)
+		if yn == 1:
 			_push_talk_script(_LordBritish.HEAL_GOOD)
 			_talk_stage = 12
 			_push_talk_script(_LordBritish.PROMPT)
 			_layout_prompt_row()
 			return true
-		if c0 == "n":
+		if yn == 0:
 			_push_talk_script(_LordBritish.HEAL_WOUNDS)
 			_LordBritish.heal_party()
 			_refresh_party()
@@ -7471,21 +7477,45 @@ func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
 	var ch := _key_printable_char(k)
 	if ch.is_empty():
 		return false
-	if _talk_buffer.length() >= 3:
+	if _talk_buffer.length() >= 8:
 		return true
-	_talk_buffer += ch
+	_talk_append_char(ch)
 	_layout_prompt_row()
 	return true
+
+
+func _talk_parse_yn(s: String) -> int:
+	## 1 = yes, 0 = no, -1 = invalid.
+	## Use the same Hangul NFC/NFD normalization as interest keywords.
+	var low := _TalkLocale.normalize_interest(s)
+	if low.is_empty():
+		return -1
+	if (
+		low == _TalkLocale.normalize_interest("y")
+		or low == _TalkLocale.normalize_interest("yes")
+		or low.begins_with(_TalkLocale.normalize_interest("예"))
+		or low.begins_with(_TalkLocale.normalize_interest("네"))
+	):
+		return 1
+	if (
+		low == _TalkLocale.normalize_interest("n")
+		or low == _TalkLocale.normalize_interest("no")
+		or low.begins_with(_TalkLocale.normalize_interest("아니"))
+		or low.begins_with(_TalkLocale.normalize_interest("아뇨"))
+	):
+		return 0
+	return -1
 
 
 func _talk_input_hawkwind(k: InputEventKey) -> bool:
 	## Same typing as interest; keywords are the eight virtues (4-letter match).
 	if _is_talk_enter(k):
 		var submitted := _talk_buffer.strip_edges()
+		var match_input := _TalkLocale.normalize_interest(submitted)
 		_talk_buffer = ""
 		_layout_prompt_row()
 		_push_talk_player_input(submitted)
-		var reply := _Hawkwind.reply_to_interest(submitted)
+		var reply := _Hawkwind.reply_to_interest(match_input)
 		if reply.is_empty():
 			_end_talk(true)
 			return true
@@ -7503,7 +7533,7 @@ func _talk_input_hawkwind(k: InputEventKey) -> bool:
 		return false
 	if _talk_buffer.length() >= 16:
 		return true
-	_talk_buffer += ch
+	_talk_append_char(ch)
 	_layout_prompt_row()
 	return true
 
@@ -7546,17 +7576,18 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			return false
 		if _talk_buffer.length() >= int(_shop.max_digits):
 			return true
-		_talk_buffer += dig
+		_talk_append_char(dig)
 		_layout_prompt_row()
 		return true
 	if mode == _VendorShop.Mode.TEXT:
 		if _is_talk_enter(k):
 			var s2 := _talk_buffer.strip_edges()
+			var match_text := _TalkLocale.normalize_interest(s2)
 			_talk_buffer = ""
 			_layout_prompt_row()
 			if not s2.is_empty():
 				_push_talk_player_input(s2)
-			_shop.submit_text(s2)
+			_shop.submit_text(match_text)
 			_flush_shop_output()
 			return true
 		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
@@ -7569,7 +7600,7 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			return false
 		if _talk_buffer.length() >= 16:
 			return true
-		_talk_buffer += tch
+		_talk_append_char(tch)
 		_layout_prompt_row()
 		return true
 	return false
@@ -7638,9 +7669,10 @@ func _talk_input_interest(k: InputEventKey) -> bool:
 	var ch := _key_printable_char(k)
 	if ch.is_empty():
 		return false
-	if _talk_buffer.length() >= 16:
+	var lim := 24 if str(GameState.language) == "ko" else 16
+	if _talk_buffer.length() >= lim:
 		return true
-	_talk_buffer += ch
+	_talk_append_char(ch)
 	_layout_prompt_row()
 	return true
 
@@ -7653,9 +7685,9 @@ func _talk_input_yn(k: InputEventKey) -> bool:
 			_layout_prompt_row()
 			return true
 		_push_talk_player_input(s)
-		var c0 := s.substr(0, 1).to_lower()
-		if c0 == "y" or c0 == "n":
-			_talk_answer_yn(c0 == "y")
+		var yn := _talk_parse_yn(s)
+		if yn >= 0:
+			_talk_answer_yn(yn == 1)
 			return true
 		_push_talk_script("Yes or no!")
 		_layout_prompt_row()
@@ -7668,9 +7700,9 @@ func _talk_input_yn(k: InputEventKey) -> bool:
 	var ch := _key_printable_char(k)
 	if ch.is_empty():
 		return false
-	if _talk_buffer.length() >= 3:
+	if _talk_buffer.length() >= 8:
 		return true
-	_talk_buffer += ch
+	_talk_append_char(ch)
 	_layout_prompt_row()
 	return true
 
@@ -7695,7 +7727,7 @@ func _talk_input_give(k: InputEventKey) -> bool:
 		return false
 	if _talk_buffer.length() >= 2:
 		return true
-	_talk_buffer += ch
+	_talk_append_char(ch)
 	_layout_prompt_row()
 	return true
 
@@ -7712,12 +7744,128 @@ func _is_talk_submit(k: InputEventKey) -> bool:
 	return _is_talk_enter(k) or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
 
 
+func _talk_append_char(ch: String) -> void:
+	## This UI is not a LineEdit. Platform IMEs may deliver either a completed
+	## syllable (Windows commonly does) or successive Unicode values
+	## (e.g. 우 + ㅓ + ᆫ). Accept both and merge split input when necessary.
+	if ch.length() != 1 or _talk_buffer.is_empty():
+		_talk_buffer += ch
+		return
+	var merged := _talk_merge_hangul_tail(_talk_buffer, ch.unicode_at(0))
+	if merged.is_empty():
+		_talk_buffer += ch
+	else:
+		_talk_buffer = merged
+
+
+func _talk_merge_hangul_tail(buffer: String, incoming: int) -> String:
+	const S_BASE := 0xAC00
+	const S_END := 0xD7A3
+	const L_BASE := 0x1100
+	const V_BASE := 0x1161
+	const T_BASE := 0x11A7
+	const V_COUNT := 21
+	const T_COUNT := 28
+	var last := buffer.unicode_at(buffer.length() - 1)
+
+	## Modern medial jamo or compatibility vowel (ㅏ U+314F … ㅣ U+3163).
+	var incoming_v := -1
+	if incoming >= V_BASE and incoming < V_BASE + V_COUNT:
+		incoming_v = incoming - V_BASE
+	elif incoming >= 0x314F and incoming <= 0x3163:
+		incoming_v = incoming - 0x314F
+
+	## Modern trailing jamo or compatibility consonant usable as a final.
+	var incoming_t := -1
+	if incoming > T_BASE and incoming <= 0x11C2:
+		incoming_t = incoming - T_BASE
+	else:
+		const COMPAT_FINAL := {
+			0x3131: 1, 0x3132: 2, 0x3133: 3, 0x3134: 4,
+			0x3135: 5, 0x3136: 6, 0x3137: 7, 0x3139: 8,
+			0x313A: 9, 0x313B: 10, 0x313C: 11, 0x313D: 12,
+			0x313E: 13, 0x313F: 14, 0x3140: 15, 0x3141: 16,
+			0x3142: 17, 0x3144: 18, 0x3145: 19, 0x3146: 20,
+			0x3147: 21, 0x3148: 22, 0x314A: 23, 0x314B: 24,
+			0x314C: 25, 0x314D: 26, 0x314E: 27,
+		}
+		incoming_t = int(COMPAT_FINAL.get(incoming, -1))
+
+	## Standalone initial + vowel → one syllable.
+	if incoming_v >= 0:
+		var initial_l := -1
+		if last >= L_BASE and last <= 0x1112:
+			initial_l = last - L_BASE
+		else:
+			const COMPAT_INITIAL := {
+				0x3131: 0, 0x3132: 1, 0x3134: 2, 0x3137: 3,
+				0x3138: 4, 0x3139: 5, 0x3141: 6, 0x3142: 7,
+				0x3143: 8, 0x3145: 9, 0x3146: 10, 0x3147: 11,
+				0x3148: 12, 0x3149: 13, 0x314A: 14, 0x314B: 15,
+				0x314C: 16, 0x314D: 17, 0x314E: 18,
+			}
+			initial_l = int(COMPAT_INITIAL.get(last, -1))
+		if initial_l >= 0:
+			var syllable := S_BASE + ((initial_l * V_COUNT + incoming_v) * T_COUNT)
+			return buffer.substr(0, buffer.length() - 1) + String.chr(syllable)
+
+	if last < S_BASE or last > S_END:
+		return ""
+	var syllable_index := last - S_BASE
+	var l_index: int = int(syllable_index / (V_COUNT * T_COUNT))
+	var v_index: int = int((syllable_index % (V_COUNT * T_COUNT)) / T_COUNT)
+	var t_index: int = syllable_index % T_COUNT
+
+	## Compound medial: ㅗ+ㅏ/ㅐ/ㅣ, ㅜ+ㅓ/ㅔ/ㅣ, ㅡ+ㅣ.
+	if incoming_v >= 0 and t_index == 0:
+		const VOWEL_COMBOS := {
+			Vector2i(8, 0): 9, Vector2i(8, 1): 10, Vector2i(8, 20): 11,
+			Vector2i(13, 4): 14, Vector2i(13, 5): 15, Vector2i(13, 20): 16,
+			Vector2i(18, 20): 19,
+		}
+		var combined_v := int(VOWEL_COMBOS.get(Vector2i(v_index, incoming_v), -1))
+		if combined_v >= 0:
+			var composed := S_BASE + ((l_index * V_COUNT + combined_v) * T_COUNT)
+			return buffer.substr(0, buffer.length() - 1) + String.chr(composed)
+
+	## Add a simple final consonant.
+	if incoming_t > 0 and t_index == 0:
+		var with_final := S_BASE + ((l_index * V_COUNT + v_index) * T_COUNT) + incoming_t
+		return buffer.substr(0, buffer.length() - 1) + String.chr(with_final)
+
+	## Compound final (ㄳ, ㄵ, ㄶ, ㄺ … ㅄ).
+	if incoming_t > 0 and t_index > 0:
+		const FINAL_COMBOS := {
+			Vector2i(1, 19): 3,
+			Vector2i(4, 22): 5, Vector2i(4, 27): 6,
+			Vector2i(8, 1): 9, Vector2i(8, 16): 10, Vector2i(8, 17): 11,
+			Vector2i(8, 19): 12, Vector2i(8, 25): 13,
+			Vector2i(8, 26): 14, Vector2i(8, 27): 15,
+			Vector2i(17, 19): 18,
+		}
+		var combined_t := int(FINAL_COMBOS.get(Vector2i(t_index, incoming_t), -1))
+		if combined_t > 0:
+			var composed_final := S_BASE + ((l_index * V_COUNT + v_index) * T_COUNT) + combined_t
+			return buffer.substr(0, buffer.length() - 1) + String.chr(composed_final)
+	return ""
+
+
 func _key_printable_char(k: InputEventKey) -> String:
 	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
 		return ""
-	if k.unicode >= 32 and k.unicode < 127:
-		return String.chr(k.unicode)
-	## Fallback letters when unicode is 0 (some layouts).
+	var u := k.unicode
+	if u >= 32 and u < 127:
+		return String.chr(u)
+	## Hangul syllables when the OS delivers them on the key event.
+	if (
+		(u >= 0x1100 and u <= 0x11FF)
+		or (u >= 0x3130 and u <= 0x318F)
+		or (u >= 0xA960 and u <= 0xA97F)
+		or (u >= 0xAC00 and u <= 0xD7A3)
+		or (u >= 0xD7B0 and u <= 0xD7FF)
+	):
+		return String.chr(u)
+	## Fallback letters when unicode is 0 (some layouts / Hangul IME keydown).
 	var code := k.keycode if k.keycode != KEY_NONE else k.physical_keycode
 	if code >= KEY_A and code <= KEY_Z:
 		var base := code - KEY_A
@@ -7735,8 +7883,10 @@ func _talk_process_keyword(input: String) -> void:
 	if e == null:
 		_end_talk(false)
 		return
-	var in_s := input.strip_edges()
-	if in_s.is_empty() or _talk_prefix(in_s, "bye", 3):
+	## Preserve raw input in history, but all matching uses one normalized key.
+	var in_s := _TalkLocale.normalize_interest(input)
+	var bi := _TalkLocale.match_builtin_interest(in_s)
+	if in_s.is_empty() or _talk_prefix(in_s, "bye", 3) or bi == "bye":
 		## Empty Enter or "bye" — same farewell as Esc / every other end.
 		_end_talk(false)
 		return
@@ -7764,19 +7914,19 @@ func _talk_process_keyword(input: String) -> void:
 			return
 		_talk_prompt_interest()
 		return
-	## Built-ins (look / name / give / join).
-	if _talk_prefix(in_s, "look", 4):
+	## Built-ins (look / name / give / join) — Hangul via TalkLocale.match_builtin_interest.
+	if _talk_prefix(in_s, "look", 4) or bi == "look":
 		_push_talk_script("You see %s" % str(e.look))
 		_talk_prompt_interest()
 		return
-	if _talk_prefix(in_s, "name", 4):
+	if _talk_prefix(in_s, "name", 4) or bi == "name":
 		_talk_say_name()
 		_talk_prompt_interest()
 		return
-	if _talk_prefix(in_s, "give", 4):
+	if _talk_prefix(in_s, "give", 4) or bi == "give":
 		_talk_start_give()
 		return
-	if _talk_prefix(in_s, "join", 4):
+	if _talk_prefix(in_s, "join", 4) or bi == "join":
 		_talk_do_join()
 		return
 	if _talk_prefix(in_s, "ojna", 4):
@@ -7801,6 +7951,8 @@ func _talk_prompt_interest() -> void:
 	_talk_pending_ask = false
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
+	if focus_mode != Control.FOCUS_NONE:
+		grab_focus()
 
 
 func _talk_ask_question() -> void:
@@ -7923,6 +8075,8 @@ func _end_talk(_aborted: bool) -> void:
 		farewell = _Hawkwind.BYE
 	elif _talk_is_lb:
 		farewell = _LordBritish.farewell()
+	elif str(GameState.language) == "ko":
+		farewell = _TalkTlk.present_script(farewell)
 	_talk_stage = 0
 	_talk_buffer = ""
 	_push_message(farewell, false)
