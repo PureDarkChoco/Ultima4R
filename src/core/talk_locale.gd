@@ -4,6 +4,9 @@ extends RefCounted
 ## Town discourse overlays (Korean etc.) keyed by classic English TLK lines.
 ## Packs: res://assets/locale/talk/<city>.json
 ## Original en_u4 stays in GOG .TLK; this layer only affects display / keyword aliases.
+## KO topic/alias policy: short nouns only (no verb stems, conjugations, or particles on the keyword).
+## Dialogue may read naturally but should include those nouns so highlight/input stay aligned.
+## See .cursor/rules/talk-locale-ko-nouns.mdc
 
 const DIR := "res://assets/locale/talk"
 

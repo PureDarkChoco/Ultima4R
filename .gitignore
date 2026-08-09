@@ -15,3 +15,6 @@ assets/ui/u6/
 
 # Local Python tooling (Pillow etc.)
 .tools_py/
+
+# Native GDExtension intermediate trees (platform binaries under bin/ are shipped)
+/native/libhangul_gdext/build-*/

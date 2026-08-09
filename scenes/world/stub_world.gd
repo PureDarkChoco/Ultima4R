@@ -299,6 +299,13 @@ var _talk_stage := 0
 var _talk_person_i := -1
 var _talk_entry: RefCounted = null ## _TalkTlk.Entry
 var _talk_buffer := ""
+## Focused LineEdit used as an OS IME proxy while the terminal keeps its custom look.
+var _talk_edit: LineEdit
+var _talk_edit_syncing := false
+## Native libhangul composer. When the extension is unavailable, _talk_edit
+## remains the OS-IME fallback so editor runs never lose text input.
+var _talk_hangul: RefCounted
+var _talk_hangul_preedit := ""
 var _talk_keywords: Array = []
 var _talk_turn_away := 0
 var _talk_pending_ask := false
@@ -991,6 +998,16 @@ func _pin_msg_panel(visible_h: float) -> void:
 
 func _ensure_msg_terminal() -> void:
 	if _msg_ui_ready:
+		## Script hot-reload does not rerun _ready or rebuild dynamic children.
+		## Recover/create the IME editor so an already-running game does not keep
+		## a stale terminal after this feature changes.
+		if _talk_edit == null or not is_instance_valid(_talk_edit):
+			var existing := _msg_prompt_row.get_node_or_null("TalkImeEdit") as LineEdit
+			if existing != null:
+				_talk_edit = existing
+			else:
+				_talk_edit = _make_talk_ime_edit()
+				_msg_prompt_row.add_child(_talk_edit)
 		return
 	if _msg_block == null:
 		return
@@ -1016,6 +1033,9 @@ func _ensure_msg_terminal() -> void:
 	_msg_prompt_label = _make_msg_prompt_label()
 	_msg_prompt_label.text = ""
 	_msg_prompt_row.add_child(_msg_prompt_label)
+	_talk_edit = _make_talk_ime_edit()
+	_talk_edit.name = "TalkImeEdit"
+	_msg_prompt_row.add_child(_talk_edit)
 	_msg_cursor = TextureRect.new()
 	_msg_cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_msg_cursor.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -1104,6 +1124,34 @@ func _make_msg_prompt_label() -> Label:
 	UiTheme.apply_font(lb)
 	lb.custom_minimum_size = Vector2.ZERO
 	return lb
+
+
+func _make_talk_ime_edit() -> LineEdit:
+	## Real focused editor: the platform IME owns layout-specific composition
+	## (2-set/3-set Hangul), preedit display, and composition backspace.
+	var edit := LineEdit.new()
+	edit.name = "TalkImeEdit"
+	edit.visible = false
+	edit.mouse_filter = Control.MOUSE_FILTER_STOP
+	edit.focus_mode = Control.FOCUS_ALL
+	edit.context_menu_enabled = false
+	edit.virtual_keyboard_enabled = true
+	edit.keep_editing_on_text_submit = true
+	edit.select_all_on_focus = false
+	edit.add_theme_color_override("font_color", MSG_COLOR)
+	edit.add_theme_color_override("font_uneditable_color", MSG_COLOR)
+	edit.add_theme_color_override("caret_color", MSG_COLOR)
+	edit.add_theme_color_override("selection_color", Color(MSG_COLOR, 0.35))
+	edit.add_theme_font_size_override("font_size", MSG_FONT_SIZE)
+	UiTheme.apply_font(edit)
+	var empty := StyleBoxEmpty.new()
+	edit.add_theme_stylebox_override("normal", empty)
+	edit.add_theme_stylebox_override("focus", empty)
+	edit.add_theme_stylebox_override("read_only", empty)
+	edit.add_theme_constant_override("minimum_character_width", 0)
+	edit.text_changed.connect(_on_talk_ime_text_changed)
+	edit.text_submitted.connect(_on_talk_ime_text_submitted)
+	return edit
 
 
 func _apply_msg_geometry() -> void:
@@ -1210,22 +1258,37 @@ func _prompt_row_text() -> String:
 		return Locale.t("cmd_attack_aim")
 	## Talk: xu4 has no CHARSET_PROMPT on dialogue input — only the live cursor.
 	if _talk_stage == 1:
-		return _talk_buffer
+		return (
+			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
+			if _talk_native_hangul_active() else ""
+		)
 	if _talk_stage == 2:
 		return "" ## wait any key before yes/no question
 	if _talk_stage == 3:
 		var say_pfx := "당신은 말한다: " if str(GameState.language) == "ko" else "You say: "
-		return say_pfx + _talk_buffer
+		return say_pfx + (
+			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
+			if _talk_native_hangul_active() else ""
+		)
 	if _talk_stage == 4:
 		## "How much?" already written to history; live row is the amount only.
 		return _talk_buffer
 	if _talk_stage == 11:
-		return _talk_buffer
+		return (
+			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
+			if _talk_native_hangul_active() else ""
+		)
 	if _talk_stage == 12:
-		return _talk_buffer
+		return (
+			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
+			if _talk_native_hangul_active() else ""
+		)
 	if _talk_stage == 13:
 		var say_pfx2 := "당신은 말한다: " if str(GameState.language) == "ko" else "You say: "
-		return say_pfx2 + _talk_buffer
+		return say_pfx2 + (
+			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
+			if _talk_native_hangul_active() else ""
+		)
 	if _talk_stage == 10 and _shop != null:
 		return _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
@@ -1287,7 +1350,19 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		x += text_w
 	else:
 		_msg_prompt_label.visible = false
+	var ime_active := _talk_ime_stage_active()
+	if _talk_edit != null:
+		_talk_edit.visible = ime_active
+		if ime_active:
+			_talk_edit.add_theme_font_size_override("font_size", font_sz)
+			_talk_edit.position = Vector2(x, 0.0)
+			_talk_edit.size = Vector2(maxf(_msg_prompt_row.size.x - x, 8.0), _msg_pitch)
+			_talk_edit.custom_minimum_size = Vector2.ZERO
+			_sync_talk_ime_edit()
+		elif _talk_edit.has_focus():
+			_talk_edit.release_focus()
 	if _msg_cursor:
+		_msg_cursor.visible = not ime_active
 		## Charset @ sits inset in the 16×16 cell; scale slightly past font_sz.
 		var cside := float(font_sz) * 1.2
 		cside = minf(cside, _msg_pitch) if _msg_pitch > 0.0 else cside
@@ -1296,6 +1371,88 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		_msg_cursor.position = Vector2(x, (_msg_pitch - cside) * 0.5)
 		_apply_cursor_frame()
 
+
+func _talk_ime_stage_active() -> bool:
+	## OS IME is retained only as a development fallback when the native
+	## libhangul extension is missing (or for non-Korean UI languages).
+	return _talk_text_stage_active() and not _talk_native_hangul_active()
+
+
+func _talk_text_stage_active() -> bool:
+	return _talk_stage in [1, 3, 11, 12, 13]
+
+
+func _ensure_talk_hangul() -> void:
+	if _talk_hangul != null or not ClassDB.class_exists("HangulComposer"):
+		return
+	_talk_hangul = ClassDB.instantiate("HangulComposer") as RefCounted
+	if _talk_hangul != null:
+		_talk_hangul.call("set_keyboard", HangulInputSettings.layout_id())
+
+
+func _talk_native_hangul_active() -> bool:
+	if str(GameState.language) != "ko" or not _talk_text_stage_active():
+		return false
+	_ensure_talk_hangul()
+	return _talk_hangul != null
+
+
+func _reset_talk_hangul() -> void:
+	_talk_hangul_preedit = ""
+	if _talk_hangul != null:
+		_talk_hangul.call("reset")
+		_talk_hangul.call("set_keyboard", HangulInputSettings.layout_id())
+
+
+func _talk_input_mode_marker() -> String:
+	return "[한] " if HangulInputSettings.is_korean_mode() else "[A] "
+
+
+func _talk_ime_max_length() -> int:
+	match _talk_stage:
+		3, 13:
+			return 8
+		_:
+			return 24 if str(GameState.language) == "ko" else 16
+
+
+func _sync_talk_ime_edit() -> void:
+	if _talk_edit == null:
+		return
+	if not _talk_ime_stage_active():
+		if _talk_edit.has_focus():
+			_talk_edit.release_focus()
+		return
+	_talk_edit.max_length = _talk_ime_max_length()
+	if _talk_edit.text != _talk_buffer:
+		_talk_edit_syncing = true
+		_talk_edit.text = _talk_buffer
+		_talk_edit.caret_column = _talk_edit.text.length()
+		_talk_edit_syncing = false
+	if not _talk_edit.has_focus():
+		_talk_edit.grab_focus()
+	if not _talk_edit.is_editing():
+		_talk_edit.edit()
+
+
+func _on_talk_ime_text_changed(text: String) -> void:
+	if _talk_edit_syncing or not _talk_ime_stage_active():
+		return
+	_talk_buffer = text
+	## LineEdit draws text, preedit underline and caret itself. Do not relayout
+	## or rewrite it during composition; that can restart the platform IME.
+
+
+func _on_talk_ime_text_submitted(text: String) -> void:
+	if not _talk_ime_stage_active():
+		return
+	_talk_buffer = text
+	## Reuse the existing stage handlers so history and dialogue behavior remain
+	## exactly the same; the focused LineEdit has already consumed the real Enter.
+	var enter := InputEventKey.new()
+	enter.pressed = true
+	enter.keycode = KEY_ENTER
+	_handle_talk_input(enter)
 
 func _layout_side_panels(animate: bool) -> void:
 	if _left_pane == null or _right_top == null or _right_bottom == null or _map_pane == null:
@@ -2093,6 +2250,23 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if _talk_stage != 0:
+		if _talk_native_hangul_active() and event is InputEventKey:
+			if _handle_talk_native_hangul(event as InputEventKey):
+				get_viewport().set_input_as_handled()
+			return
+		## GUI input already updated the focused LineEdit. Do not also send the
+		## same key through the legacy terminal path (double type/backspace).
+		## Escape remains a dialogue-level command.
+		if _talk_ime_stage_active() and _talk_edit != null and _talk_edit.has_focus():
+			if event is InputEventKey:
+				var ime_key := event as InputEventKey
+				if (
+					ime_key.pressed and not ime_key.echo
+					and (ime_key.keycode == KEY_ESCAPE or ime_key.physical_keycode == KEY_ESCAPE)
+				):
+					_handle_talk_input(ime_key)
+				get_viewport().set_input_as_handled()
+			return
 		if _handle_talk_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
@@ -3014,6 +3188,8 @@ func _cycle_options_cursor_value(delta: int) -> void:
 		_OptionsPanel.Item.LANGUAGE:
 			_options_panel.cycle_language(delta)
 			_layout_prompt_row()
+		_OptionsPanel.Item.HANGUL_KEYBOARD:
+			_options_panel.cycle_current(delta)
 		_OptionsPanel.Item.RESOLUTION:
 			_options_panel.cycle_resolution(delta)
 		_OptionsPanel.Item.FULLSCREEN:
@@ -3033,6 +3209,8 @@ func _cycle_options_language(delta: int) -> void:
 func _confirm_options_item(index: int) -> void:
 	match index:
 		_OptionsPanel.Item.LANGUAGE:
+			_cycle_options_cursor_value(1)
+		_OptionsPanel.Item.HANGUL_KEYBOARD:
 			_cycle_options_cursor_value(1)
 		_OptionsPanel.Item.RESOLUTION:
 			_cycle_options_cursor_value(1)
@@ -5763,6 +5941,7 @@ func _exit_city() -> void:
 		_talk_person_i = -1
 		_talk_entry = null
 		_talk_buffer = ""
+		_reset_talk_hangul()
 		_talk_keywords.clear()
 		_talk_pending_ask = false
 		_talk_is_hawkwind = false
@@ -6895,6 +7074,7 @@ func _begin_lord_british_talk(person_i: int) -> void:
 	_talk_person_i = person_i
 	_talk_entry = null
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_talk_turn_away = 0
 	_talk_pending_ask = false
 	_talk_is_hawkwind = false
@@ -6916,6 +7096,7 @@ func _begin_hawkwind_talk(person_i: int) -> void:
 	_talk_person_i = person_i
 	_talk_entry = null
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_talk_turn_away = 0
 	_talk_pending_ask = false
 	_talk_is_hawkwind = true
@@ -6944,6 +7125,7 @@ func _begin_vendor_shop(person_i: int, role: int) -> void:
 	_talk_person_i = person_i
 	_talk_stage = 10
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_talk_entry = null
 	_talk_keywords.clear()
 	_shop = _VendorShop.new()
@@ -7208,6 +7390,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_person_i = person_i
 	_talk_entry = entry
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_talk_turn_away = int(entry.turn_away)
 	_talk_pending_ask = false
 	_talk_keywords = entry.highlight_keywords()
@@ -7221,8 +7404,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 		_talk_say_name()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
-	if focus_mode != Control.FOCUS_NONE:
-		grab_focus()
+	_sync_talk_ime_edit()
 
 
 func _open_talk_message_panel() -> void:
@@ -7355,6 +7537,126 @@ func _reflow_talk_hard_breaks(text: String) -> String:
 	return joined
 
 
+func _handle_talk_native_hangul(k: InputEventKey) -> bool:
+	if not k.pressed:
+		return false
+	if _is_talk_input_mode_toggle(k):
+		_toggle_talk_input_mode()
+		return true
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_reset_talk_hangul()
+		return _handle_talk_input(k)
+	if _is_talk_enter(k):
+		var flushed := str(_talk_hangul.call("flush"))
+		_talk_append_native_commit(flushed)
+		_talk_hangul_preedit = ""
+		return _handle_talk_input(k)
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		var erased: Dictionary = _talk_hangul.call("backspace") as Dictionary
+		if bool(erased.get("consumed", false)):
+			_talk_hangul_preedit = str(erased.get("preedit", ""))
+			_layout_prompt_row()
+			return true
+		_talk_hangul_preedit = ""
+		return _handle_talk_input(k)
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return true
+	var ascii := _talk_physical_ascii(k)
+	if ascii < 0:
+		return true
+	if (
+		_talk_buffer.length() >= _talk_ime_max_length()
+		and _talk_hangul_preedit.is_empty()
+	):
+		return true
+	if not HangulInputSettings.is_korean_mode():
+		_talk_append_native_commit(String.chr(ascii))
+		_layout_prompt_row()
+		return true
+	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
+	_talk_append_native_commit(str(result.get("commit", "")))
+	_talk_hangul_preedit = str(result.get("preedit", ""))
+	if not bool(result.get("consumed", false)):
+		## Space and punctuation finish the current syllable but are not consumed
+		## by libhangul. Append their physical US-key character directly.
+		_talk_append_native_commit(String.chr(ascii))
+	_layout_prompt_row()
+	return true
+
+
+func _is_talk_input_mode_toggle(k: InputEventKey) -> bool:
+	if k.echo:
+		return false
+	var code := k.keycode
+	var physical := k.physical_keycode
+	var os_name := OS.get_name()
+	if os_name == "macOS" and (code == KEY_CAPSLOCK or physical == KEY_CAPSLOCK):
+		return true
+	## Ctrl+Space and Shift+Space serve as portable fallbacks. Shift+Space is
+	## handled by the app before it can become an ordinary space character.
+	if (
+		(k.ctrl_pressed or k.shift_pressed)
+		and (code == KEY_SPACE or physical == KEY_SPACE)
+	):
+		return true
+	if os_name == "Windows":
+		if (
+			(code == KEY_ALT or physical == KEY_ALT)
+			and k.location == KEY_LOCATION_RIGHT
+		):
+			return true
+		## Dedicated 한/영 keys are exposed inconsistently by Windows keyboard
+		## drivers. Accept Godot's localized physical-key description as well.
+		var key_name := k.as_text_physical_keycode().to_lower()
+		if (
+			key_name.contains("hangul") or key_name.contains("hangeul")
+			or key_name.contains("han/yeong") or key_name.contains("한/영")
+		):
+			return true
+	return false
+
+
+func _toggle_talk_input_mode() -> void:
+	if HangulInputSettings.is_korean_mode():
+		_talk_append_native_commit(str(_talk_hangul.call("flush")))
+		_talk_hangul_preedit = ""
+	else:
+		_talk_hangul.call("reset")
+	HangulInputSettings.toggle_input_mode()
+	_layout_prompt_row()
+
+
+func _talk_append_native_commit(text: String) -> void:
+	if text.is_empty():
+		return
+	var room := _talk_ime_max_length() - _talk_buffer.length()
+	if room <= 0:
+		return
+	_talk_buffer += text.substr(0, room)
+
+
+func _talk_physical_ascii(k: InputEventKey) -> int:
+	var code := int(k.physical_keycode)
+	if code == KEY_NONE:
+		code = int(k.keycode)
+	if code >= KEY_A and code <= KEY_Z:
+		return (65 if k.shift_pressed else 97) + (code - KEY_A)
+	if code >= KEY_0 and code <= KEY_9:
+		if k.shift_pressed:
+			const SHIFT_DIGITS := ")!@#$%^&*("
+			return SHIFT_DIGITS.unicode_at(code - KEY_0)
+		return 48 + (code - KEY_0)
+	if code < 32 or code > 126:
+		return -1
+	if not k.shift_pressed:
+		return code
+	const SHIFT_PUNCT := {
+		32: 32, 39: 34, 44: 60, 45: 95, 46: 62, 47: 63,
+		59: 58, 61: 43, 91: 123, 92: 124, 93: 125, 96: 126,
+	}
+	return int(SHIFT_PUNCT.get(code, code))
+
+
 func _handle_talk_input(event: InputEvent) -> bool:
 	if not (event is InputEventKey and event.pressed):
 		return false
@@ -7427,7 +7729,7 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _talk_buffer.is_empty():
-			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
 	var ch := _key_printable_char(k)
@@ -7471,7 +7773,7 @@ func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _talk_buffer.is_empty():
-			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
 	var ch := _key_printable_char(k)
@@ -7525,7 +7827,7 @@ func _talk_input_hawkwind(k: InputEventKey) -> bool:
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _talk_buffer.is_empty():
-			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
 	var ch := _key_printable_char(k)
@@ -7568,7 +7870,7 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			return true
 		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 			if not _talk_buffer.is_empty():
-				_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+				_talk_buffer_backspace()
 				_layout_prompt_row()
 			return true
 		var dig := _key_printable_char(k)
@@ -7592,7 +7894,7 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			return true
 		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 			if not _talk_buffer.is_empty():
-				_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+				_talk_buffer_backspace()
 				_layout_prompt_row()
 			return true
 		var tch := _key_printable_char(k)
@@ -7663,7 +7965,7 @@ func _talk_input_interest(k: InputEventKey) -> bool:
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _talk_buffer.is_empty():
-			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
 	var ch := _key_printable_char(k)
@@ -7694,7 +7996,7 @@ func _talk_input_yn(k: InputEventKey) -> bool:
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _talk_buffer.is_empty():
-			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
 	var ch := _key_printable_char(k)
@@ -7719,7 +8021,7 @@ func _talk_input_give(k: InputEventKey) -> bool:
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _talk_buffer.is_empty():
-			_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
+			_talk_buffer_backspace()
 			_layout_prompt_row()
 		return true
 	var ch := _key_printable_char(k)
@@ -7736,6 +8038,7 @@ func _is_talk_enter(k: InputEventKey) -> bool:
 	return (
 		k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER
 		or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER
+		or k.unicode == 10 or k.unicode == 13
 	)
 
 
@@ -7745,109 +8048,13 @@ func _is_talk_submit(k: InputEventKey) -> bool:
 
 
 func _talk_append_char(ch: String) -> void:
-	## This UI is not a LineEdit. Platform IMEs may deliver either a completed
-	## syllable (Windows commonly does) or successive Unicode values
-	## (e.g. 우 + ㅓ + ᆫ). Accept both and merge split input when necessary.
-	if ch.length() != 1 or _talk_buffer.is_empty():
-		_talk_buffer += ch
-		return
-	var merged := _talk_merge_hangul_tail(_talk_buffer, ch.unicode_at(0))
-	if merged.is_empty():
-		_talk_buffer += ch
-	else:
-		_talk_buffer = merged
+	## Non-IME fallback for shop letters and numeric fields only.
+	_talk_buffer += ch
 
 
-func _talk_merge_hangul_tail(buffer: String, incoming: int) -> String:
-	const S_BASE := 0xAC00
-	const S_END := 0xD7A3
-	const L_BASE := 0x1100
-	const V_BASE := 0x1161
-	const T_BASE := 0x11A7
-	const V_COUNT := 21
-	const T_COUNT := 28
-	var last := buffer.unicode_at(buffer.length() - 1)
-
-	## Modern medial jamo or compatibility vowel (ㅏ U+314F … ㅣ U+3163).
-	var incoming_v := -1
-	if incoming >= V_BASE and incoming < V_BASE + V_COUNT:
-		incoming_v = incoming - V_BASE
-	elif incoming >= 0x314F and incoming <= 0x3163:
-		incoming_v = incoming - 0x314F
-
-	## Modern trailing jamo or compatibility consonant usable as a final.
-	var incoming_t := -1
-	if incoming > T_BASE and incoming <= 0x11C2:
-		incoming_t = incoming - T_BASE
-	else:
-		const COMPAT_FINAL := {
-			0x3131: 1, 0x3132: 2, 0x3133: 3, 0x3134: 4,
-			0x3135: 5, 0x3136: 6, 0x3137: 7, 0x3139: 8,
-			0x313A: 9, 0x313B: 10, 0x313C: 11, 0x313D: 12,
-			0x313E: 13, 0x313F: 14, 0x3140: 15, 0x3141: 16,
-			0x3142: 17, 0x3144: 18, 0x3145: 19, 0x3146: 20,
-			0x3147: 21, 0x3148: 22, 0x314A: 23, 0x314B: 24,
-			0x314C: 25, 0x314D: 26, 0x314E: 27,
-		}
-		incoming_t = int(COMPAT_FINAL.get(incoming, -1))
-
-	## Standalone initial + vowel → one syllable.
-	if incoming_v >= 0:
-		var initial_l := -1
-		if last >= L_BASE and last <= 0x1112:
-			initial_l = last - L_BASE
-		else:
-			const COMPAT_INITIAL := {
-				0x3131: 0, 0x3132: 1, 0x3134: 2, 0x3137: 3,
-				0x3138: 4, 0x3139: 5, 0x3141: 6, 0x3142: 7,
-				0x3143: 8, 0x3145: 9, 0x3146: 10, 0x3147: 11,
-				0x3148: 12, 0x3149: 13, 0x314A: 14, 0x314B: 15,
-				0x314C: 16, 0x314D: 17, 0x314E: 18,
-			}
-			initial_l = int(COMPAT_INITIAL.get(last, -1))
-		if initial_l >= 0:
-			var syllable := S_BASE + ((initial_l * V_COUNT + incoming_v) * T_COUNT)
-			return buffer.substr(0, buffer.length() - 1) + String.chr(syllable)
-
-	if last < S_BASE or last > S_END:
-		return ""
-	var syllable_index := last - S_BASE
-	var l_index: int = int(syllable_index / (V_COUNT * T_COUNT))
-	var v_index: int = int((syllable_index % (V_COUNT * T_COUNT)) / T_COUNT)
-	var t_index: int = syllable_index % T_COUNT
-
-	## Compound medial: ㅗ+ㅏ/ㅐ/ㅣ, ㅜ+ㅓ/ㅔ/ㅣ, ㅡ+ㅣ.
-	if incoming_v >= 0 and t_index == 0:
-		const VOWEL_COMBOS := {
-			Vector2i(8, 0): 9, Vector2i(8, 1): 10, Vector2i(8, 20): 11,
-			Vector2i(13, 4): 14, Vector2i(13, 5): 15, Vector2i(13, 20): 16,
-			Vector2i(18, 20): 19,
-		}
-		var combined_v := int(VOWEL_COMBOS.get(Vector2i(v_index, incoming_v), -1))
-		if combined_v >= 0:
-			var composed := S_BASE + ((l_index * V_COUNT + combined_v) * T_COUNT)
-			return buffer.substr(0, buffer.length() - 1) + String.chr(composed)
-
-	## Add a simple final consonant.
-	if incoming_t > 0 and t_index == 0:
-		var with_final := S_BASE + ((l_index * V_COUNT + v_index) * T_COUNT) + incoming_t
-		return buffer.substr(0, buffer.length() - 1) + String.chr(with_final)
-
-	## Compound final (ㄳ, ㄵ, ㄶ, ㄺ … ㅄ).
-	if incoming_t > 0 and t_index > 0:
-		const FINAL_COMBOS := {
-			Vector2i(1, 19): 3,
-			Vector2i(4, 22): 5, Vector2i(4, 27): 6,
-			Vector2i(8, 1): 9, Vector2i(8, 16): 10, Vector2i(8, 17): 11,
-			Vector2i(8, 19): 12, Vector2i(8, 25): 13,
-			Vector2i(8, 26): 14, Vector2i(8, 27): 15,
-			Vector2i(17, 19): 18,
-		}
-		var combined_t := int(FINAL_COMBOS.get(Vector2i(t_index, incoming_t), -1))
-		if combined_t > 0:
-			var composed_final := S_BASE + ((l_index * V_COUNT + v_index) * T_COUNT) + combined_t
-			return buffer.substr(0, buffer.length() - 1) + String.chr(composed_final)
-	return ""
+func _talk_buffer_backspace() -> void:
+	if not _talk_buffer.is_empty():
+		_talk_buffer = _talk_buffer.substr(0, _talk_buffer.length() - 1)
 
 
 func _key_printable_char(k: InputEventKey) -> String:
@@ -7948,11 +8155,11 @@ func _talk_prefix(input: String, key: String, n: int) -> bool:
 func _talk_prompt_interest() -> void:
 	_talk_stage = 1
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_talk_pending_ask = false
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
-	if focus_mode != Control.FOCUS_NONE:
-		grab_focus()
+	_sync_talk_ime_edit()
 
 
 func _talk_ask_question() -> void:
@@ -7963,6 +8170,7 @@ func _talk_ask_question() -> void:
 	_push_talk_script(str(e.question))
 	_talk_stage = 3
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_talk_pending_ask = false
 	_layout_prompt_row()
 
@@ -8079,6 +8287,7 @@ func _end_talk(_aborted: bool) -> void:
 		farewell = _TalkTlk.present_script(farewell)
 	_talk_stage = 0
 	_talk_buffer = ""
+	_reset_talk_hangul()
 	_push_message(farewell, false)
 	var pi := _talk_person_i
 	_talk_person_i = -1
@@ -10224,7 +10433,7 @@ func _apply_cursor_frame() -> void:
 	if _msg_cursor == null or _cursor_frames.is_empty():
 		return
 	_msg_cursor.texture = _cursor_frames[_cursor_frame]
-	_msg_cursor.visible = true
+	_msg_cursor.visible = not _talk_ime_stage_active()
 
 
 func _refresh_message_view() -> void:

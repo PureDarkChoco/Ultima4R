@@ -24,6 +24,7 @@ GameState="*res://src/core/game_state.gd"
 Locale="*res://src/core/locale.gd"
 SceneRouter="*res://src/core/scene_router.gd"
 DisplaySettings="*res://src/core/display_settings.gd"
+HangulInputSettings="*res://src/core/hangul_input_settings.gd"
 QuitConfirm="*res://src/core/quit_confirm.gd"
 
 [display]

@@ -3,16 +3,17 @@ extends Control
 
 ## In-game Esc → Options submenu.
 ## Also embedded in the title map frame (main menu).
-## Items: language, window resolution (scale %), fullscreen (same as ⌘/Ctrl+F).
+## Items: language, Hangul keyboard, window resolution, fullscreen.
 ## Left/right (or Enter) cycles the selected item; Esc closes.
 
 enum Item {
 	LANGUAGE = 0,
-	RESOLUTION = 1,
-	FULLSCREEN = 2,
+	HANGUL_KEYBOARD = 1,
+	RESOLUTION = 2,
+	FULLSCREEN = 3,
 }
 
-const ITEM_COUNT := 3
+const ITEM_COUNT := 4
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
@@ -144,6 +145,10 @@ func cycle_current(delta: int = 1) -> void:
 	match _cursor:
 		Item.LANGUAGE:
 			cycle_language(delta)
+		Item.HANGUL_KEYBOARD:
+			HangulInputSettings.cycle_layout(delta)
+			_refresh_labels()
+			_sync_cursor()
 		Item.RESOLUTION:
 			cycle_resolution(delta)
 		Item.FULLSCREEN:
@@ -248,7 +253,7 @@ func _apply_presentation() -> void:
 		_panel.custom_minimum_size = Vector2(_embed_rect.size.x, 0)
 		_title.visible = true
 		_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var row_h := clampf(_embed_rect.size.y / 6.0, 24.0, 40.0)
+		var row_h := clampf(_embed_rect.size.y / 7.0, 24.0, 40.0)
 		var font_sz := clampi(int(row_h * 0.55), 14, 24)
 		_title.add_theme_font_size_override("font_size", font_sz + 2)
 		for i in ITEM_COUNT:
@@ -283,6 +288,11 @@ func _refresh_labels() -> void:
 			_row_labs[i].text = "%s: ◂ %s ▸" % [
 				Locale.t("menu_language"),
 				Locale.lang_label(),
+			]
+		elif i == Item.HANGUL_KEYBOARD:
+			_row_labs[i].text = "%s: ◂ %s ▸" % [
+				Locale.t("esc_options_hangul_keyboard"),
+				Locale.t("hangul_keyboard_" + HangulInputSettings.layout_id()),
 			]
 		elif i == Item.RESOLUTION:
 			_row_labs[i].text = _resolution_row_text()

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "city": "minoc",
-    "note": "Korean overlays for MINOC.TLK. Keys under each npc are classic English (en_u4) as fixed by TalkTlk after load; ko holds translations. topicN / topicN_aliases are short nouns only (no particles, no verb stems) so interest input and BBCode highlights stay stable. Dialogue lines prefer those same nouns in running text when the topic is meant to read as a keyword."
+    "note": "Korean overlays for MINOC.TLK. Keys under each npc are classic English (en_u4) as fixed by TalkTlk after load; ko holds translations. ALL city packs must follow noun-first keywords: topicN / topicN_aliases = short nouns only (no particles, no verb stems); dialogue may be natural Korean but should include those nouns for interest input and BBCode highlight. See .cursor/rules/talk-locale-ko-nouns.mdc"
   },
   "npcs": [
     {

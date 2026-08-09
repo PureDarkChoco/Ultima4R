@@ -85,6 +85,26 @@ const _T := {
 		"en_us": "Language",
 		"ko": "언어",
 	},
+	"esc_options_hangul_keyboard": {
+		"en_u4": "Korean Keyboard",
+		"en_us": "Korean Keyboard",
+		"ko": "한글 자판",
+	},
+	"hangul_keyboard_2": {
+		"en_u4": "Dubeolsik",
+		"en_us": "Dubeolsik",
+		"ko": "두벌식",
+	},
+	"hangul_keyboard_39": {
+		"en_u4": "Sebeolsik 390",
+		"en_us": "Sebeolsik 390",
+		"ko": "세벌식 390",
+	},
+	"hangul_keyboard_3f": {
+		"en_u4": "Sebeolsik Final",
+		"en_us": "Sebeolsik Final",
+		"ko": "세벌식 최종",
+	},
 	## Clear language option labels (not raw ids like en_u4).
 	"lang_en_us": {
 		"en_u4": "English",
@@ -105,6 +125,21 @@ const _T := {
 		"en_u4": "Quit",
 		"en_us": "Quit",
 		"ko": "종료",
+	},
+	"menu_licenses": {
+		"en_u4": "Licenses",
+		"en_us": "Licenses",
+		"ko": "라이선스",
+	},
+	"licenses_title": {
+		"en_u4": "Licenses & Credits",
+		"en_us": "Licenses & Credits",
+		"ko": "라이선스 및 출처",
+	},
+	"licenses_close": {
+		"en_u4": "Return",
+		"en_us": "Return",
+		"ko": "돌아가기",
 	},
 	"quit_confirm": {
 		"en_u4": "Really quit?",

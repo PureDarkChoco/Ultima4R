@@ -1,0 +1,32 @@
+---
+description: Korean town talk locale — noun-form topics/aliases and dialogue style
+globs: assets/locale/talk/**/*.json,src/core/talk_locale.gd,src/core/talk_tlk.gd
+alwaysApply: false
+---
+
+# Talk locale Korean (noun-first keywords)
+
+When adding or editing `assets/locale/talk/<city>.json` (or any town dialogue KO overlay):
+
+## Topics and aliases
+
+- `topic1` / `topic2` and `topicN_aliases` must be **short nouns only**.
+- Do **not** use:
+  - verb stems (`먹`, `도와`, `돌보`, `죽`, `부르`, `듣`)
+  - conjugations (`먹었어`, `도와주세요`)
+  - particles on the keyword itself (`룬을`, `무기를`)
+  - adjective-only forms as the primary label when a noun exists (`가난한` → prefer `가난`)
+- Short verb stems prefix-match every conjugation (`먹` → `먹었/먹었어/…`); avoid them unless intentionally wanted.
+- Keep English classic stems in aliases when useful (`food`, `rune`, `weap`).
+
+## Dialogue lines (`job`, `response*`, etc.)
+
+- Natural Korean is fine; particles and verbs in **running text** are OK.
+- Prefer wording that includes the **topic noun** so interest highlight and player cues line up
+  (e.g. `음식이 필요해요` not only `배가 고파요` when the topic is `음식` / `배고픔`).
+- Builtin interests stay noun-ish too: `직업`, `건강`, `이름`, `모습`, `주기`, `합류`, `관심사`.
+
+## Reference
+
+- Pack format: `TalkLocale` + `assets/locale/talk/minoc.json`
+- Matching: prefix on normalized Hangul; highlight tints **keyword only** (조사 제외)

@@ -1,0 +1,14 @@
+[configuration]
+
+entry_symbol = "ultima4r_hangul_input_init"
+compatibility_minimum = "4.7"
+reloadable = true
+
+[libraries]
+
+macos.debug = "res://native/libhangul_gdext/bin/macos/libultima4r_hangul_input.macos.debug.universal.dylib"
+macos.release = "res://native/libhangul_gdext/bin/macos/libultima4r_hangul_input.macos.release.universal.dylib"
+windows.debug.x86_64 = "res://native/libhangul_gdext/bin/windows/ultima4r_hangul_input.windows.debug.x86_64.dll"
+windows.release.x86_64 = "res://native/libhangul_gdext/bin/windows/ultima4r_hangul_input.windows.release.x86_64.dll"
+linux.debug.x86_64 = "res://native/libhangul_gdext/bin/linux/libultima4r_hangul_input.linux.debug.x86_64.so"
+linux.release.x86_64 = "res://native/libhangul_gdext/bin/linux/libultima4r_hangul_input.linux.release.x86_64.so"
