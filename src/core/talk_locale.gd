@@ -335,15 +335,34 @@ static func _you_encounter_ko(look_ko: String, meet: bool) -> String:
 
 static func _look_ko_to_noun(look_ko: String) -> String:
 	## Strip sentence punctuation and predicate endings that packs use for LOOK.
+	## Packs use "…다." / "…이다." — do not treat 아이다 as 아+이다 (→ 아) or 대장장이다 as 대장장.
 	var s := look_ko.strip_edges()
 	while not s.is_empty() and s.unicode_at(s.length() - 1) in [ord("."), ord("!"), ord("?")]:
 		s = s.substr(0, s.length() - 1).strip_edges()
-	if s.ends_with("이다"):
-		return s.substr(0, s.length() - 2).strip_edges()
-	if s.ends_with("다") and s.length() >= 2:
-		## "…마법사다" / "…남자다" / "…소녀다" — keep base noun phrase.
-		return s.substr(0, s.length() - 1).strip_edges()
-	return s
+	if s.is_empty():
+		return s
+	if not s.ends_with("다") or s.length() < 2:
+		return s
+	## Remove copula 다 first ("마법사다", "아이다", "여인이다").
+	var stem := s.substr(0, s.length() - 1).strip_edges()
+	if stem.is_empty():
+		return s
+	## Residual 이 of 이다 after a batchim stem ("여인이다" → "여인이" → "여인").
+	## Keep open-syllable 이 that belongs to the noun ("아이", "대장장이").
+	if stem.ends_with("이") and stem.length() >= 2 and not _look_stem_ends_with_open_i_noun(stem):
+		var before_i := stem.unicode_at(stem.length() - 2)
+		if before_i >= 0xAC00 and before_i <= 0xD7A3 and ((before_i - 0xAC00) % 28) != 0:
+			stem = stem.substr(0, stem.length() - 1).strip_edges()
+	return stem
+
+
+static func _look_stem_ends_with_open_i_noun(stem: String) -> bool:
+	## Noun tails that end in 이 (not the 이 of 이다).
+	const TAILS: Array[String] = ["아이", "장이"]
+	for t in TAILS:
+		if stem.ends_with(t):
+			return true
+	return false
 
 
 static func _object_particle(word: String) -> String:
