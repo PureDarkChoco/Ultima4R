@@ -220,6 +220,7 @@ static func build_save(
 	var level := _level_from_game(game, klass)
 	var meta := {
 		"player_name": player_name,
+		"player_name_ko": str(game.get("player_name_ko", "")),
 		"player_sex": str(game.get("player_sex", "male")),
 		"moves": int(moves),
 		"class": int(klass),

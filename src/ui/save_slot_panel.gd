@@ -504,9 +504,7 @@ func _fill_slot_row(index: int, slot_n: int, meta: Dictionary) -> void:
 		_clear_companions(index)
 		return
 
-	var pname := str(meta.get("player_name", "?"))
-	if pname.is_empty():
-		pname = "Avatar"
+	var pname := _meta_display_name(meta)
 	var level := maxi(1, int(meta.get("level", 1)))
 	_name_labs[index].text = "Lv.%d %s" % [level, pname]
 	_name_labs[index].add_theme_color_override("font_color", COL_TEXT)
@@ -525,6 +523,16 @@ func _fill_slot_row(index: int, slot_n: int, meta: Dictionary) -> void:
 		_sub_labs[index].text = Locale.t("save_slot_moves_when_noloc", [str(moves), when])
 	else:
 		_sub_labs[index].text = Locale.t("save_slot_moves_when", [str(moves), loc, when])
+
+
+func _meta_display_name(meta: Dictionary) -> String:
+	## Prefer Korean name when UI language is ko; legacy meta only has English.
+	if GameState.language == "ko":
+		var ko := str(meta.get("player_name_ko", "")).strip_edges()
+		if not ko.is_empty():
+			return ko
+	var en := str(meta.get("player_name", "")).strip_edges()
+	return en if not en.is_empty() else "Avatar"
 
 
 func _fill_companions(index: int, meta: Dictionary) -> void:

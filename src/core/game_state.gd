@@ -45,7 +45,10 @@ func restore_menu_language() -> void:
 	## Back to title: use settings.cfg again (default en_us if missing).
 	_load_language_pref()
 
+## English name (required). Display & save key for English UI.
 var player_name: String = ""
+## Optional Korean name. Empty → fall back to English when language is ko.
+var player_name_ko: String = ""
 var player_sex: String = "male" # "male" | "female"
 var player_class: int = -1
 ## Party formation order (class indices 0..7). Index 0 = #1 on map & roster top.
@@ -255,8 +258,24 @@ func _persist_language_pref() -> void:
 	cfg.save(SETTINGS_PATH)
 
 
+func player_display_name() -> String:
+	## UI language picks English vs Korean; missing Korean uses English.
+	var en := player_name.strip_edges()
+	if language == "ko":
+		var ko := player_name_ko.strip_edges()
+		if not ko.is_empty():
+			return ko
+		if not en.is_empty():
+			return en
+		return "아바타"
+	if not en.is_empty():
+		return en
+	return "Avatar"
+
+
 func reset_party() -> void:
 	player_name = ""
+	player_name_ko = ""
 	player_sex = "male"
 	player_class = -1
 	party_order.clear()
@@ -1140,7 +1159,7 @@ func party_member_display_name(slot: int) -> String:
 	if player_cls < 0:
 		player_cls = party_leader_class()
 	if mid == player_cls:
-		return player_name if not player_name.is_empty() else "Avatar"
+		return player_display_name()
 	if mid >= 0 and mid < PartyRoster.COMPANION_NAMES.size():
 		return PartyRoster.COMPANION_NAMES[mid]
 	return Virtues.class_name_of(mid, lang_short())
@@ -2486,6 +2505,7 @@ func to_save_dict() -> Dictionary:
 	## Snapshot of xu4-aligned party / inventory / clock fields for SaveGame JSON.
 	return {
 		"player_name": player_name,
+		"player_name_ko": player_name_ko,
 		"player_sex": player_sex,
 		"player_class": player_class,
 		"party_order": party_order.duplicate(),
@@ -2540,7 +2560,9 @@ func apply_save_dict(d: Dictionary) -> void:
 	## Restore from SaveGame JSON `game` object.
 	if d.is_empty():
 		return
+	## Legacy single-name saves: `player_name` is English; Korean left empty.
 	player_name = str(d.get("player_name", player_name))
+	player_name_ko = str(d.get("player_name_ko", ""))
 	player_sex = str(d.get("player_sex", player_sex))
 	player_class = int(d.get("player_class", player_class))
 	_apply_int_array(party_order, d.get("party_order", []), 0)

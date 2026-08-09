@@ -640,7 +640,7 @@ static func member_ztats(slot: int) -> Dictionary:
 		player_cls = GameState.party_leader_class()
 	var nm := ""
 	if mid == player_cls:
-		nm = GameState.player_name if not GameState.player_name.is_empty() else "Avatar"
+		nm = GameState.player_display_name()
 	else:
 		nm = COMPANION_NAMES[mid]
 	var sex := "M"
@@ -858,7 +858,7 @@ func _make_bar(min_w: float, stretch: float) -> Dictionary:
 func refresh() -> void:
 	if _names.is_empty():
 		return
-	var pname := GameState.player_name if GameState.player_name else "Avatar"
+	var pname := GameState.player_display_name()
 	var player_cls := GameState.player_class
 	if player_cls < 0:
 		player_cls = GameState.party_leader_class()

@@ -181,10 +181,20 @@ const _T := {
 		"en_us": "What's your name?",
 		"ko": "이름이 무엇인가요?",
 	},
+	"name_prompt_en": {
+		"en_u4": "English name",
+		"en_us": "English name",
+		"ko": "영어 이름",
+	},
+	"name_prompt_ko": {
+		"en_u4": "Korean name",
+		"en_us": "Korean name",
+		"ko": "한국어 이름",
+	},
 	"sex_prompt": {
-		"en_u4": "Art thou Male or Female?",
-		"en_us": "Are you male or female?",
-		"ko": "성별을 고르세요.",
+		"en_u4": "Sex",
+		"en_us": "Sex",
+		"ko": "성별",
 	},
 	"sex_male": {
 		"en_u4": "Male",
