@@ -1290,6 +1290,8 @@ func _prompt_row_text() -> String:
 			if _talk_native_hangul_active() else ""
 		)
 	if _talk_stage == 10 and _shop != null:
+		if int(_shop.mode) == _VendorShop.Mode.TEXT and _talk_native_hangul_active():
+			return _talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
 		return _talk_buffer
 	if _pending_cmd != U4Commands.Id.NONE and not _pending_cmd_name.is_empty():
 		return Locale.need_dir_prompt(_pending_cmd_name)
@@ -1379,6 +1381,9 @@ func _talk_ime_stage_active() -> bool:
 
 
 func _talk_text_stage_active() -> bool:
+	if _talk_stage == 10 and _shop != null:
+		## Tavern topic after an ale tip is free text inside the vendor session.
+		return int(_shop.mode) == _VendorShop.Mode.TEXT
 	return _talk_stage in [1, 3, 11, 12, 13]
 
 
@@ -1409,6 +1414,12 @@ func _talk_input_mode_marker() -> String:
 
 
 func _talk_ime_max_length() -> int:
+	if (
+		_talk_stage == 10
+		and _shop != null
+		and int(_shop.mode) == _VendorShop.Mode.TEXT
+	):
+		return 16
 	match _talk_stage:
 		3, 13:
 			return 8
