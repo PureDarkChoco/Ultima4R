@@ -93,7 +93,36 @@ func _process(delta: float) -> void:
 			_flush_config()
 	if _booting:
 		return
+	_sample_windowed_geometry()
 	_poll_fullscreen_hotkeys()
+	_sync_titlebar_mode()
+
+
+## Keep the last normal window geometry in memory before macOS changes mode.
+func _sample_windowed_geometry() -> void:
+	if _is_fullscreen or _restoring_windowed:
+		return
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	if DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS):
+		return
+	var win := _root_window()
+	if win == null:
+		return
+	if win.size.x >= MIN_W and win.size.y >= MIN_H:
+		_windowed_size = win.size
+		_windowed_position = win.position
+
+
+## Route the macOS title-bar green button through the same path as Cmd+F.
+func _sync_titlebar_mode() -> void:
+	if OS.get_name() != "macOS" or _is_fullscreen or _restoring_windowed:
+		return
+	var mode := DisplayServer.window_get_mode()
+	if mode == DisplayServer.WINDOW_MODE_MAXIMIZED \
+			or mode == DisplayServer.WINDOW_MODE_FULLSCREEN \
+			or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
+		_enter_fullscreen(false)
 
 
 ## Polling survives scenes that swallow key events; key to ⌘F on macOS.
@@ -167,8 +196,9 @@ func toggle_fullscreen() -> void:
 		_enter_fullscreen()
 
 
-func _enter_fullscreen() -> void:
-	_capture_windowed_state()
+func _enter_fullscreen(capture_windowed: bool = true) -> void:
+	if capture_windowed:
+		_capture_windowed_state()
 	_is_fullscreen = true
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 
