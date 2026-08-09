@@ -689,10 +689,45 @@ const _T := {
 		"en_us": "Options",
 		"ko": "옵션",
 	},
-	"esc_options_hint": {
-		"en_u4": "←→ language. Enter cycles. Esc back.",
-		"en_us": "←→ language. Enter cycles. Esc back.",
-		"ko": "←→ 언어. Enter 전환. Esc 돌아가기.",
+	"esc_options_resolution": {
+		"en_u4": "Resolution",
+		"en_us": "Resolution",
+		"ko": "해상도",
+	},
+	"esc_options_resolution_windowed": {
+		"en_u4": "%d%% · %d×%d",
+		"en_us": "%d%% · %d×%d",
+		"ko": "%d%% · %d×%d",
+	},
+	"esc_options_resolution_set": {
+		"en_u4": "Window: %d%% (%d×%d)",
+		"en_us": "Window: %d%% (%d×%d)",
+		"ko": "창 모드: %d%% (%d×%d)",
+	},
+	"esc_options_fullscreen": {
+		"en_u4": "Fullscreen",
+		"en_us": "Fullscreen",
+		"ko": "전체화면",
+	},
+	"esc_options_fullscreen_state_on": {
+		"en_u4": "On (⌘F)",
+		"en_us": "On (⌘F)",
+		"ko": "켜짐 (⌘F)",
+	},
+	"esc_options_fullscreen_state_off": {
+		"en_u4": "Off (⌘F)",
+		"en_us": "Off (⌘F)",
+		"ko": "꺼짐 (⌘F)",
+	},
+	"esc_options_fullscreen_on": {
+		"en_u4": "Fullscreen on",
+		"en_us": "Fullscreen on",
+		"ko": "전체화면 켜짐",
+	},
+	"esc_options_fullscreen_off": {
+		"en_u4": "Fullscreen off",
+		"en_us": "Fullscreen off",
+		"ko": "전체화면 꺼짐",
 	},
 	"esc_menu_language_set": {
 		"en_u4": "Language: %s",

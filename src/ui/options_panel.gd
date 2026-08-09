@@ -1,28 +1,28 @@
 class_name OptionsPanel
 extends Control
 
-## In-game Esc → Options submenu. Currently: language only.
-## Left/right (or Enter) cycles language; Esc returns to Esc menu (world handles).
+## In-game Esc → Options submenu.
+## Items: language, window resolution (scale %), fullscreen (same as ⌘/Ctrl+F).
+## Left/right (or Enter) cycles the selected item; Esc returns to Esc menu.
 
 enum Item {
 	LANGUAGE = 0,
+	RESOLUTION = 1,
+	FULLSCREEN = 2,
 }
 
-const ITEM_COUNT := 1
+const ITEM_COUNT := 3
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
-const COL_DIM := Color(0.55, 0.58, 0.55, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
 const FONT_SIZE := 16
 const ROW_H := 30
-const PANEL_W := 360.0
+const PANEL_W := 400.0
 
 var _backdrop: ColorRect
 var _panel: PanelContainer
 var _title: Label
-var _status: Label
-var _hint: Label
 var _row_labs: Array[Label] = []
 var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[ColorRect] = []
@@ -34,6 +34,14 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	visible = false
+	if not DisplaySettings.fullscreen_changed.is_connected(_on_fullscreen_changed):
+		DisplaySettings.fullscreen_changed.connect(_on_fullscreen_changed)
+
+
+func _on_fullscreen_changed(_active: bool) -> void:
+	## ⌘F / F11 / title bar can change mode while this panel is open.
+	if visible:
+		refresh()
 
 
 func is_open() -> bool:
@@ -46,7 +54,6 @@ func cursor() -> int:
 
 func open_panel(default_cursor: int = 0) -> void:
 	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
-	_status.text = ""
 	_refresh_labels()
 	_sync_cursor()
 	visible = true
@@ -55,11 +62,6 @@ func open_panel(default_cursor: int = 0) -> void:
 
 func close_panel() -> void:
 	visible = false
-	_status.text = ""
-
-
-func set_status(text: String) -> void:
-	_status.text = text
 
 
 func nudge_cursor(delta: int) -> void:
@@ -90,7 +92,19 @@ func cycle_language(delta: int = 1) -> void:
 	GameState.language = langs[posmod(i + delta, langs.size())]
 	_refresh_labels()
 	_sync_cursor()
-	_status.text = Locale.t("esc_menu_language_set", [Locale.lang_label()])
+
+
+func cycle_resolution(delta: int = 1) -> void:
+	DisplaySettings.cycle_window_scale(delta)
+	_refresh_labels()
+	_sync_cursor()
+
+
+func cycle_fullscreen(_delta: int = 1) -> void:
+	## Same code path as ⌘F / Ctrl+F.
+	DisplaySettings.toggle_fullscreen()
+	_refresh_labels()
+	_sync_cursor()
 
 
 func _build() -> void:
@@ -166,35 +180,42 @@ func _build() -> void:
 		_row_bgs.append(bg)
 		_row_edges.append(edge)
 
-	_status = Label.new()
-	_status.add_theme_font_override("font", UiTheme.font())
-	_status.add_theme_font_size_override("font_size", FONT_SIZE - 2)
-	_status.add_theme_color_override("font_color", COL_ACCENT)
-	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_status)
-
-	_hint = Label.new()
-	_hint.add_theme_font_override("font", UiTheme.font())
-	_hint.add_theme_font_size_override("font_size", FONT_SIZE - 2)
-	_hint.add_theme_color_override("font_color", COL_DIM)
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_hint)
-
 	_refresh_labels()
 
 
 func _refresh_labels() -> void:
 	_title.text = Locale.t("esc_options_title")
-	_hint.text = Locale.t("esc_options_hint")
 	for i in ITEM_COUNT:
 		if i == Item.LANGUAGE:
 			_row_labs[i].text = "%s: ◂ %s ▸" % [
 				Locale.t("menu_language"),
 				Locale.lang_label(),
 			]
+		elif i == Item.RESOLUTION:
+			_row_labs[i].text = _resolution_row_text()
+		elif i == Item.FULLSCREEN:
+			_row_labs[i].text = _fullscreen_row_text()
 		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
+
+
+func _resolution_row_text() -> String:
+	var parts: Dictionary = DisplaySettings.resolution_label_parts()
+	var pct := int(parts.get("pct", 80))
+	var w := int(parts.get("width", 1280))
+	var h := int(parts.get("height", 720))
+	return "%s: ◂ %s ▸" % [
+		Locale.t("esc_options_resolution"),
+		Locale.t("esc_options_resolution_windowed", [pct, w, h]),
+	]
+
+
+func _fullscreen_row_text() -> String:
+	var state := (
+		Locale.t("esc_options_fullscreen_state_on")
+		if DisplaySettings.is_fullscreen_active()
+		else Locale.t("esc_options_fullscreen_state_off")
+	)
+	return "%s: ◂ %s ▸" % [Locale.t("esc_options_fullscreen"), state]
 
 
 func _sync_cursor() -> void:

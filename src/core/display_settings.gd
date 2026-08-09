@@ -14,7 +14,12 @@ const MIN_H := 540
 const DEFAULT_W := 1280
 const DEFAULT_H := 720
 const SAVE_DEBOUNCE_SEC := 0.35
-const WINDOWED_MAX_FRAC := 0.70
+## Windowed sizes as % of usable screen (Options → Resolution).
+const SCALE_PCTS: Array[int] = [90, 80, 70, 60, 50]
+const DEFAULT_SCALE_PCT := 80
+
+## Emitted when windowed ⇄ fullscreen changes (⌘F, Options, title bar, F11).
+signal fullscreen_changed(active: bool)
 
 enum WindowModeOption { WINDOWED, BORDERLESS, FULLSCREEN }
 
@@ -28,6 +33,7 @@ var _fs_chord_frame := -1
 var _last_fs_toggle_msec := -1000
 var _cmd_f_held := false
 var _f11_held := false
+var _window_scale_pct := DEFAULT_SCALE_PCT
 var _windowed_size := Vector2i(DEFAULT_W, DEFAULT_H)
 var _windowed_position := Vector2i(-1, -1)
 
@@ -196,6 +202,75 @@ func toggle_fullscreen() -> void:
 		_enter_fullscreen()
 
 
+func is_fullscreen_active() -> bool:
+	return _is_fullscreen
+
+
+func window_scale_percent() -> int:
+	return _window_scale_pct
+
+
+func size_for_scale_percent(pct: int = -1) -> Vector2i:
+	if pct < 0:
+		pct = _window_scale_pct
+	pct = _nearest_scale_pct(pct)
+	var usable := _usable_size()
+	if usable.x < 2 or usable.y < 2:
+		return Vector2i(DEFAULT_W, DEFAULT_H)
+	var w := maxi(MIN_W, int(round(float(usable.x) * float(pct) / 100.0)))
+	return _clamp_to_usable(_size_from_width(w), usable)
+
+
+func cycle_window_scale(delta: int) -> void:
+	var idx := SCALE_PCTS.find(_window_scale_pct)
+	if idx < 0:
+		idx = SCALE_PCTS.find(DEFAULT_SCALE_PCT)
+		if idx < 0:
+			idx = 0
+	set_window_scale_percent(SCALE_PCTS[posmod(idx + delta, SCALE_PCTS.size())])
+
+
+func set_window_scale_percent(pct: int) -> void:
+	_window_scale_pct = _nearest_scale_pct(pct)
+	_config.set_value(SECTION, "scale_pct", _window_scale_pct)
+	_windowed_size = size_for_scale_percent(_window_scale_pct)
+	## Center after a scale change so the new frame sits cleanly.
+	_windowed_position = Vector2i(-1, -1)
+	if _is_fullscreen or _booting:
+		_schedule_save()
+		return
+	_restoring_windowed = true
+	_unlock_resize_briefly()
+	_restore_windowed_geometry()
+	_lock_resize()
+	_restoring_windowed = false
+	_remember_windowed(_windowed_size, _windowed_position)
+	_apply_content_scale()
+	_flush_config()
+
+
+func resolution_label_parts() -> Dictionary:
+	## { "fullscreen": bool, "pct": int, "width": int, "height": int }
+	var sz := size_for_scale_percent(_window_scale_pct)
+	return {
+		"fullscreen": _is_fullscreen,
+		"pct": _window_scale_pct,
+		"width": sz.x,
+		"height": sz.y,
+	}
+
+
+func _nearest_scale_pct(pct: int) -> int:
+	var best := DEFAULT_SCALE_PCT
+	var best_d := 999
+	for p in SCALE_PCTS:
+		var d := absi(p - pct)
+		if d < best_d:
+			best_d = d
+			best = p
+	return best
+
+
 func _enter_fullscreen(capture_windowed: bool = true) -> void:
 	if capture_windowed:
 		_capture_windowed_state()
@@ -219,6 +294,7 @@ func _enter_fullscreen(capture_windowed: bool = true) -> void:
 	_apply_content_scale()
 	_set_saved_mode(WindowModeOption.FULLSCREEN)
 	_flush_config()
+	fullscreen_changed.emit(true)
 	call_deferred("_after_mode_change")
 
 
@@ -227,9 +303,8 @@ func _leave_fullscreen() -> void:
 	_restoring_windowed = true
 	## Always center when returning from fullscreen. A saved fullscreen-origin
 	## position (often 0,0 on macOS) is never useful for a windowed restore.
-	## Also normalize legacy Retina-sized geometry: macOS can report 4112 px
-	## in borderless mode but only 2878 logical px after window chrome returns.
-	_windowed_size = Vector2i(DEFAULT_W, DEFAULT_H)
+	## Re-derive size from the Options scale percent (not a stale Retina rect).
+	_windowed_size = size_for_scale_percent(_window_scale_pct)
 	_windowed_position = Vector2i(-1, -1)
 	_unlock_resize_briefly()
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
@@ -238,6 +313,7 @@ func _leave_fullscreen() -> void:
 	_lock_resize()
 	_set_saved_mode(WindowModeOption.WINDOWED)
 	_flush_config()
+	fullscreen_changed.emit(false)
 	call_deferred("_after_mode_change")
 
 
@@ -364,26 +440,19 @@ func _apply_content_scale() -> void:
 
 
 func _load_windowed_metrics() -> void:
-	if not _config.has_section_key(SECTION, "width") \
-			or not _config.has_section_key(SECTION, "height"):
-		_windowed_size = _default_windowed_size()
-		_windowed_position = Vector2i(-1, -1)
-		return
-	var w := int(_config.get_value(SECTION, "width", DEFAULT_W))
-	## User resizing is disabled, so never restore a stale fullscreen/Retina
-	## width as the windowed size. Preserve smaller valid sizes only.
-	var size := _size_from_width(clampi(w, MIN_W, DEFAULT_W))
-	var usable := _usable_size()
-	var screen_s := _scale_to_fit(usable)
-	var window_s := _scale_to_fit(size)
-	if usable.x < 2 or usable.y < 2 \
-			or size.x < MIN_W or size.y < MIN_H \
-			or size.x > usable.x or size.y > usable.y \
-			or window_s >= screen_s * 0.90:
-		size = _default_windowed_size()
+	if _config.has_section_key(SECTION, "scale_pct"):
+		_window_scale_pct = _nearest_scale_pct(int(_config.get_value(SECTION, "scale_pct", DEFAULT_SCALE_PCT)))
+	elif _config.has_section_key(SECTION, "width"):
+		## Legacy: infer % from saved width vs usable area.
+		var usable := _usable_size()
+		var w := int(_config.get_value(SECTION, "width", DEFAULT_W))
+		if usable.x > 1:
+			_window_scale_pct = _nearest_scale_pct(int(round(float(w) / float(usable.x) * 100.0)))
+		else:
+			_window_scale_pct = DEFAULT_SCALE_PCT
 	else:
-		size = _clamp_windowed_max(size, usable)
-	_windowed_size = size
+		_window_scale_pct = DEFAULT_SCALE_PCT
+	_windowed_size = size_for_scale_percent(_window_scale_pct)
 	var px := int(_config.get_value(SECTION, "pos_x", -1))
 	var py := int(_config.get_value(SECTION, "pos_y", -1))
 	if px >= 0 and py >= 0:
@@ -398,14 +467,6 @@ func _scale_to_fit(size: Vector2i) -> float:
 	return minf(float(size.x) / float(DEFAULT_W), float(size.y) / float(DEFAULT_H))
 
 
-func _default_windowed_size() -> Vector2i:
-	var usable := _usable_size()
-	var size := Vector2i(DEFAULT_W, DEFAULT_H)
-	if usable.x > 0 and usable.y > 0:
-		size = _clamp_windowed_max(size, usable)
-	return size
-
-
 func _usable_size() -> Vector2i:
 	var usable := DisplayServer.screen_get_usable_rect(
 		DisplayServer.window_get_current_screen()
@@ -417,23 +478,6 @@ func _usable_size() -> Vector2i:
 	return usable
 
 
-func _clamp_windowed_max(size: Vector2i, usable: Vector2i) -> Vector2i:
-	if usable.x < 2 or usable.y < 2:
-		return size
-	var max_w := maxi(MIN_W, int(usable.x * WINDOWED_MAX_FRAC))
-	var max_h := maxi(MIN_H, int(usable.y * WINDOWED_MAX_FRAC))
-	var out := size
-	if out.x > max_w:
-		out = _size_from_width(max_w)
-	if out.y > max_h:
-		var h := max_h
-		var w: int = int(round(float(h) * ASPECT))
-		out = Vector2i(w, h)
-		if out.x > max_w:
-			out = _size_from_width(max_w)
-	return _clamp_to_usable(out, usable)
-
-
 func _restore_windowed_geometry() -> void:
 	var screen := DisplayServer.window_get_current_screen()
 	var usable_rect := DisplayServer.screen_get_usable_rect(screen)
@@ -441,11 +485,7 @@ func _restore_windowed_geometry() -> void:
 	if usable.x < 2 or usable.y < 2:
 		usable = DisplayServer.screen_get_size(screen)
 
-	var size := _windowed_size
-	if size.x < MIN_W or size.y < MIN_H:
-		size = Vector2i(DEFAULT_W, DEFAULT_H)
-	size = _size_from_width(size.x)
-	size = _clamp_windowed_max(size, usable)
+	var size := size_for_scale_percent(_window_scale_pct)
 	_windowed_size = size
 
 	## Do not persist yet: while leaving fullscreen, the current position is
@@ -486,9 +526,9 @@ func _reapply_windowed_position() -> void:
 	if usable.size.x < 2 or usable.size.y < 2:
 		return
 	## During the first frames after leaving macOS fullscreen, win.size may
-	## still report the full display. If we clamp with that stale size, the
-	## only valid point is (0, 0). Restore the saved windowed size first.
-	var target_size := _clamp_windowed_max(_windowed_size, usable.size)
+	## still report the full display. Restore the Options scale size first.
+	var target_size := size_for_scale_percent(_window_scale_pct)
+	_windowed_size = target_size
 	_unlock_resize_briefly()
 	_fix_window_size(target_size)
 	var pos := _windowed_position
@@ -505,13 +545,6 @@ func _reapply_windowed_position() -> void:
 	DisplayServer.window_set_position(pos)
 	_windowed_position = pos
 	_lock_resize()
-	print(
-		"[DisplaySettings] windowed restore target_size=", target_size,
-		" target_pos=", pos,
-		" actual_size=", win.size,
-		" actual_pos=", win.position,
-		" usable=", usable
-	)
 
 
 func _capture_windowed_state() -> void:
@@ -524,13 +557,11 @@ func _capture_windowed_state() -> void:
 	var win := _root_window()
 	if win == null:
 		return
-	var size: Vector2i = win.size
-	var usable := _usable_size()
-	size = _clamp_windowed_max(_size_from_width(size.x), usable)
-	if size.x >= MIN_W and size.y >= MIN_H:
-		_windowed_size = size
-		_config.set_value(SECTION, "width", size.x)
-		_config.set_value(SECTION, "height", size.y)
+	## Resize is disabled — geometry is driven by scale_pct, not free drag.
+	_windowed_size = size_for_scale_percent(_window_scale_pct)
+	_config.set_value(SECTION, "scale_pct", _window_scale_pct)
+	_config.set_value(SECTION, "width", _windowed_size.x)
+	_config.set_value(SECTION, "height", _windowed_size.y)
 	var pos: Vector2i = win.position
 	_windowed_position = pos
 	_config.set_value(SECTION, "pos_x", pos.x)
@@ -582,10 +613,9 @@ func _remember_windowed(size: Vector2i, pos: Vector2i) -> void:
 		return
 	if size.x < MIN_W or size.y < MIN_H:
 		return
-	var usable := _usable_size()
-	size = _clamp_windowed_max(size, usable)
 	_windowed_size = size
 	_windowed_position = pos
+	_config.set_value(SECTION, "scale_pct", _window_scale_pct)
 	_config.set_value(SECTION, "width", size.x)
 	_config.set_value(SECTION, "height", size.y)
 	_config.set_value(SECTION, "pos_x", pos.x)

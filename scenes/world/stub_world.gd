@@ -2140,6 +2140,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if _options_panel_is_open():
+		if event is InputEventKey and event.pressed and not event.echo and _is_fullscreen_key(event as InputEventKey):
+			## Mode is toggled by DisplaySettings (input/poll); refresh label now.
+			if _options_panel != null:
+				_options_panel.refresh()
+			get_viewport().set_input_as_handled()
+			return
 		if _handle_options_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
@@ -2229,6 +2235,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		## ⌘F / Ctrl+F — toggle fullscreen (before F=Fire). Match ⌘S detection style.
 		if _is_fullscreen_key(event):
 			DisplaySettings.toggle_fullscreen()
+			if _options_panel_is_open() and _options_panel != null:
+				_options_panel.refresh()
 			get_viewport().set_input_as_handled()
 			return
 		## xu4 immobilized (all asleep): no commands until someone wakes.
@@ -2939,7 +2947,7 @@ func _handle_options_input(event: InputEvent) -> bool:
 	if _options_horizontal_nudge(event):
 		var dir := _options_language_delta(event)
 		if dir != 0:
-			_cycle_options_language(dir)
+			_cycle_options_cursor_value(dir)
 			return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -2994,6 +3002,23 @@ func _options_language_delta(event: InputEvent) -> int:
 	return 0
 
 
+func _cycle_options_cursor_value(delta: int) -> void:
+	_ensure_options_panel()
+	if _options_panel == null:
+		return
+	var item: int = int(_options_panel.cursor())
+	match item:
+		_OptionsPanel.Item.LANGUAGE:
+			_options_panel.cycle_language(delta)
+			_layout_prompt_row()
+		_OptionsPanel.Item.RESOLUTION:
+			_options_panel.cycle_resolution(delta)
+		_OptionsPanel.Item.FULLSCREEN:
+			_options_panel.cycle_fullscreen(delta)
+		_:
+			pass
+
+
 func _cycle_options_language(delta: int) -> void:
 	_ensure_options_panel()
 	if _options_panel == null:
@@ -3005,7 +3030,11 @@ func _cycle_options_language(delta: int) -> void:
 func _confirm_options_item(index: int) -> void:
 	match index:
 		_OptionsPanel.Item.LANGUAGE:
-			_cycle_options_language(1)
+			_cycle_options_cursor_value(1)
+		_OptionsPanel.Item.RESOLUTION:
+			_cycle_options_cursor_value(1)
+		_OptionsPanel.Item.FULLSCREEN:
+			_cycle_options_cursor_value(1)
 		_:
 			pass
 
