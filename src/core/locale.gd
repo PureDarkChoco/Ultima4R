@@ -327,6 +327,11 @@ const _T := {
 		"en_us": "Escape",
 		"ko": "탈출",
 	},
+	"cmd_leave_battle_confirm": {
+		"en_u4": "Leave the battlefield?",
+		"en_us": "Leave the battlefield?",
+		"ko": "전장에서 나가겠습니까?",
+	},
 	## xu4 combat attack miss / kill
 	"cmd_missed": {
 		"en_u4": "Missed!",

@@ -150,6 +150,8 @@ var _death_fade_tween: Tween
 var _combat_active := false
 ## Victory announced; free leave via ESC / map-edge (no extra karma).
 var _combat_victory_aftermath := false
+## Victory B/Esc confirmation; No keeps the arena open for chest looting.
+var _combat_exit_prompt := false
 ## xu4 InnController::awardLoot empty — no combat chests after inn ambush.
 var _combat_suppress_chests := false
 ## Victory solo control: party_order slot (0..7), or −1 = sequential party mode.
@@ -1221,6 +1223,13 @@ func _rebuild_command_menu_rows() -> void:
 		for cmd in _command_menu_items:
 			var letter := U4Commands.letter_for(cmd)
 			var command_name := U4Commands.label(cmd, lang)
+			if cmd == U4Commands.Id.PASS:
+				row_texts.append("[color=#%s]%s[/color] - %s" % [
+					UiTheme.ACCENT.to_html(false),
+					letter,
+					command_name,
+				])
+				continue
 			if lang == "ko":
 				row_texts.append("[color=#%s]%s[/color] - %s" % [
 					UiTheme.ACCENT.to_html(false),
@@ -1734,6 +1743,8 @@ func _talk_gamepad_yes_no_active() -> bool:
 
 
 func _prompt_choice_keys() -> String:
+	if _combat_exit_prompt:
+		return "yn"
 	if _enter_prompt_stage == 1:
 		return "yn"
 	if _talk_gamepad_yes_no_active():
@@ -1769,6 +1780,9 @@ func _resolve_prompt_choice_index(index: int) -> void:
 	_choice_resolved_frame = frame
 	index = clampi(index, 0, keys.length() - 1)
 	var ch := keys.substr(index, 1)
+	if _combat_exit_prompt:
+		_resolve_combat_exit_prompt(ch == "y")
+		return
 	if _enter_prompt_stage == 1:
 		_resolve_enter_prompt(ch == "y")
 		return
@@ -2756,14 +2770,20 @@ func _command_menu_can_show(cmd: int) -> bool:
 	var in_city := _is_in_city() and not in_combat
 	var outdoors := not in_city and not in_combat
 	var noncombat := not in_combat
+	if _combat_victory_aftermath:
+		return cmd in [
+			U4Commands.Id.GET_CHEST,
+			U4Commands.Id.OPEN,
+			U4Commands.Id.READY,
+			U4Commands.Id.USE,
+			U4Commands.Id.ZTATS,
+		]
+	## Keep the gamepad palette aligned with commands accepted by combat input.
+	## Volume remains hidden while it is only a stub.
+	if in_combat:
+		return U4Commands.allowed_in_combat(cmd) and cmd != U4Commands.Id.VOLUME
 	match cmd:
 		U4Commands.Id.ATTACK:
-			if in_combat:
-				return (
-					_map != null
-					and _map.has_method("has_combat_foe_adjacent_to_focus")
-					and bool(_map.call("has_combat_foe_adjacent_to_focus"))
-				)
 			if in_city:
 				return _city_guards_alerted and _command_menu_has_adjacent_city_person()
 			return _command_menu_has_adjacent_world_enemy()
@@ -2873,6 +2893,12 @@ func _command_menu_ship_touches_land() -> bool:
 func _command_menu_default_cmd(items: Array[int]) -> int:
 	if items.is_empty():
 		return U4Commands.Id.NONE
+	if _combat_active:
+		## Attack is the common combat action; ranged attacks must remain available
+		## even without an adjacent foe.
+		if items.has(U4Commands.Id.ATTACK):
+			return U4Commands.Id.ATTACK
+		return items[0]
 	## Context priority is intentionally ordered to match the gamepad UX spec.
 	var priority: Array[int] = []
 	if _command_menu_can_show(U4Commands.Id.TALK):
@@ -2937,7 +2963,7 @@ func _can_open_command_menu() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _combat_active and (_combat_resolving or _combat_aiming or _combat_victory_aftermath):
+	if _combat_active and (_combat_resolving or _combat_aiming or _combat_exit_prompt):
 		return false
 	return true
 
@@ -3007,7 +3033,10 @@ func _choose_command_menu_item(from_gamepad: bool = false) -> void:
 		## Do not reuse the D-pad direction that moved the menu cursor.
 		_block_dir_until_keyup = true
 	if _combat_active:
-		_handle_combat_command(cmd)
+		if _combat_victory_aftermath:
+			_handle_combat_victory_command(cmd)
+		else:
+			_handle_combat_command(cmd)
 	else:
 		_handle_command(cmd)
 
@@ -3389,6 +3418,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
 		return
+	if _combat_exit_prompt:
+		if _handle_enter_prompt_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _enter_prompt_stage == 1:
 		if _handle_enter_prompt_input(event):
 			get_viewport().set_input_as_handled()
@@ -3663,7 +3698,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_command(cmd)
 			get_viewport().set_input_as_handled()
 		return
-	## Gamepad while idle: A passes, B opens the contextual A–Z palette,
+	## Gamepad while idle: X passes, B opens the contextual A–Z palette,
 	## and Start opens/closes the system menu.
 	if event.is_pressed() and not event.is_echo():
 		if _peer_overlay != null and _peer_overlay.is_open():
@@ -3700,9 +3735,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_push_message(Locale.t("cmd_what"), false)
 				get_viewport().set_input_as_handled()
 			return
-		if _GameInput.is_select(event):
-			## Idle A mirrors the keyboard Pass command. Nested UIs and combat
-			## have already claimed their own A behavior above.
+		if _GameInput.is_pass(event):
+			## Idle X mirrors the keyboard Space/Pass command.
 			if not _is_party_asleep_locked():
 				_handle_command(U4Commands.Id.PASS)
 			get_viewport().set_input_as_handled()
@@ -8227,6 +8261,7 @@ func _close_ui_for_death() -> void:
 		_map.exit_camp()
 	## Wipe-from-combat: clear arena widgets; map stays until blackout/revive.
 	_combat_clear_aim_state()
+	_combat_exit_prompt = false
 	if _foe_roster:
 		_foe_roster.clear()
 	_chest_open_stage = 0
@@ -10188,6 +10223,7 @@ func _begin_combat(
 	_combat_active = true
 	_combat_resolving = true
 	_combat_victory_aftermath = false
+	_combat_exit_prompt = false
 	_victory_solo_party_slot = -1
 	_combat_suppress_chests = bool(foe.get("no_chest_loot", false))
 	## Camp ambush: no sleep→wake rolls until the first creature phase ends.
@@ -10298,6 +10334,7 @@ func _begin_combat_victory_aftermath() -> void:
 		return
 	_combat_clear_aim_state()
 	_clear_pending_dir()
+	_combat_exit_prompt = false
 	## Always free combat input after Victory (even if a turn-gap coroutine still runs).
 	_combat_victory_aftermath = true
 	_victory_solo_party_slot = -1
@@ -10341,6 +10378,7 @@ func _finish_combat_victory_exit() -> void:
 	if not _combat_active:
 		return
 	_combat_clear_aim_state()
+	_combat_exit_prompt = false
 	_combat_resolving = true
 	_combat_victory_aftermath = false
 	_victory_solo_party_slot = -1
@@ -10393,6 +10431,33 @@ func _combat_victory_esc_exit_all() -> void:
 	await _finish_combat_victory_exit()
 
 
+func _open_combat_exit_prompt() -> void:
+	if (
+		not _combat_active or not _combat_victory_aftermath
+		or _combat_resolving or _combat_exit_prompt
+	):
+		return
+	_combat_exit_prompt = true
+	_enter_prompt_choice = 1 ## Default No so an accidental A does not leave.
+	_GameInput.reset_stick_navigation()
+	_push_message(Locale.t("cmd_leave_battle_confirm"), false)
+	_layout_prompt_row()
+
+
+func _resolve_combat_exit_prompt(leave: bool) -> void:
+	if not _combat_exit_prompt:
+		return
+	_combat_exit_prompt = false
+	if _enter_btn_row != null:
+		_enter_btn_row.visible = false
+	if _msg_prompt_row != null:
+		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layout_prompt_row()
+	grab_focus()
+	if leave:
+		_combat_victory_esc_exit_all()
+
+
 func _place_captured_pirate_ship(pos: Vector2i, facing: int) -> void:
 	## xu4 CombatController::awardLoot — pirate ship becomes a boardable frigate.
 	if _map == null or _is_in_city():
@@ -10422,6 +10487,15 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	var focus_klass := _map.get_combat_focus_klass() if _map != null else -1
 	if focus_klass >= 0 and GameState.is_member_disabled(focus_klass):
 		_combat_finish_member_turn()
+		return true
+	if _GameInput.is_pass(event):
+		_push_message(Locale.t("cmd_pass"), false)
+		_combat_finish_member_turn()
+		return true
+	## Gamepad A is the direct Attack shortcut, identical to keyboard A.
+	## While already aiming, A was handled above as aim confirmation.
+	if _GameInput.is_select(event):
+		_handle_combat_command(U4Commands.Id.ATTACK)
 		return true
 	var dir := _GameInput.dir_from_event(event)
 	if dir != Vector2i.ZERO:
@@ -10455,10 +10529,13 @@ func _handle_combat_victory_input(k: InputEventKey) -> bool:
 
 
 func _handle_combat_victory_input_event(event: InputEvent) -> bool:
-	## Free movement, Open/Get/Cast, active-player 0–8, ESC cascade exit — no turn clock.
+	## Free movement and loot commands; Y asks to leave — no turn clock.
 	_combat_resolving = false
-	if _is_cancel_event(event):
-		_combat_victory_esc_exit_all()
+	if (
+		_GameInput.is_victory_exit(event)
+		or (event is InputEventKey and _is_cancel_event(event))
+	):
+		_open_combat_exit_prompt()
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -10496,6 +10573,22 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 		_combat_try_move(dir)
 		return true
 	return true
+
+
+func _handle_combat_victory_command(cmd: int) -> void:
+	## Gamepad B palette actions after victory. Keep the arena open for looting.
+	var lang := GameState.lang_short()
+	match cmd:
+		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+			_pending_cmd = cmd
+			_pending_cmd_name = U4Commands.label(cmd, lang)
+			_layout_prompt_row()
+		U4Commands.Id.ZTATS:
+			_do_ztats()
+		U4Commands.Id.READY:
+			_do_ready()
+		U4Commands.Id.USE:
+			_do_use()
 
 
 func _handle_combat_pending_dir(k: InputEventKey) -> bool:
@@ -10583,6 +10676,9 @@ func _handle_combat_command(cmd: int) -> void:
 			_combat_finish_member_turn()
 		U4Commands.Id.USE:
 			_do_use()
+		U4Commands.Id.PASS:
+			_push_message(Locale.t("cmd_pass"), false)
+			_combat_finish_member_turn()
 		U4Commands.Id.VOLUME:
 			## xu4 V toggles music; no turn cost.
 			_push_message(Locale.t("cmd_stub", [letter, name]), false)

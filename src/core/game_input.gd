@@ -46,6 +46,24 @@ static func is_select(event: InputEvent) -> bool:
 	return false
 
 
+static func is_pass(event: InputEvent) -> bool:
+	## West-face (X) is the direct Pass shortcut in explore and combat.
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).button_index == JOY_BUTTON_X
+	return false
+
+
+static func is_victory_exit(event: InputEvent) -> bool:
+	## North-face (Y) opens the post-combat battlefield exit confirmation.
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).button_index == JOY_BUTTON_Y
+	return false
+
+
 static func dir_from_event(event: InputEvent) -> Vector2i:
 	## Single-step dir from a pressed key / d-pad / stick threshold.
 	if not event.is_pressed() or event.is_echo():
