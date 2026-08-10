@@ -7904,7 +7904,7 @@ func _talk_input_hawkwind(k: InputEventKey) -> bool:
 			_end_talk(true)
 			return true
 		_push_talk_script(reply)
-		_push_talk_script(_Hawkwind.AGAIN_PROMPT)
+		_push_talk_script(_Hawkwind.again_prompt())
 		_layout_prompt_row()
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
@@ -8404,7 +8404,7 @@ func _end_talk(_aborted: bool) -> void:
 	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
 	var farewell := "Bye."
 	if _talk_is_hawkwind:
-		farewell = _Hawkwind.BYE
+		farewell = _Hawkwind.bye_line()
 	elif _talk_is_lb:
 		farewell = _LordBritish.farewell()
 	elif str(GameState.language) == "ko":
