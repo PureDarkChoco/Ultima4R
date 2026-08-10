@@ -7799,14 +7799,14 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 			_end_talk(true)
 			return true
 		if kind == "heal":
-			_push_talk_script(_LordBritish.HEAL_WELL)
-			_push_talk_script(_LordBritish.HEAL_ASK)
+			_push_talk_script(_LordBritish.heal_well())
+			_push_talk_script(_LordBritish.heal_ask())
 			_talk_stage = 13
 			_talk_buffer = ""
 			_layout_prompt_row()
 			return true
 		_push_talk_script(_LordBritish.reply_text(match_input))
-		_push_talk_script(_LordBritish.PROMPT)
+		_push_talk_script(_LordBritish.prompt())
 		_layout_prompt_row()
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
@@ -7835,22 +7835,22 @@ func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
 		_push_talk_player_input(s)
 		var yn := _talk_parse_yn(s)
 		if yn == 1:
-			_push_talk_script(_LordBritish.HEAL_GOOD)
+			_push_talk_script(_LordBritish.heal_good())
 			_talk_stage = 12
-			_push_talk_script(_LordBritish.PROMPT)
+			_push_talk_script(_LordBritish.prompt())
 			_layout_prompt_row()
 			return true
 		if yn == 0:
-			_push_talk_script(_LordBritish.HEAL_WOUNDS)
+			_push_talk_script(_LordBritish.heal_wounds())
 			_LordBritish.heal_party()
 			_refresh_party()
 			_talk_stage = 12
-			_push_talk_script(_LordBritish.PROMPT)
+			_push_talk_script(_LordBritish.prompt())
 			_layout_prompt_row()
 			return true
-		_push_talk_script(_LordBritish.HEAL_BAD_ANSWER)
+		_push_talk_script(_LordBritish.heal_bad_answer())
 		_talk_stage = 12
-		_push_talk_script(_LordBritish.PROMPT)
+		_push_talk_script(_LordBritish.prompt())
 		_layout_prompt_row()
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:

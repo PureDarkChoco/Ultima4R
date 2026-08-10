@@ -1901,10 +1901,13 @@ func lord_british_check_levels() -> Array[String]:
 			continue
 		var nm := party_member_display_name(i).strip_edges()
 		if nm.is_empty():
-			nm = "Adventurer"
+			nm = "아바타" if language == "ko" else "Adventurer"
 		var new_lv := advance_level_for_class(mid)
 		if new_lv > 0:
-			lines.append("%s\nThou art now Level %d" % [nm, new_lv])
+			if language == "ko":
+				lines.append("%s\n이제 %d 레벨이오" % [nm, new_lv])
+			else:
+				lines.append("%s\nThou art now Level %d" % [nm, new_lv])
 	return lines
 
 
