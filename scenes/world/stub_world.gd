@@ -3146,6 +3146,7 @@ func _choose_talk_keyword_menu_item() -> void:
 	):
 		return
 	var item := _talk_keyword_menu_items[_talk_keyword_menu_cursor]
+	var selected_key := str(item.get("key", ""))
 	## A gamepad choice replaces any partially typed keyboard/IME text.
 	_reset_talk_hangul()
 	_talk_buffer = str(item.get("input", ""))
@@ -3154,6 +3155,28 @@ func _choose_talk_keyword_menu_item() -> void:
 	enter.pressed = true
 	enter.keycode = KEY_ENTER
 	_handle_talk_input(enter)
+	## The reply can insert newly discovered keywords before Health. Find the
+	## submitted item again so focus advances to its actual next row.
+	if _talk_keyword_menu_active and not _talk_keyword_menu_items.is_empty():
+		var selected_index := -1
+		for i in _talk_keyword_menu_items.size():
+			if str(_talk_keyword_menu_items[i].get("key", "")) == selected_key:
+				selected_index = i
+				break
+		if selected_index >= 0:
+			var next_index := mini(
+				selected_index + 1,
+				_talk_keyword_menu_items.size() - 1
+			)
+			## Donate remains selectable manually, but automatic progression
+			## skips it and lands directly on Bye.
+			if (
+				next_index < _talk_keyword_menu_items.size() - 1
+				and str(_talk_keyword_menu_items[next_index].get("key", "")) == "give"
+			):
+				next_index += 1
+			_talk_keyword_menu_cursor = next_index
+			_layout_command_menu_layer()
 
 
 func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
@@ -8793,8 +8816,18 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	## "You meet %s"
 	_push_talk_script("You meet %s" % str(entry.look))
 	## 50% self-introduction.
-	if (randi() % 2) != 0:
+	var introduced_name := (randi() % 2) != 0
+	if introduced_name:
 		_talk_say_name()
+	## If the NPC already gave their name, continue naturally with Job.
+	## Otherwise leave Name selected so the player can ask who they are.
+	if _talk_keyword_menu_active:
+		var default_key := "job" if introduced_name else "name"
+		for i in _talk_keyword_menu_items.size():
+			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
+				_talk_keyword_menu_cursor = i
+				break
+		_layout_command_menu_layer()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
 	_sync_talk_ime_edit()
