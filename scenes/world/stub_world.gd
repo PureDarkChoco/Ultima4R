@@ -2325,6 +2325,22 @@ func _process(delta: float) -> void:
 			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
 			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
 		)
+	## Gamepad convenience: bumping an unlocked city door performs Open instead
+	## of reporting Blocked. Locked doors and doors occupied by an NPC stay solid.
+	if (
+		_GameInput.is_move_from_gamepad()
+		and _is_in_city()
+		and _city_map != null
+		and _city_map.loaded
+		and _city_map.person_index_at(next.x, next.y) < 0
+		and _TileRules.is_door(int(_city_map.effective_tile_at(next.x, next.y)))
+	):
+		var open_result := _do_open(dir)
+		if not open_result.is_empty():
+			_push_message(open_result, false)
+		_finish_party_turn()
+		_arm_hold_after_step(true)
+		return
 	if not _can_move_to(next):
 		_push_message(Locale.t("cmd_blocked"), false)
 		_finish_party_turn()
