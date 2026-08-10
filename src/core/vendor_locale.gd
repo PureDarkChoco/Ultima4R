@@ -282,6 +282,8 @@ const LINES := {
 	"A blind woman turns to you and says: Welcome to %s\n\nI am %s\nAre you in need of Reagents? (Y/N)":
 		"눈먼 여인이 돌아보며 말합니다: %s에 오신 것을 환영합니다\n\n저는 %s입니다\n시약이 필요하신가요? (Y/N)",
 	"Very well,": "좋습니다,",
+	"I have": "있습니다",
+	"Your\nInterest:": "관심사는:",
 	"I have\nA-Sulfurous Ash\nB-Ginseng\nC-Garlic\nD-Spider Silk\nE-Blood Moss\nF-Black Pearl\nYour\nInterest:":
 		"있습니다\nA-유황재\nB-인삼\nC-마늘\nD-거미줄\nE-피이끼\nF-흑진주\n관심사는:",
 	"Very well, we sell %s for %dgp. How many would you\nlike?":

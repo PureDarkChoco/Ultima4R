@@ -298,10 +298,7 @@ func item_list_entries() -> Array[Dictionary]:
 			for i in 6:
 				entries.append({
 					"key": String.chr(97 + i),
-					"label": "%s-%s" % [
-						String.chr(65 + i),
-						Locale.reagent_name(i),
-					],
+					"label": _format_reagent_stock_line(i),
 				})
 	return entries
 
@@ -354,6 +351,9 @@ func on_escape() -> void:
 			return
 		"f_howmany":
 			_f_prompt_interest()
+			return
+		"r_howmany", "r_pay":
+			_r_show()
 			return
 		_:
 			pass
@@ -1259,15 +1259,22 @@ func _on_r_need(c0: String) -> void:
 
 
 func _r_show() -> void:
-	var catalog := _L("I have\nA-Sulfurous Ash\nB-Ginseng\nC-Garlic\nD-Spider Silk\nE-Blood Moss\nF-Black Pearl\nYour\nInterest:")
-	for line in catalog.split("\n"):
-		var text := str(line)
-		var key := text.substr(0, 1).to_lower()
-		if text.length() >= 2 and text.substr(1, 1) == "-" and "abcdef".contains(key):
-			_say_item(key, text)
-		else:
-			_say(text)
+	_say(_L("I have"))
+	for i in 6:
+		_say_item(String.chr(97 + i), _format_reagent_stock_line(i))
+	_say(_L("Your\nInterest:"))
 	_want_choice("abcdef", "r_item")
+
+
+func _format_reagent_stock_line(i: int) -> String:
+	## "A - [icon]Sulfurous Ash / 2G" — icon + unit price like weapon stock lines.
+	var letter := String.chr(65 + i)
+	var icon := TalkTlk.mark_reagent_icon(i)
+	var price := int(_prices[i]) if i >= 0 and i < _prices.size() else 0
+	var price_s := "%dG" % price
+	if GameState.gold < price:
+		price_s = "[color=#e74c3c]%s[/color]" % price_s
+	return "%s - %s%s / %s" % [letter, icon, Locale.reagent_name(i), price_s]
 
 
 func _on_r_item(c0: String) -> void:

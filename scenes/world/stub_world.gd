@@ -12231,7 +12231,7 @@ func _sync_shop_item_message_highlight(start: int, first_row: int, take: int) ->
 func _set_msg_row_text(row: RichTextLabel, line: String) -> void:
 	## Prefer append_text so BBCode (keyword tint) always parses.
 	## Leading MSG_PROMPT_MARK → xu4 charset prompt image (CHARSET_PROMPT).
-	## TalkTlk gear icon marks (weapon/armor) → inline sprites before item names.
+	## TalkTlk gear icon marks (weapon/armor/reagent) → inline sprites before item names.
 	if row == null:
 		return
 	row.clear()
@@ -12258,7 +12258,7 @@ func _set_msg_row_text(row: RichTextLabel, line: String) -> void:
 
 
 func _append_msg_body_with_icons(row: RichTextLabel, body: String) -> void:
-	## Stream BBCode text + TalkTlk weapon/armor icon marks as inline images.
+	## Stream BBCode text + TalkTlk weapon/armor/reagent icon marks as inline images.
 	if not body.contains(_TalkTlk.MSG_ICON_BEGIN):
 		row.append_text(body)
 		return
@@ -12288,7 +12288,7 @@ func _append_msg_body_with_icons(row: RichTextLabel, body: String) -> void:
 
 
 func _msg_gear_texture_from_mark(payload: String) -> Texture2D:
-	## "w12" → weapon 12, "a3" → armor 3.
+	## "w12" → weapon 12, "a3" → armor 3, "r1" → reagent 1.
 	if payload.length() < 2:
 		return null
 	var kind := payload[0]
@@ -12297,4 +12297,6 @@ func _msg_gear_texture_from_mark(payload: String) -> Texture2D:
 		return WeaponIcons.texture_for_id(id)
 	if kind == "a":
 		return ArmorIcons.texture_for_id(id)
+	if kind == "r":
+		return ReagentIcons.texture_for_id(id)
 	return null

@@ -35,7 +35,7 @@ const SHOP_INDEX_BAD_BBCODE := "[color=#e74c3c]"
 const SHOP_INDEX_BAD_BBCODE_END := "[/color]"
 ## Shop verb emphasis (Buy / Sell).
 const SHOP_ACTION_KEYS: Array[String] = ["Buy", "Sell"]
-## Inline inventory icon in message log: BEGIN + 'w'|'a' + id + END.
+## Inline inventory icon in message log: BEGIN + 'w'|'a'|'r' + id + END.
 const MSG_ICON_BEGIN := "\u0002"
 const MSG_ICON_END := "\u0003"
 
@@ -795,6 +795,10 @@ static func mark_weapon_icon(weapon_id: int) -> String:
 
 static func mark_armor_icon(armor_id: int) -> String:
 	return "%sa%d%s" % [MSG_ICON_BEGIN, armor_id, MSG_ICON_END]
+
+
+static func mark_reagent_icon(reagent_id: int) -> String:
+	return "%sr%d%s" % [MSG_ICON_BEGIN, reagent_id, MSG_ICON_END]
 
 
 static func count_icon_marks(text: String) -> int:
