@@ -198,7 +198,11 @@ https://github.com/naver/d2codingfont
 
 면책
 
-각 외부 프로젝트 및 에셋의 저작권과 상표는 해당 제작자와 권리자에게 있습니다. 위 링크에서 최신 원문 라이선스와 이용 조건을 확인할 수 있습니다."""
+각 외부 프로젝트 및 에셋의 저작권과 상표는 해당 제작자와 권리자에게 있습니다. 위 링크에서 최신 원문 라이선스와 이용 조건을 확인할 수 있습니다.
+
+AI 사용
+
+개발과 대화 번역에는 AI가 사용되었습니다."""
 
 
 func _text_en() -> String:
@@ -249,4 +253,8 @@ https://github.com/naver/d2codingfont
 
 Disclaimer
 
-Copyrights and trademarks in third-party projects and assets remain with their respective authors and owners. Follow the links above for the current original license and usage terms."""
+Copyrights and trademarks in third-party projects and assets remain with their respective authors and owners. Follow the links above for the current original license and usage terms.
+
+AI usage
+
+AI was used for development and dialogue translation."""

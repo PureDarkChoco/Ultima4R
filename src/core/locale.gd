@@ -127,14 +127,14 @@ const _T := {
 		"ko": "종료",
 	},
 	"menu_licenses": {
-		"en_u4": "Licenses",
-		"en_us": "Licenses",
-		"ko": "라이선스",
+		"en_u4": "About",
+		"en_us": "About",
+		"ko": "정보",
 	},
 	"licenses_title": {
-		"en_u4": "Licenses & Credits",
-		"en_us": "Licenses & Credits",
-		"ko": "라이선스 및 출처",
+		"en_u4": "About",
+		"en_us": "About",
+		"ko": "정보",
 	},
 	"licenses_close": {
 		"en_u4": "Return",
