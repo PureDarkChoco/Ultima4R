@@ -2810,6 +2810,86 @@ func _build_command_menu_items() -> Array[int]:
 	return items
 
 
+func _command_menu_has_world_enemy_on_screen() -> bool:
+	if _is_in_city() or _combat_active or _world_creatures == null:
+		return false
+	var half_x := MapView.VIEW_W / 2
+	var half_y := MapView.VIEW_H / 2
+	for creature in _world_creatures.creatures:
+		var pos := Vector2i(
+			int(creature.get("x", -99999)),
+			int(creature.get("y", -99999))
+		)
+		var delta: Vector2i = _WorldCreaturesScript.wrap_delta(_tile_pos, pos)
+		if absi(delta.x) <= half_x and absi(delta.y) <= half_y:
+			return true
+	return false
+
+
+func _command_menu_ship_touches_land() -> bool:
+	if (
+		_transport != Transport.SHIP or _is_in_city() or _combat_active
+		or _world == null or not _world.loaded
+	):
+		return false
+	for dir in _command_menu_cardinal_dirs():
+		var pos := Vector2i(
+			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+		)
+		if not _TileRules.is_sailable(_effective_world_tid(pos)):
+			return true
+	return false
+
+
+func _command_menu_default_cmd(items: Array[int]) -> int:
+	if items.is_empty():
+		return U4Commands.Id.NONE
+	## Context priority is intentionally ordered to match the gamepad UX spec.
+	var priority: Array[int] = []
+	if _command_menu_can_show(U4Commands.Id.TALK):
+		priority.append(U4Commands.Id.TALK)
+	if _command_menu_can_show(U4Commands.Id.OPEN):
+		priority.append(U4Commands.Id.OPEN)
+	if _command_menu_can_show(U4Commands.Id.GET_CHEST):
+		priority.append(U4Commands.Id.GET_CHEST)
+	if _command_menu_can_show(U4Commands.Id.JIMMY):
+		priority.append(U4Commands.Id.JIMMY)
+	if _command_menu_can_show(U4Commands.Id.ATTACK):
+		priority.append(U4Commands.Id.ATTACK)
+	if _command_menu_can_show(U4Commands.Id.BOARD):
+		priority.append(U4Commands.Id.BOARD)
+	if _command_menu_can_show(U4Commands.Id.DESCEND):
+		priority.append(U4Commands.Id.DESCEND)
+	if _command_menu_can_show(U4Commands.Id.KLIMB):
+		priority.append(U4Commands.Id.KLIMB)
+	if _command_menu_can_show(U4Commands.Id.ENTER):
+		priority.append(U4Commands.Id.ENTER)
+	if (
+		items.has(U4Commands.Id.XIT)
+		and _command_menu_ship_touches_land()
+	):
+		priority.append(U4Commands.Id.XIT)
+	var enemy_on_screen := _command_menu_has_world_enemy_on_screen()
+	if (
+		items.has(U4Commands.Id.YELL)
+		and _transport == Transport.SHIP
+		and _TileRules.is_sailable(_effective_world_tid(_tile_pos))
+		and not enemy_on_screen
+	):
+		priority.append(U4Commands.Id.YELL)
+	if items.has(U4Commands.Id.FIRE) and enemy_on_screen:
+		priority.append(U4Commands.Id.FIRE)
+	if items.has(U4Commands.Id.XIT) and _transport == Transport.HORSE:
+		priority.append(U4Commands.Id.XIT)
+	for cmd in priority:
+		if items.has(cmd):
+			return cmd
+	if items.has(_command_menu_last_cmd):
+		return _command_menu_last_cmd
+	return items[0]
+
+
 func _can_open_command_menu() -> bool:
 	if _command_menu_open or _enter_prompt_stage != 0:
 		return false
@@ -2841,7 +2921,8 @@ func _open_command_menu() -> void:
 	if _command_menu_items.is_empty():
 		return
 	_command_menu_open = true
-	_command_menu_cursor = _command_menu_items.find(_command_menu_last_cmd)
+	var default_cmd := _command_menu_default_cmd(_command_menu_items)
+	_command_menu_cursor = _command_menu_items.find(default_cmd)
 	if _command_menu_cursor < 0:
 		_command_menu_cursor = 0
 	_GameInput.reset_stick_navigation()
@@ -6532,6 +6613,7 @@ func _maybe_offer_enter_prompt() -> void:
 func _open_enter_prompt(portal: Dictionary) -> void:
 	_enter_prompt_stage = 1
 	_enter_prompt_choice = 0
+	_GameInput.reset_stick_navigation()
 	_reset_hold_state()
 	_block_dir_until_keyup = true
 	_push_message(Locale.t("cmd_enter_confirm", [_enter_confirm_place_phrase(portal)]), false)
@@ -6567,20 +6649,28 @@ func _resolve_enter_prompt(yes: bool) -> void:
 
 
 func _handle_enter_prompt_input(event: InputEvent) -> bool:
+	## Analog navigation uses hysteresis: one move per deliberate tilt, then the
+	## stick must return to neutral before another move. Neutral motion must
+	## reach stick_axis_step(), so handle it before the pressed-event guard.
+	if event is InputEventJoypadMotion:
+		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+		if stick_step != 0:
+			var stick_keys := _prompt_choice_keys()
+			if not stick_keys.is_empty():
+				_set_enter_prompt_choice(posmod(
+					_enter_prompt_choice + stick_step,
+					stick_keys.length()
+				))
+		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	var keys := _prompt_choice_keys()
 	if keys.is_empty():
 		return false
-	## Left / right (keys, D-pad) + stick hysteresis.
-	var step_x := 0
+	## Left / right keys and D-pad are discrete button events.
 	var dir := _GameInput.dir_from_event(event)
 	if dir.x != 0:
-		step_x = dir.x
-	else:
-		step_x = _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-	if step_x != 0:
-		_set_enter_prompt_choice(posmod(_enter_prompt_choice + step_x, keys.length()))
+		_set_enter_prompt_choice(posmod(_enter_prompt_choice + dir.x, keys.length()))
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
