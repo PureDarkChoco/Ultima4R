@@ -208,7 +208,7 @@ const LINES := {
 	"%s says:\nArt thou here to\nBuy (B) or Sell (S)?":
 		"%s 말하길:\n사겠소(B), 팔겠소(S)?",
 	"Very Good!": "좋소!",
-	"Excellent! Which\nwouldst ": "좋소! 무엇을\n팔",
+	"Excellent! Which\nwouldst ": "좋소! 무엇을 팔겠소?",
 	"We Have:": "우리는 이런 것이 있소:",
 	"Your Interest?": "관심사는?",
 	"You have not the funds for even one!": "하나조차 살 돈이 없소!",
@@ -226,7 +226,7 @@ const LINES := {
 		"%dgp에 그 %s를 사 들이겠소.\n거래하겠소? (Y/N)",
 	"How many %ss\nwould you wish\nto sell?":
 		"%s를 몇 개\n팔겠소?",
-	"Hmmph. What else\nwould ": "흥. 다른 것은\n무엇을 ",
+	"Hmmph. What else\nwould ": "흥. 다른 것은?",
 	"You don't have that many swine!": "그렇게 많이 갖고 있지도 않소, 이 돼지 같으니!",
 	"I will give you %dgp for them.\nDeal? (Y/N)":
 		"그것들에 %dgp를 주겠소.\n거래하겠소? (Y/N)",
@@ -237,14 +237,14 @@ const LINES := {
 	"%s says:\nWant to Buy (B) or\nSell (S)?":
 		"%s 말하길:\n사겠소(B),\n팔겠소(S)?",
 	"Well then,": "그럼,",
-	"What will": "무엇을",
+	"What will": "무엇을 팔겠소?",
 	"We've got:": "우리는 이런 것이 있소:",
 	"What'll it be?": "무엇을 하겠어요?",
 	"You don't have enough gold. Maybe something cheaper?":
 		"금이 부족하오. 더 싼 것은 어떠시오?",
 	"%s says: Good choice!": "%s 말하길: 좋은 선택이오!",
 	"Come on, you\ndon't own any.": "이보게,\n가진 게 없소.",
-	"Harumph. What else would ": "흥. 다른 것은 무엇을 ",
+	"Harumph. What else would ": "흥. 다른 것은?",
 	"%s says:\nGood Bye.": "%s 말하길:\n안녕히.",
 	"Welcome to %s\n\n%s says: Good day, and Welcome friend.":
 		"%s에 온 것을 환영하오\n\n%s 말하길: 좋은 날이오, 어서 오게 벗이여.",

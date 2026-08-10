@@ -3432,6 +3432,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_shop_number_input(event):
 			get_viewport().set_input_as_handled()
 			return
+		if _handle_shop_sell_pick_input(event):
+			get_viewport().set_input_as_handled()
+			return
 		if _handle_shop_item_menu_input(event):
 			get_viewport().set_input_as_handled()
 			return
@@ -8719,6 +8722,70 @@ func _handle_shop_item_menu_input(event: InputEvent) -> bool:
 	return false
 
 
+func _choose_shop_sell_pick() -> bool:
+	## Accept the highlighted weapon/armor inventory letter during sell pick.
+	if (
+		_shop == null
+		or not bool(_shop.is_sell_letter_pick())
+		or _ztats_panel == null
+		or not _ztats_panel.has_shop_pick()
+	):
+		return false
+	var letter := _ztats_panel.shop_pick_letter()
+	if letter.is_empty():
+		return true
+	_push_talk_player_input(letter)
+	_shop.submit_choice(letter)
+	_flush_shop_output()
+	return true
+
+
+func _handle_shop_sell_pick_input(event: InputEvent) -> bool:
+	## Weapon/armor sell list lives on the character panel (not dialogue rows).
+	## Gamepad must navigate here — keyboard path also reuses this handler.
+	if (
+		_talk_stage != 10
+		or _shop == null
+		or not bool(_shop.is_sell_letter_pick())
+		or _ztats_panel == null
+		or not _ztats_panel.has_shop_pick()
+	):
+		return false
+	if event is InputEventJoypadMotion:
+		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if stick_step != 0:
+			_ztats_panel.shop_pick_nudge(stick_step)
+		return true
+	if not event.is_pressed():
+		return false
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if key_event.echo:
+			if _is_shop_sell_nudge_key(key_event):
+				var echo_dir := _GameInput.dir_from_event(key_event)
+				if echo_dir.y != 0:
+					_ztats_panel.shop_pick_nudge(echo_dir.y)
+					return true
+			return false
+		var key_dir := _GameInput.dir_from_event(key_event)
+		if key_dir.y != 0:
+			_ztats_panel.shop_pick_nudge(key_dir.y)
+			return true
+		if _is_talk_enter(key_event):
+			return _choose_shop_sell_pick()
+		return false
+	if event is InputEventJoypadButton:
+		if event.is_echo():
+			return false
+		if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+			return _choose_shop_sell_pick()
+		var pad_dir := _GameInput.dir_from_event(event)
+		if pad_dir.y != 0:
+			_ztats_panel.shop_pick_nudge(pad_dir.y)
+			return true
+	return false
+
+
 func _shop_number_adjust(delta: int) -> void:
 	if _shop == null or delta == 0:
 		return
@@ -8878,7 +8945,8 @@ func _sync_shop_character_inv() -> void:
 	var sell_pick := bool(_shop.is_sell_letter_pick())
 	if _ztats_panel:
 		## Sell letter prompt: cursor on list + A–P keys still work.
-		_ztats_panel.open_inventory(page, keep_scroll and not sell_pick, sell_pick)
+		## restore_scroll is ignored while sell-picking (cursor drives scroll).
+		_ztats_panel.open_inventory(page, keep_scroll, sell_pick)
 
 
 func _clear_shop_character_inv() -> void:
@@ -9328,7 +9396,7 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			and bool(_shop.is_sell_letter_pick())
 			and _is_shop_sell_nudge_key(k)
 		):
-			return _talk_input_shop_sell_nav(k)
+			return _handle_shop_sell_pick_input(k)
 		return false
 	## Esc always farewell — never open the options menu while talking,
 	## including Yes/No and gold prompts.
@@ -9505,7 +9573,7 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 	var mode := int(_shop.mode)
 	if mode == _VendorShop.Mode.CHOICE:
 		## Weapon/armor sell: ↑↓ moves the character-panel cursor; Enter accepts.
-		if bool(_shop.is_sell_letter_pick()) and _talk_input_shop_sell_nav(k):
+		if bool(_shop.is_sell_letter_pick()) and _handle_shop_sell_pick_input(k):
 			return true
 		## Buy/Sell (bs), stock letters (b–p), reagents, etc.: only keys listed in
 		## choice_keys. Esc is handled above. Everything else is swallowed.
@@ -9515,6 +9583,8 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 		var keys := str(_shop.choice_keys).to_lower()
 		if keys.is_empty() or not keys.contains(ch):
 			return true
+		if bool(_shop.is_sell_letter_pick()) and _ztats_panel != null:
+			_ztats_panel.shop_pick_focus_letter(ch)
 		_push_talk_player_input(ch)
 		_shop.submit_choice(ch)
 		_flush_shop_output()
@@ -9585,29 +9655,6 @@ func _is_shop_sell_nudge_key(k: InputEventKey) -> bool:
 		or k.is_action_pressed("move_up")
 		or k.is_action_pressed("move_down")
 	)
-
-
-func _talk_input_shop_sell_nav(k: InputEventKey) -> bool:
-	## Cursor on weapon/armor inventory while "You sell:" awaits a letter.
-	if _ztats_panel == null or not _ztats_panel.has_shop_pick():
-		return false
-	var code := k.keycode
-	var phys := k.physical_keycode
-	if code == KEY_UP or phys == KEY_UP or k.is_action_pressed("move_up"):
-		_ztats_panel.shop_pick_nudge(-1)
-		return true
-	if code == KEY_DOWN or phys == KEY_DOWN or k.is_action_pressed("move_down"):
-		_ztats_panel.shop_pick_nudge(1)
-		return true
-	if _is_talk_enter(k):
-		var letter := _ztats_panel.shop_pick_letter()
-		if letter.is_empty():
-			return true
-		_push_talk_player_input(letter)
-		_shop.submit_choice(letter)
-		_flush_shop_output()
-		return true
-	return false
 
 
 func _push_talk_player_input(typed: String) -> void:

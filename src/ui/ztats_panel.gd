@@ -108,6 +108,12 @@ var _shop_pick := false
 var _pick_ids: Array[int] = []
 var _pick_row_wraps: Array[Control] = []
 var _pick_cursor := 0
+## Sticky sell-cursor item across Y/N / qty prompts and list rebuilds.
+var _pick_retain_id := -1
+## One-shot prefer id applied in _finalize_shop_pick after a rebuild.
+var _pick_prefer_id := -1
+## Invalidates delayed scroll settling from an older inventory rebuild.
+var _pick_scroll_gen := 0
 ## Cancels in-flight face sync awaits when a newer sync is requested.
 var _face_sync_gen := 0
 var _tile_host: Control
@@ -184,10 +190,20 @@ func open_member(slot: int) -> void:
 
 func open_inventory(page: int, restore_scroll: bool = true, shop_pick: bool = false) -> void:
 	_remember_inv_view()
+	## Keep / restore sell cursor across rebuilds and Y/N / qty detours.
+	if _shop_pick and not _pick_ids.is_empty():
+		if _pick_cursor >= 0 and _pick_cursor < _pick_ids.size():
+			_pick_retain_id = int(_pick_ids[_pick_cursor])
+	var want_pick := shop_pick and (page == InvPage.WEAPONS or page == InvPage.ARMOR)
+	if want_pick and page != _inv_page:
+		## Different inventory page — drop retained sell letter.
+		_pick_retain_id = -1
 	_slot = -1
 	_inv_page = page
-	_shop_pick = shop_pick and (page == InvPage.WEAPONS or page == InvPage.ARMOR)
-	_inv_keep_scroll = restore_scroll and _inv_saved_scroll.has(page)
+	_shop_pick = want_pick
+	_pick_prefer_id = _pick_retain_id if _shop_pick else -1
+	## Sell pick manages scroll via ensure_cursor; inventory peeks still keep scroll.
+	_inv_keep_scroll = restore_scroll and not shop_pick and _inv_saved_scroll.has(page)
 	_show_char(false)
 	_refresh_inventory()
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -205,6 +221,7 @@ func shop_pick_nudge(delta: int) -> void:
 		return
 	var n := _pick_ids.size()
 	_pick_cursor = posmod(_pick_cursor + delta, n)
+	_pick_retain_id = int(_pick_ids[_pick_cursor])
 	_sync_shop_pick_hilite()
 	_ensure_shop_pick_visible()
 
@@ -214,9 +231,30 @@ func shop_pick_letter() -> String:
 	if not has_shop_pick():
 		return ""
 	var id := int(_pick_ids[_pick_cursor])
+	_pick_retain_id = id
 	if id < 0 or id > 25:
 		return ""
 	return String.chr(65 + id).to_lower()
+
+
+func shop_pick_focus_letter(letter: String) -> void:
+	## Remember a typed A–P sell letter so rebuild keeps the same row when still owned.
+	if letter.is_empty():
+		return
+	var ch := letter.substr(0, 1).to_lower()
+	var code := ch.unicode_at(0)
+	if code < 97 or code > 122:
+		return
+	var item_id := code - 97
+	_pick_retain_id = item_id
+	if not has_shop_pick():
+		return
+	for i in _pick_ids.size():
+		if int(_pick_ids[i]) == item_id:
+			_pick_cursor = i
+			_sync_shop_pick_hilite()
+			_ensure_shop_pick_visible()
+			return
 
 
 func scroll_inventory(lines: int) -> void:
@@ -291,6 +329,8 @@ func close_panel() -> void:
 	_pick_ids.clear()
 	_pick_row_wraps.clear()
 	_pick_cursor = 0
+	_pick_retain_id = -1
+	_pick_prefer_id = -1
 	_inv_saved_scroll.clear()
 	_inv_keep_scroll = false
 	visible = false
@@ -1208,6 +1248,8 @@ func _refresh_inventory() -> void:
 	_pick_row_wraps.clear()
 	_pick_cursor = 0
 	for c in _inv_list.get_children():
+		## Remove now so old and rebuilt rows never share one layout frame.
+		_inv_list.remove_child(c)
 		c.queue_free()
 	_inv_scroll.scroll_vertical = 0
 	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
@@ -1243,22 +1285,54 @@ func _refresh_inventory() -> void:
 
 
 func _finalize_shop_pick() -> void:
-	## Prefer first pack item with qty > 0; else top of list.
+	## After sell: keep preferred item if pack qty remains; else first list row.
+	## First open (no prefer): first pack item with qty > 0, else top.
 	if _pick_ids.is_empty():
+		_pick_prefer_id = -1
+		_pick_retain_id = -1
 		return
 	_pick_cursor = 0
-	for i in _pick_ids.size():
-		var id := int(_pick_ids[i])
-		var own := 0
-		if _inv_page == InvPage.WEAPONS:
-			own = GameState.pack_weapon_qty(id)
-		elif _inv_page == InvPage.ARMOR:
-			own = GameState.pack_armor_qty(id)
-		if own > 0:
-			_pick_cursor = i
+	var prefer := _pick_prefer_id
+	_pick_prefer_id = -1
+	if prefer >= 0:
+		var found := false
+		for i in _pick_ids.size():
+			if int(_pick_ids[i]) != prefer:
+				continue
+			found = true
+			if _shop_pick_pack_qty(prefer) > 0:
+				_pick_cursor = i
+			else:
+				_pick_cursor = 0
 			break
+		if not found:
+			_pick_cursor = 0
+	else:
+		for i in _pick_ids.size():
+			if _shop_pick_pack_qty(int(_pick_ids[i])) > 0:
+				_pick_cursor = i
+				break
+	_pick_retain_id = int(_pick_ids[_pick_cursor])
 	_sync_shop_pick_hilite()
-	call_deferred("_ensure_shop_pick_visible")
+	## Wait for the rebuilt container and scrollbar range to finish layout.
+	_pick_scroll_gen += 1
+	_settle_shop_pick_scroll(_pick_scroll_gen)
+
+
+func _settle_shop_pick_scroll(generation: int) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if generation != _pick_scroll_gen or not has_shop_pick():
+		return
+	_ensure_shop_pick_visible()
+
+
+func _shop_pick_pack_qty(item_id: int) -> int:
+	if _inv_page == InvPage.WEAPONS:
+		return GameState.pack_weapon_qty(item_id)
+	if _inv_page == InvPage.ARMOR:
+		return GameState.pack_armor_qty(item_id)
+	return 0
 
 
 func _sync_shop_pick_hilite() -> void:
@@ -1279,10 +1353,15 @@ func _ensure_shop_pick_visible() -> void:
 		return
 	if _pick_cursor < 0 or _pick_cursor >= _pick_row_wraps.size():
 		return
+	if _pick_cursor == 0:
+		_inv_scroll.scroll_vertical = 0
+		_inv_saved_scroll[_inv_page] = 0
+		return
 	var wrap := _pick_row_wraps[_pick_cursor]
 	if wrap == null or not is_instance_valid(wrap):
 		return
 	_inv_scroll.ensure_control_visible(wrap)
+	_inv_saved_scroll[_inv_page] = int(_inv_scroll.scroll_vertical)
 
 
 func _register_shop_pick_row(wrap: Control, item_id: int) -> void:
