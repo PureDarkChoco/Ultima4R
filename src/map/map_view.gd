@@ -1089,7 +1089,7 @@ func damage_combat_foe(index: int, damage: int) -> Dictionary:
 
 
 func try_spawn_combat_chest(pos: Vector2i, foe_tile: int) -> bool:
-	## leavesChest types only; p = 1 / spawn count. Overlays (does not alter ground).
+	## leavesChest types only; p = 1 / spawn count. Same-tile drops stack LIFO.
 	if suppress_combat_chests:
 		return false
 	if not _combat_in_bounds(pos):
@@ -1105,14 +1105,12 @@ func try_spawn_combat_chest(pos: Vector2i, foe_tile: int) -> bool:
 	if (randi() % n) != 0:
 		return false
 	var key := _combat_chest_key(pos.x, pos.y)
-	if _combat_chests.has(key):
-		return false
 	var humanoid := _WorldCreaturesScript.is_humanoid(foe_tile)
 	var spider := _WorldCreaturesScript.is_spider(foe_tile)
 	var mage := _WorldCreaturesScript.is_mage(foe_tile)
 	var key_source := _WorldCreaturesScript.drops_chest_keys(foe_tile)
 	var stack: Array = GameState.roll_combat_chest_loot(humanoid, spider, mage, key_source)
-	_combat_chests[key] = {
+	var chest := {
 		"x": pos.x,
 		"y": pos.y,
 		"open": false,
@@ -1120,6 +1118,9 @@ func try_spawn_combat_chest(pos: Vector2i, foe_tile: int) -> bool:
 		"from_spider": spider,
 		"from_mage": mage,
 	}
+	var pile: Array = _combat_chest_pile_at(pos)
+	pile.append(chest)
+	_combat_chests[key] = pile
 	return true
 
 
@@ -1127,67 +1128,80 @@ static func _combat_chest_key(x: int, y: int) -> String:
 	return "%d,%d" % [x, y]
 
 
+func _combat_chest_pile_at(pos: Vector2i) -> Array:
+	var raw: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), [])
+	if typeof(raw) != TYPE_ARRAY:
+		return []
+	return (raw as Array).duplicate(true)
+
+
+func _top_combat_chest_at(pos: Vector2i) -> Dictionary:
+	var pile := _combat_chest_pile_at(pos)
+	if pile.is_empty():
+		return {}
+	var raw: Variant = pile.back()
+	if typeof(raw) != TYPE_DICTIONARY:
+		return {}
+	return (raw as Dictionary).duplicate(true)
+
+
 func has_combat_chest_at(pos: Vector2i) -> bool:
-	return _combat_chests.has(_combat_chest_key(pos.x, pos.y))
+	return not _combat_chest_pile_at(pos).is_empty()
 
 
 func combat_chest_is_open(pos: Vector2i) -> bool:
-	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
-	if typeof(d) != TYPE_DICTIONARY:
-		return false
-	return bool((d as Dictionary).get("open", false))
+	return bool(_top_combat_chest_at(pos).get("open", false))
 
 
 func combat_chest_stack_size(pos: Vector2i) -> int:
-	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
-	if typeof(d) != TYPE_DICTIONARY:
-		return 0
-	var stack: Variant = (d as Dictionary).get("stack", [])
+	var chest := _top_combat_chest_at(pos)
+	var stack: Variant = chest.get("stack", [])
 	if typeof(stack) != TYPE_ARRAY:
 		return 0
 	return (stack as Array).size()
 
 
 func combat_chest_has_loot(pos: Vector2i) -> bool:
-	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
-	if typeof(d) != TYPE_DICTIONARY:
+	var chest := _top_combat_chest_at(pos)
+	if chest.is_empty():
 		return false
-	var chest: Dictionary = d
 	if not bool(chest.get("open", false)):
 		return false
 	return combat_chest_stack_size(pos) > 0
 
 
-func combat_chest_is_empty(pos: Vector2i) -> bool:
-	## Opened and fully looted.
-	var d: Variant = _combat_chests.get(_combat_chest_key(pos.x, pos.y), null)
-	if typeof(d) != TYPE_DICTIONARY:
-		return false
-	var chest: Dictionary = d
-	return bool(chest.get("open", false)) and combat_chest_stack_size(pos) <= 0
-
-
 func open_combat_chest_at(pos: Vector2i) -> bool:
-	## Open lid; stack remains for Get. Returns false if missing/already open.
+	## Open the newest (top) chest; each same-tile chest remains independent.
 	var key := _combat_chest_key(pos.x, pos.y)
-	if not _combat_chests.has(key):
+	var pile := _combat_chest_pile_at(pos)
+	if pile.is_empty():
 		return false
-	var chest: Dictionary = _combat_chests[key]
+	var top_i := pile.size() - 1
+	var raw: Variant = pile[top_i]
+	if typeof(raw) != TYPE_DICTIONARY:
+		return false
+	var chest: Dictionary = (raw as Dictionary).duplicate(true)
 	if bool(chest.get("open", false)):
 		return false
 	chest["open"] = true
-	_combat_chests[key] = chest
+	pile[top_i] = chest
+	_combat_chests[key] = pile
 	if _combat_map != null:
 		_rebuild()
 	return true
 
 
 func take_combat_chest_loot(pos: Vector2i) -> Dictionary:
-	## Pop top stack entry (index 0). Empty dict if nothing left.
+	## Pop the top chest's next item. Remove that chest with its final item.
 	var key := _combat_chest_key(pos.x, pos.y)
-	if not _combat_chests.has(key):
+	var pile := _combat_chest_pile_at(pos)
+	if pile.is_empty():
 		return {}
-	var chest: Dictionary = _combat_chests[key]
+	var top_i := pile.size() - 1
+	var chest_raw: Variant = pile[top_i]
+	if typeof(chest_raw) != TYPE_DICTIONARY:
+		return {}
+	var chest: Dictionary = (chest_raw as Dictionary).duplicate(true)
 	if not bool(chest.get("open", false)):
 		return {}
 	var stack: Array = []
@@ -1197,8 +1211,16 @@ func take_combat_chest_loot(pos: Vector2i) -> Dictionary:
 	if stack.is_empty():
 		return {}
 	var entry: Variant = stack.pop_front()
-	chest["stack"] = stack
-	_combat_chests[key] = chest
+	if stack.is_empty():
+		pile.pop_back()
+		if pile.is_empty():
+			_combat_chests.erase(key)
+		else:
+			_combat_chests[key] = pile
+	else:
+		chest["stack"] = stack
+		pile[top_i] = chest
+		_combat_chests[key] = pile
 	if _combat_map != null:
 		_rebuild()
 	if typeof(entry) != TYPE_DICTIONARY:
@@ -3469,13 +3491,20 @@ func _rebuild_combat() -> void:
 
 
 func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
-	## Dropped loot chests (under units). Open frame + stacked top-of-pile icon.
+	## Draw only the LIFO top chest at each tile; lower chests appear as each
+	## fully looted top chest is removed.
 	if _combat_chests.is_empty() or not tiles_ready:
 		return
 	for v in _combat_chests.values():
-		if typeof(v) != TYPE_DICTIONARY:
+		if typeof(v) != TYPE_ARRAY:
 			continue
-		var d: Dictionary = v
+		var pile: Array = v
+		if pile.is_empty():
+			continue
+		var top_raw: Variant = pile.back()
+		if typeof(top_raw) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = top_raw
 		var pos := Vector2i(int(d.get("x", -1)), int(d.get("y", -1)))
 		var sx := origin_x + pos.x
 		var sy := origin_y + pos.y

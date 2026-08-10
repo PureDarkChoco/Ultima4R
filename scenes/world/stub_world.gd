@@ -11624,8 +11624,6 @@ func _do_open(dir: Vector2i) -> String:
 		if ctid < 0:
 			return Locale.t("cmd_nothing_to_open")
 		if _map.has_combat_chest_at(ctarget):
-			if _map.combat_chest_is_empty(ctarget):
-				return Locale.t("cmd_chest_empty")
 			if _map.combat_chest_is_open(ctarget):
 				return Locale.t("cmd_chest_already_open")
 			if not _map.open_combat_chest_at(ctarget):
