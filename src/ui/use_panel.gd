@@ -8,7 +8,7 @@ const _UseItems := preload("res://src/core/use_items.gd")
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
-const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
+const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 
 const FONT_SIZE := 13
 const INV_ICON := 20
@@ -149,12 +149,7 @@ func _add_row(kind: int) -> void:
 	bg.set_meta("use_bg", true)
 	wrap.add_child(bg)
 
-	var edge := ColorRect.new()
-	edge.color = Color(0, 0, 0, 0)
-	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	edge.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	edge.offset_right = 2
-	edge.set_meta("use_edge", true)
+	var edge := UiTheme.make_selection_edge("use_edge")
 	wrap.add_child(edge)
 
 	var row := HBoxContainer.new()
@@ -218,7 +213,7 @@ func _sync_cursor() -> void:
 			if c.has_meta("use_bg"):
 				(c as ColorRect).color = COL_CURSOR if on else Color(0, 0, 0, 0)
 			elif c.has_meta("use_edge"):
-				(c as ColorRect).color = COL_CURSOR_EDGE if on else Color(0, 0, 0, 0)
+				UiTheme.set_selection_edge_active(c, on, COL_CURSOR_EDGE)
 
 
 func _ensure_cursor_visible() -> void:

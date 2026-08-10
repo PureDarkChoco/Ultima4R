@@ -11,7 +11,7 @@ const COL_DIM := Color(0.45, 0.45, 0.48, 1)
 const COL_DELTA_UP := Color(0.35, 0.55, 1.0, 1)
 const COL_DELTA_DOWN := Color(0.92, 0.28, 0.28, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
-const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
+const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 
 const FONT_SIZE := 13
 ## Source art is 32×32; match Ztats / Ready / Mix display size.
@@ -275,12 +275,7 @@ func _add_armor_row(armor_id: int, is_none: bool) -> void:
 	bg.set_meta("wear_bg", true)
 	wrap.add_child(bg)
 
-	var edge := ColorRect.new()
-	edge.color = Color(0, 0, 0, 0)
-	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	edge.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	edge.offset_right = 2
-	edge.set_meta("wear_edge", true)
+	var edge := UiTheme.make_selection_edge("wear_edge")
 	wrap.add_child(edge)
 
 	var row := HBoxContainer.new()
@@ -442,7 +437,7 @@ func _sync_cursor() -> void:
 			if c.has_meta("wear_bg"):
 				(c as ColorRect).color = COL_CURSOR if on else Color(0, 0, 0, 0)
 			elif c.has_meta("wear_edge"):
-				(c as ColorRect).color = COL_CURSOR_EDGE if on else Color(0, 0, 0, 0)
+				UiTheme.set_selection_edge_active(c, on, COL_CURSOR_EDGE)
 
 
 func _ensure_cursor_visible() -> void:

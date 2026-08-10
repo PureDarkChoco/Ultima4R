@@ -105,7 +105,7 @@ const COL_DEAD := Color(0.55, 0.52, 0.48, 1)
 const COL_SLEEP_ZZ := Color(1.0, 0.92, 0.28, 1)
 ## New Order cursor / first-pick highlight.
 const COL_ORDER_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
-const COL_ORDER_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
+const COL_ORDER_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 const COL_ORDER_LOCKED := Color(0.72, 0.52, 0.12, 0.4)
 const COL_ORDER_LOCKED_EDGE := Color(0.95, 0.78, 0.3, 0.9)
 
@@ -751,11 +751,11 @@ func _order_row_style(cursor: int, locked: int, index: int) -> StyleBoxFlat:
 	if index == cursor:
 		sb.bg_color = COL_ORDER_CURSOR
 		sb.border_color = COL_ORDER_CURSOR_EDGE
-		sb.border_width_left = 3
+		sb.border_width_right = 3
 	elif index == locked:
 		sb.bg_color = COL_ORDER_LOCKED
 		sb.border_color = COL_ORDER_LOCKED_EDGE
-		sb.border_width_left = 3
+		sb.border_width_right = 3
 	return sb
 
 

@@ -133,3 +133,80 @@ static func apply_font(control: Control, bold: bool = false) -> void:
 	if f == null:
 		return
 	control.add_theme_font_override("font", f)
+
+
+## Cool blue used by list selection edges (bright stop of the gradient).
+const CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
+## Horizontal gradient for selected rows: left transparent → right bright.
+static var _selection_edge_tex: ImageTexture
+
+
+static func selection_edge_width(font_size: int = 14) -> float:
+	## Roughly four monospaced Latin glyphs.
+	return maxf(float(font_size) * 2.4, 24.0)
+
+
+static func selection_edge_texture() -> Texture2D:
+	if _selection_edge_tex != null:
+		return _selection_edge_tex
+	var w := 48
+	var img := Image.create(w, 1, false, Image.FORMAT_RGBA8)
+	var last := maxi(w - 1, 1)
+	for x in w:
+		## White alpha ramp; tint via TextureRect.modulate.
+		var t := float(x) / float(last)
+		img.set_pixel(x, 0, Color(1.0, 1.0, 1.0, t))
+	_selection_edge_tex = ImageTexture.create_from_image(img)
+	return _selection_edge_tex
+
+
+static func make_selection_edge(
+	meta_key: String = "",
+	font_size: int = 14,
+	edge_name: String = "SelectionEdge"
+) -> TextureRect:
+	## Right-anchored gradient strip (~2 Latin chars wide). Start hidden.
+	var edge := TextureRect.new()
+	edge.name = edge_name
+	edge.texture = selection_edge_texture()
+	edge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	edge.stretch_mode = TextureRect.STRETCH_SCALE
+	edge.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	edge.modulate = Color(1, 1, 1, 0)
+	edge.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	var w := selection_edge_width(font_size)
+	edge.offset_left = -w
+	edge.offset_right = 0
+	edge.offset_top = 0
+	edge.offset_bottom = 0
+	if not meta_key.is_empty():
+		edge.set_meta(meta_key, true)
+	return edge
+
+
+static func set_selection_edge_active(
+	edge: CanvasItem,
+	on: bool,
+	tint: Color = CURSOR_EDGE
+) -> void:
+	if edge == null:
+		return
+	if on:
+		edge.modulate = tint
+	else:
+		edge.modulate = Color(tint.r, tint.g, tint.b, 0.0)
+
+
+static func layout_selection_edge(
+	edge: Control,
+	row_w: float,
+	row_h: float,
+	font_size: int = 14
+) -> void:
+	if edge == null:
+		return
+	var w := selection_edge_width(font_size)
+	edge.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	edge.position = Vector2(maxf(row_w - w, 0.0), 0.0)
+	edge.size = Vector2(w, row_h)

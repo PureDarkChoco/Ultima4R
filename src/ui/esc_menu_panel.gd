@@ -16,7 +16,7 @@ const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_DIM := Color(0.55, 0.58, 0.55, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
-const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
+const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 const FONT_SIZE := 16
 const ROW_H := 30
 const PANEL_W := 320.0
@@ -36,7 +36,7 @@ var _status: Label
 var _hint: Label
 var _row_labs: Array[Label] = []
 var _row_bgs: Array[ColorRect] = []
-var _row_edges: Array[ColorRect] = []
+var _row_edges: Array[TextureRect] = []
 var _cursor := 0
 
 
@@ -141,11 +141,7 @@ func _build() -> void:
 		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		wrap.add_child(bg)
 
-		var edge := ColorRect.new()
-		edge.color = Color(0, 0, 0, 0)
-		edge.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-		edge.offset_right = 3
-		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var edge := UiTheme.make_selection_edge("", FONT_SIZE)
 		wrap.add_child(edge)
 
 		var lab := Label.new()
@@ -194,4 +190,4 @@ func _sync_cursor() -> void:
 	for i in ITEM_COUNT:
 		var on := i == _cursor
 		_row_bgs[i].color = COL_CURSOR if on else Color(0, 0, 0, 0)
-		_row_edges[i].color = COL_CURSOR_EDGE if on else Color(0, 0, 0, 0)
+		UiTheme.set_selection_edge_active(_row_edges[i], on, COL_CURSOR_EDGE)

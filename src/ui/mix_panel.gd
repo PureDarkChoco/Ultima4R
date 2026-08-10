@@ -10,7 +10,7 @@ const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_DIM := Color(0.45, 0.45, 0.48, 1)
 const COL_PICKED := Color(0.45, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
-const COL_CURSOR_EDGE := Color(0.55, 0.78, 1.0, 0.95)
+const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 ## Action rows (Mix New / Mix) — yellow (recipe not confirmed yet).
 const COL_CURSOR_ACTION := Color(0.95, 0.78, 0.2, 0.42)
 const COL_CURSOR_ACTION_EDGE := Color(0.95, 0.85, 0.45, 0.95)
@@ -749,12 +749,7 @@ func _make_row_shell() -> Control:
 	bg.set_meta("mix_bg", true)
 	wrap.add_child(bg)
 
-	var edge := ColorRect.new()
-	edge.color = Color(0, 0, 0, 0)
-	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	edge.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	edge.offset_right = 2
-	edge.set_meta("mix_edge", true)
+	var edge := UiTheme.make_selection_edge("mix_edge")
 	wrap.add_child(edge)
 
 	var row := HBoxContainer.new()
@@ -903,7 +898,7 @@ func _sync_cursor() -> void:
 			if c.has_meta("mix_bg"):
 				(c as ColorRect).color = bg if on else Color(0, 0, 0, 0)
 			elif c.has_meta("mix_edge"):
-				(c as ColorRect).color = edge if on else Color(0, 0, 0, 0)
+				UiTheme.set_selection_edge_active(c, on, edge)
 
 
 func _ensure_cursor_visible() -> void:

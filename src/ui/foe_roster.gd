@@ -413,7 +413,7 @@ func _aim_row_style(highlight_i: int, index: int) -> StyleBoxFlat:
 	if index == highlight_i:
 		sb.bg_color = COL_AIM_CURSOR
 		sb.border_color = COL_AIM_CURSOR_EDGE
-		sb.border_width_left = 3
+		sb.border_width_right = 3
 	return sb
 
 

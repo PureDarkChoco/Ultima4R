@@ -289,7 +289,7 @@ var _msg_lines: PackedStringArray = PackedStringArray()
 var _msg_rows: Array[RichTextLabel] = []
 var _msg_prompt_row: Control
 var _shop_item_highlight: ColorRect
-var _shop_item_highlight_edge: ColorRect
+var _shop_item_highlight_edge: TextureRect
 var _msg_prompt_icon: TextureRect ## xu4 CHARSET_PROMPT glyph (not a Unicode ►)
 var _msg_prompt_label: Label
 var _msg_cursor: TextureRect
@@ -1096,7 +1096,15 @@ func _ensure_shop_item_message_highlight() -> void:
 	var existing := _msg_block.get_node_or_null("ShopItemHighlight") as ColorRect
 	if existing != null:
 		_shop_item_highlight = existing
-		_shop_item_highlight_edge = existing.get_node_or_null("SelectionEdge") as ColorRect
+		var old_edge := existing.get_node_or_null("SelectionEdge")
+		if old_edge is TextureRect:
+			_shop_item_highlight_edge = old_edge as TextureRect
+		else:
+			if old_edge != null:
+				existing.remove_child(old_edge)
+				old_edge.queue_free()
+			_shop_item_highlight_edge = UiTheme.make_selection_edge("", MSG_FONT_SIZE)
+			existing.add_child(_shop_item_highlight_edge)
 		return
 	_shop_item_highlight = ColorRect.new()
 	_shop_item_highlight.name = "ShopItemHighlight"
@@ -1105,10 +1113,7 @@ func _ensure_shop_item_message_highlight() -> void:
 	_shop_item_highlight.color = Color(0.22, 0.42, 0.82, 0.65)
 	_msg_block.add_child(_shop_item_highlight)
 	_msg_block.move_child(_shop_item_highlight, 0)
-	_shop_item_highlight_edge = ColorRect.new()
-	_shop_item_highlight_edge.name = "SelectionEdge"
-	_shop_item_highlight_edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shop_item_highlight_edge.color = Color(0.55, 0.78, 1.0, 1.0)
+	_shop_item_highlight_edge = UiTheme.make_selection_edge("", MSG_FONT_SIZE)
 	_shop_item_highlight.add_child(_shop_item_highlight_edge)
 
 
@@ -1247,10 +1252,7 @@ func _rebuild_command_menu_rows() -> void:
 		label.add_theme_font_size_override("normal_font_size", MSG_FONT_SIZE)
 		UiTheme.apply_font(label)
 		row.add_child(label)
-		var edge := ColorRect.new()
-		edge.name = "SelectionEdge"
-		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		edge.color = Color(0, 0, 0, 0)
+		var edge := UiTheme.make_selection_edge("", MSG_FONT_SIZE)
 		row.add_child(edge)
 		_command_menu_layer.add_child(row)
 		_command_menu_rows.append(row)
@@ -1321,15 +1323,10 @@ func _layout_command_menu_layer() -> void:
 			label.size = Vector2(maxf(row_w - 14.0, 4.0), pitch)
 			label.add_theme_font_size_override("normal_font_size", font_sz)
 			label.add_theme_color_override("default_color", MSG_COLOR)
-		var edge := row.get_node_or_null("SelectionEdge") as ColorRect
+		var edge := row.get_node_or_null("SelectionEdge") as Control
 		if edge != null:
-			edge.position = Vector2.ZERO
-			edge.size = Vector2(2, pitch)
-			edge.color = (
-				Color(0.55, 0.78, 1.0, 0.95)
-				if i == selected_cursor
-				else Color(0, 0, 0, 0)
-			)
+			UiTheme.layout_selection_edge(edge, row_w, pitch, font_sz)
+			UiTheme.set_selection_edge_active(edge, i == selected_cursor)
 
 
 func _load_msg_charset_glyphs() -> void:
@@ -12222,8 +12219,13 @@ func _sync_shop_item_message_highlight(start: int, first_row: int, take: int) ->
 	_shop_item_highlight.size = Vector2(_msg_block.size.x, _msg_pitch)
 	_shop_item_highlight.visible = true
 	if _shop_item_highlight_edge != null:
-		_shop_item_highlight_edge.position = Vector2.ZERO
-		_shop_item_highlight_edge.size = Vector2(2.0, _msg_pitch)
+		UiTheme.layout_selection_edge(
+			_shop_item_highlight_edge,
+			_shop_item_highlight.size.x,
+			_msg_pitch,
+			MSG_FONT_SIZE
+		)
+		UiTheme.set_selection_edge_active(_shop_item_highlight_edge, true)
 
 
 func _set_msg_row_text(row: RichTextLabel, line: String) -> void:
