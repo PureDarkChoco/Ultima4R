@@ -269,12 +269,13 @@ var _city_map # CityMapData
 var _city_return_pos := Vector2i.ZERO
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
 var _enter_prompt_stage := 0
-var _enter_prompt_choice := 0 ## 0 = Yes, 1 = No
+var _enter_prompt_choice := 0 ## selected button index in the dialogue choice row
 ## After No, suppress while still on this portal tile; cleared when you leave.
 var _enter_prompt_declined := Vector2i(-99999, -99999)
 var _enter_btn_row: HBoxContainer
-var _enter_btn_yes: Button
-var _enter_btn_no: Button
+var _choice_btns: Array[Button] = []
+## Prevent one A press from accepting both the current and immediately rebuilt prompt.
+var _choice_resolved_frame := -1
 ## xu4 anger forgotten next visit; within one stay (incl. LCB floor changes), keep
 ## guards/LB on MOVE_ATTACK after alertGuards until the player leaves the place.
 var _city_guards_alerted := false
@@ -1080,7 +1081,7 @@ func _ensure_msg_terminal() -> void:
 
 
 func _ensure_enter_prompt_buttons() -> void:
-	## Yes/No row lives in the dialogue prompt slot (gamepad city enter).
+	## Choice button row in the dialogue prompt slot (town enter / shop / talk).
 	if _msg_prompt_row == null:
 		return
 	if _enter_btn_row != null and is_instance_valid(_enter_btn_row):
@@ -1089,28 +1090,44 @@ func _ensure_enter_prompt_buttons() -> void:
 	_enter_btn_row.visible = false
 	_enter_btn_row.mouse_filter = Control.MOUSE_FILTER_STOP
 	_enter_btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_enter_btn_row.add_theme_constant_override("separation", 16)
+	_enter_btn_row.add_theme_constant_override("separation", 12)
 	_msg_prompt_row.add_child(_enter_btn_row)
-	_enter_btn_yes = Button.new()
-	_enter_btn_no = Button.new()
-	for btn in [_enter_btn_yes, _enter_btn_no]:
-		btn.focus_mode = Control.FOCUS_ALL
+
+
+func _rebuild_choice_buttons(count: int) -> void:
+	_ensure_enter_prompt_buttons()
+	if _enter_btn_row == null:
+		return
+	while _choice_btns.size() > count:
+		var old := _choice_btns.pop_back() as Button
+		if old != null and is_instance_valid(old):
+			if old.get_parent() != null:
+				old.get_parent().remove_child(old)
+			old.queue_free()
+	while _choice_btns.size() < count:
+		var i := _choice_btns.size()
+		var btn := Button.new()
+		## Controller/keyboard input is handled once by _unhandled_input.
+		## Keeping GUI focus off prevents the same A press from also firing the
+		## newly rebuilt next prompt through ui_accept.
+		btn.focus_mode = Control.FOCUS_NONE
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		btn.custom_minimum_size = Vector2(72, 0)
+		btn.custom_minimum_size = Vector2(48, 0)
+		var pick := i
+		btn.pressed.connect(func() -> void: _resolve_prompt_choice_index(pick))
+		btn.focus_entered.connect(func() -> void: _set_enter_prompt_choice(pick))
 		_enter_btn_row.add_child(btn)
-	_enter_btn_yes.focus_neighbor_left = _enter_btn_yes.get_path_to(_enter_btn_no)
-	_enter_btn_yes.focus_neighbor_right = _enter_btn_yes.get_path_to(_enter_btn_no)
-	_enter_btn_yes.focus_neighbor_top = _enter_btn_yes.get_path_to(_enter_btn_yes)
-	_enter_btn_yes.focus_neighbor_bottom = _enter_btn_yes.get_path_to(_enter_btn_yes)
-	_enter_btn_no.focus_neighbor_left = _enter_btn_no.get_path_to(_enter_btn_yes)
-	_enter_btn_no.focus_neighbor_right = _enter_btn_no.get_path_to(_enter_btn_yes)
-	_enter_btn_no.focus_neighbor_top = _enter_btn_no.get_path_to(_enter_btn_no)
-	_enter_btn_no.focus_neighbor_bottom = _enter_btn_no.get_path_to(_enter_btn_no)
-	_enter_btn_yes.pressed.connect(func() -> void: _resolve_visible_yes_no_choice(true))
-	_enter_btn_no.pressed.connect(func() -> void: _resolve_visible_yes_no_choice(false))
-	_enter_btn_yes.focus_entered.connect(func() -> void: _set_enter_prompt_choice(0))
-	_enter_btn_no.focus_entered.connect(func() -> void: _set_enter_prompt_choice(1))
+		_choice_btns.append(btn)
+	## Rebind neighbors so left/right wrap within the active set.
+	for i in _choice_btns.size():
+		var btn2 := _choice_btns[i]
+		var left_i := (i - 1 + _choice_btns.size()) % _choice_btns.size()
+		var right_i := (i + 1) % _choice_btns.size()
+		btn2.focus_neighbor_left = btn2.get_path_to(_choice_btns[left_i])
+		btn2.focus_neighbor_right = btn2.get_path_to(_choice_btns[right_i])
+		btn2.focus_neighbor_top = btn2.get_path_to(btn2)
+		btn2.focus_neighbor_bottom = btn2.get_path_to(btn2)
 
 
 func _ensure_command_menu_layer() -> void:
@@ -1557,7 +1574,7 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		return
 	if font_sz < 0:
 		font_sz = clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE)
-	if _enter_prompt_stage == 1 or _talk_gamepad_yes_no_active():
+	if _binary_prompt_active():
 		_layout_enter_prompt_row(font_sz)
 		return
 	if _enter_btn_row != null:
@@ -1620,8 +1637,11 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 
 
 func _layout_enter_prompt_row(font_sz: int) -> void:
-	## Bottom dialogue row: Yes / No, left–right + A.
-	_ensure_enter_prompt_buttons()
+	## Bottom dialogue row: multi-choice buttons, left–right + A.
+	var keys := _prompt_choice_keys()
+	if keys.is_empty():
+		return
+	_rebuild_choice_buttons(keys.length())
 	if _msg_prompt_icon != null:
 		_msg_prompt_icon.visible = false
 	if _msg_prompt_label != null:
@@ -1641,47 +1661,119 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	_enter_btn_row.size = Vector2(maxf(_msg_prompt_row.size.x, 8.0), maxf(_msg_pitch, 14.0))
 	_enter_btn_row.custom_minimum_size = Vector2.ZERO
 	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
-	for btn in [_enter_btn_yes, _enter_btn_no]:
+	var min_w := 48.0 if keys.length() >= 3 else 58.0
+	_enter_prompt_choice = clampi(_enter_prompt_choice, 0, maxi(keys.length() - 1, 0))
+	for i in _choice_btns.size():
+		var btn := _choice_btns[i]
 		if btn == null:
 			continue
-		btn.custom_minimum_size = Vector2(58, btn_h)
-	_enter_btn_yes.text = Locale.t("cmd_yes")
-	_enter_btn_no.text = Locale.t("cmd_no")
+		btn.visible = i < keys.length()
+		if i >= keys.length():
+			continue
+		btn.custom_minimum_size = Vector2(min_w, btn_h)
+		btn.text = _prompt_choice_label(keys.substr(i, 1))
 	_sync_enter_prompt_style()
-	var want := _enter_btn_yes if _enter_prompt_choice == 0 else _enter_btn_no
-	if want != null and get_viewport().gui_get_focus_owner() != want:
-		want.grab_focus()
 	_sync_enter_prompt_style()
 
 
 func _set_enter_prompt_choice(index: int) -> void:
-	_enter_prompt_choice = clampi(index, 0, 1)
+	var n := maxi(_prompt_choice_keys().length(), 1)
+	_enter_prompt_choice = clampi(index, 0, n - 1)
 	_sync_enter_prompt_style()
+
+
+func _shop_choice_keys() -> String:
+	## Vendor prompts that use the shared dialogue choice-button row.
+	if _talk_stage != 10 or _shop == null:
+		return ""
+	if int(_shop.mode) != _VendorShop.Mode.CHOICE:
+		return ""
+	if bool(_shop.is_sell_letter_pick()):
+		return ""
+	var keys := str(_shop.choice_keys).to_lower().strip_edges()
+	if keys == "ny":
+		return "yn"
+	if keys == "sb":
+		return "bs"
+	## Yes/No, Buy/Sell, Minoc inn beds 1/2/3.
+	if keys == "yn" or keys == "bs" or keys == "123":
+		return keys
+	return ""
 
 
 func _talk_gamepad_yes_no_active() -> bool:
 	return _talk_keyword_menu_active and _talk_stage == 3
 
 
-func _resolve_visible_yes_no_choice(yes: bool) -> void:
+func _prompt_choice_keys() -> String:
 	if _enter_prompt_stage == 1:
-		_resolve_enter_prompt(yes)
+		return "yn"
+	if _talk_gamepad_yes_no_active():
+		return "yn"
+	return _shop_choice_keys()
+
+
+func _binary_prompt_active() -> bool:
+	return not _prompt_choice_keys().is_empty()
+
+
+func _prompt_choice_label(key: String) -> String:
+	match key:
+		"y":
+			return Locale.t("cmd_yes")
+		"n":
+			return Locale.t("cmd_no")
+		"b":
+			return Locale.t("cmd_buy")
+		"s":
+			return Locale.t("cmd_sell")
+		_:
+			return key.to_upper()
+
+
+func _resolve_prompt_choice_index(index: int) -> void:
+	var keys := _prompt_choice_keys()
+	if keys.is_empty():
 		return
-	if not _talk_gamepad_yes_no_active():
+	var frame := Engine.get_process_frames()
+	if _choice_resolved_frame == frame:
 		return
-	var answer := Locale.t("cmd_yes" if yes else "cmd_no")
+	_choice_resolved_frame = frame
+	index = clampi(index, 0, keys.length() - 1)
+	var ch := keys.substr(index, 1)
+	if _enter_prompt_stage == 1:
+		_resolve_enter_prompt(ch == "y")
+		return
+	if _talk_gamepad_yes_no_active():
+		var answer := Locale.t("cmd_yes" if ch == "y" else "cmd_no")
+		_talk_buffer = ""
+		_reset_talk_hangul()
+		_push_talk_player_input(answer)
+		_talk_answer_yn(ch == "y")
+		return
+	if _shop == null or _shop_choice_keys().is_empty():
+		return
 	_talk_buffer = ""
 	_reset_talk_hangul()
-	_push_talk_player_input(answer)
-	_talk_answer_yn(yes)
+	_push_talk_player_input(_prompt_choice_label(ch))
+	_shop.submit_choice(ch)
+	_flush_shop_output()
+
+
+func _resolve_visible_yes_no_choice(left: bool) -> void:
+	## Compatibility: left button ≈ first key (Yes / Buy).
+	_resolve_prompt_choice_index(0 if left else 1)
 
 
 func _sync_enter_prompt_style() -> void:
-	if _enter_btn_yes == null or _enter_btn_no == null:
-		return
-	UiTheme.style_choice_button(_enter_btn_yes, _enter_prompt_choice == 0)
-	UiTheme.style_choice_button(_enter_btn_no, _enter_prompt_choice == 1)
-	for btn in [_enter_btn_yes, _enter_btn_no]:
+	var keys := _prompt_choice_keys()
+	var n := keys.length()
+	for i in _choice_btns.size():
+		var btn := _choice_btns[i]
+		if btn == null:
+			continue
+		var active := i < n and i == _enter_prompt_choice
+		UiTheme.style_choice_button(btn, active)
 		## Global menu buttons have 10 px vertical padding and an 18 px font.
 		## The terminal prompt is only one text row tall, so use compact copies.
 		btn.add_theme_font_size_override("font_size", 11)
@@ -2547,17 +2639,34 @@ func _command_menu_has_adjacent_world_enemy() -> bool:
 	return false
 
 
-func _command_menu_has_adjacent_city_person() -> bool:
-	if not _is_in_city() or _city_map == null:
+func _command_menu_has_adjacent_city_person(allow_talk_over: bool = false) -> bool:
+	## When allow_talk_over is true, match _do_talk reach: vendors one step
+	## past a shop-counter letter tile (xu4 canTalkOver) also count.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return false
+	var max_dist := 2 if allow_talk_over else 1
 	for dir in _command_menu_cardinal_dirs():
-		var pos := _tile_pos + dir
-		if (
-			pos.x >= 0 and pos.y >= 0
-			and pos.x < _CityMapData.WIDTH and pos.y < _CityMapData.HEIGHT
-			and _city_map.person_index_at(pos.x, pos.y) >= 0
-		):
-			return true
+		for dist in range(1, max_dist + 1):
+			var pos := Vector2i(_tile_pos.x + dir.x * dist, _tile_pos.y + dir.y * dist)
+			if (
+				pos.x < 0 or pos.y < 0
+				or pos.x >= _CityMapData.WIDTH
+				or pos.y >= _CityMapData.HEIGHT
+			):
+				break
+			var pi: int = int(_city_map.person_index_at(pos.x, pos.y))
+			if pi >= 0 and (not allow_talk_over or _talk_can_address(pi, dist)):
+				return true
+			if not allow_talk_over:
+				break
+			## After this cell: only continue past talk-over counter tiles.
+			var cell_tid: int
+			if pi >= 0:
+				cell_tid = int(_city_map.persons[pi].z)
+			else:
+				cell_tid = int(_city_map.effective_tile_at(pos.x, pos.y))
+			if not _TileRules.can_talk_over(cell_tid):
+				break
 	return false
 
 
@@ -2679,7 +2788,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 		U4Commands.Id.PEER:
 			return outdoors and GameState.gems > 0
 		U4Commands.Id.TALK:
-			return noncombat and _command_menu_has_adjacent_city_person()
+			return noncombat and _command_menu_has_adjacent_city_person(true)
 		U4Commands.Id.VOLUME:
 			return false ## V remains intentionally unimplemented.
 		U4Commands.Id.XIT:
@@ -3182,7 +3291,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_talk_ask_question()
 			get_viewport().set_input_as_handled()
 			return
-		if _talk_gamepad_yes_no_active():
+		if _binary_prompt_active() and _enter_prompt_stage != 1:
 			if _handle_enter_prompt_input(event):
 				get_viewport().set_input_as_handled()
 			elif event.is_pressed():
@@ -6419,10 +6528,8 @@ func _open_enter_prompt(portal: Dictionary) -> void:
 	_reset_hold_state()
 	_block_dir_until_keyup = true
 	_push_message(Locale.t("cmd_enter_confirm", [_enter_confirm_place_phrase(portal)]), false)
-	_ensure_enter_prompt_buttons()
+	_rebuild_choice_buttons(2)
 	_layout_prompt_row()
-	if _enter_btn_yes != null:
-		_enter_btn_yes.grab_focus()
 	_sync_enter_prompt_style()
 
 
@@ -6430,10 +6537,9 @@ func _close_enter_prompt_ui() -> void:
 	_enter_prompt_stage = 0
 	if _enter_btn_row != null:
 		_enter_btn_row.visible = false
-	if _enter_btn_yes != null and _enter_btn_yes.has_focus():
-		_enter_btn_yes.release_focus()
-	if _enter_btn_no != null and _enter_btn_no.has_focus():
-		_enter_btn_no.release_focus()
+	for btn in _choice_btns:
+		if btn != null and btn.has_focus():
+			btn.release_focus()
 	if _msg_prompt_row != null:
 		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layout_prompt_row()
@@ -6456,6 +6562,9 @@ func _resolve_enter_prompt(yes: bool) -> void:
 func _handle_enter_prompt_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
+	var keys := _prompt_choice_keys()
+	if keys.is_empty():
+		return false
 	## Left / right (keys, D-pad) + stick hysteresis.
 	var step_x := 0
 	var dir := _GameInput.dir_from_event(event)
@@ -6464,28 +6573,39 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 	else:
 		step_x = _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
 	if step_x != 0:
-		_set_enter_prompt_choice(1 if step_x > 0 else 0)
-		if _enter_prompt_choice == 0 and _enter_btn_yes != null:
-			_enter_btn_yes.grab_focus()
-		elif _enter_btn_no != null:
-			_enter_btn_no.grab_focus()
+		_set_enter_prompt_choice(posmod(_enter_prompt_choice + step_x, keys.length()))
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
-		var code := k.keycode if k.keycode != KEY_NONE else k.physical_keycode
-		var phys := k.physical_keycode
-		if code == KEY_Y or phys == KEY_Y:
-			_resolve_visible_yes_no_choice(true)
-			return true
-		if code == KEY_N or phys == KEY_N:
-			_resolve_visible_yes_no_choice(false)
-			return true
+		var ch := _key_latin_command_char(k)
+		if ch.is_empty():
+			## Digits for Minoc inn beds.
+			var dig := _key_digit_char(k)
+			if not dig.is_empty():
+				ch = dig
+		if not ch.is_empty():
+			var idx := keys.find(ch)
+			if idx >= 0:
+				_resolve_prompt_choice_index(idx)
+				return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
-		_resolve_visible_yes_no_choice(_enter_prompt_choice == 0)
+		_resolve_prompt_choice_index(_enter_prompt_choice)
 		return true
 	if _is_cancel_event(event):
-		## B / Esc → No.
-		_resolve_visible_yes_no_choice(false)
+		## Buy/Sell / room pick: B/Esc soft-cancels shop; Y/N uses No.
+		if keys == "bs" or keys == "123":
+			if _talk_stage == 10 and _shop != null:
+				_shop.on_escape()
+				_flush_shop_output()
+				return true
+		var no_i := keys.find("n")
+		if no_i >= 0:
+			_resolve_prompt_choice_index(no_i)
+			return true
+		if _talk_stage == 10 and _shop != null:
+			_shop.on_escape()
+			_flush_shop_output()
+			return true
 		return true
 	return true
 
@@ -8318,6 +8438,9 @@ func _flush_shop_output() -> void:
 		_end_shop()
 		return
 	_talk_buffer = ""
+	if not _shop_choice_keys().is_empty():
+		_enter_prompt_choice = 0
+		_GameInput.reset_stick_navigation()
 	_layout_prompt_row()
 	_refresh_inventory_bars()
 	_refresh_party()

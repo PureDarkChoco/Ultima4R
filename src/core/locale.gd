@@ -979,6 +979,16 @@ const _T := {
 		"en_us": "No",
 		"ko": "아니오",
 	},
+	"cmd_buy": {
+		"en_u4": "Buy",
+		"en_us": "Buy",
+		"ko": "구매",
+	},
+	"cmd_sell": {
+		"en_u4": "Sell",
+		"en_us": "Sell",
+		"ko": "판매",
+	},
 	"cmd_nothing_to_open": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",
