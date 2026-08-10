@@ -322,7 +322,8 @@ const LINES := {
 	"We have three rooms available,\na 1, 2 and 3 bed room for 30, 60\nand 90gp each.\n1, 2 or 3\nbeds? (1/2/3)":
 		"방이 셋 있소.\n1·2·3인 침대방, 각 30, 60,\n90gp.\n1, 2, 3\n침대? (1/2/3)",
 	"We have a room with 2 beds that rents for 20gp.":
-		"침대 둘짜리 방이 20gp요.",
+		"침대 두개짜리 방이 20gp요.",
+	"Will you take the room? (Y/N)": "묵으시겠소? (Y/N)",
 	"We have a modest sized room with 1 bed for 15 gp.":
 		"보통 크기에 침대 하나, 15gp요.",
 	"We have a very secure room of modest size and 1 bed for 10gp.":

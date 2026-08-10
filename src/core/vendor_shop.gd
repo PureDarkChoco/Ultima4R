@@ -1543,7 +1543,7 @@ func _on_i_need(c0: String) -> void:
 		"Vesper":
 			msg = "All we have is that cot over there. But it is comfortable, and only 1 gp."
 	_say(_L(msg))
-	_say(_L("Take it? (Y/N)"))
+	_say(_L("Will you take the room? (Y/N)"))
 	_want_choice("yn", "i_take")
 
 
