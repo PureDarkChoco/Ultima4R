@@ -2858,8 +2858,13 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 		return
 	_talk_gamepad_requested = false
 	_talk_keyword_menu_active = true
-	_talk_keyword_menu_cursor = 0
 	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
+	## Start on Job rather than Name — most first interests ask about work.
+	_talk_keyword_menu_cursor = 0
+	for i in _talk_keyword_menu_items.size():
+		if str(_talk_keyword_menu_items[i].get("key", "")) == "job":
+			_talk_keyword_menu_cursor = i
+			break
 	_talk_keyword_menu_seen.clear()
 	for item in _talk_keyword_menu_items:
 		_talk_keyword_menu_seen[str(item.get("key", ""))] = true
