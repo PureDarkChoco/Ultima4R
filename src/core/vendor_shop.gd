@@ -13,6 +13,7 @@ enum Mode {
 const _Roles := preload("res://src/map/city_npc_roles.gd")
 const _VL := preload("res://src/core/vendor_locale.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
+const _TalkTlk := preload("res://src/core/talk_tlk.gd")
 
 ## World callbacks (relocate / mount horse); shop mutates GameState for gold/items.
 var mode: int = Mode.DONE
@@ -483,8 +484,8 @@ func _say(msg: String) -> void:
 
 
 func _L(en: String) -> String:
-	## English template → Korean when language is ko (placeholders unchanged).
-	return _VL.line(en)
+	## KO overlays when language is ko; classic→modern when language is en_us.
+	return _TalkTlk.present_script(_VL.line(en))
 
 
 func _finish(push_done: bool = true) -> void:

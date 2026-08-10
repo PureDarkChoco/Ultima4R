@@ -1906,8 +1906,10 @@ func lord_british_check_levels() -> Array[String]:
 		if new_lv > 0:
 			if language == "ko":
 				lines.append("%s\n이제 %d 레벨이오" % [nm, new_lv])
-			else:
+			elif language == "en_u4":
 				lines.append("%s\nThou art now Level %d" % [nm, new_lv])
+			else:
+				lines.append("%s\nYou are now Level %d" % [nm, new_lv])
 	return lines
 
 

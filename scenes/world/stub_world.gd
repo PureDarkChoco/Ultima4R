@@ -10328,7 +10328,8 @@ func _push_message(line: String, with_prompt: bool = true) -> void:
 		return
 	## Labels are single-line — wrap like xu4 screenMessage (panel width).
 	## Prompt is a charset image mark on the first wrap line only (not Unicode ►).
-	var body := line
+	## Classic U4 stock lines (shrine advice, inn, etc.): en_us modernizes; ko packs via TalkLocale.
+	var body := _TalkTlk.present_script(line)
 	if with_prompt and body.begins_with(MSG_PROMPT_MARK):
 		body = body.substr(MSG_PROMPT_MARK.length())
 	var parts := _wrap_msg_text(body)

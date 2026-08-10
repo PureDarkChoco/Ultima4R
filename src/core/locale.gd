@@ -1105,7 +1105,7 @@ const _T := {
 	},
 	"cmd_ship_sinks": {
 		"en_u4": "Thy ship sinks!",
-		"en_us": "Thy ship sinks!",
+		"en_us": "Your ship sinks!",
 		"ko": "배가 가라앉는다!",
 	},
 	## xu4 death.cpp — party wipe sequence (DeathController).
@@ -1146,7 +1146,7 @@ const _T := {
 	},
 	"death_lord_british": {
 		"en_u4": "Lord British says: I have pulled thy spirit and some possessions from the void.  Be more careful in the future!",
-		"en_us": "Lord British says: I have pulled thy spirit and some possessions from the void.  Be more careful in the future!",
+		"en_us": "Lord British says: I have pulled your spirit and some possessions from the void.  Be more careful in the future!",
 		"ko": "로드 브리티시가 말한다: 허공에서 그대의 영혼과 일부 소지품을 끌어냈다. 앞으로는 더 조심하라!",
 	},
 	## xu4 Search (S) — game.cpp / item.cpp

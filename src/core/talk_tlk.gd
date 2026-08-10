@@ -48,6 +48,9 @@ const _MODERN_PHRASES: Array = [
 	["oh thank thee", "oh thank you"],
 	["thank thee", "thank you"],
 	["thou hast not", "you do not have"],
+	["thou dost not", "you do not"],
+	["dost not", "do not"],
+	["search ye not", "do not search"],
 	["hast thou not", "have you not"],
 	["dost thou not", "do you not"],
 	["wilt thou not", "will you not"],
@@ -59,6 +62,18 @@ const _MODERN_PHRASES: Array = [
 	["know ye the", "do you know the"],
 	["know ye of", "do you know of"],
 	["know ye", "do you know"],
+	["seek ye to", "try to"],
+	["seek ye now to", "now try to"],
+	["seek ye now", "now seek"],
+	["seek ye", "seek"],
+	["interest thee in", "interest you in"],
+	["cost thee", "cost you"],
+	["aid thee", "aid you"],
+	["thy spirit", "your spirit"],
+	["thy purse", "your purse"],
+	["thy blood", "your blood"],
+	["thy life", "your life"],
+	["thy ship", "your ship"],
 	["dost thou", "do you"],
 	["hast thou", "have you"],
 	["wilt thou", "will you"],
@@ -78,12 +93,15 @@ const _MODERN_PHRASES: Array = [
 	["thou mayst", "you may"],
 	["thou shalt", "you shall"],
 	["thou didst", "you did"],
+	["thou looks", "you look"],
+	["thou suffers", "you suffer"],
 	["thou dost", "you"],
 	["thou art", "you are"],
 	["thou cannot", "you cannot"],
 	["join thee", "join you"],
 	["tell thee", "tell you"],
 	["help thee", "help you"],
+	["sell thee", "sell you"],
 	["for thee", "for you"],
 	["to thee", "to you"],
 	["with thee", "with you"],
@@ -95,10 +113,15 @@ const _MODERN_PHRASES: Array = [
 	["about thee", "about you"],
 	["care for thyself", "care for yourself"],
 	["for thyself", "for yourself"],
+	["of thyself", "of yourself"],
+	["thine inner", "your inner"],
 	["'twas", "it was"],
 	["'tis", "it is"],
 	["'twill", "it will"],
 	["i hath", "I have"],
+	["here ye arr", "here you are"],
+	["ye arr", "you are"],
+	["ye don't", "you don't"],
 	["ye ", "you "],
 ]
 
@@ -153,9 +176,17 @@ static func modernize_en(text: String) -> String:
 	s = _replace_word_ci(s, "yea", "yes")
 	s = _replace_word_ci(s, "nay", "no")
 	s = _replace_word_ci(s, "ye", "you")
+	s = _replace_word_ci(s, "wouldst", "would")
+	s = _replace_word_ci(s, "shouldst", "should")
+	s = _replace_word_ci(s, "couldst", "could")
 	## Clean doubled "you you" from "thou dost" → "you" + leftover (rare).
 	s = _replace_ci(s, "you you ", "you ")
 	s = _replace_ci(s, "You you ", "You ")
+	## Residual agreement after thou→you on 3rd-person verbs in classic stock lines.
+	s = _replace_ci(s, "you looks ", "you look ")
+	s = _replace_ci(s, "You looks ", "You look ")
+	s = _replace_ci(s, "you suffers ", "you suffer ")
+	s = _replace_ci(s, "You suffers ", "You suffer ")
 	return s
 
 
