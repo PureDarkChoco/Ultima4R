@@ -1149,6 +1149,18 @@ func has_combat_chest_at(pos: Vector2i) -> bool:
 	return not _combat_chest_pile_at(pos).is_empty()
 
 
+func has_closed_combat_chest() -> bool:
+	for raw_pile in _combat_chests.values():
+		if typeof(raw_pile) != TYPE_ARRAY:
+			continue
+		for raw_chest in raw_pile as Array:
+			if typeof(raw_chest) == TYPE_DICTIONARY and not bool(
+				(raw_chest as Dictionary).get("open", false)
+			):
+				return true
+	return false
+
+
 func combat_chest_is_open(pos: Vector2i) -> bool:
 	return bool(_top_combat_chest_at(pos).get("open", false))
 

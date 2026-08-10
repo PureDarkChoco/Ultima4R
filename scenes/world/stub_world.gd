@@ -2773,6 +2773,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 	var noncombat := not in_combat
 	if _combat_victory_aftermath:
 		return cmd in [
+			U4Commands.Id.CAST,
 			U4Commands.Id.GET_CHEST,
 			U4Commands.Id.OPEN,
 			U4Commands.Id.READY,
@@ -10458,6 +10459,10 @@ func _open_combat_exit_prompt() -> void:
 		or _combat_resolving or _combat_exit_prompt
 	):
 		return
+	## With no unopened chest left, Y exits immediately without confirmation.
+	if _map == null or not _map.has_closed_combat_chest():
+		_combat_victory_esc_exit_all()
+		return
 	_combat_exit_prompt = true
 	_enter_prompt_choice = 1 ## Default No so an accidental A does not leave.
 	_GameInput.reset_stick_navigation()
@@ -10606,6 +10611,12 @@ func _handle_combat_victory_command(cmd: int) -> void:
 			_layout_prompt_row()
 		U4Commands.Id.ZTATS:
 			_do_ztats()
+		U4Commands.Id.CAST:
+			## Cast UI not ported yet — same stub as explore/combat turn / keyboard C.
+			_push_message(Locale.t("cmd_stub", [
+				U4Commands.letter_for(cmd),
+				U4Commands.label(cmd, lang),
+			]), false)
 		U4Commands.Id.READY:
 			_do_ready()
 		U4Commands.Id.USE:
