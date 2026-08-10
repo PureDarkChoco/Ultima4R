@@ -196,6 +196,12 @@ static func stick_direction_step(event: InputEvent) -> Vector2i:
 	return Vector2i.ZERO
 
 
+static func reset_stick_navigation() -> void:
+	## A newly opened menu must not inherit a latch from a previous UI.
+	_stick_nav_latches.clear()
+	_select_y_latches.clear()
+
+
 static func _ensure_move_actions() -> void:
 	_ensure_action(
 		"move_up",

@@ -1396,6 +1396,22 @@ func try_move_combat_focus(dir: Vector2i) -> int:
 	return COMBAT_MOVE_OK
 
 
+func has_combat_foe_adjacent_to_focus() -> bool:
+	## Context-command palette: Attack appears only for a living foe one step away.
+	if _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return false
+	var unit: Dictionary = _combat_party[_combat_focus]
+	var from := Vector2i(int(unit.get("x", 0)), int(unit.get("y", 0)))
+	for foe in _combat_foes:
+		var f: Dictionary = foe
+		if int(f.get("hp", 0)) <= 0:
+			continue
+		var pos := Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+		if abs(pos.x - from.x) + abs(pos.y - from.y) == 1:
+			return true
+	return false
+
+
 func advance_combat_focus() -> bool:
 	## Next party unit. false = party round done (caller runs foe phase, then focus 0).
 	if _combat_party.is_empty():

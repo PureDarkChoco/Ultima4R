@@ -301,6 +301,17 @@ var _msg_rw := 0.0
 var _msg_open_x := 0.0
 var _msg_open_content_h := 0.0
 var _msg_pitch := 0.0
+## Gamepad B command palette. It covers the message terminal, bottom-aligned.
+var _command_menu_open := false
+var _command_menu_cursor := 0
+var _command_menu_last_cmd := U4Commands.Id.NONE
+var _command_menu_items: Array[int] = []
+var _command_menu_layer: Control
+var _command_menu_backdrop: ColorRect
+var _command_menu_separator: ColorRect
+var _command_menu_rows: Array[ColorRect] = []
+## True when the palette alone expanded a previously closed message strip.
+var _command_menu_forced_tall := false
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
 ## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel / 12 Lord British /
@@ -1019,6 +1030,7 @@ func _ensure_msg_terminal() -> void:
 				_talk_edit = _make_talk_ime_edit()
 				_msg_prompt_row.add_child(_talk_edit)
 		_ensure_enter_prompt_buttons()
+		_ensure_command_menu_layer()
 		return
 	if _msg_block == null:
 		return
@@ -1056,6 +1068,7 @@ func _ensure_msg_terminal() -> void:
 		_msg_cursor.texture = _cursor_frames[0]
 	_msg_prompt_row.add_child(_msg_cursor)
 	_ensure_enter_prompt_buttons()
+	_ensure_command_menu_layer()
 	_msg_ui_ready = true
 	_refresh_message_view()
 
@@ -1092,6 +1105,140 @@ func _ensure_enter_prompt_buttons() -> void:
 	_enter_btn_no.pressed.connect(func() -> void: _resolve_enter_prompt(false))
 	_enter_btn_yes.focus_entered.connect(func() -> void: _set_enter_prompt_choice(0))
 	_enter_btn_no.focus_entered.connect(func() -> void: _set_enter_prompt_choice(1))
+
+
+func _ensure_command_menu_layer() -> void:
+	if _right_bottom == null:
+		return
+	if _command_menu_layer != null and is_instance_valid(_command_menu_layer):
+		return
+	_command_menu_layer = Control.new()
+	_command_menu_layer.name = "CommandMenuLayer"
+	_command_menu_layer.visible = false
+	_command_menu_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_command_menu_layer.clip_contents = true
+	_right_bottom.add_child(_command_menu_layer)
+	_command_menu_backdrop = ColorRect.new()
+	_command_menu_backdrop.color = Color(0.025, 0.055, 0.07, 1.0)
+	_command_menu_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	_command_menu_layer.add_child(_command_menu_backdrop)
+	_command_menu_separator = ColorRect.new()
+	_command_menu_separator.name = "BottomSeparator"
+	_command_menu_separator.color = Color(0.55, 0.78, 1.0, 0.75)
+	_command_menu_separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_command_menu_layer.add_child(_command_menu_separator)
+	_command_menu_layer.move_to_front()
+
+
+func _rebuild_command_menu_rows() -> void:
+	_ensure_command_menu_layer()
+	if _command_menu_layer == null:
+		return
+	for row in _command_menu_rows:
+		if row != null and is_instance_valid(row):
+			if row.get_parent() != null:
+				row.get_parent().remove_child(row)
+			row.queue_free()
+	_command_menu_rows.clear()
+	var lang := GameState.lang_short()
+	for cmd in _command_menu_items:
+		var row := ColorRect.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var label := RichTextLabel.new()
+		label.name = "Label"
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.bbcode_enabled = true
+		label.fit_content = false
+		label.scroll_active = false
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var letter := U4Commands.letter_for(cmd)
+		var command_name := U4Commands.label(cmd, lang)
+		if lang == "ko":
+			label.text = "[color=#%s]%s[/color] - %s" % [
+				UiTheme.ACCENT.to_html(false),
+				letter,
+				command_name,
+			]
+		else:
+			## English command names already begin with their command key:
+			## [A]ttack, [B]oard, [C]ast, …
+			var rest := command_name.substr(1) if command_name.length() > 1 else ""
+			label.text = "[color=#%s]%s[/color]%s" % [
+				UiTheme.ACCENT.to_html(false),
+				letter,
+				rest,
+			]
+		label.add_theme_color_override("default_color", MSG_COLOR)
+		label.add_theme_font_size_override("normal_font_size", MSG_FONT_SIZE)
+		UiTheme.apply_font(label)
+		row.add_child(label)
+		var edge := ColorRect.new()
+		edge.name = "SelectionEdge"
+		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		edge.color = Color(0, 0, 0, 0)
+		row.add_child(edge)
+		_command_menu_layer.add_child(row)
+		_command_menu_rows.append(row)
+	_command_menu_layer.move_to_front()
+	_layout_command_menu_layer()
+
+
+func _layout_command_menu_layer() -> void:
+	if _command_menu_layer == null or _right_bottom == null:
+		return
+	var panel_size := _right_bottom.size
+	var count := _command_menu_rows.size()
+	var content_h := maxf(
+		panel_size.y - float(MSG_INSET_Y * 2),
+		float(MSG_OPEN_LINES)
+	)
+	var pitch := content_h / float(MSG_OPEN_LINES)
+	## Match MsgBlock's inner 15-line grid exactly. This leaves the surrounding
+	## message-panel border/insets visible and never paints over its chrome.
+	var inner_w := maxf(panel_size.x - float(MSG_INSET_X * 2), 8.0)
+	var inner_y := panel_size.y - float(MSG_INSET_Y) - content_h
+	var menu_h := minf(content_h, float(count) * pitch)
+	_command_menu_layer.position = Vector2(MSG_INSET_X, inner_y)
+	_command_menu_layer.size = Vector2(inner_w, menu_h)
+	_command_menu_layer.custom_minimum_size = Vector2.ZERO
+	if _command_menu_backdrop != null:
+		_command_menu_backdrop.position = Vector2.ZERO
+		_command_menu_backdrop.size = _command_menu_layer.size
+	if _command_menu_separator != null:
+		_command_menu_separator.visible = count > 0 and count < MSG_OPEN_LINES
+		_command_menu_separator.position = Vector2(0, maxf(menu_h - 1.0, 0.0))
+		_command_menu_separator.size = Vector2(inner_w, 1)
+		_command_menu_separator.move_to_front()
+	if count <= 0:
+		return
+	var font_sz := clampi(int(floorf(pitch)) - 2, 10, MSG_FONT_SIZE)
+	var row_w := inner_w
+	for i in count:
+		var row := _command_menu_rows[i]
+		row.position = Vector2(0, float(i) * pitch)
+		row.size = Vector2(row_w, pitch)
+		row.custom_minimum_size = Vector2.ZERO
+		row.color = (
+			Color(0.22, 0.42, 0.82, 0.55)
+			if i == _command_menu_cursor
+			else Color(0, 0, 0, 0)
+		)
+		var label := row.get_node_or_null("Label") as RichTextLabel
+		if label != null:
+			label.position = Vector2(8, 0)
+			label.size = Vector2(maxf(row_w - 14.0, 4.0), pitch)
+			label.add_theme_font_size_override("normal_font_size", font_sz)
+			label.add_theme_color_override("default_color", MSG_COLOR)
+		var edge := row.get_node_or_null("SelectionEdge") as ColorRect
+		if edge != null:
+			edge.position = Vector2.ZERO
+			edge.size = Vector2(2, pitch)
+			edge.color = (
+				Color(0.55, 0.78, 1.0, 0.95)
+				if i == _command_menu_cursor
+				else Color(0, 0, 0, 0)
+			)
 
 
 func _load_msg_charset_glyphs() -> void:
@@ -1222,6 +1369,7 @@ func _apply_msg_geometry() -> void:
 	_right_bottom.position = Vector2(x, pane_h - h)
 	_right_bottom.visible = true
 	_place_msg_block(h)
+	_layout_command_menu_layer()
 
 
 func _place_msg_block(panel_h: float) -> void:
@@ -2008,7 +2156,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -2298,7 +2446,328 @@ func _clear_pending_order(show_none: bool = false) -> void:
 	_close_order_roster()
 
 
+func _command_menu_cardinal_dirs() -> Array[Vector2i]:
+	return [
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.UP,
+		Vector2i.DOWN,
+	]
+
+
+func _command_menu_has_adjacent_world_enemy() -> bool:
+	if _world_creatures == null:
+		return false
+	for dir in _command_menu_cardinal_dirs():
+		var pos := Vector2i(
+			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+		)
+		if _world_creatures.creature_at(pos) >= 0:
+			return true
+	return false
+
+
+func _command_menu_has_adjacent_city_person() -> bool:
+	if not _is_in_city() or _city_map == null:
+		return false
+	for dir in _command_menu_cardinal_dirs():
+		var pos := _tile_pos + dir
+		if (
+			pos.x >= 0 and pos.y >= 0
+			and pos.x < _CityMapData.WIDTH and pos.y < _CityMapData.HEIGHT
+			and _city_map.person_index_at(pos.x, pos.y) >= 0
+		):
+			return true
+	return false
+
+
+func _command_menu_has_adjacent_city_tile(kind: String) -> bool:
+	if not _is_in_city() or _city_map == null:
+		return false
+	for dir in _command_menu_cardinal_dirs():
+		var pos := _tile_pos + dir
+		if (
+			pos.x < 0 or pos.y < 0
+			or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT
+		):
+			continue
+		var tid := int(_city_map.effective_tile_at(pos.x, pos.y))
+		if kind == "chest" and _TileRules.is_chest(tid):
+			return true
+		if kind == "locked_door" and _TileRules.is_locked_door(tid):
+			return true
+		if kind == "door" and _TileRules.is_door(tid):
+			return true
+	return false
+
+
+func _command_menu_has_adjacent_city_chest(opened: bool) -> bool:
+	if not _is_in_city() or _city_map == null:
+		return false
+	for dir in _command_menu_cardinal_dirs():
+		var pos := _tile_pos + dir
+		if (
+			pos.x < 0 or pos.y < 0
+			or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT
+		):
+			continue
+		## A person visually/physically owns the cell; do not expose the
+		## chest underneath until that NPC moves away.
+		if _city_map.person_index_at(pos.x, pos.y) >= 0:
+			continue
+		var tid := int(_city_map.effective_tile_at(pos.x, pos.y))
+		if not _TileRules.is_chest(tid):
+			continue
+		var is_open := bool(_city_map.is_chest_open(pos.x, pos.y))
+		if is_open != opened:
+			continue
+		if opened and not bool(_city_map.chest_has_loot(pos.x, pos.y)):
+			continue
+		return true
+	return false
+
+
+func _command_menu_on_city_portal(action: int) -> bool:
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return false
+	var fname := str(_city_map.source_path).get_file()
+	return not _CityFloorPortals.portal_at(fname, _tile_pos, action).is_empty()
+
+
+func _command_menu_can_show(cmd: int) -> bool:
+	var in_combat := _combat_active
+	var in_city := _is_in_city() and not in_combat
+	var outdoors := not in_city and not in_combat
+	var noncombat := not in_combat
+	match cmd:
+		U4Commands.Id.ATTACK:
+			if in_combat:
+				return (
+					_map != null
+					and _map.has_method("has_combat_foe_adjacent_to_focus")
+					and bool(_map.call("has_combat_foe_adjacent_to_focus"))
+				)
+			if in_city:
+				return _city_guards_alerted and _command_menu_has_adjacent_city_person()
+			return _command_menu_has_adjacent_world_enemy()
+		U4Commands.Id.BOARD:
+			if not outdoors or _transport != Transport.FOOT or _map == null:
+				return false
+			var board_tid := _map.overlay_at(_tile_pos)
+			return (
+				MapView.is_ship_tile(board_tid)
+				or MapView.is_horse_tile(board_tid)
+				or MapView.is_balloon_tile(board_tid)
+			)
+		U4Commands.Id.CAST, U4Commands.Id.READY, U4Commands.Id.USE, U4Commands.Id.ZTATS:
+			return true
+		U4Commands.Id.DESCEND:
+			return noncombat and _command_menu_on_city_portal(_CityFloorPortals.Action.DESCEND)
+		U4Commands.Id.ENTER:
+			if not outdoors or _transport in [Transport.SHIP, Transport.BALLOON]:
+				return false
+			return (
+				not _WorldPortals.portal_at(_tile_pos).is_empty()
+				or not _ShrinePortals.portal_at(_tile_pos).is_empty()
+			)
+		U4Commands.Id.FIRE:
+			return outdoors and _transport == Transport.SHIP
+		U4Commands.Id.GET_CHEST:
+			return noncombat and _command_menu_has_adjacent_city_chest(true)
+		U4Commands.Id.HOLE_UP:
+			return outdoors and _hole_up_deny_message().is_empty()
+		U4Commands.Id.IGNITE:
+			return false ## Dungeon controller is not implemented yet.
+		U4Commands.Id.JIMMY:
+			return noncombat and _command_menu_has_adjacent_city_tile("locked_door")
+		U4Commands.Id.KLIMB:
+			return noncombat and _command_menu_on_city_portal(_CityFloorPortals.Action.CLIMB)
+		U4Commands.Id.LOCATE:
+			return outdoors and GameState.has_sextant
+		U4Commands.Id.MIX:
+			return noncombat and GameState.has_any_reagents()
+		U4Commands.Id.NEW_ORDER, U4Commands.Id.QUIT_SAVE, U4Commands.Id.SEARCH, U4Commands.Id.WEAR:
+			return noncombat
+		U4Commands.Id.OPEN:
+			return (
+				noncombat
+				and (
+					_command_menu_has_adjacent_city_tile("door")
+					or _command_menu_has_adjacent_city_chest(false)
+				)
+			)
+		U4Commands.Id.PEER:
+			return outdoors and GameState.gems > 0
+		U4Commands.Id.TALK:
+			return noncombat and _command_menu_has_adjacent_city_person()
+		U4Commands.Id.VOLUME:
+			return false ## V remains intentionally unimplemented.
+		U4Commands.Id.XIT:
+			return (
+				noncombat and _transport != Transport.FOOT
+				and not (_transport == Transport.BALLOON and _balloon_flying)
+			)
+		U4Commands.Id.YELL:
+			return noncombat and _transport in [Transport.SHIP, Transport.HORSE]
+		_:
+			return false
+
+
+func _build_command_menu_items() -> Array[int]:
+	var items: Array[int] = []
+	for cmd in range(U4Commands.Id.ATTACK, U4Commands.Id.ZTATS + 1):
+		if _command_menu_can_show(cmd):
+			items.append(cmd)
+	return items
+
+
+func _can_open_command_menu() -> bool:
+	if _command_menu_open or _enter_prompt_stage != 0:
+		return false
+	if (
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy
+		or _shrine_busy or _shrine_stage != 0 or _inn_stage != 0
+	):
+		return false
+	if (
+		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
+		or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0
+		or _ready_stage != 0 or _wear_stage != 0 or _use_stage != 0
+		or _ztats_stage != 0 or _order_stage != 0
+		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
+		or _esc_menu_is_open() or _options_panel_is_open()
+	):
+		return false
+	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	if _combat_active and (_combat_resolving or _combat_aiming or _combat_victory_aftermath):
+		return false
+	return true
+
+
+func _open_command_menu() -> void:
+	if not _can_open_command_menu():
+		return
+	_command_menu_items = _build_command_menu_items()
+	if _command_menu_items.is_empty():
+		return
+	_command_menu_open = true
+	_command_menu_cursor = _command_menu_items.find(_command_menu_last_cmd)
+	if _command_menu_cursor < 0:
+		_command_menu_cursor = 0
+	_GameInput.reset_stick_navigation()
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	_command_menu_forced_tall = not _sides_open and not _talk_msg_open
+	if _command_menu_forced_tall:
+		## Reuse the message-only tall-strip geometry without opening side panels.
+		_talk_msg_open = true
+		var g := _side_geom()
+		_msg_full_h = float(g["bottom_open_h"])
+		_msg_h = _msg_full_h
+		_apply_msg_geometry()
+		_refresh_message_view()
+	_rebuild_command_menu_rows()
+	if _command_menu_layer != null:
+		_command_menu_layer.visible = true
+		_command_menu_layer.move_to_front()
+	_layout_command_menu_layer()
+
+
+func _close_command_menu() -> void:
+	if not _command_menu_open:
+		return
+	if (
+		not _command_menu_items.is_empty()
+		and _command_menu_cursor >= 0
+		and _command_menu_cursor < _command_menu_items.size()
+	):
+		_command_menu_last_cmd = _command_menu_items[_command_menu_cursor]
+	_command_menu_open = false
+	if _command_menu_layer != null:
+		_command_menu_layer.visible = false
+	if _command_menu_forced_tall:
+		_talk_msg_open = false
+		var g := _side_geom()
+		_msg_h = float(g["bottom_closed_h"])
+		_apply_msg_geometry()
+		_refresh_message_view()
+	_command_menu_forced_tall = false
+	_command_menu_items.clear()
+	_command_menu_cursor = 0
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	grab_focus()
+
+
+func _move_command_menu_cursor(step: int) -> void:
+	if _command_menu_items.is_empty() or step == 0:
+		return
+	_command_menu_cursor = posmod(
+		_command_menu_cursor + step,
+		_command_menu_items.size()
+	)
+	_layout_command_menu_layer()
+
+
+func _choose_command_menu_item() -> void:
+	if (
+		not _command_menu_open or _command_menu_items.is_empty()
+		or _command_menu_cursor < 0
+		or _command_menu_cursor >= _command_menu_items.size()
+	):
+		return
+	var cmd := _command_menu_items[_command_menu_cursor]
+	var needs_dir := bool(U4Commands.NEEDS_DIRECTION.get(cmd, false))
+	_close_command_menu()
+	if needs_dir:
+		## Do not reuse the D-pad direction that moved the menu cursor.
+		_block_dir_until_keyup = true
+	if _combat_active:
+		_handle_combat_command(cmd)
+	else:
+		_handle_command(cmd)
+
+
+func _handle_command_menu_input(event: InputEvent) -> bool:
+	if not _command_menu_open:
+		return false
+	if event is InputEventJoypadMotion:
+		## Neutral motion must reach the hysteresis helper so it can re-arm.
+		## Consume all other stick axes while the palette owns input.
+		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if stick_step != 0:
+			_move_command_menu_cursor(stick_step)
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _is_cancel_event(event):
+		_close_command_menu()
+		return true
+	if event is InputEventKey:
+		var keyed_cmd := U4Commands.from_event(event as InputEventKey)
+		var keyed_index := _command_menu_items.find(keyed_cmd)
+		if keyed_index >= 0:
+			_command_menu_cursor = keyed_index
+			_choose_command_menu_item()
+			return true
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		_choose_command_menu_item()
+		return true
+	var step := 0
+	var dir := _GameInput.dir_from_event(event)
+	if dir.y != 0:
+		step = dir.y
+	if step != 0:
+		_move_command_menu_cursor(step)
+	return true
+
+
 func _on_escape(allow_menu_open: bool = true) -> void:
+	if _command_menu_open:
+		_close_command_menu()
+		return
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
@@ -2401,7 +2870,7 @@ func _handle_panel_toggle() -> void:
 	## Camp rest allows Tab so inventory panels stay reachable.
 	## Shrine session: panels stay forced open; Tab/left trigger locked.
 	## Talk: only toggle the left inventory panel; state persists after Bye.
-	if _death_busy or _combat_active:
+	if _death_busy or _combat_active or _command_menu_open:
 		return
 	if (
 		_ztats_stage != 0
@@ -2432,6 +2901,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		get_viewport().set_input_as_handled()
+		return
+	if _command_menu_open:
+		if _handle_command_menu_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
 		return
 	if _enter_prompt_stage == 1:
 		if _handle_enter_prompt_input(event):
@@ -2514,6 +2989,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			elif event.is_pressed():
 				get_viewport().set_input_as_handled()
+			return
+		if _is_cancel_event(event) and _can_open_command_menu():
+			_open_command_menu()
+			get_viewport().set_input_as_handled()
 			return
 		if _handle_combat_input(event):
 			get_viewport().set_input_as_handled()
@@ -2664,8 +3143,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_command(cmd)
 			get_viewport().set_input_as_handled()
 		return
-	## Gamepad: Start opens/closes the menu. B only cancels the current context;
-	## it must never open the menu. Stick/D-pad feed held move via _process.
+	## Gamepad: Start opens/closes the system menu. B opens the contextual
+	## A–Z palette when no nested UI is active; otherwise it remains Cancel.
 	if event.is_pressed() and not event.is_echo():
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_cancel_event(event) or _GameInput.is_select(event):
@@ -2680,7 +3159,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if _is_cancel_event(event):
-			_on_escape(false)
+			if _can_open_command_menu():
+				_open_command_menu()
+			else:
+				_on_escape(false)
 			get_viewport().set_input_as_handled()
 			return
 		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
@@ -4188,6 +4670,21 @@ func _do_ztats() -> void:
 
 
 func _handle_ztats_input(event: InputEvent) -> bool:
+	if _ztats_stage == 2 and event is InputEventJoypadMotion:
+		## Analog page/scroll navigation uses one deliberate tilt per step.
+		## Neutral events must reach the helper so the axis can re-arm.
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_LEFT_X:
+			var page_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+			if page_step != 0:
+				_nudge_ztats_view(page_step)
+			return true
+		if motion.axis == JOY_AXIS_LEFT_Y:
+			var scroll_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+			if scroll_step != 0 and _ztats_panel and _ztats_panel.is_inventory_page():
+				_ztats_panel.scroll_inventory(scroll_step)
+			return true
+		return true
 	if not event.is_pressed():
 		return false
 	## Key-repeat for inventory ↑↓ / PageUp/PageDown; ignore echo otherwise.
@@ -4202,6 +4699,9 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 			return true
 	## Viewing sheet: Esc / Space / Enter cancel; Z returns to pick list.
 	if _ztats_stage == 2:
+		if _is_cancel_event(event):
+			_close_ztats(false)
+			return true
 		if event is InputEventKey:
 			var kz := event as InputEventKey
 			if kz.keycode == KEY_Z or kz.physical_keycode == KEY_Z:
@@ -4356,7 +4856,10 @@ func _accept_ztats_slot(slot: int) -> void:
 
 func _show_ztats_member(slot: int) -> void:
 	_ensure_ztats_panel()
+	var entering_view := _ztats_stage != 2
 	_ztats_stage = 2
+	if entering_view:
+		_GameInput.reset_stick_navigation()
 	_ztats_cursor = slot
 	_ztats_flat = slot
 	_clear_order_selection()
@@ -4412,7 +4915,10 @@ func _try_ztats_inv_scroll(event: InputEvent) -> bool:
 
 func _show_ztats_inventory(page: int) -> void:
 	_ensure_ztats_panel()
+	var entering_view := _ztats_stage != 2
 	_ztats_stage = 2
+	if entering_view:
+		_GameInput.reset_stick_navigation()
 	var party_n := maxi(GameState.party_size(), 1)
 	match page:
 		ZtatsPanel.InvPage.GEAR:
@@ -7316,7 +7822,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
