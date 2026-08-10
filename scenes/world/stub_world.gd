@@ -301,17 +301,16 @@ var _msg_rw := 0.0
 var _msg_open_x := 0.0
 var _msg_open_content_h := 0.0
 var _msg_pitch := 0.0
-## Gamepad B command palette. It covers the message terminal, bottom-aligned.
+## Gamepad B command palette. Independent MapPane overlay; dialogue owns its own height.
 var _command_menu_open := false
 var _command_menu_cursor := 0
 var _command_menu_last_cmd := U4Commands.Id.NONE
 var _command_menu_items: Array[int] = []
 var _command_menu_layer: Control
 var _command_menu_backdrop: ColorRect
+var _command_menu_frame: Panel
 var _command_menu_separator: ColorRect
 var _command_menu_rows: Array[ColorRect] = []
-## True when the palette alone expanded a previously closed message strip.
-var _command_menu_forced_tall := false
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
 ## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel / 12 Lord British /
@@ -1108,23 +1107,35 @@ func _ensure_enter_prompt_buttons() -> void:
 
 
 func _ensure_command_menu_layer() -> void:
-	if _right_bottom == null:
+	if _map_pane == null:
 		return
 	if _command_menu_layer != null and is_instance_valid(_command_menu_layer):
+		if _command_menu_layer.get_parent() != _map_pane:
+			_command_menu_layer.reparent(_map_pane)
 		return
 	_command_menu_layer = Control.new()
 	_command_menu_layer.name = "CommandMenuLayer"
 	_command_menu_layer.visible = false
 	_command_menu_layer.mouse_filter = Control.MOUSE_FILTER_STOP
 	_command_menu_layer.clip_contents = true
-	_right_bottom.add_child(_command_menu_layer)
+	_map_pane.add_child(_command_menu_layer)
 	_command_menu_backdrop = ColorRect.new()
 	_command_menu_backdrop.color = Color(0.025, 0.055, 0.07, 1.0)
 	_command_menu_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	_command_menu_layer.add_child(_command_menu_backdrop)
+	_command_menu_frame = Panel.new()
+	_command_menu_frame.name = "MenuFrame"
+	_command_menu_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var frame_style := StyleBoxFlat.new()
+	frame_style.bg_color = Color(0, 0, 0, 0)
+	frame_style.border_color = UiTheme.ACCENT
+	frame_style.set_border_width_all(1)
+	frame_style.set_corner_radius_all(0)
+	_command_menu_frame.add_theme_stylebox_override("panel", frame_style)
+	_command_menu_layer.add_child(_command_menu_frame)
 	_command_menu_separator = ColorRect.new()
 	_command_menu_separator.name = "BottomSeparator"
-	_command_menu_separator.color = Color(0.55, 0.78, 1.0, 0.75)
+	_command_menu_separator.color = UiTheme.ACCENT
 	_command_menu_separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_command_menu_layer.add_child(_command_menu_separator)
 	_command_menu_layer.move_to_front()
@@ -1185,35 +1196,49 @@ func _rebuild_command_menu_rows() -> void:
 
 
 func _layout_command_menu_layer() -> void:
-	if _command_menu_layer == null or _right_bottom == null:
+	if _command_menu_layer == null or _map_pane == null:
 		return
-	var panel_size := _right_bottom.size
+	var g := _side_geom()
+	var pane_size := _map_pane.size
+	var panel_w := float(g["pane_w"]) - float(g["right_open_x"])
+	var panel_h := float(g["bottom_open_h"])
 	var count := _command_menu_rows.size()
 	var content_h := maxf(
-		panel_size.y - float(MSG_INSET_Y * 2),
+		panel_h - float(MSG_INSET_Y * 2),
 		float(MSG_OPEN_LINES)
 	)
 	var pitch := content_h / float(MSG_OPEN_LINES)
 	## Match MsgBlock's inner 15-line grid exactly. This leaves the surrounding
 	## message-panel border/insets visible and never paints over its chrome.
-	var inner_w := maxf(panel_size.x - float(MSG_INSET_X * 2), 8.0)
-	var inner_y := panel_size.y - float(MSG_INSET_Y) - content_h
+	## Use one shared margin so the top and right gaps are visually identical.
+	var menu_margin := float(MSG_INSET_Y)
+	var inner_w := maxf(panel_w - menu_margin * 2.0, 8.0)
+	var menu_w := maxf(floorf(inner_w * 0.5), 8.0)
 	var menu_h := minf(content_h, float(count) * pitch)
-	_command_menu_layer.position = Vector2(MSG_INSET_X, inner_y)
-	_command_menu_layer.size = Vector2(inner_w, menu_h)
+	## Independent map overlay: use the expanded dialogue region as a visual
+	## guide, but do not parent to or move with the actual dialogue panel.
+	_command_menu_layer.position = Vector2(
+		pane_size.x - menu_margin - menu_w,
+		float(g["bottom_open_y"]) + menu_margin
+	)
+	_command_menu_layer.size = Vector2(menu_w, menu_h)
 	_command_menu_layer.custom_minimum_size = Vector2.ZERO
 	if _command_menu_backdrop != null:
 		_command_menu_backdrop.position = Vector2.ZERO
 		_command_menu_backdrop.size = _command_menu_layer.size
+	if _command_menu_frame != null:
+		_command_menu_frame.position = Vector2.ZERO
+		_command_menu_frame.size = _command_menu_layer.size
+		_command_menu_frame.move_to_front()
 	if _command_menu_separator != null:
 		_command_menu_separator.visible = count > 0 and count < MSG_OPEN_LINES
 		_command_menu_separator.position = Vector2(0, maxf(menu_h - 1.0, 0.0))
-		_command_menu_separator.size = Vector2(inner_w, 1)
+		_command_menu_separator.size = Vector2(menu_w, 1)
 		_command_menu_separator.move_to_front()
 	if count <= 0:
 		return
 	var font_sz := clampi(int(floorf(pitch)) - 2, 10, MSG_FONT_SIZE)
-	var row_w := inner_w
+	var row_w := menu_w
 	for i in count:
 		var row := _command_menu_rows[i]
 		row.position = Vector2(0, float(i) * pitch)
@@ -2659,15 +2684,6 @@ func _open_command_menu() -> void:
 	_GameInput.reset_stick_navigation()
 	_reset_hold_state()
 	_block_dir_until_keyup = true
-	_command_menu_forced_tall = not _sides_open and not _talk_msg_open
-	if _command_menu_forced_tall:
-		## Reuse the message-only tall-strip geometry without opening side panels.
-		_talk_msg_open = true
-		var g := _side_geom()
-		_msg_full_h = float(g["bottom_open_h"])
-		_msg_h = _msg_full_h
-		_apply_msg_geometry()
-		_refresh_message_view()
 	_rebuild_command_menu_rows()
 	if _command_menu_layer != null:
 		_command_menu_layer.visible = true
@@ -2687,13 +2703,6 @@ func _close_command_menu() -> void:
 	_command_menu_open = false
 	if _command_menu_layer != null:
 		_command_menu_layer.visible = false
-	if _command_menu_forced_tall:
-		_talk_msg_open = false
-		var g := _side_geom()
-		_msg_h = float(g["bottom_closed_h"])
-		_apply_msg_geometry()
-		_refresh_message_view()
-	_command_menu_forced_tall = false
 	_command_menu_items.clear()
 	_command_menu_cursor = 0
 	_reset_hold_state()
@@ -2844,6 +2853,17 @@ func _input(event: InputEvent) -> void:
 	if _death_busy:
 		get_viewport().set_input_as_handled()
 		return
+	if (
+		_command_menu_open
+		and event is InputEventKey
+		and event.pressed
+		and not event.echo
+	):
+		var menu_key := event as InputEventKey
+		if menu_key.keycode == KEY_TAB or menu_key.physical_keycode == KEY_TAB:
+			_handle_panel_toggle()
+			get_viewport().set_input_as_handled()
+			return
 	if _combat_active:
 		## Combat keys handled in _unhandled_input; block Tab panel toggle.
 		if event is InputEventKey and event.pressed and not event.echo:
@@ -2870,7 +2890,12 @@ func _handle_panel_toggle() -> void:
 	## Camp rest allows Tab so inventory panels stay reachable.
 	## Shrine session: panels stay forced open; Tab/left trigger locked.
 	## Talk: only toggle the left inventory panel; state persists after Bye.
-	if _death_busy or _combat_active or _command_menu_open:
+	if _death_busy or (_combat_active and not _command_menu_open):
+		return
+	if _command_menu_open:
+		## The palette is an independent MapPane overlay. Tab may change the
+		## regular side/dialogue panels without moving or resizing the palette.
+		_toggle_side_panels()
 		return
 	if (
 		_ztats_stage != 0
