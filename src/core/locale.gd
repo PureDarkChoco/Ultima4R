@@ -242,9 +242,9 @@ const _T := {
 		"ko": "취소(B) — 메뉴로",
 	},
 	"input_hint_form": {
-		"en_u4": "Name: Enter/click to type · Keys: ↑↓←→ · Pad: D-pad + A · A/B = Male/Female",
-		"en_us": "Name: Enter or click to type · Arrows · Gamepad D-pad + A · A/B = Male/Female",
-		"ko": "이름: Enter/클릭으로 입력 · 방향키 · 패드 D-패드+A · A/B = 남/여",
+		"en_u4": "Name: Enter/click to type · Sex: move then Enter/click · Pad: D-pad + A",
+		"en_us": "Name: Enter or click to type · Sex: move then Enter/click · Gamepad D-pad + A",
+		"ko": "이름: Enter/클릭으로 입력 · 성별: 이동 후 Enter/클릭 · 패드 D-패드+A",
 	},
 	"input_hint_menu": {
 		"en_u4": "Mouse: click · Keys: ↑↓ Enter · Pad: D-pad + A",
@@ -252,9 +252,9 @@ const _T := {
 		"ko": "마우스 클릭 · 방향키/Enter · 패드 D-패드+A",
 	},
 	"input_hint_virtue": {
-		"en_u4": "Mouse: click a path · Keys: A/B or ←→ Enter · Pad: X/Y or D-pad + A",
-		"en_us": "Click a path · A/B or arrows+Enter · Pad: X/Y or D-pad + A",
-		"ko": "클릭으로 선택 · A/B 또는 방향키+Enter · 패드 X/Y 또는 D-패드+A",
+		"en_u4": "Mouse: hover + click · Keys: A/B or ←→ then Enter/Space · Pad: ←→ + A",
+		"en_us": "Mouse hover + click · A/B or arrows then Enter/Space · Gamepad left/right + A",
+		"ko": "마우스 오버+클릭 · A/B 또는 좌우 이동 후 Enter/Space · 패드 좌우+A",
 	},
 	"input_hint_world": {
 		"en_u4": "Arrows move · A–Z commands · Esc menu · ⌘F fullscreen",

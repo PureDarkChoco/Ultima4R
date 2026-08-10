@@ -75,9 +75,6 @@ func _ready() -> void:
 
 	_male.pressed.connect(func() -> void: _set_sex("male"))
 	_female.pressed.connect(func() -> void: _set_sex("female"))
-	## Arrow / focus move selects immediately — no Enter needed.
-	_male.focus_entered.connect(func() -> void: _set_sex("male"))
-	_female.focus_entered.connect(func() -> void: _set_sex("female"))
 	_continue.pressed.connect(_on_continue)
 	_back.pressed.connect(_on_back)
 
@@ -459,15 +456,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _editing != null and _editing.has_focus():
 		return
 
-	if event.is_action_pressed("choice_a"):
-		_set_sex("male")
-		_male.grab_focus()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("choice_b"):
-		_set_sex("female")
-		_female.grab_focus()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("confirm") and get_viewport().gui_get_focus_owner() == null:
+	if event.is_action_pressed("confirm") and get_viewport().gui_get_focus_owner() == null:
 		_on_continue()
 		get_viewport().set_input_as_handled()
 

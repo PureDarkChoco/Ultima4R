@@ -1,5 +1,7 @@
 extends Control
 
+const _GameInput := preload("res://src/core/game_input.gd")
+
 @onready var _round: Label = %Round
 @onready var _lead: Label = %Lead
 @onready var _cards: Label = %Cards
@@ -53,20 +55,83 @@ func _ready() -> void:
 
 	_tree.start()
 	_refresh()
-	_btn_a.grab_focus()
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus:
+		focus.release_focus()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _done:
 		return
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_LEFT_X:
+			var step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+			if step != 0:
+				_focus_card(0 if step < 0 else 1)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("choice_a"):
+	elif _is_letter(event, KEY_A):
 		_choose(0)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("choice_b"):
+	elif _is_letter(event, KEY_B):
 		_choose(1)
 		get_viewport().set_input_as_handled()
+	else:
+		var nav := _card_nav_delta(event)
+		if nav != 0:
+			_focus_card(0 if nav < 0 else 1)
+			get_viewport().set_input_as_handled()
+		elif _is_card_confirm(event):
+			var focus := get_viewport().gui_get_focus_owner()
+			if focus == _btn_a:
+				_choose(0)
+			elif focus == _btn_b:
+				_choose(1)
+			get_viewport().set_input_as_handled()
+
+
+func _is_letter(event: InputEvent, code: Key) -> bool:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	var key := event as InputEventKey
+	return key.keycode == code or key.physical_keycode == code
+
+
+func _card_nav_delta(event: InputEvent) -> int:
+	if not event.is_pressed() or event.is_echo():
+		return 0
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.keycode == KEY_LEFT or key.physical_keycode == KEY_LEFT:
+			return -1
+		if key.keycode == KEY_RIGHT or key.physical_keycode == KEY_RIGHT:
+			return 1
+	if event is InputEventJoypadButton:
+		var button := event as InputEventJoypadButton
+		if button.button_index == JOY_BUTTON_DPAD_LEFT:
+			return -1
+		if button.button_index == JOY_BUTTON_DPAD_RIGHT:
+			return 1
+	return 0
+
+
+func _is_card_confirm(event: InputEvent) -> bool:
+	if _GameInput.is_select(event):
+		return true
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	var key := event as InputEventKey
+	return key.keycode == KEY_SPACE or key.physical_keycode == KEY_SPACE
+
+
+func _focus_card(index: int) -> void:
+	if index == 0:
+		_btn_a.grab_focus()
+	elif index == 1:
+		_btn_b.grab_focus()
 
 
 func _refresh() -> void:
@@ -98,4 +163,6 @@ func _choose(which: int) -> void:
 		SceneRouter.to_class_reveal()
 	else:
 		_refresh()
-		_btn_a.grab_focus()
+		var focus := get_viewport().gui_get_focus_owner()
+		if focus:
+			focus.release_focus()

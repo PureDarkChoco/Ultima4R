@@ -36,6 +36,8 @@ const TEXT_LINE_SPACING_KO := 9
 const TEXT_COLOR := Color(0.91, 0.9, 0.82, 1)
 const TEXT_FONT_MIN := 14
 const TEXT_FONT_MAX := 64
+const CARD_BORDER_COLOR := Color(0.95, 0.85, 0.45, 1.0)
+const CARD_BORDER_WIDTH := 3
 ## Auto-fit is sized to the longest story; nudge down so letterbox has headroom.
 const EN_FONT_SCALE := 0.88
 ## Korean glyphs are wider; scale further.
@@ -61,11 +63,16 @@ enum Mode { STORY, QUESTIONS }
 ## xu4: lead+cards then waitAnyKey, then question + readChoice("ab").
 enum QPhase { INTRO, ASK }
 
+const _GameInput := preload("res://src/core/game_input.gd")
+
 var _bg: ColorRect
 var _view: TextureRect
 var _text: Label
 var _card_a: TextureRect
 var _card_b: TextureRect
+var _card_border_a: Panel
+var _card_border_b: Panel
+var _card_cursor := -1
 var _story_ind := 0
 var _cache: Dictionary = {}
 var _tree_full: Image
@@ -114,6 +121,10 @@ func _ready() -> void:
 	_card_b = _make_card_rect()
 	add_child(_card_a)
 	add_child(_card_b)
+	_card_border_a = _make_card_border()
+	_card_border_b = _make_card_border()
+	add_child(_card_border_a)
+	add_child(_card_border_b)
 
 	_text = Label.new()
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -148,6 +159,18 @@ func _make_card_rect() -> TextureRect:
 	return t
 
 
+func _make_card_border() -> Panel:
+	var panel := Panel.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color.TRANSPARENT
+	style.border_color = CARD_BORDER_COLOR
+	style.set_border_width_all(CARD_BORDER_WIDTH)
+	panel.add_theme_stylebox_override("panel", style)
+	return panel
+
+
 func _process(delta: float) -> void:
 	if _gate_phase != GatePhase.OPENING and _gate_phase != GatePhase.CLOSING:
 		return
@@ -160,6 +183,14 @@ func _process(delta: float) -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	## Mouse clicks land here (MOUSE_FILTER_STOP), not only in _unhandled_input.
+	if (
+		_mode == Mode.QUESTIONS
+		and _q_phase == QPhase.ASK
+		and event is InputEventMouseMotion
+	):
+		_set_card_cursor(_card_pick_at(get_local_mouse_position()))
+		accept_event()
+		return
 	if _handle_story_input(event):
 		accept_event()
 
@@ -183,6 +214,17 @@ func _handle_story_input(event: InputEvent) -> bool:
 	## True if the event was consumed (advance or A/B choice).
 	if _busy_fade:
 		return true
+	## Neutral motion must reach the hysteresis filter, so process left-stick X
+	## before the generic pressed check.
+	if (
+		_mode == Mode.QUESTIONS
+		and event is InputEventJoypadMotion
+		and (event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_X
+	):
+		var step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+		if _q_phase == QPhase.ASK and step != 0:
+			_set_card_cursor(0 if step < 0 else 1)
+		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _mode == Mode.QUESTIONS:
@@ -199,19 +241,57 @@ func _handle_question_input(event: InputEvent) -> bool:
 			_show_question_ask()
 			return true
 		return false
-	## ASK: A/B (xu4 readChoice "ab"); click left/right card area for mouse.
-	if event.is_action_pressed("choice_a") or _is_letter(event, KEY_A):
+	## Direct keyboard A/B remains available without moving the cursor.
+	if _is_letter(event, KEY_A):
 		_answer_question(0)
 		return true
-	if event.is_action_pressed("choice_b") or _is_letter(event, KEY_B):
+	if _is_letter(event, KEY_B):
 		_answer_question(1)
+		return true
+	## Keyboard arrows and gamepad D-pad move an initially-empty cursor.
+	var nav := _card_nav_delta(event)
+	if nav != 0:
+		_set_card_cursor(0 if nav < 0 else 1)
+		return true
+	## Enter/Space and gamepad A only confirm after explicit navigation.
+	if _is_keyboard_card_confirm(event) or _GameInput.is_select(event):
+		if _card_cursor >= 0:
+			_answer_question(_card_cursor)
 		return true
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		var pick := _card_pick_at(get_local_mouse_position())
 		if pick >= 0:
+			_set_card_cursor(pick)
 			_answer_question(pick)
 			return true
 	return false
+
+
+func _card_nav_delta(event: InputEvent) -> int:
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.keycode == KEY_LEFT or key.physical_keycode == KEY_LEFT:
+			return -1
+		if key.keycode == KEY_RIGHT or key.physical_keycode == KEY_RIGHT:
+			return 1
+	if event is InputEventJoypadButton:
+		var button := event as InputEventJoypadButton
+		if button.button_index == JOY_BUTTON_DPAD_LEFT:
+			return -1
+		if button.button_index == JOY_BUTTON_DPAD_RIGHT:
+			return 1
+	return 0
+
+
+func _is_keyboard_card_confirm(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return false
+	var key := event as InputEventKey
+	return (
+		key.keycode == KEY_ENTER or key.physical_keycode == KEY_ENTER
+		or key.keycode == KEY_KP_ENTER or key.physical_keycode == KEY_KP_ENTER
+		or key.keycode == KEY_SPACE or key.physical_keycode == KEY_SPACE
+	)
 
 
 func _card_pick_at(local_pos: Vector2) -> int:
@@ -382,6 +462,7 @@ func _draw_abacus_beads(row: int, selected: int, rejected: int) -> void:
 func _show_question_intro() -> void:
 	## Exactly 3 lines (xu4 lead / cards / consider) — same font as story.
 	_q_phase = QPhase.INTRO
+	_set_card_cursor(-1)
 	_q_pair = _q_tree.current_pair()
 	_place_cards(_q_pair.x, _q_pair.y)
 	var body := "%s\n%s\n%s" % [
@@ -396,6 +477,7 @@ func _show_question_intro() -> void:
 func _show_question_ask() -> void:
 	## Full dilemma; A)/B) already in the question text.
 	_q_phase = QPhase.ASK
+	_set_card_cursor(-1)
 	_q_pair = _q_tree.current_pair()
 	var q := Locale.virtue_question(_q_pair.x, _q_pair.y)
 	_set_story_text(_format_question(q))
@@ -455,6 +537,16 @@ func _set_cards_visible(on: bool) -> void:
 		_card_a.visible = on
 	if _card_b:
 		_card_b.visible = on
+	if not on:
+		_set_card_cursor(-1)
+
+
+func _set_card_cursor(index: int) -> void:
+	_card_cursor = index if index in [0, 1] else -1
+	if _card_border_a:
+		_card_border_a.visible = _card_a.visible and _card_cursor == 0
+	if _card_border_b:
+		_card_border_b.visible = _card_b.visible and _card_cursor == 1
 
 
 func _layout_cards() -> void:
@@ -467,8 +559,15 @@ func _layout_cards() -> void:
 	_card_a.size = Vector2(CARD_SIZE) * scale
 	_card_b.position = origin + Vector2(CARD_POS.x + CARD_GAP_W, CARD_POS.y) * scale
 	_card_b.size = Vector2(CARD_SIZE) * scale
+	var border_pad := maxf(float(CARD_BORDER_WIDTH), round(2.0 * scale))
+	_card_border_a.position = _card_a.position - Vector2.ONE * border_pad
+	_card_border_a.size = _card_a.size + Vector2.ONE * border_pad * 2.0
+	_card_border_b.position = _card_b.position - Vector2.ONE * border_pad
+	_card_border_b.size = _card_b.size + Vector2.ONE * border_pad * 2.0
 	_card_a.move_to_front()
 	_card_b.move_to_front()
+	_card_border_a.move_to_front()
+	_card_border_b.move_to_front()
 	if _text:
 		_text.move_to_front()
 
