@@ -500,6 +500,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 		return
 	_city_return_pos = return_pos
 	_city_map = cmap
+	_apply_remembered_city_chests(cmap)
 	var local := Vector2i(
 		clampi(int(w.get("city_x", 15)), 0, _CityMapData.WIDTH - 1),
 		clampi(int(w.get("city_y", 15)), 0, _CityMapData.HEIGHT - 1)
@@ -4153,6 +4154,7 @@ func _open_telescope_city(choice_index: int) -> void:
 	if path.is_empty() or not cmap.load_from_path(path):
 		_finish_party_turn()
 		return
+	_apply_remembered_city_chests(cmap)
 	_ensure_peer_overlay()
 	if _peer_overlay == null or _map == null:
 		_finish_party_turn()
@@ -6821,6 +6823,7 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 	## Fresh enter from world — anger reset (xu4 forgets next visit).
 	_city_guards_alerted = false
 	_city_map = cmap
+	_apply_remembered_city_chests(cmap)
 	var start := Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 15)))
 	_tile_pos = start
 	if _map != null:
@@ -7288,6 +7291,7 @@ func _use_city_floor_portal(action: int) -> void:
 		_push_message(Locale.t(msg_key), false)
 	_stash_emptied_city_chests()
 	_city_map = cmap
+	_apply_remembered_city_chests(cmap)
 	## Same stay (e.g. LCB 1↔2): re-apply alertGuards to newly loaded NPCs.
 	_apply_city_guards_alerted()
 	_tile_pos = start
@@ -7361,6 +7365,22 @@ func _is_remembered_empty_chest(x: int, y: int) -> bool:
 	if typeof(bucket) != TYPE_DICTIONARY:
 		return false
 	return bool((bucket as Dictionary).get(_CityMapData.chest_key(x, y), false))
+
+
+func _apply_remembered_city_chests(cmap) -> void:
+	if cmap == null or not cmap.loaded or not cmap.has_method("remove_remembered_chests"):
+		return
+	var fname := _city_map_fname(cmap)
+	if fname.is_empty():
+		return
+	var bucket: Variant = _city_chest_memory.get(fname, {})
+	if typeof(bucket) != TYPE_DICTIONARY:
+		return
+	var keys: Array = []
+	for key in (bucket as Dictionary).keys():
+		if bool((bucket as Dictionary)[key]):
+			keys.append(str(key))
+	cmap.remove_remembered_chests(keys)
 
 
 func _city_chests_to_save() -> Dictionary:
@@ -8318,6 +8338,7 @@ func _death_revive() -> void:
 	if not path.is_empty() and cmap.load_from_path(path):
 		_city_guards_alerted = false
 		_city_map = cmap
+		_apply_remembered_city_chests(cmap)
 		var start := DEATH_REVIVE_CASTLE
 		_tile_pos = start
 		var spawn := Vector2i(

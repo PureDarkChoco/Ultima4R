@@ -18,6 +18,8 @@ const NPC_MAX := 32
 const NPC_BLOCK := 8 * NPC_MAX ## 256 — tile/x/y/prev + pad + move/conv
 const FILE_MIN := TERRAIN_BYTES
 const FILE_FULL := TERRAIN_BYTES + NPC_BLOCK
+const TILE_CHEST := 60
+const TILE_BRICK_FLOOR := 62
 
 ## xu4 PersonDataOffset (column-major arrays of 32).
 const PD_TILE := 0
@@ -68,6 +70,8 @@ var annotations: Array[Dictionary] = []
 ## { "x", "y", "icon_shown", "icon_total" }.
 ## Open flips the art + gold icon + trap. Get rolls gold and steals karma.
 var opened_chests: Dictionary = {}
+## Chests looted on an earlier visit. Their original .ULT tile is treated as floor.
+var removed_chests: Dictionary = {}
 
 
 func clear() -> void:
@@ -83,6 +87,7 @@ func clear() -> void:
 	discourses.clear()
 	annotations.clear()
 	opened_chests.clear()
+	removed_chests.clear()
 	loaded = false
 	source_path = ""
 
@@ -101,7 +106,10 @@ func effective_tile_at(x: int, y: int) -> int:
 	var ann_tid := annotation_tile_at(x, y)
 	if ann_tid >= 0:
 		return ann_tid
-	return tile_at(x, y)
+	var tid := tile_at(x, y)
+	if tid == TILE_CHEST and removed_chests.has(chest_key(x, y)):
+		return TILE_BRICK_FLOOR
+	return tid
 
 
 func annotation_tile_at(x: int, y: int) -> int:
@@ -151,6 +159,11 @@ func pass_annotation_turns() -> bool:
 
 static func chest_key(x: int, y: int) -> String:
 	return "%d,%d" % [x, y]
+
+
+func remove_remembered_chests(keys: Array) -> void:
+	for key in keys:
+		removed_chests[str(key)] = true
 
 
 func is_chest_open(x: int, y: int) -> bool:
