@@ -17,6 +17,7 @@ const SAVE_DEBOUNCE_SEC := 0.35
 ## Windowed sizes as % of usable screen (Options → Resolution).
 const SCALE_PCTS: Array[int] = [90, 80, 70, 60, 50]
 const DEFAULT_SCALE_PCT := 80
+const _GameInput := preload("res://src/core/game_input.gd")
 
 ## Emitted when windowed ⇄ fullscreen changes (⌘F, Options, title bar, F11).
 signal fullscreen_changed(active: bool)
@@ -41,6 +42,7 @@ var _windowed_position := Vector2i(-1, -1)
 func _ready() -> void:
 	_load_config()
 	_ensure_input_map()
+	_GameInput.ensure_input_map()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_process(true)
 	set_process_input(true)

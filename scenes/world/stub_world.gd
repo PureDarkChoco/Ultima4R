@@ -32,6 +32,7 @@ const _ShrinePortals := preload("res://src/map/shrine_portals.gd")
 const _Shrine := preload("res://src/core/shrine.gd")
 const _Hawkwind := preload("res://src/core/hawkwind.gd")
 const _LordBritish := preload("res://src/core/lord_british.gd")
+const _GameInput := preload("res://src/core/game_input.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 
@@ -127,6 +128,7 @@ var _parked_ship_tile := Vector2i(-1, -1)
 var _move_cd := 0.0
 var _hold_arm := 0.0
 var _move_repeating := false
+var _left_trigger_held := false
 var _held_dir := Vector2i.ZERO
 var _pending_cmd: int = U4Commands.Id.NONE
 ## Label shown while waiting on the same line: "Attack: Dir?" (xu4 style).
@@ -2154,35 +2156,15 @@ func _tick_select_cursor() -> void:
 
 func _read_select_step() -> int:
 	## -1 = up, +1 = down, 0 = none (vertical only).
-	if Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP):
-		return -1
-	if Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN):
-		return 1
-	if Input.is_action_pressed("move_up"):
-		return -1
-	if Input.is_action_pressed("move_down"):
-		return 1
-	return 0
+	return _GameInput.read_select_step()
 
 
 func _read_move_dir() -> Vector2i:
-	if Input.is_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_LEFT):
-		return Vector2i(-1, 0)
-	if Input.is_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_RIGHT):
-		return Vector2i(1, 0)
-	if Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP):
-		return Vector2i(0, -1)
-	if Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN):
-		return Vector2i(0, 1)
-	if Input.is_action_pressed("move_left"):
-		return Vector2i(-1, 0)
-	if Input.is_action_pressed("move_right"):
-		return Vector2i(1, 0)
-	if Input.is_action_pressed("move_up"):
-		return Vector2i(0, -1)
-	if Input.is_action_pressed("move_down"):
-		return Vector2i(0, 1)
-	return Vector2i.ZERO
+	return _GameInput.read_move_dir()
+
+
+func _is_cancel_event(event: InputEvent) -> bool:
+	return _GameInput.is_cancel(event)
 
 
 func _clear_pending_dir() -> void:
@@ -2203,7 +2185,7 @@ func _clear_pending_order(show_none: bool = false) -> void:
 	_close_order_roster()
 
 
-func _on_escape() -> void:
+func _on_escape(allow_menu_open: bool = true) -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
@@ -2259,10 +2241,24 @@ func _on_escape() -> void:
 	if _esc_menu_is_open():
 		_close_esc_menu()
 		return
-	_open_esc_menu()
+	if allow_menu_open:
+		_open_esc_menu()
 
 
 func _input(event: InputEvent) -> void:
+	## Left trigger mirrors Tab. Axis events repeat while held, so fire once
+	## after crossing the threshold and re-arm on release.
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_TRIGGER_LEFT:
+			var down := motion.axis_value > 0.5
+			if down and not _left_trigger_held:
+				_left_trigger_held = true
+				_handle_panel_toggle()
+			elif not down:
+				_left_trigger_held = false
+			get_viewport().set_input_as_handled()
+			return
 	if _death_busy:
 		get_viewport().set_input_as_handled()
 		return
@@ -2282,37 +2278,41 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
-			## Ztats / Ready / Wear / Mix / camp pick open: don't collapse/expand side panels.
-			## Camp rest allows Tab so inventory panels stay reachable.
-			## Shrine session: panels stay forced open; Tab locked.
-			## Talk: Tab only toggles the left inventory panel; state persists after Bye.
-			if (
-				_ztats_stage != 0
-				or _ready_stage != 0
-				or _wear_stage != 0
-				or _mix_stage != 0
-				or _use_stage != 0
-				or _shrine_session
-				or _shrine_stage != 0
-				or _shrine_busy
-				or _shrine_ejecting
-				or _camp_stage == 2
-				or _camp_stage == 3
-				or _chest_open_stage != 0
-				or _telescope_stage != 0
-				or _save_stage != 0
-				or _esc_menu_is_open()
-				or _options_panel_is_open()
-			):
-				get_viewport().set_input_as_handled()
-				return
-			if _talk_stage != 0:
-				_toggle_left_panel_during_talk()
-				get_viewport().set_input_as_handled()
-				return
-			_toggle_side_panels()
+			_handle_panel_toggle()
 			get_viewport().set_input_as_handled()
 			return
+
+
+func _handle_panel_toggle() -> void:
+	## Ztats / Ready / Wear / Mix / camp pick open: don't collapse/expand side panels.
+	## Camp rest allows Tab so inventory panels stay reachable.
+	## Shrine session: panels stay forced open; Tab/left trigger locked.
+	## Talk: only toggle the left inventory panel; state persists after Bye.
+	if _death_busy or _combat_active:
+		return
+	if (
+		_ztats_stage != 0
+		or _ready_stage != 0
+		or _wear_stage != 0
+		or _mix_stage != 0
+		or _use_stage != 0
+		or _shrine_session
+		or _shrine_stage != 0
+		or _shrine_busy
+		or _shrine_ejecting
+		or _camp_stage == 2
+		or _camp_stage == 3
+		or _chest_open_stage != 0
+		or _telescope_stage != 0
+		or _save_stage != 0
+		or _esc_menu_is_open()
+		or _options_panel_is_open()
+	):
+		return
+	if _talk_stage != 0:
+		_toggle_left_panel_during_talk()
+		return
+	_toggle_side_panels()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -2343,6 +2343,21 @@ func _unhandled_input(event: InputEvent) -> void:
 				):
 					_handle_talk_input(ime_key)
 				get_viewport().set_input_as_handled()
+			elif _is_cancel_event(event):
+				if _talk_stage == 10 and _shop != null:
+					_shop.on_escape()
+					_flush_shop_output()
+				else:
+					_end_talk(true)
+				get_viewport().set_input_as_handled()
+			return
+		if _is_cancel_event(event):
+			if _talk_stage == 10 and _shop != null:
+				_shop.on_escape()
+				_flush_shop_output()
+			else:
+				_end_talk(true)
+			get_viewport().set_input_as_handled()
 			return
 		if _handle_talk_input(event):
 			get_viewport().set_input_as_handled()
@@ -2376,9 +2391,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			return
 		if _pending_cmd != U4Commands.Id.NONE:
-			if event is InputEventKey and event.pressed and not event.echo:
-				if _handle_combat_pending_dir(event as InputEventKey):
-					get_viewport().set_input_as_handled()
+			if event.is_pressed() and not event.is_echo() and _handle_combat_pending_dir_event(event):
+				get_viewport().set_input_as_handled()
 			elif event.is_pressed():
 				get_viewport().set_input_as_handled()
 			return
@@ -2530,6 +2544,41 @@ func _unhandled_input(event: InputEvent) -> void:
 				_clear_ship_yell_await()
 			_handle_command(cmd)
 			get_viewport().set_input_as_handled()
+		return
+	## Gamepad: Start opens/closes the menu. B only cancels the current context;
+	## it must never open the menu. Stick/D-pad feed held move via _process.
+	if event.is_pressed() and not event.is_echo():
+		if _peer_overlay != null and _peer_overlay.is_open():
+			if _is_cancel_event(event) or _GameInput.is_select(event):
+				_close_peer_overlay()
+				get_viewport().set_input_as_handled()
+			return
+		if (
+			event is InputEventJoypadButton
+			and (event as InputEventJoypadButton).button_index == JOY_BUTTON_START
+		):
+			_on_escape(true)
+			get_viewport().set_input_as_handled()
+			return
+		if _is_cancel_event(event):
+			_on_escape(false)
+			get_viewport().set_input_as_handled()
+			return
+		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
+			if _GameInput.dir_from_event(event) != Vector2i.ZERO:
+				## Direction applied in _process hold path.
+				return
+			if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+				_clear_pending_dir()
+				_clear_ship_yell_await()
+				get_viewport().set_input_as_handled()
+				return
+			if event is InputEventJoypadButton:
+				_clear_pending_dir()
+				_clear_ship_yell_await()
+				_push_message(Locale.t("cmd_what"), false)
+				get_viewport().set_input_as_handled()
+			return
 
 
 func _is_peer_dismiss_key(event: InputEventKey) -> bool:
@@ -8777,17 +8826,14 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	## No idle auto-pass. Esc only cancels aim (or victory leave after win).
 	if not event.is_pressed() or event.is_echo():
 		return false
-	if not (event is InputEventKey):
-		return false
-	var k := event as InputEventKey
 	## After Victory!: free roam / Open / Get / ESC leave — never swallow on resolving.
 	if _combat_victory_aftermath:
-		return _handle_combat_victory_input(k)
+		return _handle_combat_victory_input_event(event)
 	## Swallow other keys while foe turns / gaps / strike FX play out.
 	if _combat_resolving and not _combat_aiming:
 		return true
 	if _combat_aiming:
-		return _handle_combat_aim_input(k)
+		return _handle_combat_aim_input_event(event)
 	if _combat_resolving:
 		return true
 	## Sleeping / dead focus — auto-pass (wake checked when focus lands).
@@ -8795,13 +8841,16 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	if focus_klass >= 0 and GameState.is_member_disabled(focus_klass):
 		_combat_finish_member_turn()
 		return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir != Vector2i.ZERO:
+		_combat_try_move(dir)
+		return true
+	if not (event is InputEventKey):
+		return false
+	var k := event as InputEventKey
 	if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
 		_push_message(Locale.t("cmd_pass"), false)
 		_combat_finish_member_turn()
-		return true
-	var dir := _combat_dir_from_key(k)
-	if dir != Vector2i.ZERO:
-		_combat_try_move(dir)
 		return true
 	var cmd := U4Commands.from_event(k)
 	if cmd == U4Commands.Id.NONE:
@@ -8820,45 +8869,144 @@ func _handle_combat_input(event: InputEvent) -> bool:
 
 
 func _handle_combat_victory_input(k: InputEventKey) -> bool:
+	return _handle_combat_victory_input_event(k)
+
+
+func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 	## Free movement, Open/Get/Cast, active-player 0–8, ESC cascade exit — no turn clock.
 	_combat_resolving = false
-	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+	if _is_cancel_event(event):
 		_combat_victory_esc_exit_all()
 		return true
-	## 0 = party rotation, 1–8 = solo control of that party slot (xu4 active player).
-	var digit := _victory_digit_from_key(k)
-	if digit >= 0:
-		_victory_set_active_player(digit - 1) ## 0 key → -1 (none)
-		return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		## 0 = party rotation, 1–8 = solo control of that party slot (xu4 active player).
+		var digit := _victory_digit_from_key(k)
+		if digit >= 0:
+			_victory_set_active_player(digit - 1) ## 0 key → -1 (none)
+			return true
+		var cmd := U4Commands.from_event(k)
+		var lang := GameState.lang_short()
+		match cmd:
+			U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+				## Loot chests left on the arena (no turn cost after Victory!).
+				_pending_cmd = cmd
+				_pending_cmd_name = U4Commands.label(cmd, lang)
+				_layout_prompt_row()
+			U4Commands.Id.ZTATS:
+				_do_ztats()
+			U4Commands.Id.CAST:
+				## Cast UI not ported yet — same stub as explore/combat turn.
+				_push_message(Locale.t("cmd_stub", [
+					U4Commands.letter_for(cmd),
+					U4Commands.label(cmd, lang),
+				]), false)
+			U4Commands.Id.READY:
+				_do_ready()
+			U4Commands.Id.USE:
+				_do_use()
+			_:
+				pass ## ignore other letters (no Not here! spam)
 	## Keep solo character focused (in case focus drifted).
 	_victory_ensure_solo_focus()
-	var dir := _combat_dir_from_key(k)
+	var dir := _GameInput.dir_from_event(event)
 	if dir != Vector2i.ZERO:
 		_combat_try_move(dir)
 		return true
-	var cmd := U4Commands.from_event(k)
-	var lang := GameState.lang_short()
-	match cmd:
-		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
-			## Loot chests left on the arena (no turn cost after Victory!).
-			_pending_cmd = cmd
-			_pending_cmd_name = U4Commands.label(cmd, lang)
+	return true
+
+
+func _handle_combat_pending_dir(k: InputEventKey) -> bool:
+	return _handle_combat_pending_dir_event(k)
+
+
+func _handle_combat_pending_dir_event(event: InputEvent) -> bool:
+	## Open / Get Dir? while combat is active (no _process move).
+	## Esc / Space / Enter / B cancel without spending the member turn.
+	if _pending_cmd == U4Commands.Id.NONE:
+		return false
+	if _is_cancel_event(event):
+		_clear_pending_dir()
+		_push_message(Locale.t("cmd_cancelled"), false)
+		_layout_prompt_row()
+		return true
+	if event is InputEventKey and _is_dir_cancel_key(event as InputEventKey):
+		_clear_pending_dir()
+		_push_message(Locale.t("cmd_cancelled"), false)
+		_layout_prompt_row()
+		return true
+	if _GameInput.is_select(event):
+		_clear_pending_dir()
+		_push_message(Locale.t("cmd_cancelled"), false)
+		_layout_prompt_row()
+		return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir == Vector2i.ZERO:
+		## Any non-dir → "What?" and abort Dir? (no turn until a real action).
+		if event is InputEventKey or event is InputEventJoypadButton:
+			_clear_pending_dir()
+			_push_message(Locale.t("cmd_what"), false)
 			_layout_prompt_row()
+			return true
+		return false
+	_finish_directed_command(dir)
+	return true
+
+
+func _handle_combat_aim_input(k: InputEventKey) -> bool:
+	return _handle_combat_aim_input_event(k)
+
+
+func _handle_combat_aim_input_event(event: InputEvent) -> bool:
+	if _is_cancel_event(event):
+		_combat_cancel_aim()
+		return true
+	if _GameInput.is_select(event) or (
+		event is InputEventKey
+		and (
+			_is_key(event as InputEventKey, KEY_A)
+			or _is_key(event as InputEventKey, KEY_ENTER)
+			or _is_key(event as InputEventKey, KEY_KP_ENTER)
+		)
+	):
+		_combat_confirm_aim()
+		return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir == Vector2i.ZERO:
+		return true ## swallow other keys while aiming
+	_combat_move_aim(dir)
+	return true
+
+
+func _handle_combat_command(cmd: int) -> void:
+	## Letter commands allowed in combat (after Not-here filter).
+	var lang := GameState.lang_short()
+	var name := U4Commands.label(cmd, lang)
+	var letter := U4Commands.letter_for(cmd)
+	match cmd:
+		U4Commands.Id.ATTACK:
+			_combat_begin_aim()
+		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
+			## Dir? prompts (Open is remake-allowed; Get matches classic).
+			_pending_cmd = cmd
+			_pending_cmd_name = name
+			_layout_prompt_row()
+		U4Commands.Id.READY:
+			_do_ready()
 		U4Commands.Id.ZTATS:
 			_do_ztats()
 		U4Commands.Id.CAST:
-			## Cast UI not ported yet — same stub as explore/combat turn.
-			_push_message(Locale.t("cmd_stub", [
-				U4Commands.letter_for(cmd),
-				U4Commands.label(cmd, lang),
-			]), false)
-		U4Commands.Id.READY:
-			_do_ready()
+			## Cast not fully ported yet — consume the turn like a valid command start.
+			_push_message(Locale.t("cmd_stub", [letter, name]), false)
+			_combat_finish_member_turn()
 		U4Commands.Id.USE:
 			_do_use()
+		U4Commands.Id.VOLUME:
+			## xu4 V toggles music; no turn cost.
+			_push_message(Locale.t("cmd_stub", [letter, name]), false)
 		_:
-			pass ## ignore other letters (no Not here! spam)
-	return true
+			_push_message(Locale.t("cmd_not_here"), false)
+			_combat_finish_member_turn()
 
 
 func _victory_digit_from_key(k: InputEventKey) -> int:
@@ -8940,77 +9088,8 @@ func _victory_advance_party_focus() -> void:
 	_sync_combat_focus_roster()
 
 
-func _handle_combat_pending_dir(k: InputEventKey) -> bool:
-	## Open / Get Dir? while combat is active (no _process move).
-	## Esc / Space / Enter cancel without spending the member turn.
-	if _pending_cmd == U4Commands.Id.NONE:
-		return false
-	if (
-		k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
-		or _is_dir_cancel_key(k)
-	):
-		_clear_pending_dir()
-		_push_message(Locale.t("cmd_cancelled"), false)
-		_layout_prompt_row()
-		return true
-	var dir := _combat_dir_from_key(k)
-	if dir == Vector2i.ZERO:
-		## Any non-dir → "What?" and abort Dir? (no turn until a real action).
-		_clear_pending_dir()
-		_push_message(Locale.t("cmd_what"), false)
-		_layout_prompt_row()
-		return true
-	_finish_directed_command(dir)
-	return true
-
-
-func _handle_combat_command(cmd: int) -> void:
-	## Letter commands allowed in combat (after Not-here filter).
-	var lang := GameState.lang_short()
-	var name := U4Commands.label(cmd, lang)
-	var letter := U4Commands.letter_for(cmd)
-	match cmd:
-		U4Commands.Id.ATTACK:
-			_combat_begin_aim()
-		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
-			## Dir? prompts (Open is remake-allowed; Get matches classic).
-			_pending_cmd = cmd
-			_pending_cmd_name = name
-			_layout_prompt_row()
-		U4Commands.Id.READY:
-			_do_ready()
-		U4Commands.Id.ZTATS:
-			_do_ztats()
-		U4Commands.Id.CAST:
-			## Cast not fully ported yet — consume the turn like a valid command start.
-			_push_message(Locale.t("cmd_stub", [letter, name]), false)
-			_combat_finish_member_turn()
-		U4Commands.Id.USE:
-			_do_use()
-		U4Commands.Id.VOLUME:
-			## xu4 V toggles music; no turn cost.
-			_push_message(Locale.t("cmd_stub", [letter, name]), false)
-		_:
-			_push_message(Locale.t("cmd_not_here"), false)
-			_combat_finish_member_turn()
-
-
 func _is_key(k: InputEventKey, code: int) -> bool:
 	return k.keycode == code or k.physical_keycode == code
-
-
-func _handle_combat_aim_input(k: InputEventKey) -> bool:
-	if _is_key(k, KEY_ESCAPE):
-		_combat_cancel_aim()
-		return true
-	if _is_key(k, KEY_A) or _is_key(k, KEY_ENTER) or _is_key(k, KEY_KP_ENTER):
-		_combat_confirm_aim()
-		return true
-	var dir := _combat_dir_from_key(k)
-	if dir == Vector2i.ZERO:
-		return true ## swallow other keys while aiming
-	_combat_move_aim(dir)
-	return true
 
 
 func _combat_begin_aim() -> void:

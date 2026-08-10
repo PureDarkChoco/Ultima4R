@@ -8,6 +8,7 @@ const _SaveGame := preload("res://src/core/save_game.gd")
 const _IntroController := preload("res://src/intro/intro_controller.gd")
 const _OptionsPanel := preload("res://src/ui/options_panel.gd")
 const _LicensesPanel := preload("res://src/ui/licenses_panel.gd")
+const _GameInput := preload("res://src/core/game_input.gd")
 const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
@@ -56,6 +57,7 @@ func _ready() -> void:
 	for b in [_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit]:
 		_style_menu_line(b)
 		b.focus_mode = Control.FOCUS_ALL
+	_wire_menu_focus_neighbors()
 
 	_btn_return.pressed.connect(_on_return_view)
 	_btn_journey.pressed.connect(_on_journey)
@@ -137,6 +139,23 @@ func _style_menu_line(btn: Button) -> void:
 	UiTheme.apply_font(btn)
 	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	btn.flat = true
+
+
+func _wire_menu_focus_neighbors() -> void:
+	## Explicit vertical chain so D-pad / stick always walk the Journey list.
+	var chain: Array[Button] = [
+		_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit
+	]
+	for i in range(chain.size()):
+		var cur := chain[i]
+		var prev := chain[(i - 1 + chain.size()) % chain.size()]
+		var next := chain[(i + 1) % chain.size()]
+		cur.focus_neighbor_top = cur.get_path_to(prev)
+		cur.focus_neighbor_bottom = cur.get_path_to(next)
+		cur.focus_neighbor_left = cur.get_path_to(cur)
+		cur.focus_neighbor_right = cur.get_path_to(cur)
+		cur.focus_next = cur.get_path_to(next)
+		cur.focus_previous = cur.get_path_to(prev)
 
 
 func _cell_pos(col: float, row: float) -> Vector2:
@@ -332,11 +351,7 @@ func _process(delta: float) -> void:
 		return
 	_move_cd = maxf(0.0, _move_cd - delta)
 	_hold_arm = maxf(0.0, _hold_arm - delta)
-	var step := 0
-	if Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP) or Input.is_action_pressed("ui_up"):
-		step = -1
-	elif Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN) or Input.is_action_pressed("ui_down"):
-		step = 1
+	var step: int = _GameInput.read_select_step()
 	if step == 0:
 		_held_dir = Vector2i.ZERO
 		_move_repeating = false
@@ -379,6 +394,35 @@ func _input(event: InputEvent) -> void:
 		if _handle_licenses_input(event):
 			get_viewport().set_input_as_handled()
 		return
+	if _create_open:
+		return
+	## Main Journey list: A / Enter activate the focused line (do not rely on
+	## BaseButton ui_accept alone — gamepad often never fires pressed).
+	if (
+		_intro != null
+		and _intro.mode == _IntroController.Mode.MENU
+		and (
+			_GameInput.is_select(event)
+			or event.is_action_pressed("ui_accept")
+			or event.is_action_pressed("confirm")
+		)
+		and _activate_focused_menu_button()
+	):
+		get_viewport().set_input_as_handled()
+
+
+func _activate_focused_menu_button() -> bool:
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo == null or not (fo is BaseButton):
+		return false
+	var btn := fo as BaseButton
+	if not btn.visible or btn.disabled:
+		return false
+	## Only our Journey-frame lines — ignore stray focus elsewhere.
+	if btn not in [_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit]:
+		return false
+	btn.pressed.emit()
+	return true
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -622,70 +666,27 @@ func _handle_options_input(event: InputEvent) -> bool:
 		if dir != 0 and _options_panel:
 			_options_panel.cycle_current(dir)
 			return true
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if (
-			k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
-			or event.is_action_pressed("ui_cancel")
-			or event.is_action_pressed("cancel")
-		):
-			_close_options()
-			return true
-		if (
-			k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER
-			or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER
-			or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
-		):
-			if _options_panel:
-				_options_panel.cycle_current(1)
-			return true
-		## Swallow other letter keys so menu R/J/I/O don't fire under options.
+	if _GameInput.is_cancel(event):
+		_close_options()
 		return true
-	if event is InputEventJoypadButton:
-		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_B:
-			_close_options()
-			return true
-		if jb.button_index == JOY_BUTTON_A:
-			if _options_panel:
-				_options_panel.cycle_current(1)
-			return true
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
+		if _options_panel:
+			_options_panel.cycle_current(1)
+		return true
+	if event is InputEventKey or event is InputEventJoypadButton:
+		## Swallow other keys so menu R/J/I/O don't fire under options.
 		return true
 	return false
 
 
 func _options_horizontal_nudge(event: InputEvent) -> bool:
-	return (
-		event.is_action_pressed("ui_left")
-		or event.is_action_pressed("ui_right")
-		or event.is_action_pressed("move_left")
-		or event.is_action_pressed("move_right")
-		or (
-			event is InputEventKey
-			and (
-				event.keycode == KEY_LEFT
-				or event.physical_keycode == KEY_LEFT
-				or event.keycode == KEY_RIGHT
-				or event.physical_keycode == KEY_RIGHT
-			)
-		)
-	)
+	var d: Vector2i = _GameInput.dir_from_event(event)
+	return d.x != 0
 
 
 func _options_value_delta(event: InputEvent) -> int:
-	if (
-		event.is_action_pressed("ui_left")
-		or event.is_action_pressed("move_left")
-		or (event is InputEventKey and (event.keycode == KEY_LEFT or event.physical_keycode == KEY_LEFT))
-	):
-		return -1
-	if (
-		event.is_action_pressed("ui_right")
-		or event.is_action_pressed("move_right")
-		or (event is InputEventKey and (event.keycode == KEY_RIGHT or event.physical_keycode == KEY_RIGHT))
-	):
-		return 1
-	return 0
+	var d: Vector2i = _GameInput.dir_from_event(event)
+	return d.x
 
 
 func _close_options() -> void:
@@ -706,15 +707,11 @@ func _close_options() -> void:
 func _handle_licenses_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
+	if _GameInput.is_cancel(event):
+		_close_licenses()
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
-		if (
-			k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE
-			or event.is_action_pressed("ui_cancel")
-			or event.is_action_pressed("cancel")
-		):
-			_close_licenses()
-			return true
 		if k.keycode == KEY_PAGEUP or k.physical_keycode == KEY_PAGEUP:
 			_licenses_panel.scroll_by(-280.0)
 			return true
@@ -729,9 +726,6 @@ func _handle_licenses_input(event: InputEvent) -> bool:
 			return true
 		return true
 	if event is InputEventJoypadButton:
-		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_B:
-			_close_licenses()
 		return true
 	return false
 
@@ -758,28 +752,22 @@ func _handle_load_input(event: InputEvent) -> bool:
 		return false
 	## Same cancel path as name-form Esc / Back — restore Journey menu immediately.
 	if (
-		event.is_action_pressed("ui_cancel")
-		or event.is_action_pressed("cancel")
+		_GameInput.is_cancel(event)
 		or (
 			event is InputEventKey
 			and (
-				(event as InputEventKey).keycode == KEY_ESCAPE
-				or (event as InputEventKey).physical_keycode == KEY_ESCAPE
-				or (event as InputEventKey).keycode == KEY_SPACE
+				(event as InputEventKey).keycode == KEY_SPACE
 				or (event as InputEventKey).physical_keycode == KEY_SPACE
 			)
 		)
 	):
 		_close_load()
 		return true
+	if _GameInput.is_select(event):
+		_confirm_load(_save_panel.cursor() if _save_panel else 0)
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
-		if (
-			k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER
-			or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER
-		):
-			_confirm_load(_save_panel.cursor() if _save_panel else 0)
-			return true
 		if _is_delete_save_key(k):
 			_prompt_delete_load_slot()
 			return true
@@ -792,13 +780,6 @@ func _handle_load_input(event: InputEvent) -> bool:
 		## Swallow other keys so menu R/J/I shortcuts don’t fire under the list.
 		return true
 	if event is InputEventJoypadButton:
-		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_B:
-			_close_load()
-			return true
-		if jb.button_index == JOY_BUTTON_A:
-			_confirm_load(_save_panel.cursor() if _save_panel else 0)
-			return true
 		return true
 	return false
 
