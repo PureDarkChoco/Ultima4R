@@ -3432,6 +3432,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.is_pressed():
 				get_viewport().set_input_as_handled()
 			return
+		if _handle_shop_number_input(event):
+			get_viewport().set_input_as_handled()
+			return
 		if _handle_shop_item_menu_input(event):
 			get_viewport().set_input_as_handled()
 			return
@@ -8611,6 +8614,9 @@ func _flush_shop_output() -> void:
 		return
 	_talk_buffer = ""
 	_sync_shop_item_menu()
+	if int(_shop.mode) == _VendorShop.Mode.NUMBER:
+		_talk_buffer = "0"
+		_GameInput.reset_stick_navigation()
 	if not _shop_choice_keys().is_empty():
 		_enter_prompt_choice = 0
 		_GameInput.reset_stick_navigation()
@@ -8712,6 +8718,76 @@ func _handle_shop_item_menu_input(event: InputEvent) -> bool:
 		var pad_dir := _GameInput.dir_from_event(event)
 		if pad_dir.y != 0:
 			_move_shop_item_menu_cursor(pad_dir.y)
+			return true
+	return false
+
+
+func _shop_number_adjust(delta: int) -> void:
+	if _shop == null or delta == 0:
+		return
+	var current := int(_talk_buffer) if _talk_buffer.is_valid_int() else 0
+	var max_value := 1
+	for _i in int(_shop.max_digits):
+		max_value *= 10
+	max_value -= 1
+	_talk_buffer = str(clampi(current + delta, 0, max_value))
+	_layout_prompt_row()
+
+
+func _submit_shop_number() -> void:
+	if _shop == null or int(_shop.mode) != _VendorShop.Mode.NUMBER:
+		return
+	var submitted := _talk_buffer.strip_edges()
+	_talk_buffer = ""
+	_layout_prompt_row()
+	if not submitted.is_empty():
+		_push_talk_player_input(submitted)
+	var empty := submitted.is_empty()
+	var number := int(submitted) if submitted.is_valid_int() else 0
+	_shop.submit_number(number, empty or number <= 0)
+	_flush_shop_output()
+
+
+func _handle_shop_number_input(event: InputEvent) -> bool:
+	if (
+		_talk_stage != 10 or _shop == null
+		or int(_shop.mode) != _VendorShop.Mode.NUMBER
+	):
+		return false
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		var delta := 0
+		if motion.axis == JOY_AXIS_LEFT_X:
+			delta = _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X) * 10
+		elif motion.axis == JOY_AXIS_LEFT_Y:
+			delta = -_GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if delta != 0:
+			_shop_number_adjust(delta)
+		return true
+	if not event.is_pressed():
+		return false
+	if event is InputEventJoypadButton:
+		if event.is_echo():
+			return false
+		if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+			_submit_shop_number()
+			return true
+		var pad_dir := _GameInput.dir_from_event(event)
+		if pad_dir.x != 0:
+			_shop_number_adjust(pad_dir.x * 10)
+			return true
+		if pad_dir.y != 0:
+			_shop_number_adjust(-pad_dir.y)
+			return true
+		return false
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		var key_dir := _GameInput.dir_from_event(key_event)
+		if key_dir.x != 0:
+			_shop_number_adjust(key_dir.x * 10)
+			return true
+		if key_dir.y != 0:
+			_shop_number_adjust(-key_dir.y)
 			return true
 	return false
 
@@ -9466,6 +9542,10 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			return true
 		var dig := _key_digit_char(k)
 		if dig.is_empty():
+			return true
+		if _talk_buffer == "0":
+			_talk_buffer = dig
+			_layout_prompt_row()
 			return true
 		if _talk_buffer.length() >= int(_shop.max_digits):
 			return true

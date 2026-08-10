@@ -343,8 +343,17 @@ func on_escape() -> void:
 		"w_inv", "w_sell_key":
 			_w_prompt_buy_sell()
 			return
+		"w_howmany", "w_sell_howmany":
+			_w_prompt_buy_sell()
+			return
 		"a_inv", "a_sell_key":
 			_a_prompt_buy_sell()
+			return
+		"a_howmany", "a_sell_howmany":
+			_a_prompt_buy_sell()
+			return
+		"f_howmany":
+			_f_prompt_interest()
 			return
 		_:
 			pass
@@ -984,6 +993,11 @@ func _start_food() -> void:
 		_say(_L("Come back when you have some money!"))
 		_finish()
 		return
+	_say(_L("May I interest you in some rations? (Y/N)"))
+	_want_choice("yn", "f_interest")
+
+
+func _f_prompt_interest() -> void:
 	_say(_L("May I interest you in some rations? (Y/N)"))
 	_want_choice("yn", "f_interest")
 
