@@ -3186,6 +3186,41 @@ func _discover_talk_keywords(text: String) -> void:
 		_sync_talk_keyword_menu_visibility()
 
 
+func _offer_talk_join_keyword() -> void:
+	## Some natural Korean translations say "함께하다" instead of the literal
+	## "합류", so expose Join after the source TLK explicitly offers to join.
+	if not _talk_keyword_menu_active or _talk_keyword_menu_seen.has("join"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var health_index := _talk_keyword_menu_items.size()
+	for i in _talk_keyword_menu_items.size():
+		if str(_talk_keyword_menu_items[i].get("key", "")) == "heal":
+			health_index = i
+			break
+	_talk_keyword_menu_items.insert(health_index, {
+		"key": "join",
+		"label": "합류" if korean else "Join",
+		"input": "합류" if korean else "join",
+	})
+	_talk_keyword_menu_seen["join"] = true
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
+
+
+func _talk_answer_unlocks_join(e, yes: bool) -> bool:
+	## Four companions explicitly say "join" in their Yes reply. The others
+	## reveal Join after the virtue-aligned answer from their original dialogue.
+	if yes and str(e.yes).to_lower().contains("join"):
+		return true
+	match str(e.name).to_lower():
+		"jaana", "dupre":
+			return yes
+		"katrina":
+			return not yes
+		_:
+			return false
+
+
 func _move_talk_keyword_menu_cursor(step: int) -> void:
 	if _talk_keyword_menu_items.is_empty() or step == 0:
 		return
@@ -9921,6 +9956,12 @@ func _talk_process_keyword(input: String) -> void:
 		var reply := str(hit.get("text", ""))
 		_push_talk_script(reply)
 		_TalkTlk.apply_keyword_rewards(e, kind)
+		if (
+			str(e.name).to_lower() == "shamino"
+			and kind == _TalkTlk.REPLY_TOPIC2
+			and GameState.can_person_join_name(str(e.name))
+		):
+			_offer_talk_join_keyword()
 		if _TalkTlk.should_ask_after(e, kind):
 			_talk_stage = 2
 			_talk_pending_ask = true
@@ -9997,6 +10038,11 @@ func _talk_answer_yn(yes: bool) -> void:
 			GameState.adjust_karma_humble()
 	var reply := str(e.yes if yes else e.no)
 	_push_talk_script(reply)
+	if (
+		_talk_answer_unlocks_join(e, yes)
+		and GameState.can_person_join_name(str(e.name))
+	):
+		_offer_talk_join_keyword()
 	_TalkTlk.apply_yesno_rewards(e, yes)
 	_talk_prompt_interest()
 
