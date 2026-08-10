@@ -3245,6 +3245,13 @@ func _handle_esc_menu_input(event: InputEvent) -> bool:
 
 
 func _handle_options_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_LEFT_X:
+			var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+			if stick_step != 0:
+				_cycle_options_cursor_value(stick_step)
+			return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _options_horizontal_nudge(event):

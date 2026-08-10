@@ -396,6 +396,16 @@ func _input(event: InputEvent) -> void:
 		return
 	if _create_open:
 		return
+	if event is InputEventJoypadMotion:
+		var stick_dir: Vector2i = _GameInput.stick_direction_step(event)
+		if stick_dir.y != 0:
+			_move_main_menu_focus(stick_dir.y)
+		if (
+			(event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_X
+			or (event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_Y
+		):
+			get_viewport().set_input_as_handled()
+			return
 	## Main Journey list: A / Enter activate the focused line (do not rely on
 	## BaseButton ui_accept alone — gamepad often never fires pressed).
 	if (
@@ -423,6 +433,18 @@ func _activate_focused_menu_button() -> bool:
 		return false
 	btn.pressed.emit()
 	return true
+
+
+func _move_main_menu_focus(step: int) -> void:
+	var chain: Array[Button] = [
+		_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit
+	]
+	var current := get_viewport().gui_get_focus_owner()
+	var index := chain.find(current)
+	if index < 0:
+		index = chain.find(_btn_journey)
+	var next := clampi(index + signi(step), 0, chain.size() - 1)
+	chain[next].grab_focus()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -659,6 +681,13 @@ func _close_name_form() -> void:
 
 
 func _handle_options_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_LEFT_X:
+			var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+			if stick_step != 0 and _options_panel:
+				_options_panel.cycle_current(stick_step)
+			return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _options_horizontal_nudge(event):

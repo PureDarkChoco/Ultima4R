@@ -7,6 +7,7 @@ extends Control
 signal cancelled ## Embedded mode: return to Journey menu (not a scene change).
 
 const _HangulComposerInput := preload("res://src/core/hangul_composer_input.gd")
+const _GameInput := preload("res://src/core/game_input.gd")
 const DEFAULT_NAME_EN := "Avatar"
 const DEFAULT_NAME_KO := "아바타"
 
@@ -341,6 +342,16 @@ func _focused_name_field() -> LineEdit:
 func _unhandled_input(event: InputEvent) -> void:
 	if _embedded and not visible:
 		return
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_LEFT_X or motion.axis == JOY_AXIS_LEFT_Y:
+			var stick_dir: Vector2i = _GameInput.stick_direction_step(event)
+			if _editing == null and stick_dir != Vector2i.ZERO:
+				_move_focus_from_stick(stick_dir)
+			## Consume every left-stick axis event, including neutral/release,
+			## so move_* cannot cascade through multiple form rows.
+			get_viewport().set_input_as_handled()
+			return
 	## Match world dialogue exactly: a read-only display field leaves physical
 	## key events for this stage, where libhangul handles 한/영 and composition.
 	if _editing != null and _use_native_hangul() and event is InputEventKey:
@@ -459,6 +470,40 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("confirm") and get_viewport().gui_get_focus_owner() == null:
 		_on_continue()
 		get_viewport().set_input_as_handled()
+
+
+func _move_focus_from_stick(dir: Vector2i) -> void:
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus == null:
+		_name_en.grab_focus()
+		return
+	if dir.y < 0:
+		if focus == _name_ko:
+			_name_en.grab_focus()
+		elif focus == _male or focus == _female:
+			_name_ko.grab_focus()
+		elif focus == _back or focus == _continue:
+			_selected_sex_button().grab_focus()
+		return
+	if dir.y > 0:
+		if focus == _name_en:
+			_name_ko.grab_focus()
+		elif focus == _name_ko:
+			_selected_sex_button().grab_focus()
+		elif focus == _male or focus == _female:
+			_continue.grab_focus()
+		return
+	if dir.x < 0:
+		if focus == _female:
+			_male.grab_focus()
+		elif focus == _continue:
+			_back.grab_focus()
+		return
+	if dir.x > 0:
+		if focus == _male:
+			_female.grab_focus()
+		elif focus == _back:
+			_continue.grab_focus()
 
 
 func _on_name_gui_input(field: LineEdit, event: InputEvent) -> void:

@@ -6,6 +6,11 @@ extends Object
 ## works with D-pad / left stick even if engine defaults differ.
 
 const STICK_DEADZONE := 0.5
+const STICK_NAV_PRESS := 0.72
+const STICK_NAV_RELEASE := 0.30
+
+static var _stick_nav_latches: Dictionary = {}
+static var _select_y_latches: Dictionary = {}
 
 
 static func ensure_input_map() -> void:
@@ -102,16 +107,67 @@ static func read_move_dir() -> Vector2i:
 
 
 static func read_select_step() -> int:
-	## -1 up, +1 down, 0 none.
+	## -1 up, +1 down, 0 none. Keyboard/D-pad stay immediate; stick uses
+	## press/release hysteresis while preserving the caller's hold-repeat timer.
 	if Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP):
 		return -1
 	if Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN):
 		return 1
-	if Input.is_action_pressed("move_up") or Input.is_action_pressed("ui_up"):
-		return -1
-	if Input.is_action_pressed("move_down") or Input.is_action_pressed("ui_down"):
-		return 1
+	for device in Input.get_connected_joypads():
+		if Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_UP):
+			return -1
+		if Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_DOWN):
+			return 1
+	for device in Input.get_connected_joypads():
+		var value := Input.get_joy_axis(device, JOY_AXIS_LEFT_Y)
+		var latched := int(_select_y_latches.get(device, 0))
+		if latched != 0:
+			if absf(value) <= STICK_NAV_RELEASE:
+				_select_y_latches[device] = 0
+			elif signf(value) == float(latched):
+				return latched
+			## Opposite snap-back is ignored until neutral is observed.
+			continue
+		if absf(value) >= STICK_NAV_PRESS:
+			var direction := -1 if value < 0.0 else 1
+			_select_y_latches[device] = direction
+			return direction
 	return 0
+
+
+static func stick_axis_step(event: InputEvent, axis: JoyAxis) -> int:
+	## One navigation step per deliberate tilt. The axis must return near
+	## neutral before either direction can fire again, which filters snap-back.
+	if not (event is InputEventJoypadMotion):
+		return 0
+	var motion := event as InputEventJoypadMotion
+	if motion.axis != axis:
+		return 0
+	var key := "%d:%d" % [motion.device, int(axis)]
+	var latched := int(_stick_nav_latches.get(key, 0))
+	var value := motion.axis_value
+	if absf(value) <= STICK_NAV_RELEASE:
+		_stick_nav_latches[key] = 0
+		return 0
+	if absf(value) < STICK_NAV_PRESS:
+		return 0
+	var direction := -1 if value < 0.0 else 1
+	if latched != 0:
+		## Includes opposite-direction spring-back: neutral must be observed first.
+		return 0
+	_stick_nav_latches[key] = direction
+	return direction
+
+
+static func stick_direction_step(event: InputEvent) -> Vector2i:
+	if not (event is InputEventJoypadMotion):
+		return Vector2i.ZERO
+	var motion := event as InputEventJoypadMotion
+	if motion.axis == JOY_AXIS_LEFT_X:
+		return Vector2i(stick_axis_step(event, JOY_AXIS_LEFT_X), 0)
+	if motion.axis == JOY_AXIS_LEFT_Y:
+		return Vector2i(0, stick_axis_step(event, JOY_AXIS_LEFT_Y))
+	return Vector2i.ZERO
 
 
 static func _ensure_move_actions() -> void:
@@ -168,13 +224,15 @@ static func _ensure_confirm_cancel() -> void:
 
 
 static func _ensure_ui_nav() -> void:
-	## Godot GUI focus / Button activation.
+	## Keep D-pad on native GUI focus navigation. Raw stick axes are removed:
+	## screens consume them through stick_axis_step() with hysteresis instead.
+	for action in ["ui_up", "ui_down", "ui_left", "ui_right"]:
+		_remove_joy_motion_events(action)
 	_ensure_action(
 		"ui_up",
 		[
 			_key(KEY_UP),
 			_joy_button(JOY_BUTTON_DPAD_UP),
-			_joy_axis(JOY_AXIS_LEFT_Y, -1.0),
 		]
 	)
 	_ensure_action(
@@ -182,7 +240,6 @@ static func _ensure_ui_nav() -> void:
 		[
 			_key(KEY_DOWN),
 			_joy_button(JOY_BUTTON_DPAD_DOWN),
-			_joy_axis(JOY_AXIS_LEFT_Y, 1.0),
 		]
 	)
 	_ensure_action(
@@ -190,7 +247,6 @@ static func _ensure_ui_nav() -> void:
 		[
 			_key(KEY_LEFT),
 			_joy_button(JOY_BUTTON_DPAD_LEFT),
-			_joy_axis(JOY_AXIS_LEFT_X, -1.0),
 		]
 	)
 	_ensure_action(
@@ -198,7 +254,6 @@ static func _ensure_ui_nav() -> void:
 		[
 			_key(KEY_RIGHT),
 			_joy_button(JOY_BUTTON_DPAD_RIGHT),
-			_joy_axis(JOY_AXIS_LEFT_X, 1.0),
 		]
 	)
 	_ensure_action(
@@ -217,6 +272,14 @@ static func _ensure_ui_nav() -> void:
 			_joy_button(JOY_BUTTON_B),
 		]
 	)
+
+
+static func _remove_joy_motion_events(action: String) -> void:
+	if not InputMap.has_action(action):
+		return
+	for existing in InputMap.action_get_events(action):
+		if existing is InputEventJoypadMotion:
+			InputMap.action_erase_event(action, existing)
 
 
 static func _ensure_action(action: String, events: Array) -> void:
