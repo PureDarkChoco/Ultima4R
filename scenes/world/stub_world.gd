@@ -288,6 +288,8 @@ var _msg_lines: PackedStringArray = PackedStringArray()
 ## History rows support BBCode (talk keyword tint).
 var _msg_rows: Array[RichTextLabel] = []
 var _msg_prompt_row: Control
+var _shop_item_highlight: ColorRect
+var _shop_item_highlight_edge: ColorRect
 var _msg_prompt_icon: TextureRect ## xu4 CHARSET_PROMPT glyph (not a Unicode ►)
 var _msg_prompt_label: Label
 var _msg_cursor: TextureRect
@@ -340,6 +342,10 @@ var _talk_pending_ask := false
 var _talk_is_hawkwind := false
 var _talk_is_lb := false
 var _shop = null ## _VendorShop session
+var _shop_item_menu_cursor := 0
+var _shop_item_menu_items: Array[Dictionary] = []
+var _shop_item_menu_line_indices: Array[int] = []
+var _shop_item_line_by_key: Dictionary = {}
 ## Talk expands message strip + character roster (not left inventory unless Tab already open).
 ## Shop peeks: weapon/armor/reagent Ztats lists replace the roster while trading.
 var _talk_msg_open := false
@@ -1038,12 +1044,14 @@ func _ensure_msg_terminal() -> void:
 				_msg_prompt_row.add_child(_talk_edit)
 		_ensure_enter_prompt_buttons()
 		_ensure_command_menu_layer()
+		_ensure_shop_item_message_highlight()
 		return
 	if _msg_block == null:
 		return
 	_msg_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_msg_block.clip_contents = false
 	_load_msg_charset_glyphs()
+	_ensure_shop_item_message_highlight()
 	## History rows (14) + prompt row (1) = 15 equal slots.
 	for i in range(MSG_OPEN_LINES - 1):
 		var row := _make_msg_history_row()
@@ -1078,6 +1086,30 @@ func _ensure_msg_terminal() -> void:
 	_ensure_command_menu_layer()
 	_msg_ui_ready = true
 	_refresh_message_view()
+
+
+func _ensure_shop_item_message_highlight() -> void:
+	if _msg_block == null:
+		return
+	if _shop_item_highlight != null and is_instance_valid(_shop_item_highlight):
+		return
+	var existing := _msg_block.get_node_or_null("ShopItemHighlight") as ColorRect
+	if existing != null:
+		_shop_item_highlight = existing
+		_shop_item_highlight_edge = existing.get_node_or_null("SelectionEdge") as ColorRect
+		return
+	_shop_item_highlight = ColorRect.new()
+	_shop_item_highlight.name = "ShopItemHighlight"
+	_shop_item_highlight.visible = false
+	_shop_item_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shop_item_highlight.color = Color(0.22, 0.42, 0.82, 0.65)
+	_msg_block.add_child(_shop_item_highlight)
+	_msg_block.move_child(_shop_item_highlight, 0)
+	_shop_item_highlight_edge = ColorRect.new()
+	_shop_item_highlight_edge.name = "SelectionEdge"
+	_shop_item_highlight_edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shop_item_highlight_edge.color = Color(0.55, 0.78, 1.0, 1.0)
+	_shop_item_highlight.add_child(_shop_item_highlight_edge)
 
 
 func _ensure_enter_prompt_buttons() -> void:
@@ -1270,10 +1302,9 @@ func _layout_command_menu_layer() -> void:
 		return
 	var font_sz := clampi(int(floorf(pitch)) - 2, 10, MSG_FONT_SIZE)
 	var row_w := menu_w
-	var selected_cursor := (
-		_talk_keyword_menu_cursor if _talk_keyword_menu_active
-		else _command_menu_cursor
-	)
+	var selected_cursor := _command_menu_cursor
+	if _talk_keyword_menu_active:
+		selected_cursor = _talk_keyword_menu_cursor
 	for i in count:
 		var row := _command_menu_rows[i]
 		row.position = Vector2(0, float(i) * pitch)
@@ -3400,6 +3431,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			elif event.is_pressed():
 				get_viewport().set_input_as_handled()
+			return
+		if _handle_shop_item_menu_input(event):
+			get_viewport().set_input_as_handled()
 			return
 		if _handle_talk_keyword_menu_input(event):
 			get_viewport().set_input_as_handled()
@@ -8534,6 +8568,10 @@ func _begin_hawkwind_talk(person_i: int) -> void:
 
 func _begin_vendor_shop(person_i: int, role: int) -> void:
 	## xu4 discourse_run(vendorDisc) — full vendors.b state machine.
+	_shop_item_menu_items.clear()
+	_shop_item_menu_line_indices.clear()
+	_shop_item_line_by_key.clear()
+	_shop_item_menu_cursor = 0
 	_talk_person_i = person_i
 	_talk_stage = 10
 	_talk_buffer = ""
@@ -8552,12 +8590,27 @@ func _begin_vendor_shop(person_i: int, role: int) -> void:
 func _flush_shop_output() -> void:
 	if _shop == null:
 		return
+	_shop_item_line_by_key.clear()
+	var item_line_offsets: Dictionary = {}
+	var flushed_line_count := 0
 	for line in _shop.take_lines():
-		_push_talk_script(str(line))
+		var raw := str(line)
+		var item_key := str(_VendorShop.item_line_key(raw))
+		var text := str(_VendorShop.item_line_text(raw))
+		var presented := _TalkTlk.present_script(text)
+		var wrapped_count := _wrap_msg_text(_reflow_talk_hard_breaks(presented)).size()
+		if not item_key.is_empty():
+			item_line_offsets[item_key] = flushed_line_count
+		_push_talk_script(text)
+		flushed_line_count += wrapped_count
+	var flush_start := maxi(_msg_lines.size() - flushed_line_count, 0)
+	for item_key in item_line_offsets:
+		_shop_item_line_by_key[item_key] = flush_start + int(item_line_offsets[item_key])
 	if bool(_shop.finished):
 		_end_shop()
 		return
 	_talk_buffer = ""
+	_sync_shop_item_menu()
 	if not _shop_choice_keys().is_empty():
 		_enter_prompt_choice = 0
 		_GameInput.reset_stick_navigation()
@@ -8565,6 +8618,102 @@ func _flush_shop_output() -> void:
 	_refresh_inventory_bars()
 	_refresh_party()
 	_sync_shop_character_inv()
+
+
+func _sync_shop_item_menu() -> void:
+	if _command_menu_layer != null and not _command_menu_open and not _talk_keyword_menu_active:
+		_command_menu_layer.visible = false
+	var entries: Array[Dictionary] = []
+	if (
+		_talk_stage == 10 and _shop != null
+		and int(_shop.mode) == _VendorShop.Mode.CHOICE
+	):
+		entries = _shop.item_list_entries()
+	var previous_key := ""
+	if (
+		not _shop_item_menu_items.is_empty()
+		and _shop_item_menu_cursor >= 0
+		and _shop_item_menu_cursor < _shop_item_menu_items.size()
+	):
+		previous_key = str(_shop_item_menu_items[_shop_item_menu_cursor].get("key", ""))
+	_shop_item_menu_items = entries
+	if entries.is_empty():
+		_shop_item_menu_cursor = 0
+		_shop_item_menu_line_indices.clear()
+		_refresh_message_view()
+		return
+	_shop_item_menu_cursor = 0
+	if not previous_key.is_empty():
+		for i in entries.size():
+			if str(entries[i].get("key", "")) == previous_key:
+				_shop_item_menu_cursor = i
+				break
+	_shop_item_menu_line_indices.clear()
+	for item in entries:
+		var item_key := str(item.get("key", ""))
+		_shop_item_menu_line_indices.append(
+			int(_shop_item_line_by_key.get(item_key, -1))
+		)
+	_GameInput.reset_stick_navigation()
+	_refresh_message_view()
+
+
+func _move_shop_item_menu_cursor(step: int) -> void:
+	if _shop_item_menu_items.is_empty() or step == 0:
+		return
+	_shop_item_menu_cursor = posmod(
+		_shop_item_menu_cursor + step,
+		_shop_item_menu_items.size()
+	)
+	_refresh_message_view()
+
+
+func _choose_shop_item_menu_item() -> void:
+	if (
+		_shop == null or _shop_item_menu_items.is_empty()
+		or _shop_item_menu_cursor < 0
+		or _shop_item_menu_cursor >= _shop_item_menu_items.size()
+	):
+		return
+	var key := str(_shop_item_menu_items[_shop_item_menu_cursor].get("key", ""))
+	if key.is_empty() or not str(_shop.choice_keys).to_lower().contains(key):
+		return
+	_push_talk_player_input(key)
+	_shop.submit_choice(key)
+	_flush_shop_output()
+
+
+func _handle_shop_item_menu_input(event: InputEvent) -> bool:
+	if _shop_item_menu_items.is_empty() or _talk_stage != 10 or _shop == null:
+		return false
+	if event is InputEventJoypadMotion:
+		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if stick_step != 0:
+			_move_shop_item_menu_cursor(stick_step)
+		return true
+	if not event.is_pressed():
+		return false
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		var key_dir := _GameInput.dir_from_event(key_event)
+		if key_dir.y != 0:
+			_move_shop_item_menu_cursor(key_dir.y)
+			return true
+		if not key_event.echo and _is_talk_enter(key_event):
+			_choose_shop_item_menu_item()
+			return true
+		return false
+	if event is InputEventJoypadButton:
+		if event.is_echo():
+			return false
+		if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+			_choose_shop_item_menu_item()
+			return true
+		var pad_dir := _GameInput.dir_from_event(event)
+		if pad_dir.y != 0:
+			_move_shop_item_menu_cursor(pad_dir.y)
+			return true
+	return false
 
 
 func _end_shop() -> void:
@@ -8578,6 +8727,10 @@ func _end_shop() -> void:
 		horse = bool(_shop.want_horse)
 		rel = _shop.relocate_to
 		inn = bool(_shop.do_inn_rest)
+	_shop_item_menu_items.clear()
+	_shop_item_menu_line_indices.clear()
+	_shop_item_line_by_key.clear()
+	_shop_item_menu_cursor = 0
 	_shop = null
 	_talk_stage = 0
 	_talk_buffer = ""
@@ -11960,7 +12113,37 @@ func _refresh_message_view() -> void:
 	var start := n - take
 	for j in range(take):
 		_set_msg_row_text(_msg_rows[first_row + j], _msg_lines[start + j])
+	_sync_shop_item_message_highlight(start, first_row, take)
 	_layout_prompt_row()
+
+
+func _sync_shop_item_message_highlight(start: int, first_row: int, take: int) -> void:
+	for row in _msg_rows:
+		var empty := StyleBoxEmpty.new()
+		row.add_theme_stylebox_override("normal", empty)
+	_ensure_shop_item_message_highlight()
+	if _shop_item_highlight != null:
+		_shop_item_highlight.visible = false
+	if (
+		_shop_item_menu_items.is_empty()
+		or _shop_item_menu_cursor < 0
+		or _shop_item_menu_cursor >= _shop_item_menu_line_indices.size()
+	):
+		return
+	var line_index := _shop_item_menu_line_indices[_shop_item_menu_cursor]
+	if line_index < start or line_index >= start + take:
+		return
+	var row_index := first_row + line_index - start
+	if row_index < 0 or row_index >= _msg_rows.size():
+		return
+	if _shop_item_highlight == null:
+		return
+	_shop_item_highlight.position = Vector2(0.0, float(row_index) * _msg_pitch)
+	_shop_item_highlight.size = Vector2(_msg_block.size.x, _msg_pitch)
+	_shop_item_highlight.visible = true
+	if _shop_item_highlight_edge != null:
+		_shop_item_highlight_edge.position = Vector2.ZERO
+		_shop_item_highlight_edge.size = Vector2(2.0, _msg_pitch)
 
 
 func _set_msg_row_text(row: RichTextLabel, line: String) -> void:

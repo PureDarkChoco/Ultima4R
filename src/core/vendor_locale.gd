@@ -26,6 +26,12 @@ static func specialty(en: String) -> String:
 	return str(SPECIALTY.get(en, en))
 
 
+static func person_name(en: String) -> String:
+	if not is_korean():
+		return en
+	return str(PERSON_NAMES.get(en, en))
+
+
 static func weapon_desc(en_with_dollar: String) -> String:
 	## `en_with_dollar` still uses `$` for price placeholder (pre-replace).
 	if not is_korean():
@@ -67,6 +73,53 @@ const SPECIALTY := {
 	"Folley Filet": "폴리 필레",
 	"Dog Meat Pie": "개고기 파이",
 	"Green Granukit": "초록 그라누킷",
+}
+
+const PERSON_NAMES := {
+	"Winston": "윈스턴",
+	"Willard": "윌라드",
+	"Peter": "피터",
+	"Jumar": "주마르",
+	"Hook": "후크",
+	"Wendy": "웬디",
+	"Valiant": "발리언트",
+	"Jean": "진",
+	"Pierre": "피에르",
+	"Limpy": "림피",
+	"Shaman": "샤먼",
+	"Windrick": "윈드릭",
+	"Donnar": "도나르",
+	"Mintol": "민톨",
+	"Max": "맥스",
+	"Margot": "마고",
+	"Sasha": "사샤",
+	"Sheila": "실라",
+	"Shannon": "섀넌",
+	"Pendragon": "펜드래곤",
+	"Harmony": "하모니",
+	"Celest": "셀레스트",
+	"Triplet": "트리플렛",
+	"Justin": "저스틴",
+	"Spiran": "스피란",
+	"Starfire": "스타파이어",
+	"Salle'": "살레",
+	"Windwalker": "윈드워커",
+	"Quat": "콰트",
+	"Sam": "샘",
+	"Celestial": "셀레스티얼",
+	"Terran": "테란",
+	"Greg 'n Rob": "그렉과 롭",
+	"The Cap'n": "선장",
+	"Arron": "애런",
+	"Scatu": "스카투",
+	"Jason": "제이슨",
+	"Smirk": "스머크",
+	"Estro": "에스트로",
+	"Zajac": "자작",
+	"Tyrone": "타이론",
+	"Tymus": "타이머스",
+	"Long John Leary": "롱 존 리어리",
+	"One Eyed Willey": "외눈박이 윌리",
 }
 
 const HEAL_DESC := {

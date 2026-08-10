@@ -14,6 +14,7 @@ const _Roles := preload("res://src/map/city_npc_roles.gd")
 const _VL := preload("res://src/core/vendor_locale.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _TalkTlk := preload("res://src/core/talk_tlk.gd")
+const ITEM_PICK_MARK := "\u0003"
 
 ## World callbacks (relocate / mount horse); shop mutates GameState for gold/items.
 var mode: int = Mode.DONE
@@ -231,6 +232,24 @@ func take_lines() -> Array[String]:
 	return lines
 
 
+static func item_line_key(raw: String) -> String:
+	if not raw.begins_with(ITEM_PICK_MARK):
+		return ""
+	var marker_end := raw.find(ITEM_PICK_MARK, ITEM_PICK_MARK.length())
+	if marker_end < 0:
+		return ""
+	return raw.substr(ITEM_PICK_MARK.length(), marker_end - ITEM_PICK_MARK.length())
+
+
+static func item_line_text(raw: String) -> String:
+	if not raw.begins_with(ITEM_PICK_MARK):
+		return raw
+	var marker_end := raw.find(ITEM_PICK_MARK, ITEM_PICK_MARK.length())
+	if marker_end < 0:
+		return raw
+	return raw.substr(marker_end + ITEM_PICK_MARK.length())
+
+
 func character_inv_kind() -> String:
 	## Inventory page to mirror on the character panel during this shop.
 	## "" → keep the party roster. Weapon / armor / reagent vendors only.
@@ -255,6 +274,36 @@ func character_inv_kind() -> String:
 func is_sell_letter_pick() -> bool:
 	## Letter (or ↑↓ / Enter) selection of which pack item to sell.
 	return _phase == "w_sell_key" or _phase == "a_sell_key"
+
+
+func item_list_entries() -> Array[Dictionary]:
+	## Buy catalogs that may be navigated with ↑↓ and accepted with Enter / A.
+	var entries: Array[Dictionary] = []
+	match _phase:
+		"w_inv":
+			var weapon_data: Dictionary = WEAPON_STOCKS.get(_locale, {})
+			for row in weapon_data.get("stock", []):
+				entries.append({
+					"key": str(row[0]),
+					"label": _format_weapon_stock_line(row),
+				})
+		"a_inv":
+			var armor_data: Dictionary = ARMOR_STOCKS.get(_locale, {})
+			for row in armor_data.get("stock", []):
+				entries.append({
+					"key": str(row[0]),
+					"label": _format_armor_stock_line(row),
+				})
+		"r_item":
+			for i in 6:
+				entries.append({
+					"key": String.chr(97 + i),
+					"label": "%s-%s" % [
+						String.chr(65 + i),
+						Locale.reagent_name(i),
+					],
+				})
+	return entries
 
 
 func begin(role: int, locale: String) -> void:
@@ -480,7 +529,15 @@ func _reset() -> void:
 func _say(msg: String) -> void:
 	if msg.is_empty():
 		return
+	if not _owner.is_empty():
+		msg = msg.replace(_owner, _VL.person_name(_owner))
 	out_lines.append(msg)
+
+
+func _say_item(key: String, msg: String) -> void:
+	if key.is_empty() or msg.is_empty():
+		return
+	out_lines.append(ITEM_PICK_MARK + key + ITEM_PICK_MARK + msg)
 
 
 func _L(en: String) -> String:
@@ -573,7 +630,7 @@ func _w_show_inv() -> void:
 	_say(_L("We Have:"))
 	var data: Dictionary = WEAPON_STOCKS[_locale]
 	for row in data["stock"]:
-		_say(_format_weapon_stock_line(row))
+		_say_item(str(row[0]), _format_weapon_stock_line(row))
 	_say(_L("Your Interest?"))
 	_want_choice(_list_keys, "w_inv")
 
@@ -781,7 +838,7 @@ func _a_show_inv() -> void:
 	_say(_L("We've got:"))
 	var data: Dictionary = ARMOR_STOCKS[_locale]
 	for row in data["stock"]:
-		_say(_format_armor_stock_line(row))
+		_say_item(str(row[0]), _format_armor_stock_line(row))
 	_say(_L("What'll it be?"))
 	_want_choice(_list_keys, "a_inv")
 
@@ -1188,7 +1245,14 @@ func _on_r_need(c0: String) -> void:
 
 
 func _r_show() -> void:
-	_say(_L("I have\nA-Sulfurous Ash\nB-Ginseng\nC-Garlic\nD-Spider Silk\nE-Blood Moss\nF-Black Pearl\nYour\nInterest:"))
+	var catalog := _L("I have\nA-Sulfurous Ash\nB-Ginseng\nC-Garlic\nD-Spider Silk\nE-Blood Moss\nF-Black Pearl\nYour\nInterest:")
+	for line in catalog.split("\n"):
+		var text := str(line)
+		var key := text.substr(0, 1).to_lower()
+		if text.length() >= 2 and text.substr(1, 1) == "-" and "abcdef".contains(key):
+			_say_item(key, text)
+		else:
+			_say(text)
 	_want_choice("abcdef", "r_item")
 
 
