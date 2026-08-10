@@ -106,6 +106,32 @@ static func read_move_dir() -> Vector2i:
 	return Vector2i.ZERO
 
 
+static func is_move_from_gamepad() -> bool:
+	## True when the current held move comes from a pad (not arrow/WASD keys).
+	## Matches read_move_dir() priority: keys win, so hybrid keyboard+pad is "keyboard".
+	if (
+		Input.is_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_LEFT)
+		or Input.is_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_RIGHT)
+		or Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP)
+		or Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN)
+	):
+		return false
+	for device in Input.get_connected_joypads():
+		if (
+			Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_LEFT)
+			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_RIGHT)
+			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_UP)
+			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_DOWN)
+		):
+			return true
+		if (
+			absf(Input.get_joy_axis(device, JOY_AXIS_LEFT_X)) >= STICK_DEADZONE
+			or absf(Input.get_joy_axis(device, JOY_AXIS_LEFT_Y)) >= STICK_DEADZONE
+		):
+			return true
+	return false
+
+
 static func read_select_step() -> int:
 	## -1 up, +1 down, 0 none. Keyboard/D-pad stay immediate; stick uses
 	## press/release hysteresis while preserving the caller's hold-repeat timer.

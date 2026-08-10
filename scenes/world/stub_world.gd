@@ -267,6 +267,14 @@ var _options_panel # OptionsPanel
 ## City / castle visit (Enter). World position restored on leave.
 var _city_map # CityMapData
 var _city_return_pos := Vector2i.ZERO
+## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
+var _enter_prompt_stage := 0
+var _enter_prompt_choice := 0 ## 0 = Yes, 1 = No
+## After No, suppress while still on this portal tile; cleared when you leave.
+var _enter_prompt_declined := Vector2i(-99999, -99999)
+var _enter_btn_row: HBoxContainer
+var _enter_btn_yes: Button
+var _enter_btn_no: Button
 ## xu4 anger forgotten next visit; within one stay (incl. LCB floor changes), keep
 ## guards/LB on MOVE_ATTACK after alertGuards until the player leaves the place.
 var _city_guards_alerted := false
@@ -1010,6 +1018,7 @@ func _ensure_msg_terminal() -> void:
 			else:
 				_talk_edit = _make_talk_ime_edit()
 				_msg_prompt_row.add_child(_talk_edit)
+		_ensure_enter_prompt_buttons()
 		return
 	if _msg_block == null:
 		return
@@ -1046,8 +1055,43 @@ func _ensure_msg_terminal() -> void:
 	if not _cursor_frames.is_empty():
 		_msg_cursor.texture = _cursor_frames[0]
 	_msg_prompt_row.add_child(_msg_cursor)
+	_ensure_enter_prompt_buttons()
 	_msg_ui_ready = true
 	_refresh_message_view()
+
+
+func _ensure_enter_prompt_buttons() -> void:
+	## Yes/No row lives in the dialogue prompt slot (gamepad city enter).
+	if _msg_prompt_row == null:
+		return
+	if _enter_btn_row != null and is_instance_valid(_enter_btn_row):
+		return
+	_enter_btn_row = HBoxContainer.new()
+	_enter_btn_row.visible = false
+	_enter_btn_row.mouse_filter = Control.MOUSE_FILTER_STOP
+	_enter_btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_enter_btn_row.add_theme_constant_override("separation", 16)
+	_msg_prompt_row.add_child(_enter_btn_row)
+	_enter_btn_yes = Button.new()
+	_enter_btn_no = Button.new()
+	for btn in [_enter_btn_yes, _enter_btn_no]:
+		btn.focus_mode = Control.FOCUS_ALL
+		btn.mouse_filter = Control.MOUSE_FILTER_STOP
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		btn.custom_minimum_size = Vector2(72, 0)
+		_enter_btn_row.add_child(btn)
+	_enter_btn_yes.focus_neighbor_left = _enter_btn_yes.get_path_to(_enter_btn_no)
+	_enter_btn_yes.focus_neighbor_right = _enter_btn_yes.get_path_to(_enter_btn_no)
+	_enter_btn_yes.focus_neighbor_top = _enter_btn_yes.get_path_to(_enter_btn_yes)
+	_enter_btn_yes.focus_neighbor_bottom = _enter_btn_yes.get_path_to(_enter_btn_yes)
+	_enter_btn_no.focus_neighbor_left = _enter_btn_no.get_path_to(_enter_btn_yes)
+	_enter_btn_no.focus_neighbor_right = _enter_btn_no.get_path_to(_enter_btn_yes)
+	_enter_btn_no.focus_neighbor_top = _enter_btn_no.get_path_to(_enter_btn_no)
+	_enter_btn_no.focus_neighbor_bottom = _enter_btn_no.get_path_to(_enter_btn_no)
+	_enter_btn_yes.pressed.connect(func() -> void: _resolve_enter_prompt(true))
+	_enter_btn_no.pressed.connect(func() -> void: _resolve_enter_prompt(false))
+	_enter_btn_yes.focus_entered.connect(func() -> void: _set_enter_prompt_choice(0))
+	_enter_btn_no.focus_entered.connect(func() -> void: _set_enter_prompt_choice(1))
 
 
 func _load_msg_charset_glyphs() -> void:
@@ -1321,6 +1365,13 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		return
 	if font_sz < 0:
 		font_sz = clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE)
+	if _enter_prompt_stage == 1:
+		_layout_enter_prompt_row(font_sz)
+		return
+	if _enter_btn_row != null:
+		_enter_btn_row.visible = false
+	if _msg_prompt_row != null:
+		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var text := _prompt_row_text()
 	var wants_glyph := _prompt_row_wants_glyph()
 	var x := 0.0
@@ -1374,6 +1425,66 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		_msg_cursor.custom_minimum_size = Vector2.ZERO
 		_msg_cursor.position = Vector2(x, (_msg_pitch - cside) * 0.5)
 		_apply_cursor_frame()
+
+
+func _layout_enter_prompt_row(font_sz: int) -> void:
+	## Bottom dialogue row: Yes / No, left–right + A.
+	_ensure_enter_prompt_buttons()
+	if _msg_prompt_icon != null:
+		_msg_prompt_icon.visible = false
+	if _msg_prompt_label != null:
+		_msg_prompt_label.visible = false
+	if _talk_edit != null:
+		_talk_edit.visible = false
+		if _talk_edit.has_focus():
+			_talk_edit.release_focus()
+	if _msg_cursor != null:
+		_msg_cursor.visible = false
+	if _msg_prompt_row != null:
+		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_STOP
+	if _enter_btn_row == null:
+		return
+	_enter_btn_row.visible = true
+	_enter_btn_row.position = Vector2.ZERO
+	_enter_btn_row.size = Vector2(maxf(_msg_prompt_row.size.x, 8.0), maxf(_msg_pitch, 14.0))
+	_enter_btn_row.custom_minimum_size = Vector2.ZERO
+	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
+	for btn in [_enter_btn_yes, _enter_btn_no]:
+		if btn == null:
+			continue
+		btn.custom_minimum_size = Vector2(58, btn_h)
+	_enter_btn_yes.text = Locale.t("cmd_yes")
+	_enter_btn_no.text = Locale.t("cmd_no")
+	_sync_enter_prompt_style()
+	var want := _enter_btn_yes if _enter_prompt_choice == 0 else _enter_btn_no
+	if want != null and get_viewport().gui_get_focus_owner() != want:
+		want.grab_focus()
+	_sync_enter_prompt_style()
+
+
+func _set_enter_prompt_choice(index: int) -> void:
+	_enter_prompt_choice = clampi(index, 0, 1)
+	_sync_enter_prompt_style()
+
+
+func _sync_enter_prompt_style() -> void:
+	if _enter_btn_yes == null or _enter_btn_no == null:
+		return
+	UiTheme.style_choice_button(_enter_btn_yes, _enter_prompt_choice == 0)
+	UiTheme.style_choice_button(_enter_btn_no, _enter_prompt_choice == 1)
+	for btn in [_enter_btn_yes, _enter_btn_no]:
+		## Global menu buttons have 10 px vertical padding and an 18 px font.
+		## The terminal prompt is only one text row tall, so use compact copies.
+		btn.add_theme_font_size_override("font_size", 11)
+		for style_name in ["normal", "hover", "pressed", "focus"]:
+			var style := btn.get_theme_stylebox(style_name).duplicate() as StyleBoxFlat
+			if style == null:
+				continue
+			style.content_margin_left = 8
+			style.content_margin_right = 8
+			style.content_margin_top = 1
+			style.content_margin_bottom = 1
+			btn.add_theme_stylebox_override(style_name, style)
 
 
 func _talk_ime_stage_active() -> bool:
@@ -1897,7 +2008,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -2054,6 +2165,7 @@ func _process(delta: float) -> void:
 	## Gallop still ends one party turn (xu4 finishTurn once per key).
 	_finish_party_turn()
 	_arm_hold_after_step(true)
+	_maybe_offer_enter_prompt()
 
 
 func _terrain_tid_at(pos: Vector2i) -> int:
@@ -2065,6 +2177,7 @@ func _terrain_tid_at(pos: Vector2i) -> int:
 
 func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true) -> void:
 	_tile_pos = next
+	_clear_enter_prompt_decline_if_left()
 	_update_transport_facing(dir)
 	if _map != null:
 		_map.set_center(_tile_pos)
@@ -2319,6 +2432,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		get_viewport().set_input_as_handled()
+		return
+	if _enter_prompt_stage == 1:
+		if _handle_enter_prompt_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
 		return
 	if _shrine_stage != 0:
 		if _handle_shrine_input(event):
@@ -5465,6 +5584,137 @@ func _do_enter() -> void:
 	if portal.is_empty():
 		_push_message(Locale.t("cmd_enter_what"), false)
 		return
+	_enter_city_from_portal(portal)
+
+
+func _localized_portal_name(portal: Dictionary) -> String:
+	var place_id := _WorldPortals.place_id_for_portal(portal)
+	var name_s := str(portal.get("name", "?"))
+	if not place_id.is_empty():
+		var key := "place_%s" % place_id
+		var labeled := Locale.t(key)
+		if labeled != key and not labeled.is_empty():
+			name_s = labeled
+	return name_s
+
+
+func _enter_confirm_place_phrase(portal: Dictionary) -> String:
+	## e.g. "Britain" / "브리튼 마을" for the walk-on prompt.
+	var name_s := _localized_portal_name(portal)
+	var kind := int(portal.get("kind", _WorldPortals.CityKind.TOWNE))
+	## Castle/place labels often already include the kind (e.g. Britannia Castle).
+	if kind == _WorldPortals.CityKind.CASTLE:
+		return name_s
+	var kind_name := Locale.t(_WorldPortals.kind_locale_key(kind))
+	if str(GameState.language) == "ko":
+		return "%s %s" % [name_s, kind_name]
+	return name_s
+
+
+func _clear_enter_prompt_decline_if_left() -> void:
+	if _enter_prompt_declined.x <= -99990:
+		return
+	if _tile_pos != _enter_prompt_declined:
+		_enter_prompt_declined = Vector2i(-99999, -99999)
+
+
+func _maybe_offer_enter_prompt() -> void:
+	## Gamepad only: standing on a world city/castle portal offers Yes/No enter.
+	if _enter_prompt_stage != 0:
+		return
+	if _is_in_city() or _combat_active or _talk_stage != 0:
+		return
+	if _transport == Transport.SHIP or _transport == Transport.BALLOON:
+		return
+	if not _GameInput.is_move_from_gamepad():
+		return
+	_clear_enter_prompt_decline_if_left()
+	if _tile_pos == _enter_prompt_declined:
+		return
+	var portal := _WorldPortals.portal_at(_tile_pos)
+	if portal.is_empty():
+		return
+	_open_enter_prompt(portal)
+
+
+func _open_enter_prompt(portal: Dictionary) -> void:
+	_enter_prompt_stage = 1
+	_enter_prompt_choice = 0
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	_push_message(Locale.t("cmd_enter_confirm", [_enter_confirm_place_phrase(portal)]), false)
+	_ensure_enter_prompt_buttons()
+	_layout_prompt_row()
+	if _enter_btn_yes != null:
+		_enter_btn_yes.grab_focus()
+	_sync_enter_prompt_style()
+
+
+func _close_enter_prompt_ui() -> void:
+	_enter_prompt_stage = 0
+	if _enter_btn_row != null:
+		_enter_btn_row.visible = false
+	if _enter_btn_yes != null and _enter_btn_yes.has_focus():
+		_enter_btn_yes.release_focus()
+	if _enter_btn_no != null and _enter_btn_no.has_focus():
+		_enter_btn_no.release_focus()
+	if _msg_prompt_row != null:
+		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layout_prompt_row()
+	grab_focus()
+
+
+func _resolve_enter_prompt(yes: bool) -> void:
+	if _enter_prompt_stage != 1:
+		return
+	_push_message(Locale.t("cmd_yes" if yes else "cmd_no"), false)
+	_close_enter_prompt_ui()
+	if yes:
+		_enter_prompt_declined = Vector2i(-99999, -99999)
+		_do_enter()
+	else:
+		## Stay on the tile; only re-prompt after leaving and returning.
+		_enter_prompt_declined = _tile_pos
+
+
+func _handle_enter_prompt_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	## Left / right (keys, D-pad) + stick hysteresis.
+	var step_x := 0
+	var dir := _GameInput.dir_from_event(event)
+	if dir.x != 0:
+		step_x = dir.x
+	else:
+		step_x = _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+	if step_x != 0:
+		_set_enter_prompt_choice(1 if step_x > 0 else 0)
+		if _enter_prompt_choice == 0 and _enter_btn_yes != null:
+			_enter_btn_yes.grab_focus()
+		elif _enter_btn_no != null:
+			_enter_btn_no.grab_focus()
+		return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		var code := k.keycode if k.keycode != KEY_NONE else k.physical_keycode
+		var phys := k.physical_keycode
+		if code == KEY_Y or phys == KEY_Y:
+			_resolve_enter_prompt(true)
+			return true
+		if code == KEY_N or phys == KEY_N:
+			_resolve_enter_prompt(false)
+			return true
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
+		_resolve_enter_prompt(_enter_prompt_choice == 0)
+		return true
+	if _is_cancel_event(event):
+		## B / Esc → No (stay on tile, suppress until leave).
+		_resolve_enter_prompt(false)
+		return true
+	return true
+
+
+func _enter_city_from_portal(portal: Dictionary) -> void:
 	var fname := str(portal.get("fname", ""))
 	var path := _CityMapData.resolve_u4_file(fname)
 	if path.is_empty():
@@ -5476,7 +5726,7 @@ func _do_enter() -> void:
 		return
 	var kind := int(portal.get("kind", _WorldPortals.CityKind.TOWNE))
 	var kind_name := Locale.t(_WorldPortals.kind_locale_key(kind))
-	var city_name := str(portal.get("name", "?"))
+	var city_name := _localized_portal_name(portal)
 	## xu4: "Enter towne!\n\n" then centered city name — we push both lines.
 	_push_message(Locale.t("cmd_enter_type", [kind_name]), false)
 	_push_message(city_name, false)
@@ -7066,7 +7316,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false

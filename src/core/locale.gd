@@ -444,6 +444,11 @@ const _T := {
 		"en_us": "Enter what?",
 		"ko": "어디에 들어가나?",
 	},
+	"cmd_enter_confirm": {
+		"en_u4": "Enter %s?",
+		"en_us": "Enter %s?",
+		"ko": "%s로 들어가겠습니까?",
+	},
 	"cmd_enter_type": {
 		"en_u4": "Enter %s!",
 		"en_us": "Enter %s!",
