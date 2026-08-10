@@ -3522,8 +3522,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_command(cmd)
 			get_viewport().set_input_as_handled()
 		return
-	## Gamepad: Start opens/closes the system menu. B opens the contextual
-	## A–Z palette when no nested UI is active; otherwise it remains Cancel.
+	## Gamepad while idle: A passes, B opens the contextual A–Z palette,
+	## and Start opens/closes the system menu.
 	if event.is_pressed() and not event.is_echo():
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_cancel_event(event) or _GameInput.is_select(event):
@@ -3558,6 +3558,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				_clear_ship_yell_await()
 				_push_message(Locale.t("cmd_what"), false)
 				get_viewport().set_input_as_handled()
+			return
+		if _GameInput.is_select(event):
+			## Idle A mirrors the keyboard Pass command. Nested UIs and combat
+			## have already claimed their own A behavior above.
+			if not _is_party_asleep_locked():
+				_handle_command(U4Commands.Id.PASS)
+			get_viewport().set_input_as_handled()
 			return
 
 
