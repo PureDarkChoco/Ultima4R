@@ -29,9 +29,18 @@
         "yes": "함께할 수만\n있다면 좋겠어요!",
         "no": "퀘스트를\n하시길!",
         "topic1": "모험",
-        "topic1_aliases": ["모험", "adventure", "adve"],
+        "topic1_aliases": [
+          "모험",
+          "adventure",
+          "adve"
+        ],
         "topic2": "퀘스트",
-        "topic2_aliases": ["퀘스트", "탐색", "quest", "ques"]
+        "topic2_aliases": [
+          "퀘스트",
+          "탐색",
+          "quest",
+          "ques"
+        ]
       }
     },
     {
@@ -59,9 +68,20 @@
         "yes": "냄새로\n알겠어요!",
         "no": "시작하지 마세요!",
         "topic1": "글쓰기",
-        "topic1_aliases": ["글쓰기", "작가", "글", "write", "writ"],
+        "topic1_aliases": [
+          "글쓰기",
+          "작가",
+          "글",
+          "write",
+          "writ"
+        ],
         "topic2": "담배",
-        "topic2_aliases": ["담배", "흡연", "smoke", "smok"]
+        "topic2_aliases": [
+          "담배",
+          "흡연",
+          "smoke",
+          "smok"
+        ]
       }
     },
     {
@@ -84,14 +104,23 @@
         "job": "정직의 덕에 대해\n말합니다!",
         "health": "참으로 건강하오.",
         "response1": "정직한 이 몇이\n무리보다\n낫소!",
-        "response2": "정직의 신전\n만트라는\n'아음(AHM)'이오.",
+        "response2": "정직의 사원\n만트라는\n'아음(AHM)'이오.",
         "question": "정직하려\n애쓰시오?",
         "yes": "그러면 만트라가\n필요할 것이오.",
         "no": "수치스럽군!",
         "topic1": "정직",
-        "topic1_aliases": ["정직", "honesty", "hone"],
+        "topic1_aliases": [
+          "정직",
+          "honesty",
+          "hone"
+        ],
         "topic2": "만트라",
-        "topic2_aliases": ["만트라", "명상어", "mantra", "mant"]
+        "topic2_aliases": [
+          "만트라",
+          "명상어",
+          "mantra",
+          "mant"
+        ]
       }
     },
     {
@@ -119,9 +148,17 @@
         "yes": "일생의 퀘스트요!",
         "no": "비참한 자!",
         "topic1": "정직",
-        "topic1_aliases": ["정직", "honesty", "hone"],
+        "topic1_aliases": [
+          "정직",
+          "honesty",
+          "hone"
+        ],
         "topic2": "악",
-        "topic2_aliases": ["악", "사악", "evil"]
+        "topic2_aliases": [
+          "악",
+          "사악",
+          "evil"
+        ]
       }
     },
     {
@@ -149,9 +186,18 @@
         "yes": "그러면\n기뻐!",
         "no": "슬퍼…",
         "topic1": "친구",
-        "topic1_aliases": ["친구", "우정", "friend", "frie"],
+        "topic1_aliases": [
+          "친구",
+          "우정",
+          "friend",
+          "frie"
+        ],
         "topic2": "정직",
-        "topic2_aliases": ["정직", "honesty", "hone"]
+        "topic2_aliases": [
+          "정직",
+          "honesty",
+          "hone"
+        ]
       }
     },
     {
@@ -179,9 +225,18 @@
         "yes": "의심스럽군!",
         "no": "그리 되도록\n애쓰시오.",
         "topic1": "겸손",
-        "topic1_aliases": ["겸손", "겸양", "humility", "humb"],
+        "topic1_aliases": [
+          "겸손",
+          "겸양",
+          "humility",
+          "humb"
+        ],
         "topic2": "겸허",
-        "topic2_aliases": ["겸허", "humble", "humi"]
+        "topic2_aliases": [
+          "겸허",
+          "humble",
+          "humi"
+        ]
       }
     },
     {
@@ -209,9 +264,17 @@
         "yes": "그를 찾으시오.\n가르침을 줄 것이오.",
         "no": "그는 리카에움에\n살고 있소.",
         "topic1": "나이절",
-        "topic1_aliases": ["나이절", "nigel", "nige"],
+        "topic1_aliases": [
+          "나이절",
+          "nigel",
+          "nige"
+        ],
         "topic2": "죽음",
-        "topic2_aliases": ["죽음", "사망", "die"]
+        "topic2_aliases": [
+          "죽음",
+          "사망",
+          "die"
+        ]
       }
     },
     {
@@ -239,9 +302,18 @@
         "yes": "부패를\n경계하시오!",
         "no": "바보!",
         "topic1": "정직",
-        "topic1_aliases": ["정직", "honesty", "hone"],
+        "topic1_aliases": [
+          "정직",
+          "honesty",
+          "hone"
+        ],
         "topic2": "부패",
-        "topic2_aliases": ["부패", "타락", "corruption", "corr"]
+        "topic2_aliases": [
+          "부패",
+          "타락",
+          "corruption",
+          "corr"
+        ]
       }
     },
     {
@@ -269,9 +341,18 @@
         "yes": "그럴 리\n없소!",
         "no": "진실은 말하는 이를\n해치지 않소!",
         "topic1": "정직",
-        "topic1_aliases": ["정직", "honesty", "hone"],
+        "topic1_aliases": [
+          "정직",
+          "honesty",
+          "hone"
+        ],
         "topic2": "진실",
-        "topic2_aliases": ["진실", "진리", "truth", "trut"]
+        "topic2_aliases": [
+          "진실",
+          "진리",
+          "truth",
+          "trut"
+        ]
       }
     },
     {
@@ -299,9 +380,19 @@
         "yes": "좋소!",
         "no": "비결은 시약에\n있소!",
         "topic1": "연금",
-        "topic1_aliases": ["연금", "연금술", "alchemy", "alch"],
+        "topic1_aliases": [
+          "연금",
+          "연금술",
+          "alchemy",
+          "alch"
+        ],
         "topic2": "시약",
-        "topic2_aliases": ["시약", "재료", "reagent", "reag"]
+        "topic2_aliases": [
+          "시약",
+          "재료",
+          "reagent",
+          "reag"
+        ]
       }
     },
     {
@@ -329,9 +420,17 @@
         "yes": "그럼 달을\n쓰러뜨려야 하오!",
         "no": "바보, 날 미쳤다고\n생각하는군!",
         "topic1": "태양",
-        "topic1_aliases": ["태양", "해", "sun"],
+        "topic1_aliases": [
+          "태양",
+          "해",
+          "sun"
+        ],
         "topic2": "달",
-        "topic2_aliases": ["달", "월", "moon"]
+        "topic2_aliases": [
+          "달",
+          "월",
+          "moon"
+        ]
       }
     },
     {
@@ -359,9 +458,19 @@
         "yes": "큰 퀘스트가\n그대를 심연으로\n이끌리니, 그곳에서\n코덱스가 기다리오!",
         "no": "현명한 선택이오.",
         "topic1": "손금",
-        "topic1_aliases": ["손금", "손바닥", "palm"],
+        "topic1_aliases": [
+          "손금",
+          "손바닥",
+          "palm"
+        ],
         "topic2": "운세",
-        "topic2_aliases": ["운세", "점", "운명", "fortune", "fort"]
+        "topic2_aliases": [
+          "운세",
+          "점",
+          "운명",
+          "fortune",
+          "fort"
+        ]
       }
     },
     {
@@ -387,11 +496,20 @@
         "response2": "치유사도\n최고 중 하나요!",
         "question": "여관이나\n치유를\n구하시오?",
         "yes": "어느 쪽이오?",
-        "no": "북녘 섬의\n신전을 찾아볼\n수도 있소!",
+        "no": "북녘 섬의\n사원을 찾아볼\n수도 있소!",
         "topic1": "여관",
-        "topic1_aliases": ["여관", "숙소", "inn"],
+        "topic1_aliases": [
+          "여관",
+          "숙소",
+          "inn"
+        ],
         "topic2": "치유",
-        "topic2_aliases": ["치유", "치료", "heal", "healer"]
+        "topic2_aliases": [
+          "치유",
+          "치료",
+          "heal",
+          "healer"
+        ]
       }
     },
     {
@@ -419,9 +537,19 @@
         "yes": "언젠가 농담을\n나누도록 하지!",
         "no": "아마 심술궂은\n사람이겠군!",
         "topic1": "정직",
-        "topic1_aliases": ["정직", "honesty", "hone"],
+        "topic1_aliases": [
+          "정직",
+          "honesty",
+          "hone"
+        ],
         "topic2": "익살",
-        "topic2_aliases": ["익살", "농담", "광대", "jest", "joke"]
+        "topic2_aliases": [
+          "익살",
+          "농담",
+          "광대",
+          "jest",
+          "joke"
+        ]
       }
     },
     {
@@ -449,9 +577,17 @@
         "yes": "맛있지, 그치!",
         "no": "진짜\n맛있는데!",
         "topic1": "샌드위치",
-        "topic1_aliases": ["샌드위치", "빵", "sandwich", "sand"],
+        "topic1_aliases": [
+          "샌드위치",
+          "빵",
+          "sandwich",
+          "sand"
+        ],
         "topic2": "룬",
-        "topic2_aliases": ["룬", "rune"]
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
       }
     },
     {
@@ -479,9 +615,19 @@
         "yes": "쓰임을 아시오!",
         "no": "흠.",
         "topic1": "돌",
-        "topic1_aliases": ["돌", "스톤", "stone", "ston"],
+        "topic1_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston"
+        ],
         "topic2": "쓰임",
-        "topic2_aliases": ["쓰임", "사용", "용도", "use"]
+        "topic2_aliases": [
+          "쓰임",
+          "사용",
+          "용도",
+          "use"
+        ]
       }
     }
   ]

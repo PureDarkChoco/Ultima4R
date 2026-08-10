@@ -185,7 +185,7 @@ static func already_avatar() -> String:
 static func go_to_shrine() -> String:
 	return _t(
 		"Go to the Shrine and meditate for three Cycles!",
-		"신전에 가서 세 주기 동안 명상하라!"
+		"사원에 가서 세 주기 동안 명상하라!"
 	)
 
 

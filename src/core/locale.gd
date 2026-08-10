@@ -554,6 +554,16 @@ const _T := {
 		"en_us": "You are granted a vision!",
 		"ko": "환영이 주어진다!",
 	},
+	"cmd_inn_morning": {
+		"en_u4": "Morning!",
+		"en_us": "Morning!",
+		"ko": "아침이 밝았다!",
+	},
+	"cmd_inn_ambush_stroll": {
+		"en_u4": "In the middle of the night while out on a stroll...",
+		"en_us": "In the middle of the night while out on a stroll...",
+		"ko": "한밤중, 산책을 나선 사이에...",
+	},
 	"cmd_hole_up": {
 		"en_u4": "Hole up & Camp!",
 		"en_us": "Hole up & Camp!",

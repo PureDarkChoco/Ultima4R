@@ -249,18 +249,19 @@
         "name": "심플",
         "pronoun": "그녀",
         "look": "날씬한 양치기다.",
-        "job": "신전을\n찾소.",
+        "job": "사원을\n찾소.",
         "health": "괜찮소.",
-        "response1": "겸손의\n신전이오!",
+        "response1": "겸손의\n사원이오!",
         "response2": "심연 섬 북쪽 강가에\n있고 끝없는 악마\n무리가 지키오!",
         "question": "그 섬을\n아오?",
         "yes": "좋소.",
         "no": "브리타니아\n남동쪽이오!",
-        "topic1": "신전",
+        "topic1": "사원",
         "topic1_aliases": [
-          "신전",
+          "사원",
           "shrine",
-          "shri"
+          "shri",
+          "신전"
         ],
         "topic2": "겸손",
         "topic2_aliases": [
@@ -326,9 +327,9 @@
         "look": "현명한 양치기다.",
         "job": "나는 겸손한\n양치기일 뿐.",
         "health": "건강하오.",
-        "response1": "겸손 신전으로\n순례 중이오!",
+        "response1": "겸손 사원으로\n순례 중이오!",
         "response2": "어두운 섬에\n있소!",
-        "question": "자만 신전은 없다\n알고 있소?",
+        "question": "자만 사원은 없다\n알고 있소?",
         "yes": "아주 좋소.",
         "no": "자만은 아바타의\n미덕이 아니오!",
         "topic1": "양치기",
@@ -337,11 +338,12 @@
           "shepherd",
           "shep"
         ],
-        "topic2": "신전",
+        "topic2": "사원",
         "topic2_aliases": [
-          "신전",
+          "사원",
           "shrine",
-          "shri"
+          "shri",
+          "신전"
         ]
       }
     },
@@ -399,18 +401,19 @@
         "name": "랜달",
         "pronoun": "그",
         "look": "엄숙한 레인저다.",
-        "job": "신전에 대해\n가르치오.",
+        "job": "사원에 대해\n가르치오.",
         "health": "건강하오.",
-        "response1": "각 신전을 1·2·3\n주기씩 찾아 길을\n밝히라!",
+        "response1": "각 사원을 1·2·3\n주기씩 찾아 길을\n밝히라!",
         "response2": "A",
         "question": "자주 찾소?",
         "yes": "아주 좋소.",
         "no": "아바타의 길에서\n그걸 첫 목표로!",
-        "topic1": "신전",
+        "topic1": "사원",
         "topic1_aliases": [
-          "신전",
+          "사원",
           "shrine",
-          "shri"
+          "shri",
+          "신전"
         ],
         "topic2": "",
         "topic2_aliases": []

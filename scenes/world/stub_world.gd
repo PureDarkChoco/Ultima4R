@@ -5751,7 +5751,7 @@ func _shrine_submit_mantra(typed: String) -> void:
 	var elevated := _shrine_completed == 3 and GameState.attempt_elevation(_shrine_virtue)
 	if elevated:
 		_push_message(
-			Locale.t("cmd_shrine_partial", [Virtues.name_of(_shrine_virtue, "en")]),
+			Locale.t("cmd_shrine_partial", [Virtues.name_of(_shrine_virtue, GameState.lang_short())]),
 			false
 		)
 		if _map != null:
@@ -7393,7 +7393,7 @@ func _finish_inn_rest() -> void:
 		_inn_maybe_meet_isaac()
 	else:
 		await _inn_maybe_ambush()
-	_push_message("Morning!", false)
+	_push_message(Locale.t("cmd_inn_morning"), false)
 	_layout_prompt_row()
 	if _combat_active:
 		## Combat owns the session; turn ends with combat exit.
@@ -7426,7 +7426,7 @@ func _inn_maybe_ambush() -> void:
 	var foe_tid := 144 if rats else 200 ## rat / rogue bases
 	var con_name := "BRICK.CON" if rats else "INN.CON"
 	if not rats:
-		_push_message("In the middle of the night while out on a stroll...", false)
+		_push_message(Locale.t("cmd_inn_ambush_stroll"), false)
 	var path := _CombatMapData.resolve_u4_file(con_name)
 	if path.is_empty():
 		path = _CombatMapData.resolve_u4_file("BRICK.CON")

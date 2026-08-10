@@ -29,9 +29,19 @@
         "yes": "당신과\n함께하고 싶소!",
         "no": "아쉽군요.",
         "topic1": "연주",
-        "topic1_aliases": ["연주", "음악", "류트", "play"],
+        "topic1_aliases": [
+          "연주",
+          "음악",
+          "류트",
+          "play"
+        ],
         "topic2": "연민",
-        "topic2_aliases": ["연민", "동정", "compassion", "comp"]
+        "topic2_aliases": [
+          "연민",
+          "동정",
+          "compassion",
+          "comp"
+        ]
       }
     },
     {
@@ -59,9 +69,20 @@
         "yes": "거지는 작은 기부에도\n고마워합니다.",
         "no": "아아.",
         "topic1": "춤",
-        "topic1_aliases": ["춤", "무용", "댄스", "dance", "danc"],
+        "topic1_aliases": [
+          "춤",
+          "무용",
+          "댄스",
+          "dance",
+          "danc"
+        ],
         "topic2": "거지",
-        "topic2_aliases": ["거지", "빈민", "beggar", "begg"]
+        "topic2_aliases": [
+          "거지",
+          "빈민",
+          "beggar",
+          "begg"
+        ]
       }
     },
     {
@@ -89,9 +110,20 @@
         "yes": "그럼 우리에게\n소식을 퍼뜨려\n주세요!",
         "no": "아쉽네요.",
         "topic1": "노래",
-        "topic1_aliases": ["노래", "합창", "sing", "singing"],
+        "topic1_aliases": [
+          "노래",
+          "합창",
+          "sing",
+          "singing"
+        ],
         "topic2": "호 에요",
-        "topic2_aliases": ["호 에요", "호에요", "흠", "ho e", "ho eyo"]
+        "topic2_aliases": [
+          "호 에요",
+          "호에요",
+          "흠",
+          "ho e",
+          "ho eyo"
+        ]
       }
     },
     {
@@ -119,9 +151,20 @@
         "yes": "기억하시오.\n열린 마음이\n지혜의 길로 가는\n첫걸음이오!",
         "no": "그렇다면 다리 건너\n볼일이 없소.",
         "topic1": "다리",
-        "topic1_aliases": ["다리", "교량", "bridge", "brid"],
+        "topic1_aliases": [
+          "다리",
+          "교량",
+          "bridge",
+          "brid"
+        ],
         "topic2": "경비",
-        "topic2_aliases": ["경비", "경비병", "수비", "guard", "guar"]
+        "topic2_aliases": [
+          "경비",
+          "경비병",
+          "수비",
+          "guard",
+          "guar"
+        ]
       }
     },
     {
@@ -149,9 +192,16 @@
         "yes": "그게 무엇이오?",
         "no": "아쉽군.\n도울 수 있었을지도\n모르오.",
         "topic1": "음유시인",
-        "topic1_aliases": ["음유시인", "바드", "bard"],
+        "topic1_aliases": [
+          "음유시인",
+          "바드",
+          "bard"
+        ],
         "topic2": "룬",
-        "topic2_aliases": ["룬", "rune"]
+        "topic2_aliases": [
+          "룬",
+          "rune"
+        ]
       }
     },
     {
@@ -179,9 +229,18 @@
         "yes": "오브의 선물은\n그만이 알지요!",
         "no": "뱀성에서\n찾으시오. 그가\n오브를 압니다!",
         "topic1": "오브",
-        "topic1_aliases": ["오브", "구슬", "orb", "orbs"],
+        "topic1_aliases": [
+          "오브",
+          "구슬",
+          "orb",
+          "orbs"
+        ],
         "topic2": "마법",
-        "topic2_aliases": ["마법", "magic", "magi"]
+        "topic2_aliases": [
+          "마법",
+          "magic",
+          "magi"
+        ]
       }
     },
     {
@@ -209,9 +268,19 @@
         "yes": "고맙…\n내 친구 조가\n돌 일을 도와…\n딸꾹…",
         "no": "아, 조가 되어\n주라고!",
         "topic1": "돌",
-        "topic1_aliases": ["돌", "스톤", "stone", "ston", "노란 돌"],
+        "topic1_aliases": [
+          "돌",
+          "스톤",
+          "stone",
+          "ston",
+          "노란 돌"
+        ],
         "topic2": "럼",
-        "topic2_aliases": ["럼", "술", "rum"]
+        "topic2_aliases": [
+          "럼",
+          "술",
+          "rum"
+        ]
       }
     },
     {
@@ -234,14 +303,25 @@
         "job": "쉿, 연주\n중이오!",
         "health": "쉿.",
         "response1": "그래, 쉿!",
-        "response2": "연민의 신전\n만트라는\n‘MU’요!",
+        "response2": "연민의 사원\n만트라는\n‘MU’요!",
         "question": "이제 조용히\n하겠소?",
         "yes": "고맙소.",
         "no": "경비병을\n부르겠소!",
         "topic1": "쉿",
-        "topic1_aliases": ["쉿", "조용", "침묵", "shhh", "shh"],
+        "topic1_aliases": [
+          "쉿",
+          "조용",
+          "침묵",
+          "shhh",
+          "shh"
+        ],
         "topic2": "만트라",
-        "topic2_aliases": ["만트라", "진언", "mantra", "mant"]
+        "topic2_aliases": [
+          "만트라",
+          "진언",
+          "mantra",
+          "mant"
+        ]
       }
     },
     {
@@ -269,9 +349,20 @@
         "yes": "그건 연민이\n아니오!",
         "no": "좋소.",
         "topic1": "경비",
-        "topic1_aliases": ["경비", "경비병", "수비", "guard", "guar"],
+        "topic1_aliases": [
+          "경비",
+          "경비병",
+          "수비",
+          "guard",
+          "guar"
+        ],
         "topic2": "연민",
-        "topic2_aliases": ["연민", "동정", "compassion", "comp"]
+        "topic2_aliases": [
+          "연민",
+          "동정",
+          "compassion",
+          "comp"
+        ]
       }
     },
     {
@@ -299,9 +390,20 @@
         "yes": "좋아요.",
         "no": "크리켓에게\n물어보세요!",
         "topic1": "배움",
-        "topic1_aliases": ["배움", "공부", "학습", "learn", "lear"],
+        "topic1_aliases": [
+          "배움",
+          "공부",
+          "학습",
+          "learn",
+          "lear"
+        ],
         "topic2": "연민",
-        "topic2_aliases": ["연민", "동정", "compassion", "comp"]
+        "topic2_aliases": [
+          "연민",
+          "동정",
+          "compassion",
+          "comp"
+        ]
       }
     },
     {
@@ -329,9 +431,21 @@
         "yes": "무슨 말인지\n아시겠군요!",
         "no": "아쉽습니다.",
         "topic1": "아이",
-        "topic1_aliases": ["아이", "아이들", "어린이", "child", "chil", "kids"],
+        "topic1_aliases": [
+          "아이",
+          "아이들",
+          "어린이",
+          "child",
+          "chil",
+          "kids"
+        ],
         "topic2": "연민",
-        "topic2_aliases": ["연민", "동정", "compassion", "comp"]
+        "topic2_aliases": [
+          "연민",
+          "동정",
+          "compassion",
+          "comp"
+        ]
       }
     },
     {
@@ -359,9 +473,17 @@
         "yes": "그럼 그곳 술집에서\n해골을 물어보시오!",
         "no": "오.",
         "topic1": "비밀",
-        "topic1_aliases": ["비밀", "secret", "secr"],
+        "topic1_aliases": [
+          "비밀",
+          "secret",
+          "secr"
+        ],
         "topic2": "몬데인",
-        "topic2_aliases": ["몬데인", "mondain", "mond"]
+        "topic2_aliases": [
+          "몬데인",
+          "mondain",
+          "mond"
+        ]
       }
     },
     {
@@ -386,12 +508,21 @@
         "response1": "그는 연민의\n참된 본질을\n아오.",
         "response2": "훌리오를 찾아\n연민에 대해\n물어보시오!",
         "question": "아바타의 퀘스트\n중이오?",
-        "yes": "연민의 신전은\n동쪽으로 다리 둘을\n건너시오!",
+        "yes": "연민의 사원은\n동쪽으로 다리 둘을\n건너시오!",
         "no": "아쉽소.",
         "topic1": "훌리오",
-        "topic1_aliases": ["훌리오", "julio", "juli"],
+        "topic1_aliases": [
+          "훌리오",
+          "julio",
+          "juli"
+        ],
         "topic2": "연민",
-        "topic2_aliases": ["연민", "동정", "compassion", "comp"]
+        "topic2_aliases": [
+          "연민",
+          "동정",
+          "compassion",
+          "comp"
+        ]
       }
     },
     {
@@ -419,9 +550,19 @@
         "yes": "거짓말쟁이에\n허풍선이로군.",
         "no": "필멸자는\n알 수 없소.",
         "topic1": "본질",
-        "topic1_aliases": ["본질", "본성", "nature", "natu"],
+        "topic1_aliases": [
+          "본질",
+          "본성",
+          "nature",
+          "natu"
+        ],
         "topic2": "연민",
-        "topic2_aliases": ["연민", "동정", "compassion", "comp"]
+        "topic2_aliases": [
+          "연민",
+          "동정",
+          "compassion",
+          "comp"
+        ]
       }
     },
     {
@@ -449,9 +590,19 @@
         "yes": "그건 미덕이\n아니오!",
         "no": "자만은 진리·사랑·\n용기 없이도\n존재하오!",
         "topic1": "마진시아",
-        "topic1_aliases": ["마진시아", "magincia", "magi"],
+        "topic1_aliases": [
+          "마진시아",
+          "magincia",
+          "magi"
+        ],
         "topic2": "자만",
-        "topic2_aliases": ["자만", "교만", "오만", "pride", "prid"]
+        "topic2_aliases": [
+          "자만",
+          "교만",
+          "오만",
+          "pride",
+          "prid"
+        ]
       }
     },
     {
@@ -479,9 +630,20 @@
         "yes": "답례로 말씀드리면,\n페퍼가 룬을\n압니다!",
         "no": "굶어 죽을\n것입니다!",
         "topic1": "굶주림",
-        "topic1_aliases": ["굶주림", "배고픔", "기아", "starvation", "star"],
+        "topic1_aliases": [
+          "굶주림",
+          "배고픔",
+          "기아",
+          "starvation",
+          "star"
+        ],
         "topic2": "구걸",
-        "topic2_aliases": ["구걸", "거지", "beg", "begging"]
+        "topic2_aliases": [
+          "구걸",
+          "거지",
+          "beg",
+          "begging"
+        ]
       }
     }
   ]
