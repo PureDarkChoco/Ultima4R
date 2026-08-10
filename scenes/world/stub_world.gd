@@ -311,6 +311,13 @@ var _command_menu_backdrop: ColorRect
 var _command_menu_frame: Panel
 var _command_menu_separator: ColorRect
 var _command_menu_rows: Array[ColorRect] = []
+## Gamepad-started conversations reuse the command palette chrome for keywords.
+## Each item stores a stable dedupe key plus the displayed/submitted word.
+var _talk_gamepad_requested := false
+var _talk_keyword_menu_active := false
+var _talk_keyword_menu_cursor := 0
+var _talk_keyword_menu_items: Array[Dictionary] = []
+var _talk_keyword_menu_seen: Dictionary = {}
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
 ## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel / 12 Lord British /
@@ -1100,8 +1107,8 @@ func _ensure_enter_prompt_buttons() -> void:
 	_enter_btn_no.focus_neighbor_right = _enter_btn_no.get_path_to(_enter_btn_yes)
 	_enter_btn_no.focus_neighbor_top = _enter_btn_no.get_path_to(_enter_btn_no)
 	_enter_btn_no.focus_neighbor_bottom = _enter_btn_no.get_path_to(_enter_btn_no)
-	_enter_btn_yes.pressed.connect(func() -> void: _resolve_enter_prompt(true))
-	_enter_btn_no.pressed.connect(func() -> void: _resolve_enter_prompt(false))
+	_enter_btn_yes.pressed.connect(func() -> void: _resolve_visible_yes_no_choice(true))
+	_enter_btn_no.pressed.connect(func() -> void: _resolve_visible_yes_no_choice(false))
 	_enter_btn_yes.focus_entered.connect(func() -> void: _set_enter_prompt_choice(0))
 	_enter_btn_no.focus_entered.connect(func() -> void: _set_enter_prompt_choice(1))
 
@@ -1152,7 +1159,30 @@ func _rebuild_command_menu_rows() -> void:
 			row.queue_free()
 	_command_menu_rows.clear()
 	var lang := GameState.lang_short()
-	for cmd in _command_menu_items:
+	var row_texts: Array[String] = []
+	if _talk_keyword_menu_active:
+		for item in _talk_keyword_menu_items:
+			row_texts.append(str(item.get("label", "")))
+	else:
+		for cmd in _command_menu_items:
+			var letter := U4Commands.letter_for(cmd)
+			var command_name := U4Commands.label(cmd, lang)
+			if lang == "ko":
+				row_texts.append("[color=#%s]%s[/color] - %s" % [
+					UiTheme.ACCENT.to_html(false),
+					letter,
+					command_name,
+				])
+			else:
+				## English command names already begin with their command key:
+				## [A]ttack, [B]oard, [C]ast, …
+				var rest := command_name.substr(1) if command_name.length() > 1 else ""
+				row_texts.append("[color=#%s]%s[/color]%s" % [
+					UiTheme.ACCENT.to_html(false),
+					letter,
+					rest,
+				])
+	for row_text in row_texts:
 		var row := ColorRect.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var label := RichTextLabel.new()
@@ -1163,23 +1193,7 @@ func _rebuild_command_menu_rows() -> void:
 		label.scroll_active = false
 		label.autowrap_mode = TextServer.AUTOWRAP_OFF
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		var letter := U4Commands.letter_for(cmd)
-		var command_name := U4Commands.label(cmd, lang)
-		if lang == "ko":
-			label.text = "[color=#%s]%s[/color] - %s" % [
-				UiTheme.ACCENT.to_html(false),
-				letter,
-				command_name,
-			]
-		else:
-			## English command names already begin with their command key:
-			## [A]ttack, [B]oard, [C]ast, …
-			var rest := command_name.substr(1) if command_name.length() > 1 else ""
-			label.text = "[color=#%s]%s[/color]%s" % [
-				UiTheme.ACCENT.to_html(false),
-				letter,
-				rest,
-			]
+		label.text = row_text
 		label.add_theme_color_override("default_color", MSG_COLOR)
 		label.add_theme_font_size_override("normal_font_size", MSG_FONT_SIZE)
 		UiTheme.apply_font(label)
@@ -1239,6 +1253,10 @@ func _layout_command_menu_layer() -> void:
 		return
 	var font_sz := clampi(int(floorf(pitch)) - 2, 10, MSG_FONT_SIZE)
 	var row_w := menu_w
+	var selected_cursor := (
+		_talk_keyword_menu_cursor if _talk_keyword_menu_active
+		else _command_menu_cursor
+	)
 	for i in count:
 		var row := _command_menu_rows[i]
 		row.position = Vector2(0, float(i) * pitch)
@@ -1246,7 +1264,7 @@ func _layout_command_menu_layer() -> void:
 		row.custom_minimum_size = Vector2.ZERO
 		row.color = (
 			Color(0.22, 0.42, 0.82, 0.55)
-			if i == _command_menu_cursor
+			if i == selected_cursor
 			else Color(0, 0, 0, 0)
 		)
 		var label := row.get_node_or_null("Label") as RichTextLabel
@@ -1261,7 +1279,7 @@ func _layout_command_menu_layer() -> void:
 			edge.size = Vector2(2, pitch)
 			edge.color = (
 				Color(0.55, 0.78, 1.0, 0.95)
-				if i == _command_menu_cursor
+				if i == selected_cursor
 				else Color(0, 0, 0, 0)
 			)
 
@@ -1534,11 +1552,12 @@ func _msg_prompt_glyph_side(font_sz: int) -> float:
 
 
 func _layout_prompt_row(font_sz: int = -1) -> void:
+	_sync_talk_keyword_menu_visibility()
 	if _msg_prompt_label == null:
 		return
 	if font_sz < 0:
 		font_sz = clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE)
-	if _enter_prompt_stage == 1:
+	if _enter_prompt_stage == 1 or _talk_gamepad_yes_no_active():
 		_layout_enter_prompt_row(font_sz)
 		return
 	if _enter_btn_row != null:
@@ -1638,6 +1657,23 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 func _set_enter_prompt_choice(index: int) -> void:
 	_enter_prompt_choice = clampi(index, 0, 1)
 	_sync_enter_prompt_style()
+
+
+func _talk_gamepad_yes_no_active() -> bool:
+	return _talk_keyword_menu_active and _talk_stage == 3
+
+
+func _resolve_visible_yes_no_choice(yes: bool) -> void:
+	if _enter_prompt_stage == 1:
+		_resolve_enter_prompt(yes)
+		return
+	if not _talk_gamepad_yes_no_active():
+		return
+	var answer := Locale.t("cmd_yes" if yes else "cmd_no")
+	_talk_buffer = ""
+	_reset_talk_hangul()
+	_push_talk_player_input(answer)
+	_talk_answer_yn(yes)
 
 
 func _sync_enter_prompt_style() -> void:
@@ -2454,6 +2490,8 @@ func _is_cancel_event(event: InputEvent) -> bool:
 
 
 func _clear_pending_dir() -> void:
+	if _pending_cmd == U4Commands.Id.TALK:
+		_talk_gamepad_requested = false
 	_pending_cmd = U4Commands.Id.NONE
 	_pending_cmd_name = ""
 	_block_dir_until_keyup = false
@@ -2720,7 +2758,7 @@ func _move_command_menu_cursor(step: int) -> void:
 	_layout_command_menu_layer()
 
 
-func _choose_command_menu_item() -> void:
+func _choose_command_menu_item(from_gamepad: bool = false) -> void:
 	if (
 		not _command_menu_open or _command_menu_items.is_empty()
 		or _command_menu_cursor < 0
@@ -2728,6 +2766,7 @@ func _choose_command_menu_item() -> void:
 	):
 		return
 	var cmd := _command_menu_items[_command_menu_cursor]
+	_talk_gamepad_requested = cmd == U4Commands.Id.TALK and from_gamepad
 	var needs_dir := bool(U4Commands.NEEDS_DIRECTION.get(cmd, false))
 	_close_command_menu()
 	if needs_dir:
@@ -2759,10 +2798,10 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 		var keyed_index := _command_menu_items.find(keyed_cmd)
 		if keyed_index >= 0:
 			_command_menu_cursor = keyed_index
-			_choose_command_menu_item()
+			_choose_command_menu_item(false)
 			return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
-		_choose_command_menu_item()
+		_choose_command_menu_item(event is InputEventJoypadButton)
 		return true
 	var step := 0
 	var dir := _GameInput.dir_from_event(event)
@@ -2771,6 +2810,161 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 	if step != 0:
 		_move_command_menu_cursor(step)
 	return true
+
+
+func _talk_keyword_stable_key(word: String) -> String:
+	var builtin := _TalkLocale.match_builtin_interest(word)
+	if not builtin.is_empty():
+		return builtin
+	return _TalkLocale.normalize_interest(word)
+
+
+func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
+	if GameState.lang_short() == "ko":
+		return [
+			{"key": "name", "label": "이름", "input": "이름"},
+			{"key": "job", "label": "직업", "input": "직업"},
+			{"key": "heal", "label": "건강", "input": "건강"},
+			{"key": "give", "label": "기부", "input": "기부"},
+			{"key": "bye", "label": "안녕", "input": "안녕"},
+		]
+	return [
+		{"key": "name", "label": "Name", "input": "name"},
+		{"key": "job", "label": "Job", "input": "job"},
+		{"key": "heal", "label": "Health", "input": "health"},
+		{"key": "give", "label": "Donate", "input": "give"},
+		{"key": "bye", "label": "Bye", "input": "bye"},
+	]
+
+
+func _begin_talk_keyword_menu_if_requested() -> void:
+	if not _talk_gamepad_requested:
+		return
+	_talk_gamepad_requested = false
+	_talk_keyword_menu_active = true
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
+	_talk_keyword_menu_seen.clear()
+	for item in _talk_keyword_menu_items:
+		_talk_keyword_menu_seen[str(item.get("key", ""))] = true
+	_GameInput.reset_stick_navigation()
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
+
+
+func _end_talk_keyword_menu() -> void:
+	_talk_gamepad_requested = false
+	_talk_keyword_menu_active = false
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_items.clear()
+	_talk_keyword_menu_seen.clear()
+	if _command_menu_layer != null and not _command_menu_open:
+		_command_menu_layer.visible = false
+
+
+func _talk_keyword_menu_can_select() -> bool:
+	return _talk_keyword_menu_active and _talk_stage in [1, 11, 12]
+
+
+func _sync_talk_keyword_menu_visibility() -> void:
+	if not _talk_keyword_menu_active:
+		return
+	_ensure_command_menu_layer()
+	if _command_menu_layer == null:
+		return
+	_command_menu_layer.visible = _talk_keyword_menu_can_select()
+	if _command_menu_layer.visible:
+		_command_menu_layer.move_to_front()
+		_layout_command_menu_layer()
+
+
+func _discover_talk_keywords(text: String) -> void:
+	if not _talk_keyword_menu_active or text.is_empty():
+		return
+	var changed := false
+	for raw_keyword in _talk_keywords:
+		var word := str(raw_keyword).strip_edges()
+		if word.is_empty():
+			continue
+		var key := _talk_keyword_stable_key(word)
+		if (
+			key.is_empty()
+			or key == _TalkLocale.normalize_interest("관심사")
+			or _talk_keyword_menu_seen.has(key)
+		):
+			continue
+		## Reuse the dialogue highlighter's exact whole-word/stem rules so only
+		## words actually exposed to the player become selectable.
+		if _TalkTlk.colorize_keywords(text, [word]) == text:
+			continue
+		var label := word if GameState.lang_short() == "ko" else word.capitalize()
+		## Preserve discovery order between Job and Health.
+		var health_index := _talk_keyword_menu_items.size()
+		for i in _talk_keyword_menu_items.size():
+			if str(_talk_keyword_menu_items[i].get("key", "")) == "heal":
+				health_index = i
+				break
+		_talk_keyword_menu_items.insert(health_index, {
+			"key": key,
+			"label": label,
+			"input": word,
+		})
+		_talk_keyword_menu_seen[key] = true
+		changed = true
+	if changed:
+		_rebuild_command_menu_rows()
+		_sync_talk_keyword_menu_visibility()
+
+
+func _move_talk_keyword_menu_cursor(step: int) -> void:
+	if _talk_keyword_menu_items.is_empty() or step == 0:
+		return
+	_talk_keyword_menu_cursor = posmod(
+		_talk_keyword_menu_cursor + step,
+		_talk_keyword_menu_items.size()
+	)
+	_layout_command_menu_layer()
+
+
+func _choose_talk_keyword_menu_item() -> void:
+	if (
+		not _talk_keyword_menu_can_select()
+		or _talk_keyword_menu_items.is_empty()
+		or _talk_keyword_menu_cursor < 0
+		or _talk_keyword_menu_cursor >= _talk_keyword_menu_items.size()
+	):
+		return
+	var item := _talk_keyword_menu_items[_talk_keyword_menu_cursor]
+	## A gamepad choice replaces any partially typed keyboard/IME text.
+	_reset_talk_hangul()
+	_talk_buffer = str(item.get("input", ""))
+	_layout_prompt_row()
+	var enter := InputEventKey.new()
+	enter.pressed = true
+	enter.keycode = KEY_ENTER
+	_handle_talk_input(enter)
+
+
+func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
+	if not _talk_keyword_menu_can_select():
+		return false
+	if event is InputEventJoypadMotion:
+		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if stick_step != 0:
+			_move_talk_keyword_menu_cursor(stick_step)
+		return true
+	if not (event is InputEventJoypadButton):
+		return false
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		_choose_talk_keyword_menu_item()
+		return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir.y != 0:
+		_move_talk_keyword_menu_cursor(dir.y)
+		return true
+	return false
 
 
 func _on_escape(allow_menu_open: bool = true) -> void:
@@ -2946,6 +3140,36 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if _talk_stage != 0:
+		if (
+			_talk_stage == 2
+			and (
+				(
+					event is InputEventMouseButton
+					and event.pressed
+					and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
+				)
+				or (
+					event is InputEventJoypadButton
+					and event.pressed
+					and not event.is_echo()
+					and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A
+				)
+			)
+		):
+			## Mouse left click or the gamepad confirm button (A) advances
+			## the "Press any key" pause to its follow-up question.
+			_talk_ask_question()
+			get_viewport().set_input_as_handled()
+			return
+		if _talk_gamepad_yes_no_active():
+			if _handle_enter_prompt_input(event):
+				get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
+		if _handle_talk_keyword_menu_input(event):
+			get_viewport().set_input_as_handled()
+			return
 		if _talk_native_hangul_active() and event is InputEventKey:
 			if _handle_talk_native_hangul(event as InputEventKey):
 				get_viewport().set_input_as_handled()
@@ -6230,17 +6454,17 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 		var code := k.keycode if k.keycode != KEY_NONE else k.physical_keycode
 		var phys := k.physical_keycode
 		if code == KEY_Y or phys == KEY_Y:
-			_resolve_enter_prompt(true)
+			_resolve_visible_yes_no_choice(true)
 			return true
 		if code == KEY_N or phys == KEY_N:
-			_resolve_enter_prompt(false)
+			_resolve_visible_yes_no_choice(false)
 			return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
-		_resolve_enter_prompt(_enter_prompt_choice == 0)
+		_resolve_visible_yes_no_choice(_enter_prompt_choice == 0)
 		return true
 	if _is_cancel_event(event):
-		## B / Esc → No (stay on tile, suppress until leave).
-		_resolve_enter_prompt(false)
+		## B / Esc → No.
+		_resolve_visible_yes_no_choice(false)
 		return true
 	return true
 
@@ -6851,6 +7075,7 @@ func _exit_city() -> void:
 	if not _is_in_city():
 		return
 	if _talk_stage != 0:
+		_end_talk_keyword_menu()
 		_talk_stage = 0
 		_talk_person_i = -1
 		_talk_entry = null
@@ -7886,7 +8111,12 @@ func _do_auto_pass() -> void:
 func _finish_directed_command(dir: Vector2i) -> void:
 	var cmd := _pending_cmd
 	var cmd_name := _pending_cmd_name
+	var preserve_gamepad_talk := (
+		cmd == U4Commands.Id.TALK and _talk_gamepad_requested
+	)
 	_clear_pending_dir()
+	if preserve_gamepad_talk:
+		_talk_gamepad_requested = true
 	## xu4 erases "Dir?" on the same line and writes the direction name.
 	var dir_name := _direction_label(dir)
 	if not cmd_name.is_empty() and not dir_name.is_empty():
@@ -7938,6 +8168,7 @@ func _do_talk(dir: Vector2i) -> bool:
 	## xu4 talk() path: 1–2 steps; only continue past a cell that is talk-over
 	## (shop letter counters). Ordinary townsfolk must be adjacent (1 step).
 	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		_talk_gamepad_requested = false
 		return false
 	for dist in range(1, 3):
 		var target := Vector2i(_tile_pos.x + dir.x * dist, _tile_pos.y + dir.y * dist)
@@ -7968,6 +8199,7 @@ func _do_talk(dir: Vector2i) -> bool:
 			cell_tid = int(_city_map.effective_tile_at(target.x, target.y))
 		if not _TileRules.can_talk_over(cell_tid):
 			break
+	_talk_gamepad_requested = false
 	return false
 
 
@@ -7980,6 +8212,8 @@ func _begin_special_npc_talk(person_i: int, role: int) -> void:
 		_CityNpcRoles.Role.HAWKWIND:
 			_begin_hawkwind_talk(person_i)
 		_:
+			## Vendor conversations use their own contextual choices, not keywords.
+			_end_talk_keyword_menu()
 			_begin_vendor_shop(person_i, role)
 
 
@@ -7995,6 +8229,7 @@ func _begin_lord_british_talk(person_i: int) -> void:
 	_talk_is_lb = true
 	_talk_keywords = _LordBritish.highlight_keywords()
 	_shop = null
+	_begin_talk_keyword_menu_if_requested()
 	var revive := _LordBritish.revive_leader_if_dead()
 	if not revive.is_empty():
 		_push_talk_script(revive)
@@ -8017,7 +8252,9 @@ func _begin_hawkwind_talk(person_i: int) -> void:
 	_talk_is_lb = false
 	_talk_keywords = _Hawkwind.highlight_keywords()
 	_shop = null
+	_begin_talk_keyword_menu_if_requested()
 	if not _Hawkwind.party_leader_can_speak():
+		_end_talk_keyword_menu()
 		_talk_stage = 0
 		_push_talk_script(_Hawkwind.refuse_for_unconscious())
 		_talk_person_i = -1
@@ -8308,6 +8545,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_turn_away = int(entry.turn_away)
 	_talk_pending_ask = false
 	_talk_keywords = entry.highlight_keywords()
+	_begin_talk_keyword_menu_if_requested()
 	_city_map.pause_follow(person_i)
 	## Message + character panels (left inventory stays closed unless already Tab-open).
 	_open_talk_message_panel()
@@ -8418,6 +8656,7 @@ func _push_talk_script(raw: String) -> void:
 	var flat := _reflow_talk_hard_breaks(script)
 	if flat.is_empty():
 		return
+	_discover_talk_keywords(flat)
 	## Ensure geometry before measuring wrap width (first line of a talk).
 	if _msg_rw < 8.0 or (_msg_block != null and _msg_block.size.x < 8.0):
 		if _map_pane != null:
@@ -9132,6 +9371,9 @@ func _talk_ask_question() -> void:
 	_talk_buffer = ""
 	_reset_talk_hangul()
 	_talk_pending_ask = false
+	if _talk_keyword_menu_active:
+		_enter_prompt_choice = 0
+		_GameInput.reset_stick_navigation()
 	_layout_prompt_row()
 
 
@@ -9237,6 +9479,7 @@ func _end_talk(_aborted: bool) -> void:
 		return
 	if _talk_stage == 0:
 		return
+	_end_talk_keyword_menu()
 	## Mark closed before farewell so Esc cannot re-enter or open the menu
 	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
 	var farewell := "Bye."
