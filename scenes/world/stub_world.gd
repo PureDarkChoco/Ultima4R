@@ -1162,11 +1162,11 @@ func _rebuild_choice_buttons(count: int) -> void:
 		btn.focus_entered.connect(func() -> void: _set_enter_prompt_choice(pick))
 		_enter_btn_row.add_child(btn)
 		_choice_btns.append(btn)
-	## Rebind neighbors so left/right wrap within the active set.
+	## No left/right wrap — ends stay on the first / last choice.
 	for i in _choice_btns.size():
 		var btn2 := _choice_btns[i]
-		var left_i := (i - 1 + _choice_btns.size()) % _choice_btns.size()
-		var right_i := (i + 1) % _choice_btns.size()
+		var left_i := maxi(i - 1, 0)
+		var right_i := mini(i + 1, _choice_btns.size() - 1)
 		btn2.focus_neighbor_left = btn2.get_path_to(_choice_btns[left_i])
 		btn2.focus_neighbor_right = btn2.get_path_to(_choice_btns[right_i])
 		btn2.focus_neighbor_top = btn2.get_path_to(btn2)
@@ -6888,13 +6888,9 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 	## reach stick_axis_step(), so handle it before the pressed-event guard.
 	if event is InputEventJoypadMotion:
 		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-		if stick_step != 0:
-			var stick_keys := _prompt_choice_keys()
-			if not stick_keys.is_empty():
-				_set_enter_prompt_choice(posmod(
-					_enter_prompt_choice + stick_step,
-					stick_keys.length()
-				))
+		if stick_step != 0 and not _prompt_choice_keys().is_empty():
+			## Clamp — no wrap from last↔first (Yes/No, Buy/Sell, inn 1–3, …).
+			_set_enter_prompt_choice(_enter_prompt_choice + stick_step)
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
@@ -6904,7 +6900,7 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 	## Left / right keys and D-pad are discrete button events.
 	var dir := _GameInput.dir_from_event(event)
 	if dir.x != 0:
-		_set_enter_prompt_choice(posmod(_enter_prompt_choice + dir.x, keys.length()))
+		_set_enter_prompt_choice(_enter_prompt_choice + dir.x)
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey

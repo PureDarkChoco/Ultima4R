@@ -125,10 +125,11 @@ func _build() -> void:
 		btn.focus_mode = Control.FOCUS_ALL
 		row.add_child(btn)
 
-	_btn_yes.focus_neighbor_left = _btn_yes.get_path_to(_btn_no)
+	## No wrap: left stays on Yes, right stays on No.
+	_btn_yes.focus_neighbor_left = _btn_yes.get_path_to(_btn_yes)
 	_btn_yes.focus_neighbor_right = _btn_yes.get_path_to(_btn_no)
 	_btn_no.focus_neighbor_left = _btn_no.get_path_to(_btn_yes)
-	_btn_no.focus_neighbor_right = _btn_no.get_path_to(_btn_yes)
+	_btn_no.focus_neighbor_right = _btn_no.get_path_to(_btn_no)
 
 	_btn_yes.pressed.connect(_accept)
 	_btn_no.pressed.connect(_cancel)
@@ -186,23 +187,23 @@ func _input(event: InputEvent) -> void:
 			_cancel()
 			get_viewport().set_input_as_handled()
 			return
-	## Stick: one Yes/No flip per tilt (motion floods would otherwise spam).
+	## Stick: one step per tilt; no wrap past Yes / No.
 	if event is InputEventJoypadMotion:
 		var stick_step := GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
 		if stick_step != 0:
-			_toggle_yes_no()
+			_nudge_yes_no(stick_step)
 		get_viewport().set_input_as_handled()
 		return
 	## Arrows / D-pad: move between Yes and No (don't rely on default ui_* only).
-	if (
-		event is InputEventKey or event is InputEventJoypadButton
-	) and (
-		event.is_action_pressed("ui_left") or event.is_action_pressed("move_left")
-		or event.is_action_pressed("ui_right") or event.is_action_pressed("move_right")
-	):
-		_toggle_yes_no()
-		get_viewport().set_input_as_handled()
-		return
+	if event is InputEventKey or event is InputEventJoypadButton:
+		if event.is_action_pressed("ui_left") or event.is_action_pressed("move_left"):
+			_nudge_yes_no(-1)
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("ui_right") or event.is_action_pressed("move_right"):
+			_nudge_yes_no(1)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("ui_accept") or event.is_action_pressed("confirm"):
 		## Space is bound to confirm — treat focused choice as the answer.
 		if get_viewport().gui_get_focus_owner() == _btn_yes:
@@ -221,11 +222,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _toggle_yes_no() -> void:
-	if get_viewport().gui_get_focus_owner() == _btn_yes:
-		_btn_no.grab_focus()
-	else:
+func _nudge_yes_no(step: int) -> void:
+	## Yes is left, No is right — stay put at the ends (no loop).
+	if step < 0:
 		_btn_yes.grab_focus()
+	elif step > 0:
+		_btn_no.grab_focus()
 	_sync_choice_style()
 
 

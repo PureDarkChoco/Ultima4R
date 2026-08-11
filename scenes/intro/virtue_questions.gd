@@ -34,12 +34,13 @@ func _ready() -> void:
 	for b in [_btn_a, _btn_b, _back]:
 		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
-	_btn_a.focus_neighbor_left = _btn_a.get_path_to(_btn_b)
+	## No wrap: left stays on A, right stays on B.
+	_btn_a.focus_neighbor_left = _btn_a.get_path_to(_btn_a)
 	_btn_a.focus_neighbor_right = _btn_a.get_path_to(_btn_b)
-	_btn_a.focus_neighbor_bottom = _btn_a.get_path_to(_btn_b)
+	_btn_a.focus_neighbor_bottom = _btn_a.get_path_to(_btn_a)
 	_btn_b.focus_neighbor_left = _btn_b.get_path_to(_btn_a)
-	_btn_b.focus_neighbor_right = _btn_b.get_path_to(_btn_a)
-	_btn_b.focus_neighbor_bottom = _btn_b.get_path_to(_btn_a)
+	_btn_b.focus_neighbor_right = _btn_b.get_path_to(_btn_b)
+	_btn_b.focus_neighbor_bottom = _btn_b.get_path_to(_btn_b)
 
 	_btn_a.pressed.connect(func() -> void: _choose(0))
 	_btn_b.pressed.connect(func() -> void: _choose(1))
