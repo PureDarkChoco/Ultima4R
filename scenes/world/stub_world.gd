@@ -90,7 +90,7 @@ const BAR_UNITS := 0.5
 const SIDE_TWEEN_SEC := 0.18
 const RIGHT_TOP_TILES := 5
 const COMPACT_RIGHT_TILES := 2
-## Locate HUD (Ctrl+L) — X from open-map right edge; Y on top bar. Tweak inset.
+## Locate HUD (Ctrl/⌘+L) — X from open-map right edge; Y on top bar. Tweak inset.
 const LOCATE_HUD_INSET := Vector2(6, 0)
 const LOCATE_HUD_FONT_SIZE := 13
 const LOCATE_HUD_COLOR := Color(0.91, 0.9, 0.82, 1)
@@ -3701,13 +3701,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _is_party_asleep_locked():
 			get_viewport().set_input_as_handled()
 			return
-		## Ctrl+L: toggle persistent Locate HUD (sextant required).
-		if event.ctrl_pressed and _is_locate_key(event):
+		## Ctrl/⌘+L: toggle persistent Locate HUD (sextant required).
+		if _is_mod_chord_key(event) and _is_locate_key(event):
 			_toggle_locate_hud()
 			get_viewport().set_input_as_handled()
 			return
-		## Ctrl+K: dump current virtue karma to the message log.
-		if event.ctrl_pressed and _is_karma_key(event):
+		## Ctrl/⌘+K: dump current virtue karma to the message log.
+		if _is_mod_chord_key(event) and _is_karma_key(event):
 			_do_show_karma()
 			get_viewport().set_input_as_handled()
 			return
@@ -3918,6 +3918,13 @@ func _ensure_peer_overlay() -> void:
 	_peer_overlay = PeerGemOverlay.new()
 	_peer_overlay.name = "PeerGemOverlay"
 	_map_pane.add_child(_peer_overlay)
+
+
+func _is_mod_chord_key(event: InputEventKey) -> bool:
+	## Ctrl (Windows/Linux) or ⌘ (macOS), not Alt/Shift.
+	if event.alt_pressed or event.shift_pressed:
+		return false
+	return event.ctrl_pressed or event.meta_pressed
 
 
 func _is_locate_key(event: InputEventKey) -> bool:
@@ -4243,9 +4250,7 @@ func _do_quit_save() -> void:
 
 func _is_quick_save_key(event: InputEventKey) -> bool:
 	## ⌘S (macOS) or Ctrl+S (Windows/Linux).
-	if event.alt_pressed or event.shift_pressed:
-		return false
-	if not (event.ctrl_pressed or event.meta_pressed):
+	if not _is_mod_chord_key(event):
 		return false
 	var code := event.keycode
 	var phys := event.physical_keycode
@@ -4254,9 +4259,7 @@ func _is_quick_save_key(event: InputEventKey) -> bool:
 
 func _is_fullscreen_key(event: InputEventKey) -> bool:
 	## ⌘F (macOS) or Ctrl+F (Windows/Linux) — same modifier check as quick-save.
-	if event.alt_pressed or event.shift_pressed:
-		return false
-	if not (event.ctrl_pressed or event.meta_pressed):
+	if not _is_mod_chord_key(event):
 		return false
 	var code := event.keycode
 	var phys := event.physical_keycode
