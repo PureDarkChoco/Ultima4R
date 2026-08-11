@@ -256,6 +256,7 @@ const IMMOBILIZED_SLEEP_SEC := 0.166
 const DEATH_PAUSE_SEC := 5.0 ## seconds between death dialogue lines (controller tick)
 const DEATH_CONTROLLER_HOLD_SEC := 3.0 ## hold on map before first-line fade
 const DEATH_FADE_OUT_SEC := 2.0 ## last part of first DeathController beat (fade to black)
+const DEATH_FADE_IN_SEC := 2.0 ## fade in after revive at Lord British throne
 const DEATH_NAME_WIDTH := 16 ## xu4 TEXT_AREA_W for centered avatar name
 const DEATH_REVIVE_CASTLE := Vector2i(19, 8) ## lcb_2 throne room
 const DEATH_LCB_WORLD := Vector2i(86, 107)
@@ -2354,6 +2355,10 @@ func _process(delta: float) -> void:
 	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
+	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
+	if _dialogue_choice_hold_active():
+		_tick_dialogue_choice_nav()
+		return
 	if _talk_stage != 0:
 		return
 	if _ready_stage == 2:
@@ -2646,6 +2651,65 @@ func _tick_select_cursor() -> void:
 		_nudge_options_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
+	_arm_hold_after_step()
+
+
+func _dialogue_choice_hold_active() -> bool:
+	## Shop weapon/armor/reagent rows, sell letter pick, or horizontal choice buttons.
+	if _talk_stage == 10 and _shop != null:
+		if not _shop_item_menu_items.is_empty():
+			return true
+		if (
+			bool(_shop.is_sell_letter_pick())
+			and _ztats_panel != null
+			and _ztats_panel.has_shop_pick()
+		):
+			return true
+	## Enter / shop Y/N·B/S·1–3 / talk gamepad Y/N (combat exit stays one-shot).
+	if _combat_exit_prompt:
+		return false
+	return _binary_prompt_active()
+
+
+func _tick_dialogue_choice_nav() -> void:
+	## Hold-repeat for dialogue choice UIs (same cadence as Ztats / Ready lists).
+	var step_x := 0
+	var step_y := 0
+	var vertical := false
+	if _talk_stage == 10 and _shop != null and not _shop_item_menu_items.is_empty():
+		step_y = _read_select_step()
+		vertical = true
+	elif (
+		_talk_stage == 10
+		and _shop != null
+		and bool(_shop.is_sell_letter_pick())
+		and _ztats_panel != null
+		and _ztats_panel.has_shop_pick()
+	):
+		step_y = _read_select_step()
+		vertical = true
+	else:
+		step_x = _GameInput.read_select_step_x()
+	var step := step_y if vertical else step_x
+	if step == 0:
+		_reset_hold_state()
+		return
+	var held := Vector2i(step_x, step_y)
+	if held != _held_dir:
+		_held_dir = held
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	if vertical:
+		if not _shop_item_menu_items.is_empty():
+			_move_shop_item_menu_cursor(step)
+		elif _ztats_panel != null:
+			_ztats_panel.shop_pick_nudge(step)
+	else:
+		_set_enter_prompt_choice(_enter_prompt_choice + step)
 	_arm_hold_after_step()
 
 
@@ -6883,24 +6947,34 @@ func _resolve_enter_prompt(yes: bool) -> void:
 
 
 func _handle_enter_prompt_input(event: InputEvent) -> bool:
-	## Analog navigation uses hysteresis: one move per deliberate tilt, then the
-	## stick must return to neutral before another move. Neutral motion must
-	## reach stick_axis_step(), so handle it before the pressed-event guard.
+	## Explore/shop choices: left/right hold-repeat is polled in
+	## _tick_dialogue_choice_nav. Combat exit Y/N still steps per event.
+	var poll_nav := _dialogue_choice_hold_active()
 	if event is InputEventJoypadMotion:
-		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-		if stick_step != 0 and not _prompt_choice_keys().is_empty():
-			## Clamp — no wrap from last↔first (Yes/No, Buy/Sell, inn 1–3, …).
-			_set_enter_prompt_choice(_enter_prompt_choice + stick_step)
+		if not poll_nav:
+			var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+			if stick_step != 0 and not _prompt_choice_keys().is_empty():
+				_set_enter_prompt_choice(_enter_prompt_choice + stick_step)
 		return true
-	if not event.is_pressed() or event.is_echo():
+	if not event.is_pressed():
 		return false
 	var keys := _prompt_choice_keys()
 	if keys.is_empty():
 		return false
-	## Left / right keys and D-pad are discrete button events.
+	if event.is_echo():
+		## Polled UIs swallow echo dirs; combat exit ignores them.
+		if poll_nav and event is InputEventKey:
+			var ek := event as InputEventKey
+			if (
+				ek.keycode == KEY_LEFT or ek.physical_keycode == KEY_LEFT
+				or ek.keycode == KEY_RIGHT or ek.physical_keycode == KEY_RIGHT
+			):
+				return true
+		return false
 	var dir := _GameInput.dir_from_event(event)
 	if dir.x != 0:
-		_set_enter_prompt_choice(_enter_prompt_choice + dir.x)
+		if not poll_nav:
+			_set_enter_prompt_choice(_enter_prompt_choice + dir.x)
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -8284,7 +8358,19 @@ func _run_death_sequence_async(delay_sec: float) -> void:
 			_layout_prompt_row()
 			if _msg_cursor:
 				_msg_cursor.visible = true
+	## Relocate under blackout, then fade into the throne room.
 	_death_revive()
+	if not is_inside_tree() or not _death_busy:
+		_abort_death_sequence()
+		return
+	await _death_fade_from_black(DEATH_FADE_IN_SEC)
+	if not is_inside_tree() or not _death_busy:
+		_abort_death_sequence()
+		return
+	_death_busy = false
+	if _msg_cursor:
+		_msg_cursor.visible = true
+	_layout_prompt_row()
 
 
 func _death_wait(sec: float) -> void:
@@ -8375,8 +8461,33 @@ func _death_fade_to_black(duration: float) -> void:
 		_death_blackout.modulate = Color(1, 1, 1, 1)
 
 
+func _death_fade_from_black(duration: float) -> void:
+	## Soft fade-in after revive at Lord British (map already relocated under black).
+	if _map_pane == null or _map == null:
+		_set_death_blackout(false)
+		return
+	_ensure_death_blackout()
+	_kill_death_fade_tween()
+	_death_blackout.visible = true
+	_death_blackout.color = Color.BLACK
+	_death_blackout.modulate = Color(1, 1, 1, 1)
+	if duration <= 0.0:
+		_set_death_blackout(false)
+		return
+	_death_fade_tween = create_tween()
+	_death_fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_death_fade_tween.tween_property(
+		_death_blackout, "modulate:a", 0.0, duration
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await _death_fade_tween.finished
+	_death_fade_tween = null
+	if _death_blackout != null and is_instance_valid(_death_blackout):
+		_death_blackout.visible = false
+		_death_blackout.modulate = Color(1, 1, 1, 1)
+
+
 func _set_death_blackout(on: bool) -> void:
-	## Hard snap blackout on/off (abort / after revive). Prefer fade for cut-in.
+	## Hard snap blackout on/off (abort path). Revive uses fade-in instead.
 	_kill_death_fade_tween()
 	if _map_pane == null or _map == null:
 		return
@@ -8430,8 +8541,8 @@ func _close_ui_for_death() -> void:
 
 func _death_revive() -> void:
 	## xu4 deathRevive — unwind to world, enter LCB-2 at throne, reviveParty.
-	## Always clear blackout/busy even if a later step fails.
-	_set_death_blackout(false)
+	## Stay blacked out; caller fades in once the throne room is ready.
+	_set_death_blackout(true)
 	## Leave combat / city / camp without printing exit chatter.
 	if _map != null and _map.is_in_combat():
 		_map.exit_combat()
@@ -8493,10 +8604,6 @@ func _death_revive() -> void:
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
 	_stamp_command_time()
-	_death_busy = false
-	if _msg_cursor:
-		_msg_cursor.visible = true
-	_layout_prompt_row()
 	if not entered and _map != null:
 		_map.set_center(_tile_pos, false)
 
@@ -8813,6 +8920,7 @@ func _flush_shop_output() -> void:
 	if not _shop_choice_keys().is_empty():
 		_enter_prompt_choice = 0
 		_GameInput.reset_stick_navigation()
+		_reset_hold_state()
 	_layout_prompt_row()
 	_refresh_inventory_bars()
 	_refresh_party()
@@ -8854,15 +8962,18 @@ func _sync_shop_item_menu() -> void:
 			int(_shop_item_line_by_key.get(item_key, -1))
 		)
 	_GameInput.reset_stick_navigation()
+	_reset_hold_state()
 	_refresh_message_view()
 
 
 func _move_shop_item_menu_cursor(step: int) -> void:
 	if _shop_item_menu_items.is_empty() or step == 0:
 		return
-	_shop_item_menu_cursor = posmod(
+	## No wrap — hold-repeat would otherwise loop the whole catalog.
+	_shop_item_menu_cursor = clampi(
 		_shop_item_menu_cursor + step,
-		_shop_item_menu_items.size()
+		0,
+		_shop_item_menu_items.size() - 1
 	)
 	_refresh_message_view()
 
@@ -8886,17 +8997,19 @@ func _handle_shop_item_menu_input(event: InputEvent) -> bool:
 	if _shop_item_menu_items.is_empty() or _talk_stage != 10 or _shop == null:
 		return false
 	if event is InputEventJoypadMotion:
-		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
-		if stick_step != 0:
-			_move_shop_item_menu_cursor(stick_step)
+		## ↑↓ hold-repeat is polled in _tick_dialogue_choice_nav.
 		return true
 	if not event.is_pressed():
 		return false
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
+		if (
+			key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
+			or key_event.keycode == KEY_DOWN or key_event.physical_keycode == KEY_DOWN
+		):
+			return true
 		var key_dir := _GameInput.dir_from_event(key_event)
 		if key_dir.y != 0:
-			_move_shop_item_menu_cursor(key_dir.y)
 			return true
 		if not key_event.echo and _is_talk_enter(key_event):
 			_choose_shop_item_menu_item()
@@ -8910,7 +9023,6 @@ func _handle_shop_item_menu_input(event: InputEvent) -> bool:
 			return true
 		var pad_dir := _GameInput.dir_from_event(event)
 		if pad_dir.y != 0:
-			_move_shop_item_menu_cursor(pad_dir.y)
 			return true
 	return false
 
@@ -8935,7 +9047,7 @@ func _choose_shop_sell_pick() -> bool:
 
 func _handle_shop_sell_pick_input(event: InputEvent) -> bool:
 	## Weapon/armor sell list lives on the character panel (not dialogue rows).
-	## Gamepad must navigate here — keyboard path also reuses this handler.
+	## ↑↓ hold-repeat is polled in _tick_dialogue_choice_nav.
 	if (
 		_talk_stage != 10
 		or _shop == null
@@ -8945,26 +9057,17 @@ func _handle_shop_sell_pick_input(event: InputEvent) -> bool:
 	):
 		return false
 	if event is InputEventJoypadMotion:
-		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
-		if stick_step != 0:
-			_ztats_panel.shop_pick_nudge(stick_step)
 		return true
 	if not event.is_pressed():
 		return false
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
-		if key_event.echo:
-			if _is_shop_sell_nudge_key(key_event):
-				var echo_dir := _GameInput.dir_from_event(key_event)
-				if echo_dir.y != 0:
-					_ztats_panel.shop_pick_nudge(echo_dir.y)
-					return true
-			return false
+		if _is_shop_sell_nudge_key(key_event):
+			return true
 		var key_dir := _GameInput.dir_from_event(key_event)
 		if key_dir.y != 0:
-			_ztats_panel.shop_pick_nudge(key_dir.y)
 			return true
-		if _is_talk_enter(key_event):
+		if not key_event.echo and _is_talk_enter(key_event):
 			return _choose_shop_sell_pick()
 		return false
 	if event is InputEventJoypadButton:
@@ -8974,7 +9077,6 @@ func _handle_shop_sell_pick_input(event: InputEvent) -> bool:
 			return _choose_shop_sell_pick()
 		var pad_dir := _GameInput.dir_from_event(event)
 		if pad_dir.y != 0:
-			_ztats_panel.shop_pick_nudge(pad_dir.y)
 			return true
 	return false
 

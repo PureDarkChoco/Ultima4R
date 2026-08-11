@@ -220,7 +220,8 @@ func shop_pick_nudge(delta: int) -> void:
 	if not has_shop_pick() or delta == 0:
 		return
 	var n := _pick_ids.size()
-	_pick_cursor = posmod(_pick_cursor + delta, n)
+	## No wrap — hold-repeat would otherwise loop the sell list.
+	_pick_cursor = clampi(_pick_cursor + delta, 0, n - 1)
 	_pick_retain_id = int(_pick_ids[_pick_cursor])
 	_sync_shop_pick_hilite()
 	_ensure_shop_pick_visible()

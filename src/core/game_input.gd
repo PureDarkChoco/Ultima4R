@@ -11,6 +11,7 @@ const STICK_NAV_PRESS := 0.5
 const STICK_NAV_RELEASE := 0.30
 
 static var _stick_nav_latches: Dictionary = {}
+static var _select_x_latches: Dictionary = {}
 static var _select_y_latches: Dictionary = {}
 
 
@@ -191,6 +192,34 @@ static func read_select_step() -> int:
 	return 0
 
 
+static func read_select_step_x() -> int:
+	## -1 left, +1 right, 0 none. Same hold-repeat contract as read_select_step().
+	if Input.is_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_LEFT):
+		return -1
+	if Input.is_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_RIGHT):
+		return 1
+	for device in Input.get_connected_joypads():
+		if Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_LEFT):
+			return -1
+		if Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_RIGHT):
+			return 1
+	for device in Input.get_connected_joypads():
+		var value := Input.get_joy_axis(device, JOY_AXIS_LEFT_X)
+		var latched := int(_select_x_latches.get(device, 0))
+		if latched != 0:
+			if absf(value) <= STICK_NAV_RELEASE:
+				_select_x_latches[device] = 0
+			elif signf(value) == float(latched):
+				return latched
+			## Opposite snap-back is ignored until neutral is observed.
+			continue
+		if absf(value) >= STICK_NAV_PRESS:
+			var direction := -1 if value < 0.0 else 1
+			_select_x_latches[device] = direction
+			return direction
+	return 0
+
+
 static func stick_axis_step(event: InputEvent, axis: JoyAxis) -> int:
 	## One navigation step per deliberate tilt. The axis must return near
 	## neutral before either direction can fire again, which filters snap-back.
@@ -246,6 +275,7 @@ static func _latch_stick_axis_if_tilted(device: int, axis: JoyAxis) -> void:
 static func reset_stick_navigation() -> void:
 	## A newly opened menu must not inherit a latch from a previous UI.
 	_stick_nav_latches.clear()
+	_select_x_latches.clear()
 	_select_y_latches.clear()
 
 
