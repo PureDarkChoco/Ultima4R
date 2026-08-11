@@ -1,0 +1,114 @@
+{
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens.",
+  "entries": [
+    {
+      "id": "minoc.shentis.sacrifice",
+      "place": "minoc",
+      "npc": "Shentis",
+      "topic": "SACR",
+      "goal": "",
+      "en": "Virtue: Sacrifice",
+      "ko": "미덕: 희생"
+    },
+    {
+      "id": "minoc.azure.mischief-rune",
+      "place": "minoc",
+      "npc": "Azure",
+      "topic": "SACR",
+      "chain": "minoc.sacrifice-rune",
+      "chain_order": 10,
+      "goal": "ask:mischief-rune",
+      "complete_if_recorded": "minoc.mischief.forge-rune",
+      "complete_on_goal": "rune:sacrifice",
+      "en": "Ask Mischief about the rune of Sacrifice.",
+      "ko": "미시프에게 희생의 룬을 물어보라."
+    },
+    {
+      "id": "minoc.mischief.forge-rune",
+      "place": "minoc",
+      "npc": "Mischief",
+      "topic": "RUNE",
+      "chain": "minoc.sacrifice-rune",
+      "chain_order": 20,
+      "goal": "rune:sacrifice",
+      "en": "Sacrifice rune: within the fires of the forge.",
+      "ko": "희생의 룬: 대장간 불꽃 속에 있다."
+    },
+    {
+      "id": "minoc.mischief.return-with-rune",
+      "place": "minoc",
+      "npc": "Mischief",
+      "topic": "RETURN",
+      "chain": "minoc.sacrifice-rune",
+      "chain_order": 30,
+      "goal": "confirm:mischief-rune",
+      "complete_if_recorded": [
+        "minoc.mischief.alkerion-stone",
+        "minoc.alkerion.sacrifice-stone"
+      ],
+      "en": "Return to Mischief with the rune of Sacrifice.",
+      "ko": "희생의 룬을 가지고 미시프와 다시 대화하라."
+    },
+    {
+      "id": "minoc.mischief.alkerion-stone",
+      "place": "minoc",
+      "npc": "Mischief",
+      "topic": "RUNE_YES",
+      "chain": "minoc.sacrifice-rune",
+      "chain_order": 40,
+      "goal": "ask:alkerion-stone",
+      "complete_if_recorded": "minoc.alkerion.sacrifice-stone",
+      "complete_on_goal": "stone:orange",
+      "en": "Ask Alkerion about the stone of Sacrifice.",
+      "ko": "알케리온에게 희생의 돌에 대해 물어보라."
+    },
+    {
+      "id": "minoc.alkerion.sacrifice-stone",
+      "place": "minoc",
+      "npc": "Alkerion",
+      "topic": "STON",
+      "chain": "minoc.sacrifice-rune",
+      "chain_order": 50,
+      "goal": "stone:orange",
+      "en": "Sacrifice stone: orange; used in the altar rooms of Love and Courage.",
+      "ko": "희생의 돌: 주황색이며 사랑과 용기의 제단 방에서 사용한다."
+    },
+    {
+      "id": "minoc.merida.damon-mantra",
+      "place": "minoc",
+      "npc": "Merida",
+      "topic": "MANT",
+      "chain": "minoc.sacrifice-mantra",
+      "chain_order": 10,
+      "goal": "ask:damon-mantra",
+      "complete_if_recorded": "minoc.damon.bard-song",
+      "complete_on_goal": "mantra:sacrifice",
+      "en": "Find the hidden shepherd and ask about the mantra.",
+      "ko": "숨은 양치기에게 만트라를 물어보라."
+    },
+    {
+      "id": "minoc.damon.bard-song",
+      "place": "minoc",
+      "npc": "Damon",
+      "topic": "MANT",
+      "chain": "minoc.sacrifice-mantra",
+      "chain_order": 20,
+      "goal": "ask:singsong-song",
+      "complete_if_recorded": "minoc.singsong.sacrifice-mantra",
+      "complete_on_goal": "mantra:sacrifice",
+      "en": "Listen to the bard's song; the key to the mantra lies in its verse.",
+      "ko": "음유시인의 노래를 들어라. 가사 안에 만트라의 열쇠가 있다."
+    },
+    {
+      "id": "minoc.singsong.sacrifice-mantra",
+      "place": "minoc",
+      "npc": "Singsong",
+      "topic": "SONG",
+      "chain": "minoc.sacrifice-mantra",
+      "chain_order": 30,
+      "goal": "mantra:sacrifice",
+      "en": "Sacrifice mantra: CAH, hidden in the raven's song.",
+      "ko": "희생의 만트라: 까마귀 노래에 숨은 ‘카아(CAH)’."
+    }
+  ]
+}

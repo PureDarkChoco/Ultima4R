@@ -2,6 +2,8 @@ extends Node
 
 ## Global run state for Ultima4R (autoload: GameState).
 
+const _Journal := preload("res://src/core/journal.gd")
+
 signal language_changed(lang: String)
 
 enum Language { EN_U4, EN_US, KO }
@@ -88,6 +90,8 @@ var stones: int = 0
 var runes: int = 0
 ## xu4 SaveGame.lbIntro — first throne-room audience speech delivered.
 var lb_intro: bool = false
+## Journal / 여행 기록 — catalog hits in acquisition order (see Journal / entries.json).
+var journal_entries: Array = []
 ## xu4 camp.h — heal only when the moves/100 bucket differs from lastcamp.
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
@@ -312,6 +316,7 @@ func reset_party() -> void:
 	stones = 0
 	runes = 0
 	lb_intro = false
+	journal_entries.clear()
 	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
@@ -2141,6 +2146,7 @@ func grant_stone(flag: int) -> void:
 	adjust_karma_found_item()
 	stones |= flag
 	mark_lastreagent()
+	_journal_mark_stone_flag(flag)
 
 
 func grant_rune(flag: int) -> void:
@@ -2148,6 +2154,14 @@ func grant_rune(flag: int) -> void:
 	adjust_karma_found_item()
 	runes |= flag
 	mark_lastreagent()
+	_journal_mark_rune_flag(flag)
+	## Only players who already heard Mischief's forge clue are reminded
+	## to return after finding the sacrifice rune.
+	if (
+		flag == RUNE_SACRIFICE
+		and journal_has_id("minoc.mischief.forge-rune")
+	):
+		journal_try_capture("minoc", "Mischief", "RETURN")
 
 
 func grant_mystic_weapon() -> void:
@@ -2531,6 +2545,7 @@ func to_save_dict() -> Dictionary:
 		"stones": stones,
 		"runes": runes,
 		"lb_intro": lb_intro,
+		"journal": journal_entries.duplicate(true),
 		"lastreagent": lastreagent,
 		"has_sextant": has_sextant,
 		"weapons": weapons.duplicate(),
@@ -2592,6 +2607,12 @@ func apply_save_dict(d: Dictionary) -> void:
 	stones = maxi(0, int(d.get("stones", 0)))
 	runes = maxi(0, int(d.get("runes", 0)))
 	lb_intro = bool(d.get("lb_intro", false))
+	journal_entries.clear()
+	var journal_raw: Variant = d.get("journal", [])
+	if typeof(journal_raw) == TYPE_ARRAY:
+		for row in journal_raw:
+			if typeof(row) == TYPE_DICTIONARY:
+				journal_entries.append((row as Dictionary).duplicate(true))
 	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
 	## Legacy saves stored only `skull` count — promote into the items bitfield.
 	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
@@ -2642,6 +2663,7 @@ func apply_save_dict(d: Dictionary) -> void:
 		refresh_party_order()
 	## Ensure pack / equipped gear are marked (also migrates pre-known saves).
 	_mark_gear_known_from_stock_and_party()
+	_Journal.mark_goals_for_inventory(self)
 
 
 func _seed_stats_from_class_defaults() -> void:
@@ -2789,3 +2811,42 @@ func _probe_u4_data() -> bool:
 			_persist_u4_data_path()
 			return true
 	return false
+
+
+func journal_try_capture(place: String, npc: String, topic: String) -> bool:
+	return _Journal.try_capture(self, place, npc, topic)
+
+
+func journal_has_id(id: String) -> bool:
+	return _Journal.has_entry_id(self, id)
+
+
+func journal_mark_goal(goal: String) -> bool:
+	return _Journal.mark_goal(self, goal)
+
+
+func journal_mark_id(id: String) -> bool:
+	return _Journal.mark_id(self, id)
+
+
+func journal_mark_mantra(virtue: int) -> bool:
+	if virtue < 0 or virtue > 7:
+		return false
+	return journal_mark_goal("mantra:%s" % Virtues.NAMES_EN[virtue].to_lower())
+
+
+func _journal_mark_rune_flag(flag: int) -> void:
+	for v in 8:
+		if flag == (1 << v):
+			journal_mark_goal("rune:%s" % Virtues.NAMES_EN[v].to_lower())
+			return
+
+
+func _journal_mark_stone_flag(flag: int) -> void:
+	const NAMES := [
+		"blue", "yellow", "red", "green", "orange", "purple", "white", "black",
+	]
+	for i in NAMES.size():
+		if flag == (1 << i):
+			journal_mark_goal("stone:%s" % NAMES[i])
+			return

@@ -35,6 +35,7 @@ const _LordBritish := preload("res://src/core/lord_british.gd")
 const _GameInput := preload("res://src/core/game_input.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
+const _JournalScript := preload("res://src/core/journal.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -47,6 +48,7 @@ const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 @onready var _roster: PartyRoster = %PartyRoster
 @onready var _compact_roster: PartyRoster = %CompactRoster
 @onready var _foe_roster: VBoxContainer = %FoeRoster
+@onready var _journal_panel: VBoxContainer = %JournalPanel
 @onready var _msg_block: Control = %MsgBlock
 
 var _peer_overlay: PeerGemOverlay
@@ -412,12 +414,15 @@ func _ready() -> void:
 	call_deferred("grab_focus")
 	if not GameState.language_changed.is_connected(_on_language_changed):
 		GameState.language_changed.connect(_on_language_changed)
+	_JournalScript.ensure_catalog()
+	_sync_left_panel_mode()
 	if not _load_error.is_empty():
 		_push_message(_load_error)
 		push_error(_load_error)
 	else:
 		_refresh_party()
 		_refresh_ship_hull_hud()
+		_refresh_journal_panel()
 
 
 func _apply_world_save(w: Dictionary) -> void:
@@ -3321,19 +3326,117 @@ func _offer_talk_join_keyword() -> void:
 	if not _talk_keyword_menu_active or _talk_keyword_menu_seen.has("join"):
 		return
 	var korean := GameState.lang_short() == "ko"
+	_offer_talk_keyword_item(
+		"join",
+		"합류" if korean else "Join",
+		"합류" if korean else "join"
+	)
+
+
+func _offer_talk_keyword_item(key: String, label: String, input: String) -> void:
+	## Insert a selectable interest before Health (same order as discovered topics).
+	if not _talk_keyword_menu_active or key.is_empty() or _talk_keyword_menu_seen.has(key):
+		return
 	var health_index := _talk_keyword_menu_items.size()
 	for i in _talk_keyword_menu_items.size():
 		if str(_talk_keyword_menu_items[i].get("key", "")) == "heal":
 			health_index = i
 			break
 	_talk_keyword_menu_items.insert(health_index, {
-		"key": "join",
-		"label": "합류" if korean else "Join",
-		"input": "합류" if korean else "join",
+		"key": key,
+		"label": label,
+		"input": input,
 	})
-	_talk_keyword_menu_seen["join"] = true
+	_talk_keyword_menu_seen[key] = true
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
+
+
+func _maybe_offer_azure_sacrifice_keyword() -> void:
+	## After Azure: "Which rune?" — inject Sacrifice if the player already
+	## learned the virtue from Shentis (journal). Dialogue text alone does not
+	## always contain the word (esp. English "Ask my sister, Mischief.").
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "azure":
+		return
+	if not GameState.journal_has_id("minoc.shentis.sacrifice"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var key := _talk_keyword_stable_key("희생" if korean else "sacrifice")
+	_offer_talk_keyword_item(
+		key,
+		"희생" if korean else "Sacrifice",
+		"희생" if korean else "sacrifice"
+	)
+
+
+
+func _maybe_offer_mischief_rune_keyword() -> void:
+	## After Azure pointed to Mischief for the sacrifice rune, open with Rune.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "mischief":
+		return
+	if (
+		not GameState.journal_has_id("minoc.azure.mischief-rune")
+		and not GameState.journal_has_id("minoc.mischief.forge-rune")
+	):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var key := _talk_keyword_stable_key("룬" if korean else "rune")
+	_offer_talk_keyword_item(
+		key,
+		"룬" if korean else "rune",
+		"룬" if korean else "rune"
+	)
+
+
+func _maybe_offer_alkerion_stone_keyword() -> void:
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "alkerion":
+		return
+	if not GameState.journal_has_id("minoc.mischief.alkerion-stone"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var key := _talk_keyword_stable_key("돌" if korean else "stone")
+	_offer_talk_keyword_item(
+		key,
+		"돌" if korean else "Stone",
+		"돌" if korean else "stone"
+	)
+
+
+func _maybe_offer_sacrifice_mantra_chain_keyword() -> void:
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "damon"
+		and GameState.journal_has_id("minoc.merida.damon-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+	elif (
+		npc == "singsong"
+		and GameState.journal_has_id("minoc.damon.bard-song")
+	):
+		## Korean topic1 and topic2 are both displayed as "노래".
+		## Send the distinct English SONG stem so the mantra verse is selected.
+		var song_key := _talk_keyword_stable_key("song")
+		_offer_talk_keyword_item(
+			song_key,
+			"노래" if korean else "Song",
+			"song"
+		)
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -4275,6 +4378,7 @@ func _do_search() -> void:
 		return
 	_refresh_inventory_bars()
 	_refresh_party()
+	_refresh_journal_panel()
 	_search_busy = false
 	_finish_party_turn()
 
@@ -4548,6 +4652,7 @@ func _on_language_changed(_lang: String) -> void:
 			_ztats_panel._refresh_inventory()
 	_refresh_party()
 	_refresh_locate_hud()
+	_refresh_journal_panel()
 	_layout_prompt_row()
 
 
@@ -7347,6 +7452,8 @@ func _shrine_submit_mantra(typed: String) -> void:
 	_shrine_cycles -= 1
 	_shrine_completed += 1
 	GameState.adjust_karma_meditation()
+	if GameState.journal_mark_mantra(_shrine_virtue):
+		_refresh_journal_panel()
 	_refresh_party()
 	if _shrine_cycles > 0:
 		_shrine_begin_meditation_async()
@@ -9399,6 +9506,9 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_pending_ask = false
 	_talk_keywords = entry.highlight_keywords()
 	_begin_talk_keyword_menu_if_requested()
+	_maybe_offer_mischief_rune_keyword()
+	_maybe_offer_alkerion_stone_keyword()
+	_maybe_offer_sacrifice_mantra_chain_keyword()
 	_city_map.pause_follow(person_i)
 	## Message + character panels (left inventory stays closed unless already Tab-open).
 	_open_talk_message_panel()
@@ -9412,6 +9522,35 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	## Otherwise leave Name selected so the player can ask who they are.
 	if _talk_keyword_menu_active:
 		var default_key := "job" if introduced_name else "name"
+		## Mischief after Azure tip: prefer pre-unlocked Rune.
+		if str(entry.name).strip_edges().to_lower() == "mischief":
+			if (
+				GameState.journal_has_id("minoc.azure.mischief-rune")
+				or GameState.journal_has_id("minoc.mischief.forge-rune")
+			):
+				var rune_key := _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+				default_key = rune_key
+		elif (
+			str(entry.name).strip_edges().to_lower() == "alkerion"
+			and GameState.journal_has_id("minoc.mischief.alkerion-stone")
+		):
+			default_key = _talk_keyword_stable_key(
+				"돌" if GameState.lang_short() == "ko" else "stone"
+			)
+		elif (
+			str(entry.name).strip_edges().to_lower() == "damon"
+			and GameState.journal_has_id("minoc.merida.damon-mantra")
+		):
+			default_key = _talk_keyword_stable_key(
+				"만트라" if GameState.lang_short() == "ko" else "mantra"
+			)
+		elif (
+			str(entry.name).strip_edges().to_lower() == "singsong"
+			and GameState.journal_has_id("minoc.damon.bard-song")
+		):
+			default_key = _talk_keyword_stable_key("song")
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -10159,6 +10298,7 @@ func _talk_process_keyword(input: String) -> void:
 		var reply := str(hit.get("text", ""))
 		_push_talk_script(reply)
 		_TalkTlk.apply_keyword_rewards(e, kind)
+		_try_journal_talk_capture(e, kind)
 		if (
 			str(e.name).to_lower() == "shamino"
 			and kind == _TalkTlk.REPLY_TOPIC2
@@ -10246,7 +10386,21 @@ func _talk_answer_yn(yes: bool) -> void:
 		and GameState.can_person_join_name(str(e.name))
 	):
 		_offer_talk_join_keyword()
+	if yes:
+		_maybe_offer_azure_sacrifice_keyword()
 	_TalkTlk.apply_yesno_rewards(e, yes)
+	## Mischief's Rune question: confirming possession advances the chain
+	## to Alkerion's information about the sacrifice stone.
+	if yes and str(e.name).strip_edges().to_lower() == "mischief":
+		var journal_changed := false
+		if GameState.journal_mark_id("minoc.mischief.return-with-rune"):
+			journal_changed = true
+		if GameState.journal_mark_goal("confirm:mischief-rune"):
+			journal_changed = true
+		if GameState.journal_try_capture("minoc", "Mischief", "RUNE_YES"):
+			journal_changed = true
+		if journal_changed:
+			_refresh_journal_panel()
 	_talk_prompt_interest()
 
 
@@ -12395,6 +12549,7 @@ func _refresh_party() -> void:
 
 
 func _refresh_foe_roster() -> void:
+	_sync_left_panel_mode()
 	if _foe_roster == null:
 		return
 	if not _combat_active or _map == null or not _map.is_in_combat():
@@ -12402,6 +12557,70 @@ func _refresh_foe_roster() -> void:
 		return
 	_foe_roster.set_foes(_map.get_combat_foes())
 	_sync_combat_aim_foe_roster()
+
+
+func _sync_left_panel_mode() -> void:
+	## Combat → foe list; explore → Journal / 여행 기록.
+	var in_combat := _combat_active and _map != null and _map.is_in_combat()
+	if _foe_roster:
+		_foe_roster.visible = in_combat
+	if _journal_panel:
+		_journal_panel.visible = not in_combat
+		if not in_combat:
+			_refresh_journal_panel()
+
+
+func _refresh_journal_panel() -> void:
+	if _journal_panel != null and _journal_panel.has_method("refresh"):
+		_journal_panel.refresh()
+
+
+func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
+	if entry == null or _city_map == null:
+		return
+	var place := _TalkLocale.city_id_from_path(str(_city_map.source_path))
+	var topic := _JournalScript.topic_for_reply_kind(entry, kind)
+	if place.is_empty() or topic.is_empty():
+		return
+	var npc := str(entry.name)
+	var refresh := false
+	if GameState.journal_try_capture(place, npc, topic):
+		refresh = true
+	var npc_key := npc.strip_edges().to_lower()
+	## Azure → Mischief: asking Mischief about the rune completes the prior tip.
+	if (
+		place == "minoc"
+		and npc_key == "mischief"
+		and topic == "RUNE"
+	):
+		if GameState.journal_mark_id("minoc.azure.mischief-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:mischief-rune"):
+			refresh = true
+	## Alkerion's Stone answer completes Mischief's direction.
+	if (
+		place == "minoc"
+		and npc_key == "alkerion"
+		and topic == "STON"
+	):
+		if GameState.journal_mark_id("minoc.mischief.alkerion-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:alkerion-stone"):
+			refresh = true
+	## Merida → Damon: asking the hidden shepherd completes Merida's direction.
+	if place == "minoc" and npc_key == "damon" and topic == "MANT":
+		if GameState.journal_mark_id("minoc.merida.damon-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:damon-mantra"):
+			refresh = true
+	## Damon → Singsong: hearing the bard's song completes Damon's direction.
+	if place == "minoc" and npc_key == "singsong" and topic == "SONG":
+		if GameState.journal_mark_id("minoc.damon.bard-song"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:singsong-song"):
+			refresh = true
+	if refresh:
+		_refresh_journal_panel()
 
 
 func _sync_combat_aim_foe_roster() -> void:

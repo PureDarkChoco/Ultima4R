@@ -854,6 +854,16 @@ const _T := {
 		"en_us": "On the Britannia",
 		"ko": "브리타니아",
 	},
+	"journal_title": {
+		"en_u4": "Journal",
+		"en_us": "Journal",
+		"ko": "여행 기록",
+	},
+	"journal_empty": {
+		"en_u4": "No notes yet.",
+		"en_us": "No notes yet.",
+		"ko": "아직 기록이 없다.",
+	},
 	"place_lcb": {
 		"en_u4": "Britannia Castle",
 		"en_us": "Britannia Castle",

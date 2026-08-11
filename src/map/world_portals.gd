@@ -99,3 +99,20 @@ static func kind_locale_key(kind: int) -> String:
 			return "city_kind_ruins"
 		_:
 			return "city_kind_towne"
+
+
+## Journal / 여행 기록 place order: castles (code), 8 virtue towns, villages (code).
+const JOURNAL_CASTLES: Array[String] = ["lcb", "lycaeum", "empath", "serpent"]
+const JOURNAL_TOWNS: Array[String] = [
+	"moonglow", "britain", "jhelom", "yew",
+	"minoc", "trinsic", "skara", "magincia",
+]
+const JOURNAL_VILLAGES: Array[String] = ["paws", "den", "vesper", "cove"]
+
+
+static func journal_place_order() -> Array[String]:
+	var out: Array[String] = []
+	out.append_array(JOURNAL_CASTLES)
+	out.append_array(JOURNAL_TOWNS)
+	out.append_array(JOURNAL_VILLAGES)
+	return out
