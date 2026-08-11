@@ -202,6 +202,9 @@ var _wear_cursor := 0
 var _wear_slot := -1
 ## Improved Mix: 0 = idle, 1 = known list, 2 = reagent pick, 3 = wait spell letter (Make new).
 var _mix_stage := 0
+## Mix opened from gamepad command menu → full A–Z list (no Mix New + letter).
+var _mix_gamepad_requested := false
+var _mix_pad_full_list := false
 ## Use (U): 0 = idle, 1 = pick item from list.
 var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
@@ -2542,12 +2545,24 @@ func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true)
 	if _map != null:
 		_map.set_center(_tile_pos)
 	_refresh_locate_hud()
+	_play_transport_step_sfx()
 	if with_message:
 		_push_move_message(dir)
 	## xu4: south toward Shrine of Humility — daemons unless Horn aura active.
 	if not _is_in_city() and _world_creatures != null:
 		if _world_creatures.try_humility_daemon_ambush(dir, _tile_pos) > 0:
 			_sync_creatures_to_map()
+
+
+func _play_transport_step_sfx() -> void:
+	## One clip per successful tile step (gallop plays twice on a 2-tile move).
+	match _transport:
+		Transport.FOOT:
+			AudioSfx.play_foot_step()
+		Transport.HORSE:
+			AudioSfx.play_horse_step()
+		_:
+			pass
 
 
 func _reset_hold_state() -> void:
@@ -3029,6 +3044,7 @@ func _choose_command_menu_item(from_gamepad: bool = false) -> void:
 		return
 	var cmd := _command_menu_items[_command_menu_cursor]
 	_talk_gamepad_requested = cmd == U4Commands.Id.TALK and from_gamepad
+	_mix_gamepad_requested = cmd == U4Commands.Id.MIX and from_gamepad
 	var needs_dir := bool(U4Commands.NEEDS_DIRECTION.get(cmd, false))
 	_close_command_menu()
 	if needs_dir:
@@ -6137,12 +6153,16 @@ func _ensure_mix_panel() -> void:
 
 func _do_mix() -> void:
 	## Improved Mix: known recipes remixed from a list; unknown via reagent pick.
+	## Gamepad entry lists A–Z so unmixed spells can be chosen without A–Z keys.
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_ready(false)
 	_close_wear(false)
 	_close_use(false)
+	_mix_pad_full_list = _mix_gamepad_requested
+	_mix_gamepad_requested = false
 	if not GameState.has_any_reagents():
+		_mix_pad_full_list = false
 		_push_message(Locale.t("mix_none_left"), false)
 		_finish_party_turn()
 		return
@@ -6156,7 +6176,7 @@ func _do_mix() -> void:
 	_mix_stage = 1
 	_reset_hold_state()
 	if _mix_panel:
-		_mix_panel.open_list()
+		_mix_panel.open_list(_mix_pad_full_list)
 	_layout_prompt_row()
 
 
@@ -6233,7 +6253,7 @@ func _return_to_list_and_remix(spell_id: int) -> void:
 	## Make new + already-known letter → jump back to list and auto-mix.
 	_mix_stage = 1
 	if _mix_panel:
-		_mix_panel.open_list()
+		_mix_panel.open_list(_mix_pad_full_list)
 		var idx: int = int(_mix_panel.index_of_spell(spell_id))
 		if idx >= 0:
 			_mix_panel.set_cursor(idx)
@@ -6274,7 +6294,7 @@ func _return_mix_to_list() -> void:
 		_mix_panel.revert_selected_reagents()
 	_mix_stage = 1
 	if _mix_panel:
-		_mix_panel.open_list()
+		_mix_panel.open_list(_mix_pad_full_list)
 	_layout_prompt_row()
 
 
@@ -6310,11 +6330,31 @@ func _accept_mix_list_cursor() -> void:
 		return
 	var row_id: int = int(_mix_panel.cursor_list_id())
 	if row_id == _MixPanel.ROW_MAKE_NEW:
-		_mix_stage = 3
+		## Open full A–Z list (unknown gray). Letter-only wait had no panel change.
+		_mix_pad_full_list = true
+		_mix_stage = 1
+		_mix_panel.open_list(true)
+		_cursor_to_first_unknown_mix()
 		_layout_prompt_row()
 		return
 	if row_id >= 0:
-		_try_remix_spell(row_id)
+		if GameState.is_spell_known(row_id):
+			_try_remix_spell(row_id)
+		else:
+			## Full A–Z list: pick unmixed spell → reagent picker.
+			_begin_new_mix(row_id)
+
+
+func _cursor_to_first_unknown_mix() -> void:
+	## Prefer first never-mixed spell when opening A–Z from Mix New.
+	if _mix_panel == null:
+		return
+	for sid in Spells.COUNT:
+		if not GameState.is_spell_known(sid):
+			var idx: int = int(_mix_panel.index_of_spell(sid))
+			if idx >= 0:
+				_mix_panel.set_cursor(idx)
+			return
 
 
 func _mix_spell_shortcut(spell_id: int) -> void:
@@ -6349,7 +6389,7 @@ func _begin_new_mix(spell_id: int) -> void:
 		_push_message(Locale.t("mix_full"), false)
 		_mix_stage = 1
 		if _mix_panel:
-			_mix_panel.open_list()
+			_mix_panel.open_list(_mix_pad_full_list)
 		_layout_prompt_row()
 		return
 	_mix_stage = 2
@@ -6369,7 +6409,7 @@ func _confirm_new_mix() -> void:
 		_mix_panel.close_panel()
 		_push_message(Locale.t("mix_success", [Locale.spell_name(spell_id)]), false)
 		_mix_stage = 1
-		_mix_panel.open_list()
+		_mix_panel.open_list(_mix_pad_full_list)
 		var idx: int = int(_mix_panel.index_of_spell(spell_id))
 		if idx >= 0:
 			_mix_panel.set_cursor(idx)
@@ -6379,6 +6419,8 @@ func _confirm_new_mix() -> void:
 	_mix_panel.close_panel()
 	_push_message(Locale.t("mix_failed"), false)
 	_mix_stage = 0
+	_mix_pad_full_list = false
+	_mix_gamepad_requested = false
 	if _roster:
 		_roster.visible = true
 	_close_order_roster()
@@ -6391,10 +6433,14 @@ func _close_mix(show_none: bool) -> void:
 	if was == 0:
 		if _mix_panel:
 			_mix_panel.close_panel()
+		_mix_pad_full_list = false
+		_mix_gamepad_requested = false
 		return
 	if was == 2 and _mix_panel:
 		_mix_panel.revert_selected_reagents()
 	_mix_stage = 0
+	_mix_pad_full_list = false
+	_mix_gamepad_requested = false
 	if _mix_panel:
 		_mix_panel.close_panel()
 	if _roster:

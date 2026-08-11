@@ -25,6 +25,7 @@ Locale="*res://src/core/locale.gd"
 SceneRouter="*res://src/core/scene_router.gd"
 DisplaySettings="*res://src/core/display_settings.gd"
 HangulInputSettings="*res://src/core/hangul_input_settings.gd"
+AudioSfx="*res://src/core/audio_sfx.gd"
 QuitConfirm="*res://src/core/quit_confirm.gd"
 
 [display]

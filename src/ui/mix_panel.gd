@@ -82,6 +82,8 @@ var _icon_color: Array[Texture2D] = []
 var _icon_gray: Array[Texture2D] = []
 ## Bumps to cancel deferred scroll restores after close / fresh open.
 var _scroll_gen := 0
+## Gamepad Mix session: full A–Z list (unknown spells gray); hide "Mix New".
+var _show_all_spells := false
 
 
 func _ready() -> void:
@@ -282,12 +284,14 @@ func _build_stock_bar() -> void:
 		_stock_qtys.append(qty)
 
 
-func open_list() -> void:
+func open_list(show_all_spells: bool = false) -> void:
 	## Fresh open / return to list — always start at the top row.
+	## show_all_spells: gamepad path lists A–Z (unknown dimmed) without Mix New.
 	_scroll_gen += 1
 	_mode = Mode.LIST
 	_spell_id = -1
 	_selected.clear()
+	_show_all_spells = show_all_spells
 	_rebuild_list_mode()
 	_refresh_stock_bar()
 	_cursor = 0
@@ -320,11 +324,16 @@ func close_panel() -> void:
 	visible = false
 	_mode = Mode.LIST
 	_spell_id = -1
+	_show_all_spells = false
 	_selected.clear()
 	_list_ids.clear()
 	_row_wraps.clear()
 	_clear_list()
 	_restore_scroll(0)
+
+
+func show_all_spells() -> bool:
+	return _show_all_spells
 
 
 func mode() -> int:
@@ -494,12 +503,22 @@ func _rebuild_list_mode() -> void:
 	_spell_header_prefix.text = ""
 	_spell_header_letter.text = ""
 	_apply_list_layout()
-	_add_text_row(ROW_MAKE_NEW, Locale.t("mix_make_new"), "", true)
 	var ko := GameState.language == "ko"
-	for sid in GameState.known_spell_ids():
-		var qty := str(mini(GameState.mixture_qty(sid), 99))
-		var can := GameState.can_remix_spell(sid)
-		_add_spell_row(sid, Locale.spell_name(sid), qty, can, ko)
+	if _show_all_spells:
+		## Gamepad / Mix New: A–Z. Known = name; never-mixed = "Unknown" (dim, no spoiler).
+		for sid in Spells.COUNT:
+			var known := GameState.is_spell_known(sid)
+			var qty := str(mini(GameState.mixture_qty(sid), 99))
+			var can := known and GameState.can_remix_spell(sid)
+			var name := Locale.spell_name(sid) if known else Locale.t("mix_spell_unknown")
+			_add_spell_row(sid, name, qty, can, ko)
+	else:
+		## Keyboard: Mix New + known only (A–Z letter opens unknown).
+		_add_text_row(ROW_MAKE_NEW, Locale.t("mix_make_new"), "", true)
+		for sid in GameState.known_spell_ids():
+			var qty := str(mini(GameState.mixture_qty(sid), 99))
+			var can := GameState.can_remix_spell(sid)
+			_add_spell_row(sid, Locale.spell_name(sid), qty, can, ko)
 
 
 func _rebuild_reagent_mode() -> void:
@@ -817,11 +836,13 @@ func _refresh_stock_bar() -> void:
 
 
 func _recipe_highlight_mask() -> int:
-	## List cursor on a known spell → show its recipe; Make new / reagents = none.
+	## List cursor on a known spell → show its recipe; unknown / Make new / reagents = none.
 	if _mode != Mode.LIST:
 		return 0
 	var sid := cursor_list_id()
 	if sid < 0 or sid >= Spells.COUNT:
+		return 0
+	if not GameState.is_spell_known(sid):
 		return 0
 	return Spells.recipe_mask(sid)
 

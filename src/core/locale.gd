@@ -1650,6 +1650,11 @@ const _T := {
 		"en_us": "Mix New…",
 		"ko": "새 조합…",
 	},
+	"mix_spell_unknown": {
+		"en_u4": "Unknown",
+		"en_us": "Unknown",
+		"ko": "불명",
+	},
 	"mix_hint_list": {
 		"en_u4": "Enter/A-Z mix · Esc/Space quit",
 		"en_us": "Enter/A-Z mix · Esc/Space quit",
