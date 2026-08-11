@@ -2783,6 +2783,31 @@ func _command_menu_has_adjacent_city_chest(opened: bool) -> bool:
 	return false
 
 
+func _command_menu_has_adjacent_combat_chest(opened: bool) -> bool:
+	## Victory aftermath / arena — chests around the focused party unit.
+	if _map == null or not _map.is_in_combat():
+		return false
+	var from := _map.get_combat_focus_pos()
+	if from.x < 0:
+		return false
+	for dir in _command_menu_cardinal_dirs():
+		var pos := from + dir
+		if (
+			pos.x < 0 or pos.y < 0
+			or pos.x >= _CombatMapData.WIDTH or pos.y >= _CombatMapData.HEIGHT
+		):
+			continue
+		if not _map.has_combat_chest_at(pos):
+			continue
+		var is_open := bool(_map.combat_chest_is_open(pos))
+		if is_open != opened:
+			continue
+		if opened and not bool(_map.combat_chest_has_loot(pos)):
+			continue
+		return true
+	return false
+
+
 func _command_menu_on_city_portal(action: int) -> bool:
 	if not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return false
@@ -2920,6 +2945,21 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 	if items.is_empty():
 		return U4Commands.Id.NONE
 	if _combat_active:
+		## After Victory!: prefer Open (closed) / Get (open+loot) beside the unit.
+		if _combat_victory_aftermath:
+			if (
+				items.has(U4Commands.Id.OPEN)
+				and _command_menu_has_adjacent_combat_chest(false)
+			):
+				return U4Commands.Id.OPEN
+			if (
+				items.has(U4Commands.Id.GET_CHEST)
+				and _command_menu_has_adjacent_combat_chest(true)
+			):
+				return U4Commands.Id.GET_CHEST
+			if items.has(_command_menu_last_cmd):
+				return _command_menu_last_cmd
+			return items[0]
 		## Attack is the common combat action; ranged attacks must remain available
 		## even without an adjacent foe.
 		if items.has(U4Commands.Id.ATTACK):
