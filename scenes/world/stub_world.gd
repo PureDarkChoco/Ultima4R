@@ -3439,6 +3439,14 @@ func _maybe_offer_sacrifice_mantra_chain_keyword() -> void:
 		)
 
 
+func _offer_named_npc_journal_keywords() -> void:
+	## Directed journal clues become selectable only after this NPC's name
+	## has actually been spoken in the current conversation.
+	_maybe_offer_mischief_rune_keyword()
+	_maybe_offer_alkerion_stone_keyword()
+	_maybe_offer_sacrifice_mantra_chain_keyword()
+
+
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
 	## Four companions explicitly say "join" in their Yes reply. The others
 	## reveal Join after the virtue-aligned answer from their original dialogue.
@@ -9506,9 +9514,6 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_pending_ask = false
 	_talk_keywords = entry.highlight_keywords()
 	_begin_talk_keyword_menu_if_requested()
-	_maybe_offer_mischief_rune_keyword()
-	_maybe_offer_alkerion_stone_keyword()
-	_maybe_offer_sacrifice_mantra_chain_keyword()
 	_city_map.pause_follow(person_i)
 	## Message + character panels (left inventory stays closed unless already Tab-open).
 	_open_talk_message_panel()
@@ -9522,35 +9527,35 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	## Otherwise leave Name selected so the player can ask who they are.
 	if _talk_keyword_menu_active:
 		var default_key := "job" if introduced_name else "name"
-		## Mischief after Azure tip: prefer pre-unlocked Rune.
-		if str(entry.name).strip_edges().to_lower() == "mischief":
-			if (
-				GameState.journal_has_id("minoc.azure.mischief-rune")
-				or GameState.journal_has_id("minoc.mischief.forge-rune")
+		## Only a named NPC may expose journal-directed topic shortcuts.
+		if introduced_name:
+			if str(entry.name).strip_edges().to_lower() == "mischief":
+				if (
+					GameState.journal_has_id("minoc.azure.mischief-rune")
+					or GameState.journal_has_id("minoc.mischief.forge-rune")
+				):
+					default_key = _talk_keyword_stable_key(
+						"룬" if GameState.lang_short() == "ko" else "rune"
+					)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "alkerion"
+				and GameState.journal_has_id("minoc.mischief.alkerion-stone")
 			):
-				var rune_key := _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
+				default_key = _talk_keyword_stable_key(
+					"돌" if GameState.lang_short() == "ko" else "stone"
 				)
-				default_key = rune_key
-		elif (
-			str(entry.name).strip_edges().to_lower() == "alkerion"
-			and GameState.journal_has_id("minoc.mischief.alkerion-stone")
-		):
-			default_key = _talk_keyword_stable_key(
-				"돌" if GameState.lang_short() == "ko" else "stone"
-			)
-		elif (
-			str(entry.name).strip_edges().to_lower() == "damon"
-			and GameState.journal_has_id("minoc.merida.damon-mantra")
-		):
-			default_key = _talk_keyword_stable_key(
-				"만트라" if GameState.lang_short() == "ko" else "mantra"
-			)
-		elif (
-			str(entry.name).strip_edges().to_lower() == "singsong"
-			and GameState.journal_has_id("minoc.damon.bard-song")
-		):
-			default_key = _talk_keyword_stable_key("song")
+			elif (
+				str(entry.name).strip_edges().to_lower() == "damon"
+				and GameState.journal_has_id("minoc.merida.damon-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "singsong"
+				and GameState.journal_has_id("minoc.damon.bard-song")
+			):
+				default_key = _talk_keyword_stable_key("song")
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -9644,6 +9649,7 @@ func _talk_say_name() -> void:
 	if e == null:
 		return
 	_push_talk_script("%s says: I am %s" % [str(e.pronoun), str(e.name)])
+	_offer_named_npc_journal_keywords()
 
 
 func _push_talk_script(raw: String) -> void:
