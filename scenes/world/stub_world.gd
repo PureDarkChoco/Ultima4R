@@ -2295,13 +2295,20 @@ func _process(delta: float) -> void:
 	_tick_world_clock(delta)
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		return
-	## Combat arena: turn input is key-driven (no world cruise / no auto-pass),
-	## but Ready / Ztats / chest pick still need the same cursor repeat ticks.
+	## Combat arena: no world cruise / auto-pass.
+	## Aim + victory free-roam poll held dirs (walk cadence). Turn move stays
+	## one-step-per-tilt so holding a stick doesn't burn the whole party.
 	if _combat_active:
+		_move_cd = maxf(0.0, _move_cd - delta)
+		_hold_arm = maxf(0.0, _hold_arm - delta)
 		if _ztats_stage == 1 or _ready_stage == 1 or _chest_open_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
+		elif _combat_aiming:
+			_tick_combat_aim_move()
+		elif _combat_victory_aftermath and not _combat_exit_prompt:
+			_tick_combat_victory_move()
 		elif (
 			not _combat_resolving
 			and not _combat_victory_aftermath
@@ -2655,12 +2662,14 @@ func _is_cancel_event(event: InputEvent) -> bool:
 	return _GameInput.is_cancel(event)
 
 
-func _clear_pending_dir() -> void:
+func _clear_pending_dir(allow_move: bool = true) -> void:
 	if _pending_cmd == U4Commands.Id.TALK:
 		_talk_gamepad_requested = false
 	_pending_cmd = U4Commands.Id.NONE
 	_pending_cmd_name = ""
-	_block_dir_until_keyup = false
+	## Cancel → allow move. Successful Dir? keeps the press blocked in finish.
+	if allow_move:
+		_block_dir_until_keyup = false
 	_layout_prompt_row()
 
 
@@ -3593,9 +3602,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			return
 		if _pending_cmd != U4Commands.Id.NONE:
-			if event.is_pressed() and not event.is_echo() and _handle_combat_pending_dir_event(event):
+			## JoypadMotion must pass when released (clears stick latch / Dir?).
+			if (
+				(event is InputEventJoypadMotion or (event.is_pressed() and not event.is_echo()))
+				and _handle_combat_pending_dir_event(event)
+			):
 				get_viewport().set_input_as_handled()
-			elif event.is_pressed():
+			elif event.is_pressed() or event is InputEventJoypadMotion:
 				get_viewport().set_input_as_handled()
 			return
 		if _is_cancel_event(event) and _can_open_command_menu():
@@ -3604,7 +3617,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if _handle_combat_input(event):
 			get_viewport().set_input_as_handled()
-		elif event.is_pressed():
+		elif event.is_pressed() or event is InputEventJoypadMotion:
 			get_viewport().set_input_as_handled()
 		return
 	if _save_stage != 0:
@@ -8553,7 +8566,10 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	var preserve_gamepad_talk := (
 		cmd == U4Commands.Id.TALK and _talk_gamepad_requested
 	)
-	_clear_pending_dir()
+	## Keep this press from also walking / free-roaming after Open/Get/etc.
+	_clear_pending_dir(false)
+	_block_dir_until_keyup = true
+	_reset_hold_state()
 	if preserve_gamepad_talk:
 		_talk_gamepad_requested = true
 	## xu4 erases "Dir?" on the same line and writes the direction name.
@@ -10338,6 +10354,7 @@ func _begin_combat(
 		return
 	## Lock input; open panels while the map wipes explore → combat (0.6s tile diagonals).
 	_combat_active = true
+	_GameInput.reset_stick_navigation()
 	_combat_resolving = true
 	_combat_victory_aftermath = false
 	_combat_exit_prompt = false
@@ -10513,6 +10530,9 @@ func _finish_combat_victory_exit() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_suppress_chests = false
+	## Held D-pad/stick from the arena must not walk the first field tile.
+	_block_dir_until_keyup = true
+	_reset_hold_state()
 	_stamp_command_time()
 
 
@@ -10589,9 +10609,98 @@ func _place_captured_pirate_ship(pos: Vector2i, facing: int) -> void:
 	_store_ship_hull_at(pos, GameState.SHIP_HULL_MAX)
 
 
+func _tick_combat_aim_move() -> void:
+	## Held arrows / stick / D-pad — same delay + interval as world foot walk.
+	if not _combat_aiming:
+		return
+	var dir := _read_move_dir()
+	if dir == Vector2i.ZERO:
+		_move_repeating = false
+		_hold_arm = 0.0
+		_held_dir = Vector2i.ZERO
+		return
+	if dir != _held_dir:
+		_held_dir = dir
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	_combat_move_aim(dir)
+	_arm_hold_after_step(true)
+
+
+func _tick_combat_victory_move() -> void:
+	## Victory free-roam: keys + pad held at world walk cadence (no event double-step).
+	if (
+		not _combat_victory_aftermath
+		or _command_menu_open
+		or _pending_cmd != U4Commands.Id.NONE
+		or _ztats_stage != 0
+		or _ready_stage != 0
+		or _use_stage != 0
+		or _chest_open_stage != 0
+		or _combat_exit_prompt
+		or _enter_prompt_stage != 0
+		or _esc_menu_is_open()
+		or _options_panel_is_open()
+	):
+		return
+	var dir := _read_move_dir()
+	if dir == Vector2i.ZERO:
+		_block_dir_until_keyup = false
+		_move_repeating = false
+		_hold_arm = 0.0
+		_held_dir = Vector2i.ZERO
+		return
+	## Open/Get Dir? used this press — wait for release before roaming.
+	if _block_dir_until_keyup:
+		_move_repeating = false
+		_hold_arm = 0.0
+		_held_dir = dir
+		return
+	if dir != _held_dir:
+		_held_dir = dir
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	_combat_try_move(dir)
+	_arm_hold_after_step(true)
+
+
 func _handle_combat_input(event: InputEvent) -> bool:
 	## Combat: move / Pass / Attack + xu4 letter commands; banned → "Not here!".
 	## No idle auto-pass. Esc only cancels aim (or victory leave after win).
+	## Stick: one step per tilt (must return near-neutral). Motion is handled
+	## even when not "pressed" so the latch can clear on release.
+	if event is InputEventJoypadMotion:
+		if _combat_victory_aftermath:
+			## Free roam is polled; clear latch on release only.
+			_GameInput.stick_clear_if_released(event)
+			return true
+		if _combat_aiming:
+			return _handle_combat_aim_input_event(event)
+		if _combat_resolving:
+			## Don't latch a tilt while foes act — that would eat the next move.
+			_GameInput.stick_clear_if_released(event)
+			return true
+		## Some pads also emit axes for the D-pad — ignore while D-pad is held
+		## so one press is not button-step + axis-step.
+		if _GameInput.is_dpad_held():
+			_GameInput.stick_clear_if_released(event)
+			return true
+		var stick_dir := _GameInput.stick_direction_step(event)
+		if stick_dir != Vector2i.ZERO:
+			var focus_klass := _map.get_combat_focus_klass() if _map != null else -1
+			if focus_klass >= 0 and GameState.is_member_disabled(focus_klass):
+				_combat_finish_member_turn()
+			else:
+				_combat_try_move(stick_dir)
+		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	## After Victory!: free roam / Open / Get / ESC leave — never swallow on resolving.
@@ -10618,6 +10727,7 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	if _GameInput.is_select(event):
 		_handle_combat_command(U4Commands.Id.ATTACK)
 		return true
+	## D-pad / keys — one event = one step.
 	var dir := _GameInput.dir_from_event(event)
 	if dir != Vector2i.ZERO:
 		_combat_try_move(dir)
@@ -10652,6 +10762,10 @@ func _handle_combat_victory_input(k: InputEventKey) -> bool:
 func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 	## Free movement and loot commands; Y asks to leave — no turn clock.
 	_combat_resolving = false
+	if event is InputEventJoypadMotion:
+		## Stick roam is polled; clear latch on release for Dir? / aim later.
+		_GameInput.stick_clear_if_released(event)
+		return true
 	if (
 		_GameInput.is_victory_exit(event)
 		or (event is InputEventKey and _is_cancel_event(event))
@@ -10689,10 +10803,7 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 				pass ## ignore other letters (no Not here! spam)
 	## Keep solo character focused (in case focus drifted).
 	_victory_ensure_solo_focus()
-	var dir := _GameInput.dir_from_event(event)
-	if dir != Vector2i.ZERO:
-		_combat_try_move(dir)
-		return true
+	## Movement is polled in _tick_combat_victory_move (avoids D-pad double-step).
 	return true
 
 
@@ -10727,18 +10838,28 @@ func _handle_combat_pending_dir_event(event: InputEvent) -> bool:
 	## Esc / Space / Enter / B cancel without spending the member turn.
 	if _pending_cmd == U4Commands.Id.NONE:
 		return false
+	## Stick must update latch on release (is_pressed is false near neutral).
+	if event is InputEventJoypadMotion:
+		## D-pad often also emits axes — button path owns the Dir? answer.
+		if _GameInput.is_dpad_held():
+			_GameInput.stick_clear_if_released(event)
+			return true
+		var stick_dir := _GameInput.stick_direction_step(event)
+		if stick_dir != Vector2i.ZERO:
+			_finish_directed_command(stick_dir)
+		return true
 	if _is_cancel_event(event):
-		_clear_pending_dir()
+		_clear_pending_dir(true)
 		_push_message(Locale.t("cmd_cancelled"), false)
 		_layout_prompt_row()
 		return true
 	if event is InputEventKey and _is_dir_cancel_key(event as InputEventKey):
-		_clear_pending_dir()
+		_clear_pending_dir(true)
 		_push_message(Locale.t("cmd_cancelled"), false)
 		_layout_prompt_row()
 		return true
 	if _GameInput.is_select(event):
-		_clear_pending_dir()
+		_clear_pending_dir(true)
 		_push_message(Locale.t("cmd_cancelled"), false)
 		_layout_prompt_row()
 		return true
@@ -10746,7 +10867,7 @@ func _handle_combat_pending_dir_event(event: InputEvent) -> bool:
 	if dir == Vector2i.ZERO:
 		## Any non-dir → "What?" and abort Dir? (no turn until a real action).
 		if event is InputEventKey or event is InputEventJoypadButton:
-			_clear_pending_dir()
+			_clear_pending_dir(true)
 			_push_message(Locale.t("cmd_what"), false)
 			_layout_prompt_row()
 			return true
@@ -10760,6 +10881,11 @@ func _handle_combat_aim_input(k: InputEventKey) -> bool:
 
 
 func _handle_combat_aim_input_event(event: InputEvent) -> bool:
+	## Cursor move is polled in _tick_combat_aim_move (hold = walk speed).
+	## Events only confirm / cancel; dirs are swallowed so they don't double-step.
+	if event is InputEventJoypadMotion:
+		_GameInput.stick_clear_if_released(event)
+		return true
 	if _is_cancel_event(event):
 		_combat_cancel_aim()
 		return true
@@ -10773,10 +10899,6 @@ func _handle_combat_aim_input_event(event: InputEvent) -> bool:
 	):
 		_combat_confirm_aim()
 		return true
-	var dir := _GameInput.dir_from_event(event)
-	if dir == Vector2i.ZERO:
-		return true ## swallow other keys while aiming
-	_combat_move_aim(dir)
 	return true
 
 
@@ -10907,6 +11029,8 @@ func _combat_begin_aim() -> void:
 	var party_slot := _map.get_combat_focus_party_slot()
 	var wid := GameState.weapon_of_class(klass)
 	_combat_aiming = true
+	_reset_hold_state()
+	_GameInput.reset_stick_navigation()
 	_combat_aim_from = from
 	_combat_aim_weapon = wid
 	## Sticky last target: same foe while alive and still in this weapon's range.
@@ -10988,6 +11112,7 @@ func _combat_cancel_aim() -> void:
 	## Never-attacked members have no sticky entry, so nothing is retained.
 	_combat_aiming = false
 	_combat_aim_weapon = 0
+	_reset_hold_state()
 	if _map:
 		_map.clear_combat_aim_cursor()
 	_sync_combat_aim_foe_roster()
@@ -11022,6 +11147,7 @@ func _combat_confirm_aim() -> void:
 	var wid := _combat_aim_weapon
 	var klass := _map.get_combat_focus_klass()
 	_combat_aiming = false
+	_reset_hold_state()
 	if _map:
 		_map.clear_combat_aim_cursor()
 	_sync_combat_aim_foe_roster()
@@ -11723,6 +11849,8 @@ func _end_combat_lost() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_suppress_chests = false
+	_block_dir_until_keyup = true
+	_reset_hold_state()
 	_stamp_command_time()
 
 

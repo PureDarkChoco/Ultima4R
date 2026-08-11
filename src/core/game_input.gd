@@ -6,7 +6,8 @@ extends Object
 ## works with D-pad / left stick even if engine defaults differ.
 
 const STICK_DEADZONE := 0.5
-const STICK_NAV_PRESS := 0.72
+## Match move deadzone so a normal tilt counts; release lower to clear the latch.
+const STICK_NAV_PRESS := 0.5
 const STICK_NAV_RELEASE := 0.30
 
 static var _stick_nav_latches: Dictionary = {}
@@ -66,6 +67,10 @@ static func is_victory_exit(event: InputEvent) -> bool:
 
 static func dir_from_event(event: InputEvent) -> Vector2i:
 	## Single-step dir from a pressed key / d-pad / stick threshold.
+	## Stick: one step per tilt (must return near-neutral first). Without this,
+	## JoypadMotion floods while held and combat / Dir? / aim jump many tiles.
+	if event is InputEventJoypadMotion:
+		return stick_direction_step(event)
 	if not event.is_pressed() or event.is_echo():
 		return Vector2i.ZERO
 	if (
@@ -124,6 +129,18 @@ static func read_move_dir() -> Vector2i:
 	return Vector2i.ZERO
 
 
+static func is_dpad_held() -> bool:
+	for device in Input.get_connected_joypads():
+		if (
+			Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_LEFT)
+			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_RIGHT)
+			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_UP)
+			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_DOWN)
+		):
+			return true
+	return false
+
+
 static func is_move_from_gamepad() -> bool:
 	## True when the current held move comes from a pad (not arrow/WASD keys).
 	## Matches read_move_dir() priority: keys win, so hybrid keyboard+pad is "keyboard".
@@ -134,14 +151,9 @@ static func is_move_from_gamepad() -> bool:
 		or Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN)
 	):
 		return false
+	if is_dpad_held():
+		return true
 	for device in Input.get_connected_joypads():
-		if (
-			Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_LEFT)
-			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_RIGHT)
-			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_UP)
-			or Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_DOWN)
-		):
-			return true
 		if (
 			absf(Input.get_joy_axis(device, JOY_AXIS_LEFT_X)) >= STICK_DEADZONE
 			or absf(Input.get_joy_axis(device, JOY_AXIS_LEFT_Y)) >= STICK_DEADZONE
@@ -208,16 +220,43 @@ static func stick_direction_step(event: InputEvent) -> Vector2i:
 		return Vector2i.ZERO
 	var motion := event as InputEventJoypadMotion
 	if motion.axis == JOY_AXIS_LEFT_X:
-		return Vector2i(stick_axis_step(event, JOY_AXIS_LEFT_X), 0)
+		var step_x := stick_axis_step(event, JOY_AXIS_LEFT_X)
+		if step_x != 0:
+			## Diagonal tilts emit X then Y — latch the other axis so combat
+			## doesn't spend two party turns on one flick.
+			_latch_stick_axis_if_tilted(motion.device, JOY_AXIS_LEFT_Y)
+			return Vector2i(step_x, 0)
+		return Vector2i.ZERO
 	if motion.axis == JOY_AXIS_LEFT_Y:
-		return Vector2i(0, stick_axis_step(event, JOY_AXIS_LEFT_Y))
+		var step_y := stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if step_y != 0:
+			_latch_stick_axis_if_tilted(motion.device, JOY_AXIS_LEFT_X)
+			return Vector2i(0, step_y)
+		return Vector2i.ZERO
 	return Vector2i.ZERO
+
+
+static func _latch_stick_axis_if_tilted(device: int, axis: JoyAxis) -> void:
+	var key := "%d:%d" % [device, int(axis)]
+	var value := Input.get_joy_axis(device, axis)
+	if absf(value) > STICK_NAV_RELEASE:
+		_stick_nav_latches[key] = -1 if value < 0.0 else 1
 
 
 static func reset_stick_navigation() -> void:
 	## A newly opened menu must not inherit a latch from a previous UI.
 	_stick_nav_latches.clear()
 	_select_y_latches.clear()
+
+
+static func stick_clear_if_released(event: InputEvent) -> void:
+	## During foe turns / busy frames: clear latch on release only.
+	## Do not latch a fresh tilt — that would eat the player's next move.
+	if not (event is InputEventJoypadMotion):
+		return
+	var motion := event as InputEventJoypadMotion
+	if absf(motion.axis_value) <= STICK_NAV_RELEASE:
+		stick_axis_step(event, motion.axis)
 
 
 static func _ensure_move_actions() -> void:
