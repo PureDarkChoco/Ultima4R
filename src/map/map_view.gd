@@ -4465,6 +4465,9 @@ func _is_shore_land_tid(tid: int) -> bool:
 	## Hills / mountains / dungeon mouth — rocky base, not a sandy shore.
 	if tid == TILE_HILLS or tid == TILE_MOUNTAINS or tid == TILE_DUNGEON:
 		return false
+	## Magic fields (poison/energy/fire/sleep) are hovering overlays — not shore land.
+	if tid >= TILE_FIELD_POISON and tid <= TILE_FIELD_SLEEP:
+		return false
 	## City shop sign letters / space.
 	if tid >= TILE_SIGN_A and tid <= TILE_SIGN_SPACE:
 		return false
