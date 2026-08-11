@@ -1713,17 +1713,17 @@ const _T := {
 	"cmd_locate_what": {
 		"en_u4": "Locate with What?",
 		"en_us": "Locate with What?",
-		"ko": "Locate with What?",
+		"ko": "무엇으로 위치를 재나?",
 	},
 	"locate_on": {
 		"en_u4": "Locate: On",
 		"en_us": "Locate: On",
-		"ko": "Locate: On",
+		"ko": "위치 확인: 켜짐",
 	},
 	"locate_off": {
 		"en_u4": "Locate: Off",
 		"en_us": "Locate: Off",
-		"ko": "Locate: Off",
+		"ko": "위치 확인: 꺼짐",
 	},
 	"dir_north": {
 		"en_u4": "North",
