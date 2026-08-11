@@ -279,6 +279,15 @@ static func reset_stick_navigation() -> void:
 	_select_y_latches.clear()
 
 
+static func latch_current_stick_navigation() -> void:
+	## A menu opened by a stick direction must wait for that same tilt to
+	## return to neutral before accepting its first navigation step.
+	reset_stick_navigation()
+	for device in Input.get_connected_joypads():
+		_latch_stick_axis_if_tilted(device, JOY_AXIS_LEFT_X)
+		_latch_stick_axis_if_tilted(device, JOY_AXIS_LEFT_Y)
+
+
 static func stick_clear_if_released(event: InputEvent) -> void:
 	## During foe turns / busy frames: clear latch on release only.
 	## Do not latch a fresh tilt — that would eat the player's next move.

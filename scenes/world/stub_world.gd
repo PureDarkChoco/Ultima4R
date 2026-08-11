@@ -3251,7 +3251,9 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_talk_keyword_menu_seen.clear()
 	for item in _talk_keyword_menu_items:
 		_talk_keyword_menu_seen[str(item.get("key", ""))] = true
-	_GameInput.reset_stick_navigation()
+	## T:Dir? may have opened this menu while the direction stick is still held.
+	## Keep that tilt latched until neutral so it cannot move the first choice.
+	_GameInput.latch_current_stick_navigation()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
 
