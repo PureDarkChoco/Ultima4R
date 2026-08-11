@@ -45,6 +45,7 @@ func prompt(kind: int = Kind.QUIT) -> void:
 	if kind != Kind.DELETE_SAVE:
 		_on_yes = Callable()
 	if _open:
+		GameInput.reset_stick_navigation()
 		_refresh_text()
 		_btn_no.grab_focus()
 		_sync_choice_style()
@@ -53,6 +54,7 @@ func prompt(kind: int = Kind.QUIT) -> void:
 	_prev_focus = get_viewport().gui_get_focus_owner() as Control
 	## Stop world polling (Input.is_*_pressed) so arrows only move Yes/No.
 	get_tree().paused = true
+	GameInput.reset_stick_navigation()
 	_refresh_text()
 	_root.visible = true
 	_layer.visible = true
@@ -184,14 +186,21 @@ func _input(event: InputEvent) -> void:
 			_cancel()
 			get_viewport().set_input_as_handled()
 			return
-	## Arrows / stick: move between Yes and No (don't rely on default ui_* only).
-	if event.is_action_pressed("ui_left") or event.is_action_pressed("move_left") \
-			or event.is_action_pressed("ui_right") or event.is_action_pressed("move_right"):
-		if get_viewport().gui_get_focus_owner() == _btn_yes:
-			_btn_no.grab_focus()
-		else:
-			_btn_yes.grab_focus()
-		_sync_choice_style()
+	## Stick: one Yes/No flip per tilt (motion floods would otherwise spam).
+	if event is InputEventJoypadMotion:
+		var stick_step := GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+		if stick_step != 0:
+			_toggle_yes_no()
+		get_viewport().set_input_as_handled()
+		return
+	## Arrows / D-pad: move between Yes and No (don't rely on default ui_* only).
+	if (
+		event is InputEventKey or event is InputEventJoypadButton
+	) and (
+		event.is_action_pressed("ui_left") or event.is_action_pressed("move_left")
+		or event.is_action_pressed("ui_right") or event.is_action_pressed("move_right")
+	):
+		_toggle_yes_no()
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("ui_accept") or event.is_action_pressed("confirm"):
@@ -210,6 +219,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventJoypadMotion:
 		get_viewport().set_input_as_handled()
+
+
+func _toggle_yes_no() -> void:
+	if get_viewport().gui_get_focus_owner() == _btn_yes:
+		_btn_no.grab_focus()
+	else:
+		_btn_yes.grab_focus()
+	_sync_choice_style()
 
 
 func _accept() -> void:
