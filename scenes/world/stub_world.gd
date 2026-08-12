@@ -322,6 +322,11 @@ var _command_menu_backdrop: ColorRect
 var _command_menu_frame: Panel
 var _command_menu_separator: ColorRect
 var _command_menu_rows: Array[ColorRect] = []
+## LOCAL CHEAT (⌘/Ctrl+P) — city warp list. Do not commit.
+var _city_warp_open := false
+var _city_warp_cursor := 0
+var _city_warp_scroll := 0
+var _city_warp_items: Array[Dictionary] = []
 ## Gamepad-started conversations reuse the command palette chrome for keywords.
 ## Each item stores a stable dedupe key plus the displayed/submitted word.
 var _talk_gamepad_requested := false
@@ -1226,7 +1231,14 @@ func _rebuild_command_menu_rows() -> void:
 	_command_menu_rows.clear()
 	var lang := GameState.lang_short()
 	var row_texts: Array[String] = []
-	if _talk_keyword_menu_active:
+	if _city_warp_open:
+		var vis := _city_warp_visible_count()
+		for i in vis:
+			var abs_i := _city_warp_scroll + i
+			if abs_i < 0 or abs_i >= _city_warp_items.size():
+				continue
+			row_texts.append(str(_city_warp_items[abs_i].get("label", "")))
+	elif _talk_keyword_menu_active:
 		for item in _talk_keyword_menu_items:
 			row_texts.append(str(item.get("label", "")))
 	else:
@@ -1324,7 +1336,9 @@ func _layout_command_menu_layer() -> void:
 	var font_sz := clampi(int(floorf(pitch)) - 2, 10, MSG_FONT_SIZE)
 	var row_w := menu_w
 	var selected_cursor := _command_menu_cursor
-	if _talk_keyword_menu_active:
+	if _city_warp_open:
+		selected_cursor = _city_warp_cursor - _city_warp_scroll
+	elif _talk_keyword_menu_active:
 		selected_cursor = _talk_keyword_menu_cursor
 	for i in count:
 		var row := _command_menu_rows[i]
@@ -2372,7 +2386,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -3080,7 +3094,7 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 
 
 func _can_open_command_menu() -> bool:
-	if _command_menu_open or _enter_prompt_stage != 0:
+	if _command_menu_open or _city_warp_open or _enter_prompt_stage != 0:
 		return false
 	if (
 		_death_busy or _moongate_busy or _cannon_busy or _search_busy
@@ -3598,6 +3612,9 @@ func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
 
 
 func _on_escape(allow_menu_open: bool = true) -> void:
+	if _city_warp_open:
+		_close_city_warp()
+		return
 	if _command_menu_open:
 		_close_command_menu()
 		return
@@ -3750,6 +3767,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		get_viewport().set_input_as_handled()
+		return
+	if _city_warp_open:
+		if _handle_city_warp_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
 		return
 	if _command_menu_open:
 		if _handle_command_menu_input(event):
@@ -4017,6 +4040,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_do_show_karma()
 			get_viewport().set_input_as_handled()
 			return
+		## LOCAL CHEAT: Ctrl/⌘+P — warp to a city entrance on the world map.
+		if _is_mod_chord_key(event) and _is_city_warp_key(event):
+			_open_city_warp()
+			get_viewport().set_input_as_handled()
+			return
 		## Waiting for a direction (A/G/J/O/T or ship Yell) — same line as "Attack: Dir?".
 		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
 			if _is_direction_key(event):
@@ -4239,6 +4267,182 @@ func _is_locate_key(event: InputEventKey) -> bool:
 
 func _is_karma_key(event: InputEventKey) -> bool:
 	return event.keycode == KEY_K or event.physical_keycode == KEY_K
+
+
+func _is_city_warp_key(event: InputEventKey) -> bool:
+	## LOCAL CHEAT — do not commit.
+	return event.keycode == KEY_P or event.physical_keycode == KEY_P
+
+
+func _city_warp_visible_count() -> int:
+	return mini(MSG_OPEN_LINES, _city_warp_items.size())
+
+
+func _build_city_warp_items() -> Array[Dictionary]:
+	var by_id: Dictionary = {}
+	for portal in _WorldPortals.all_portal_entries():
+		var pid := _WorldPortals.place_id_for_portal(portal)
+		if pid.is_empty() or by_id.has(pid):
+			continue
+		by_id[pid] = portal
+	var out: Array[Dictionary] = []
+	for pid in _WorldPortals.journal_place_order():
+		if not by_id.has(pid):
+			continue
+		var p: Dictionary = by_id[pid]
+		var label := Locale.t("place_%s" % pid)
+		if label == ("place_%s" % pid):
+			label = str(p.get("name", pid))
+		out.append({
+			"place_id": pid,
+			"label": label,
+			"wx": int(p.get("wx", 0)),
+			"wy": int(p.get("wy", 0)),
+		})
+	return out
+
+
+func _can_open_city_warp() -> bool:
+	if _city_warp_open or _command_menu_open or _enter_prompt_stage != 0:
+		return false
+	if (
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy
+		or _shrine_busy or _shrine_stage != 0 or _shrine_session or _inn_stage != 0
+	):
+		return false
+	if (
+		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
+		or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0
+		or _ready_stage != 0 or _wear_stage != 0 or _use_stage != 0
+		or _ztats_stage != 0 or _order_stage != 0
+		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
+		or _esc_menu_is_open() or _options_panel_is_open()
+		or _combat_active
+	):
+		return false
+	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	return true
+
+
+func _open_city_warp() -> void:
+	## LOCAL CHEAT — do not commit.
+	if not _can_open_city_warp():
+		_push_message("City warp: not now.", false)
+		return
+	_city_warp_items = _build_city_warp_items()
+	if _city_warp_items.is_empty():
+		_push_message("City warp: no portals.", false)
+		return
+	_city_warp_open = true
+	_city_warp_cursor = 0
+	_city_warp_scroll = 0
+	_GameInput.reset_stick_navigation()
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	_rebuild_command_menu_rows()
+	if _command_menu_layer != null:
+		_command_menu_layer.visible = true
+		_command_menu_layer.move_to_front()
+	_layout_command_menu_layer()
+
+
+func _close_city_warp() -> void:
+	if not _city_warp_open:
+		return
+	_city_warp_open = false
+	_city_warp_cursor = 0
+	_city_warp_scroll = 0
+	_city_warp_items.clear()
+	if _command_menu_layer != null and not _command_menu_open and not _talk_keyword_menu_active:
+		_command_menu_layer.visible = false
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	grab_focus()
+
+
+func _move_city_warp_cursor(step: int) -> void:
+	if _city_warp_items.is_empty() or step == 0:
+		return
+	_city_warp_cursor = posmod(_city_warp_cursor + step, _city_warp_items.size())
+	var vis := _city_warp_visible_count()
+	if _city_warp_cursor < _city_warp_scroll:
+		_city_warp_scroll = _city_warp_cursor
+	elif _city_warp_cursor >= _city_warp_scroll + vis:
+		_city_warp_scroll = _city_warp_cursor - vis + 1
+	_city_warp_scroll = clampi(
+		_city_warp_scroll,
+		0,
+		maxi(_city_warp_items.size() - vis, 0)
+	)
+	_rebuild_command_menu_rows()
+	_layout_command_menu_layer()
+
+
+func _choose_city_warp_item() -> void:
+	if (
+		not _city_warp_open
+		or _city_warp_items.is_empty()
+		or _city_warp_cursor < 0
+		or _city_warp_cursor >= _city_warp_items.size()
+	):
+		return
+	var item := _city_warp_items[_city_warp_cursor]
+	_close_city_warp()
+	_apply_city_warp(item)
+
+
+func _apply_city_warp(item: Dictionary) -> void:
+	## LOCAL CHEAT — stand on the outdoor Enter tile for that settlement.
+	if item.is_empty():
+		return
+	if _combat_active or _shrine_session or _shrine_stage != 0:
+		_push_message("City warp: not now.", false)
+		return
+	if _is_in_city():
+		_exit_city()
+	var dest := Vector2i(int(item.get("wx", 0)), int(item.get("wy", 0)))
+	_tile_pos = dest
+	if _map != null:
+		_map.set_center(_tile_pos, false)
+		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_sync_creatures_to_map()
+	_sync_moongate(true)
+	_refresh_locate_hud()
+	_push_message("Warp: %s" % str(item.get("label", "")), false)
+
+
+func _handle_city_warp_input(event: InputEvent) -> bool:
+	if not _city_warp_open:
+		return false
+	if event is InputEventJoypadMotion:
+		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if stick_step != 0:
+			_move_city_warp_cursor(stick_step)
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _is_cancel_event(event):
+		_close_city_warp()
+		return true
+	if event is InputEventKey and _is_mod_chord_key(event as InputEventKey) \
+			and _is_city_warp_key(event as InputEventKey):
+		_close_city_warp()
+		return true
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		_choose_city_warp_item()
+		return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER \
+				or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER:
+			_choose_city_warp_item()
+			return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir.y != 0:
+		_move_city_warp_cursor(dir.y)
+		return true
+	return true
 
 
 func _do_show_karma() -> void:
@@ -8844,7 +9048,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
