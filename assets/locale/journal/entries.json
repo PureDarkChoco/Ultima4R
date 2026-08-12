@@ -2,6 +2,78 @@
   "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens.",
   "entries": [
     {
+      "id": "lcb.zorin.antos-relics",
+      "place": "lcb",
+      "npc": "Zorin",
+      "topic": "CAST_YES",
+      "chain": "lcb.antos-relics",
+      "chain_order": 10,
+      "goal": "ask:antos-relics",
+      "complete_if_recorded": [
+        "lycaeum.father-antos.book",
+        "empath.brother-antos.candle",
+        "serpent.sister-antos.bell"
+      ],
+      "en": "Find all named Antos; ask of the bell, book, and candle.",
+      "ko": "안토스라는 이름을 모두 찾아 종·책·초에 대해 물어보라."
+    },
+    {
+      "id": "lycaeum.father-antos.book",
+      "place": "lycaeum",
+      "npc": "Father Antos",
+      "topic": "BOOK",
+      "chain": "lcb.antos-relics",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Book of Truth: seek it where other books lie.",
+      "ko": "진리의 책: 다른 책들이 있는 곳에서 찾으라."
+    },
+    {
+      "id": "empath.brother-antos.candle",
+      "place": "empath",
+      "npc": "Brother Antos",
+      "topic": "CAND",
+      "chain": "lcb.antos-relics",
+      "chain_order": 30,
+      "goal": "",
+      "en": "Candle of Love: needed to enter the Abyss.",
+      "ko": "사랑의 촛불: 심연에 들어가려면 필요하다."
+    },
+    {
+      "id": "serpent.sister-antos.bell",
+      "place": "serpent",
+      "npc": "Sister Antos",
+      "topic": "BELL",
+      "chain": "lcb.antos-relics",
+      "chain_order": 40,
+      "goal": "",
+      "en": "Bell of Courage: needed to enter the Abyss.",
+      "ko": "용기의 종: 심연에 들어가려면 필요하다."
+    },
+    {
+      "id": "lcb.seesha.zircon-mystics",
+      "place": "lcb",
+      "npc": "Seesha",
+      "topic": "COUN_YES",
+      "chain": "lcb.zircon-mystics",
+      "chain_order": 10,
+      "goal": "ask:zircon-mystics",
+      "complete_if_recorded": "minoc.zircon.mystic-arms",
+      "en": "Ask Zircon in Minoc about the mystic arms.",
+      "ko": "미녹의 지르콘에게 신비 무기에 대해 물어보라."
+    },
+    {
+      "id": "minoc.zircon.mystic-arms",
+      "place": "minoc",
+      "npc": "Zircon",
+      "topic": "MYST",
+      "chain": "lcb.zircon-mystics",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Mystic arms: given to Sir Simon and Lady Tessa.",
+      "ko": "신비 무기: 사이먼 경과 테사 부인에게 건네졌다."
+    },
+    {
       "id": "minoc.shentis.sacrifice",
       "place": "minoc",
       "npc": "Shentis",

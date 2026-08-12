@@ -3458,6 +3458,46 @@ func _maybe_offer_sacrifice_mantra_chain_keyword() -> void:
 		)
 
 
+func _maybe_offer_antos_relic_keyword() -> void:
+	## Zorin: find all named Antos and ask of bell / book / candle.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if not GameState.journal_has_id("lcb.zorin.antos-relics"):
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	var word := ""
+	match npc:
+		"father antos":
+			word = "책" if korean else "book"
+		"brother antos":
+			word = "촛불" if korean else "candle"
+		"sister antos":
+			word = "종" if korean else "bell"
+		_:
+			return
+	var key := _talk_keyword_stable_key(word)
+	_offer_talk_keyword_item(key, word.capitalize() if not korean else word, word)
+
+
+func _maybe_offer_zircon_mystic_keyword() -> void:
+	## Seesha: seek the smith named Zircon in Minoc for the mystic arms.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "zircon":
+		return
+	if not GameState.journal_has_id("lcb.seesha.zircon-mystics"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var word := "신비" if korean else "mystic"
+	var key := _talk_keyword_stable_key(word)
+	_offer_talk_keyword_item(
+		key,
+		word.capitalize() if not korean else word,
+		word
+	)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -3465,6 +3505,8 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_mischief_rune_keyword()
 	_maybe_offer_alkerion_stone_keyword()
 	_maybe_offer_sacrifice_mantra_chain_keyword()
+	_maybe_offer_antos_relic_keyword()
+	_maybe_offer_zircon_mystic_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -9585,6 +9627,27 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"가사" if GameState.lang_short() == "ko" else "song"
 				)
+			elif GameState.journal_has_id("lcb.zorin.antos-relics"):
+				match str(entry.name).strip_edges().to_lower():
+					"father antos":
+						default_key = _talk_keyword_stable_key(
+							"책" if GameState.lang_short() == "ko" else "book"
+						)
+					"brother antos":
+						default_key = _talk_keyword_stable_key(
+							"촛불" if GameState.lang_short() == "ko" else "candle"
+						)
+					"sister antos":
+						default_key = _talk_keyword_stable_key(
+							"종" if GameState.lang_short() == "ko" else "bell"
+						)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "zircon"
+				and GameState.journal_has_id("lcb.seesha.zircon-mystics")
+			):
+				default_key = _talk_keyword_stable_key(
+					"신비" if GameState.lang_short() == "ko" else "mystic"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -10438,6 +10501,14 @@ func _talk_answer_yn(yes: bool) -> void:
 		if GameState.journal_mark_goal("confirm:mischief-rune"):
 			journal_changed = true
 		if GameState.journal_try_capture("minoc", "Mischief", "RUNE_YES"):
+			journal_changed = true
+	## Zorin (LCB): Yes names Antos and the bell / book / candle.
+	if yes and npc_key == "zorin":
+		if GameState.journal_try_capture("lcb", "Zorin", "CAST_YES"):
+			journal_changed = true
+	## Seesha (LCB): Yes names Zircon in Minoc and the mystic arms.
+	if yes and npc_key == "seesha":
+		if GameState.journal_try_capture("lcb", "Seesha", "COUN_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -12664,6 +12735,34 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("minoc.damon.bard-song"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:singsong-verse"):
+			refresh = true
+	## Zorin → Antos: asking any Antos about the relic completes Zorin's tip.
+	if (
+		(
+			place == "lycaeum"
+			and npc_key == "father antos"
+			and topic == "BOOK"
+		)
+		or (
+			place == "empath"
+			and npc_key == "brother antos"
+			and topic == "CAND"
+		)
+		or (
+			place == "serpent"
+			and npc_key == "sister antos"
+			and topic == "BELL"
+		)
+	):
+		if GameState.journal_mark_id("lcb.zorin.antos-relics"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:antos-relics"):
+			refresh = true
+	## Seesha → Zircon: asking about mystic arms completes Seesha's tip.
+	if place == "minoc" and npc_key == "zircon" and topic == "MYST":
+		if GameState.journal_mark_id("lcb.seesha.zircon-mystics"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:zircon-mystics"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
