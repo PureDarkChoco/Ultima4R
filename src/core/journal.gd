@@ -81,23 +81,46 @@ static func find_catalog_by_id(id: String) -> Dictionary:
 
 
 static func try_capture(gs: Node, place: String, npc: String, topic: String) -> bool:
-	## Add a catalog hit to GameState if not already recorded. Returns true when new.
+	## Add every matching catalog row (e.g. Zorin Yes → three Antos tips). Returns true if any new.
 	if gs == null:
 		return false
-	var cat := find_catalog(place, npc, topic)
-	if cat.is_empty():
+	ensure_catalog()
+	var p := place.strip_edges().to_lower()
+	var n := npc.strip_edges().to_lower()
+	var t := topic.strip_edges().to_upper()
+	if p.is_empty() or n.is_empty() or t.is_empty():
 		return false
+	var matches: Array = []
+	for item in _catalog:
+		var d: Dictionary = item
+		if str(d.get("place", "")).strip_edges().to_lower() != p:
+			continue
+		if str(d.get("npc", "")).strip_edges().to_lower() != n:
+			continue
+		if str(d.get("topic", "")).strip_edges().to_upper() != t:
+			continue
+		matches.append(d)
+	if matches.is_empty():
+		return false
+	var any := false
+	for cat_v in matches:
+		if _append_catalog_capture(gs, cat_v as Dictionary, place, npc):
+			any = true
+	return any
+
+
+static func _append_catalog_capture(
+	gs: Node, cat: Dictionary, place: String, npc: String
+) -> bool:
 	var id := str(cat.get("id", "")).strip_edges()
 	if id.is_empty():
 		id = "%s.%s.%s" % [
 			place.strip_edges().to_lower(),
 			npc.strip_edges().to_lower(),
-			topic.strip_edges().to_lower(),
+			str(cat.get("topic", "")).strip_edges().to_lower(),
 		]
-	var rows: Array = gs.journal_entries
-	for row in rows:
-		if typeof(row) == TYPE_DICTIONARY and str(row.get("id", "")) == id:
-			return false
+	if has_entry_id(gs, id):
+		return false
 	var goal := str(cat.get("goal", "")).strip_edges()
 	var complete_on_goal := str(cat.get("complete_on_goal", "")).strip_edges()
 	var done := (
@@ -130,6 +153,7 @@ static func try_capture(gs: Node, place: String, npc: String, topic: String) -> 
 		"chain": str(cat.get("chain", "")).strip_edges(),
 		"chain_order": int(cat.get("chain_order", 0)),
 	}
+	var rows: Array = gs.journal_entries
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
 	return true

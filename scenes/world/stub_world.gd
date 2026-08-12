@@ -3451,6 +3451,7 @@ func _lord_british_keyword_menu_items() -> Array[Dictionary]:
 	## LB has no beggar Give; heal is the classic HEAL keyword (not town Health).
 	if GameState.lang_short() == "ko":
 		return [
+			{"key": "look", "label": "모습", "input": "모습"},
 			{"key": "name", "label": "이름", "input": "이름"},
 			{"key": "job", "label": "직업", "input": "직업"},
 			{"key": "heal", "label": "치유", "input": "치유"},
@@ -3458,6 +3459,7 @@ func _lord_british_keyword_menu_items() -> Array[Dictionary]:
 			{"key": "bye", "label": "안녕", "input": "안녕"},
 		]
 	return [
+		{"key": "look", "label": "Look", "input": "look"},
 		{"key": "name", "label": "Name", "input": "name"},
 		{"key": "job", "label": "Job", "input": "job"},
 		{"key": "heal", "label": "Heal", "input": "heal"},
@@ -3473,6 +3475,7 @@ func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
 		return _lord_british_keyword_menu_items()
 	if GameState.lang_short() == "ko":
 		return [
+			{"key": "look", "label": "모습", "input": "모습"},
 			{"key": "name", "label": "이름", "input": "이름"},
 			{"key": "job", "label": "직업", "input": "직업"},
 			{"key": "heal", "label": "건강", "input": "건강"},
@@ -3480,6 +3483,7 @@ func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
 			{"key": "bye", "label": "안녕", "input": "안녕"},
 		]
 	return [
+		{"key": "look", "label": "Look", "input": "look"},
 		{"key": "name", "label": "Name", "input": "name"},
 		{"key": "job", "label": "Job", "input": "job"},
 		{"key": "heal", "label": "Health", "input": "health"},
@@ -3770,26 +3774,35 @@ func _maybe_offer_sacrifice_mantra_chain_keyword() -> void:
 		)
 
 
+func _journal_has_any_zorin_antos_tip() -> bool:
+	## Zorin names all three relics; any tip (or legacy row) unlocks the set.
+	return (
+		GameState.journal_has_id("lcb.zorin.antos-book")
+		or GameState.journal_has_id("lcb.zorin.antos-candle")
+		or GameState.journal_has_id("lcb.zorin.antos-bell")
+		or GameState.journal_has_id("lcb.zorin.antos-relics")
+	)
+
+
 func _maybe_offer_antos_relic_keyword() -> void:
-	## Zorin: find all named Antos and ask of bell / book / candle.
+	## Player knows the three relics, not which Antos answers which — offer all.
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
-	if not GameState.journal_has_id("lcb.zorin.antos-relics"):
-		return
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	if npc not in ["father antos", "brother antos", "sister antos"]:
+		return
+	if not _journal_has_any_zorin_antos_tip():
+		return
 	var korean := GameState.lang_short() == "ko"
-	var word := ""
-	match npc:
-		"father antos":
-			word = "책" if korean else "book"
-		"brother antos":
-			word = "촛불" if korean else "candle"
-		"sister antos":
-			word = "종" if korean else "bell"
-		_:
-			return
-	var key := _talk_keyword_stable_key(word)
-	_offer_talk_keyword_item(key, word.capitalize() if not korean else word, word)
+	## Same order as Zorin's line: bell, book, candle / 종·책·촛대.
+	var words: Array[String] = (
+		["종", "책", "촛대"] if korean else ["bell", "book", "candle"]
+	)
+	for word in words:
+		var key := _talk_keyword_stable_key(word)
+		_offer_talk_keyword_item(
+			key, word.capitalize() if not korean else word, word
+		)
 
 
 func _maybe_offer_zircon_mystic_keyword() -> void:
@@ -10148,20 +10161,6 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"가사" if GameState.lang_short() == "ko" else "song"
 				)
-			elif GameState.journal_has_id("lcb.zorin.antos-relics"):
-				match str(entry.name).strip_edges().to_lower():
-					"father antos":
-						default_key = _talk_keyword_stable_key(
-							"책" if GameState.lang_short() == "ko" else "book"
-						)
-					"brother antos":
-						default_key = _talk_keyword_stable_key(
-							"촛불" if GameState.lang_short() == "ko" else "candle"
-						)
-					"sister antos":
-						default_key = _talk_keyword_stable_key(
-							"종" if GameState.lang_short() == "ko" else "bell"
-						)
 			elif (
 				str(entry.name).strip_edges().to_lower() == "zircon"
 				and GameState.journal_has_id("lcb.seesha.zircon-mystics")
@@ -13267,25 +13266,31 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 		if GameState.journal_mark_goal("ask:singsong-verse"):
 			refresh = true
-	## Zorin → Antos: asking any Antos about the relic completes Zorin's tip.
-	if (
-		(
-			place == "lycaeum"
-			and npc_key == "father antos"
-			and topic == "BOOK"
-		)
-		or (
-			place == "empath"
-			and npc_key == "brother antos"
-			and topic == "CAND"
-		)
-		or (
-			place == "serpent"
-			and npc_key == "sister antos"
-			and topic == "BELL"
-		)
-	):
+	## Zorin → Antos: asking each Antos about their relic completes that tip.
+	if place == "lycaeum" and npc_key == "father antos" and topic == "BOOK":
+		if GameState.journal_mark_id("lcb.zorin.antos-book"):
+			refresh = true
 		if GameState.journal_mark_id("lcb.zorin.antos-relics"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:antos-book"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:antos-relics"):
+			refresh = true
+	elif place == "empath" and npc_key == "brother antos" and topic == "CAND":
+		if GameState.journal_mark_id("lcb.zorin.antos-candle"):
+			refresh = true
+		if GameState.journal_mark_id("lcb.zorin.antos-relics"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:antos-candle"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:antos-relics"):
+			refresh = true
+	elif place == "serpent" and npc_key == "sister antos" and topic == "BELL":
+		if GameState.journal_mark_id("lcb.zorin.antos-bell"):
+			refresh = true
+		if GameState.journal_mark_id("lcb.zorin.antos-relics"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:antos-bell"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:antos-relics"):
 			refresh = true

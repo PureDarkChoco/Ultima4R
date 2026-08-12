@@ -2,27 +2,47 @@
   "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens.",
   "entries": [
     {
-      "id": "lcb.zorin.antos-relics",
+      "id": "lcb.zorin.antos-book",
       "place": "lcb",
       "npc": "Zorin",
       "topic": "CAST_YES",
-      "chain": "lcb.antos-relics",
+      "chain": "lcb.antos-book",
       "chain_order": 10,
-      "goal": "ask:antos-relics",
-      "complete_if_recorded": [
-        "lycaeum.father-antos.book",
-        "empath.brother-antos.candle",
-        "serpent.sister-antos.bell"
-      ],
-      "en": "Find all named Antos; ask of the bell, book, and candle.",
-      "ko": "안토스라는 이름을 모두 찾아 종·책·초에 대해 물어보라."
+      "goal": "ask:antos-book",
+      "complete_if_recorded": "lycaeum.father-antos.book",
+      "en": "At the Lycaeum, ask Father Antos of the book.",
+      "ko": "리케이엄의 안토스 신부에게 책을 물으라."
+    },
+    {
+      "id": "lcb.zorin.antos-candle",
+      "place": "lcb",
+      "npc": "Zorin",
+      "topic": "CAST_YES",
+      "chain": "lcb.antos-candle",
+      "chain_order": 10,
+      "goal": "ask:antos-candle",
+      "complete_if_recorded": "empath.brother-antos.candle",
+      "en": "At Empath Abbey, ask Brother Antos of the candle.",
+      "ko": "공감 대수도원의 안토스 형제에게 촛대를 물으라."
+    },
+    {
+      "id": "lcb.zorin.antos-bell",
+      "place": "lcb",
+      "npc": "Zorin",
+      "topic": "CAST_YES",
+      "chain": "lcb.antos-bell",
+      "chain_order": 10,
+      "goal": "ask:antos-bell",
+      "complete_if_recorded": "serpent.sister-antos.bell",
+      "en": "At Serpent's Hold, ask Sister Antos of the bell.",
+      "ko": "뱀성의 안토스 수녀에게 종을 물으라."
     },
     {
       "id": "lycaeum.father-antos.book",
       "place": "lycaeum",
       "npc": "Father Antos",
       "topic": "BOOK",
-      "chain": "lcb.antos-relics",
+      "chain": "lcb.antos-book",
       "chain_order": 20,
       "goal": "",
       "en": "Book of Truth: seek it where other books lie.",
@@ -33,19 +53,19 @@
       "place": "empath",
       "npc": "Brother Antos",
       "topic": "CAND",
-      "chain": "lcb.antos-relics",
-      "chain_order": 30,
+      "chain": "lcb.antos-candle",
+      "chain_order": 20,
       "goal": "",
       "en": "Candle of Love: needed to enter the Abyss.",
-      "ko": "사랑의 촛불: 심연에 들어가려면 필요하다."
+      "ko": "사랑의 촛대: 심연에 들어가려면 필요하다."
     },
     {
       "id": "serpent.sister-antos.bell",
       "place": "serpent",
       "npc": "Sister Antos",
       "topic": "BELL",
-      "chain": "lcb.antos-relics",
-      "chain_order": 40,
+      "chain": "lcb.antos-bell",
+      "chain_order": 20,
       "goal": "",
       "en": "Bell of Courage: needed to enter the Abyss.",
       "ko": "용기의 종: 심연에 들어가려면 필요하다."

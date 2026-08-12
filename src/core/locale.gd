@@ -1268,7 +1268,7 @@ const _T := {
 	"search_item_candle": {
 		"en_u4": "the Candle of Love",
 		"en_us": "the Candle of Love",
-		"ko": "사랑의 촛불",
+		"ko": "사랑의 촛대",
 	},
 	"search_item_horn": {
 		"en_u4": "A Silver Horn",
@@ -1628,7 +1628,7 @@ const _T := {
 	"cmd_use_candle": {
 		"en_u4": "As you light the Candle the Earth Trembles!",
 		"en_us": "As you light the Candle the Earth Trembles!",
-		"ko": "촛불을 밝히자 대지가 흔들린다!",
+		"ko": "촛대를 밝히자 대지가 흔들린다!",
 	},
 	"cmd_use_skull_aloft": {
 		"en_u4": "You hold the evil Skull of Mondain the Wizard aloft...",
@@ -2050,7 +2050,7 @@ const _T := {
 	"ztats_item_candle": {
 		"en_u4": "Candle",
 		"en_us": "Candle",
-		"ko": "촛불",
+		"ko": "촛대",
 	},
 	"ztats_item_horn": {
 		"en_u4": "Horn",
