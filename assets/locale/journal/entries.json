@@ -299,6 +299,39 @@
       "goal": "",
       "en": "Compassion derives itself from unending love.",
       "ko": "연민은 끝없는 사랑에서 우러나온다."
+    },
+    {
+      "id": "moonglow.christen.william-rune",
+      "place": "moonglow",
+      "npc": "Christen",
+      "topic": "HONE",
+      "chain": "moonglow.honesty-rune",
+      "chain_order": 10,
+      "goal": "ask:william-rune",
+      "complete_if_recorded": "moonglow.william.honesty-rune",
+      "complete_on_goal": "rune:honesty",
+      "en": "Ask William about the rune.",
+      "ko": "윌리엄에게 룬에 대해 물어보라."
+    },
+    {
+      "id": "moonglow.william.honesty-rune",
+      "place": "moonglow",
+      "npc": "William",
+      "topic": "RUNE",
+      "chain": "moonglow.honesty-rune",
+      "chain_order": 20,
+      "goal": "rune:honesty",
+      "en": "Honesty rune: search by Mariah's gold.",
+      "ko": "정직의 룬: 마리아의 금 쪽에서 찾으라."
+    },
+    {
+      "id": "moonglow.cromwell.honesty-mantra",
+      "place": "moonglow",
+      "npc": "Cromwell",
+      "topic": "MANT",
+      "goal": "mantra:honesty",
+      "en": "Honesty mantra: AHM.",
+      "ko": "정직의 만트라: AHM."
     }
   ]
 }

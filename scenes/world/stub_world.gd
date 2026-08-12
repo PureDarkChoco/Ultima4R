@@ -3888,6 +3888,23 @@ func _maybe_offer_britain_chain_keyword() -> void:
 		)
 
 
+func _maybe_offer_moonglow_chain_keyword() -> void:
+	## Christen points to William for the honesty rune.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "william":
+		return
+	if not GameState.journal_has_id("moonglow.christen.william-rune"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var key := _talk_keyword_stable_key("룬" if korean else "rune")
+	_offer_talk_keyword_item(
+		key,
+		"룬" if korean else "Rune",
+		"룬" if korean else "rune"
+	)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -3898,6 +3915,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_antos_relic_keyword()
 	_maybe_offer_zircon_mystic_keyword()
 	_maybe_offer_britain_chain_keyword()
+	_maybe_offer_moonglow_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10276,6 +10294,13 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"연민" if GameState.lang_short() == "ko" else "compassion"
 				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "william"
+				and GameState.journal_has_id("moonglow.christen.william-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -13442,6 +13467,12 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("britain.shapero.julio-compassion"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:julio-compassion"):
+			refresh = true
+	## Moonglow: William completes Christen's tip.
+	if place == "moonglow" and npc_key == "william" and topic == "RUNE":
+		if GameState.journal_mark_id("moonglow.christen.william-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:william-rune"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
