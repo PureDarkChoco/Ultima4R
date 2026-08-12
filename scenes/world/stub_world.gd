@@ -4046,6 +4046,73 @@ func _maybe_offer_skara_chain_keyword() -> void:
 			)
 
 
+func _maybe_offer_magincia_chain_keyword() -> void:
+	## Magincia: Heywood/Faultless mantra, Wierdrum shrine, Demitry horn, Nate rune.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "heywood"
+		and GameState.journal_has_id("magincia.casperin.heywood-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+	elif (
+		npc == "faultless"
+		and GameState.journal_has_id("magincia.heywood.faultless-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+	elif (
+		npc == "wierdrum"
+		and GameState.journal_has_id("magincia.banter.wierdrum-shrine")
+	):
+		var shrine_key := _talk_keyword_stable_key(
+			"사원" if korean else "shrine"
+		)
+		_offer_talk_keyword_item(
+			shrine_key,
+			"사원" if korean else "Shrine",
+			"사원" if korean else "shrine"
+		)
+	elif (
+		npc == "demitry"
+		and GameState.journal_has_id("magincia.banter.demitry-horn")
+	):
+		var horn_key := _talk_keyword_stable_key("뿔" if korean else "horn")
+		_offer_talk_keyword_item(
+			horn_key,
+			"뿔" if korean else "Horn",
+			"뿔" if korean else "horn"
+		)
+	elif (
+		npc == "nate"
+		and (
+			GameState.journal_has_id("magincia.ruskin.nate-rune")
+			or GameState.journal_has_id("magincia.splot.nate-rune")
+		)
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -4061,6 +4128,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_yew_chain_keyword()
 	_maybe_offer_trinsic_chain_keyword()
 	_maybe_offer_skara_chain_keyword()
+	_maybe_offer_magincia_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10511,6 +10579,44 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 					default_key = _talk_keyword_stable_key(
 						"룬" if GameState.lang_short() == "ko" else "rune"
 					)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "heywood"
+				and GameState.journal_has_id("magincia.casperin.heywood-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "faultless"
+				and GameState.journal_has_id("magincia.heywood.faultless-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "wierdrum"
+				and GameState.journal_has_id("magincia.banter.wierdrum-shrine")
+			):
+				default_key = _talk_keyword_stable_key(
+					"사원" if GameState.lang_short() == "ko" else "shrine"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "demitry"
+				and GameState.journal_has_id("magincia.banter.demitry-horn")
+			):
+				default_key = _talk_keyword_stable_key(
+					"뿔" if GameState.lang_short() == "ko" else "horn"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "nate"
+				and (
+					GameState.journal_has_id("magincia.ruskin.nate-rune")
+					or GameState.journal_has_id("magincia.splot.nate-rune")
+				)
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11444,6 +11550,22 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Granted (Skara): Yes after Money points to the Ankh (rune) and Ambule (mantra).
 	if yes and npc_key == "granted":
 		if GameState.journal_try_capture("skara", "Granted", "MONE_YES"):
+			journal_changed = true
+	## Banter (Magincia): Yes after Shrine points to Demitry and the silver horn.
+	if (
+		yes
+		and npc_key == "banter"
+		and str(e.topic2).strip_edges().to_upper() == "SHRI"
+	):
+		if GameState.journal_try_capture("magincia", "Banter", "SHRI_YES"):
+			journal_changed = true
+	## Splot (Magincia): Yes after Humility points to Nate (the snake).
+	if (
+		yes
+		and npc_key == "splot"
+		and str(e.topic2).strip_edges().to_upper() == "HUMB"
+	):
+		if GameState.journal_try_capture("magincia", "Splot", "HUMB_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13785,6 +13907,34 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("skara.granted.ankh-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:ankh-rune"):
+			refresh = true
+	## Magincia: Heywood / Faultless / Wierdrum / Demitry / Nate complete tips.
+	if place == "magincia" and npc_key == "heywood" and topic == "MANT":
+		if GameState.journal_mark_id("magincia.casperin.heywood-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:heywood-mantra"):
+			refresh = true
+	if place == "magincia" and npc_key == "faultless" and topic == "MANT":
+		if GameState.journal_mark_id("magincia.heywood.faultless-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:faultless-mantra"):
+			refresh = true
+	if place == "magincia" and npc_key == "wierdrum" and topic == "SHRI":
+		if GameState.journal_mark_id("magincia.banter.wierdrum-shrine"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:wierdrum-shrine"):
+			refresh = true
+	if place == "magincia" and npc_key == "demitry" and topic == "HORN":
+		if GameState.journal_mark_id("magincia.banter.demitry-horn"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:demitry-horn"):
+			refresh = true
+	if place == "magincia" and npc_key == "nate" and topic in ["RUNE", "STON"]:
+		if GameState.journal_mark_id("magincia.ruskin.nate-rune"):
+			refresh = true
+		if GameState.journal_mark_id("magincia.splot.nate-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:nate-rune"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()

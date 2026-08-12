@@ -545,6 +545,101 @@
       "goal": "mantra:spirituality",
       "en": "Spirituality mantra: OM.",
       "ko": "영성의 만트라: OM."
+    },
+    {
+      "id": "magincia.casperin.heywood-mantra",
+      "place": "magincia",
+      "npc": "Casperin",
+      "topic": "PRID",
+      "chain": "magincia.humility-mantra",
+      "chain_order": 10,
+      "goal": "ask:heywood-mantra",
+      "complete_if_recorded": "magincia.heywood.faultless-mantra",
+      "complete_on_goal": "mantra:humility",
+      "en": "Ask Heywood about the mantra.",
+      "ko": "헤이우드에게 만트라를 물어보라."
+    },
+    {
+      "id": "magincia.heywood.faultless-mantra",
+      "place": "magincia",
+      "npc": "Heywood",
+      "topic": "MANT",
+      "chain": "magincia.humility-mantra",
+      "chain_order": 20,
+      "goal": "ask:faultless-mantra",
+      "complete_if_recorded": "magincia.faultless.humility-mantra",
+      "complete_on_goal": "mantra:humility",
+      "en": "Ask Faultless about the mantra.",
+      "ko": "폴트리스에게 만트라를 물어보라."
+    },
+    {
+      "id": "magincia.faultless.humility-mantra",
+      "place": "magincia",
+      "npc": "Faultless",
+      "topic": "MANT",
+      "chain": "magincia.humility-mantra",
+      "chain_order": 30,
+      "goal": "mantra:humility",
+      "en": "Humility mantra: MUL.",
+      "ko": "겸손의 만트라: MUL."
+    },
+    {
+      "id": "magincia.banter.wierdrum-shrine",
+      "place": "magincia",
+      "npc": "Banter",
+      "topic": "SHRI",
+      "chain": "magincia.humility-shrine",
+      "chain_order": 10,
+      "goal": "ask:wierdrum-shrine",
+      "complete_if_recorded": "magincia.wierdrum.humility-shrine",
+      "en": "Ask Wierdrum about the shrine of Humility.",
+      "ko": "위어드럼에게 겸손의 사원을 물어보라."
+    },
+    {
+      "id": "magincia.wierdrum.humility-shrine",
+      "place": "magincia",
+      "npc": "Wierdrum",
+      "topic": "SHRI",
+      "chain": "magincia.humility-shrine",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Humility shrine: on the north bank in the isle of the Abyss.",
+      "ko": "겸손의 사원: 심연 섬 북쪽 강가에 있다."
+    },
+    {
+      "id": "magincia.banter.silver-horn",
+      "place": "magincia",
+      "npc": "Banter",
+      "topic": "HORN",
+      "en": "Silver horn: use it to pass the daemon guard of the shrine.",
+      "ko": "은 뿔: 사원의 악마 수호자를 지나려면 쓰라."
+    },
+    {
+      "id": "magincia.banter.demitry-horn",
+      "place": "magincia",
+      "npc": "Banter",
+      "topic": "SHRI_YES",
+      "goal": "ask:demitry-horn",
+      "en": "Ask Demitry about the horn.",
+      "ko": "데미트리에게 은 뿔을 물어보라."
+    },
+    {
+      "id": "magincia.ruskin.nate-rune",
+      "place": "magincia",
+      "npc": "Ruskin",
+      "topic": "RUNE",
+      "goal": "ask:nate-rune",
+      "en": "Ask Nate about the rune.",
+      "ko": "네이트에게 룬을 물어보라."
+    },
+    {
+      "id": "magincia.splot.nate-rune",
+      "place": "magincia",
+      "npc": "Splot",
+      "topic": "HUMB_YES",
+      "goal": "ask:nate-rune",
+      "en": "Ask Nate about the rune and stone.",
+      "ko": "네이트에게 룬과 돌을 물어보라."
     }
   ]
 }
