@@ -482,6 +482,69 @@
       "goal": "mantra:honor",
       "en": "Honor mantra: SUMM.",
       "ko": "명예의 만트라: SUMM."
+    },
+    {
+      "id": "skara.granted.ankh-rune",
+      "place": "skara",
+      "npc": "Granted",
+      "topic": "MONE_YES",
+      "chain": "skara.spirituality-rune",
+      "chain_order": 10,
+      "goal": "ask:ankh-rune",
+      "complete_if_recorded": "skara.ankh.spirituality-rune",
+      "complete_on_goal": "rune:spirituality",
+      "en": "Ask the Ankh of Spirituality about the rune.",
+      "ko": "영성의 앙크에게 룬을 물어보라."
+    },
+    {
+      "id": "skara.ankh.spirituality-rune",
+      "place": "skara",
+      "npc": "the Ankh of\nSpirituality",
+      "topic": "OM",
+      "chain": "skara.spirituality-rune",
+      "chain_order": 20,
+      "goal": "rune:spirituality",
+      "speaker_en": "the Ankh of Spirituality",
+      "speaker_ko": "영성의 앙크",
+      "en": "Spirituality rune: in the treasure chamber of Britannia.",
+      "ko": "영성의 룬: 브리타니아 보물 창고에 있다."
+    },
+    {
+      "id": "skara.granted.ambule-mantra",
+      "place": "skara",
+      "npc": "Granted",
+      "topic": "MONE_YES",
+      "chain": "skara.spirituality-mantra",
+      "chain_order": 10,
+      "goal": "ask:ambule-mantra",
+      "complete_if_recorded": "skara.ambule.barren-mantra",
+      "complete_on_goal": "mantra:spirituality",
+      "en": "Ask Ambule about the mantra.",
+      "ko": "앰뷸에게 만트라를 물어보라."
+    },
+    {
+      "id": "skara.ambule.barren-mantra",
+      "place": "skara",
+      "npc": "Ambule",
+      "topic": "MANT",
+      "chain": "skara.spirituality-mantra",
+      "chain_order": 20,
+      "goal": "ask:barren-mantra",
+      "complete_if_recorded": "skara.barren.spirituality-mantra",
+      "complete_on_goal": "mantra:spirituality",
+      "en": "Ask Barren about the mantra.",
+      "ko": "바렌에게 만트라를 물어보라."
+    },
+    {
+      "id": "skara.barren.spirituality-mantra",
+      "place": "skara",
+      "npc": "Barren",
+      "topic": "MANT",
+      "chain": "skara.spirituality-mantra",
+      "chain_order": 30,
+      "goal": "mantra:spirituality",
+      "en": "Spirituality mantra: OM.",
+      "ko": "영성의 만트라: OM."
     }
   ]
 }

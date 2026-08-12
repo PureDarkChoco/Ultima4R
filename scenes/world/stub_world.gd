@@ -3992,6 +3992,60 @@ func _maybe_offer_trinsic_chain_keyword() -> void:
 		)
 
 
+func _talk_npc_is_skara_ankh(npc_name: String) -> bool:
+	return (
+		npc_name.strip_edges().to_lower().replace("\n", " ")
+		== "the ankh of spirituality"
+	)
+
+
+func _maybe_offer_skara_chain_keyword() -> void:
+	## Skara: Ambule/Barren mantra chain; Ankh rune (Rune then Om).
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "ambule"
+		and GameState.journal_has_id("skara.granted.ambule-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+	elif (
+		npc == "barren"
+		and GameState.journal_has_id("skara.ambule.barren-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+	elif _talk_npc_is_skara_ankh(str(_talk_entry.name)):
+		if GameState.journal_has_id("skara.barren.spirituality-mantra"):
+			var om_key := _talk_keyword_stable_key("옴" if korean else "om")
+			_offer_talk_keyword_item(
+				om_key,
+				"옴" if korean else "Om",
+				"옴" if korean else "om"
+			)
+		if GameState.journal_has_id("skara.granted.ankh-rune"):
+			var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+			_offer_talk_keyword_item(
+				rune_key,
+				"룬" if korean else "Rune",
+				"룬" if korean else "rune"
+			)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -4006,6 +4060,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_jhelom_chain_keyword()
 	_maybe_offer_yew_chain_keyword()
 	_maybe_offer_trinsic_chain_keyword()
+	_maybe_offer_skara_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10433,6 +10488,29 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"룬" if GameState.lang_short() == "ko" else "rune"
 				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "ambule"
+				and GameState.journal_has_id("skara.granted.ambule-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "barren"
+				and GameState.journal_has_id("skara.ambule.barren-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
+			elif _talk_npc_is_skara_ankh(str(entry.name)):
+				if GameState.journal_has_id("skara.barren.spirituality-mantra"):
+					default_key = _talk_keyword_stable_key(
+						"옴" if GameState.lang_short() == "ko" else "om"
+					)
+				elif GameState.journal_has_id("skara.granted.ankh-rune"):
+					default_key = _talk_keyword_stable_key(
+						"룬" if GameState.lang_short() == "ko" else "rune"
+					)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11362,6 +11440,10 @@ func _talk_answer_yn(yes: bool) -> void:
 		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
 			journal_changed = true
 		if GameState.journal_mark_goal("ask:winthrop-rune"):
+			journal_changed = true
+	## Granted (Skara): Yes after Money points to the Ankh (rune) and Ambule (mantra).
+	if yes and npc_key == "granted":
+		if GameState.journal_try_capture("skara", "Granted", "MONE_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13683,6 +13765,26 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("trinsic.winthrop.terrin-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:terrin-rune"):
+			refresh = true
+	## Skara: Ambule / Barren / Ankh complete prior spirituality tips.
+	if place == "skara" and npc_key == "ambule" and topic == "MANT":
+		if GameState.journal_mark_id("skara.granted.ambule-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:ambule-mantra"):
+			refresh = true
+	if place == "skara" and npc_key == "barren" and topic == "MANT":
+		if GameState.journal_mark_id("skara.ambule.barren-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:barren-mantra"):
+			refresh = true
+	if (
+		place == "skara"
+		and _talk_npc_is_skara_ankh(npc)
+		and topic in ["RUNE", "OM"]
+	):
+		if GameState.journal_mark_id("skara.granted.ankh-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:ankh-rune"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
