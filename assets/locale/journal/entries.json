@@ -620,8 +620,21 @@
       "npc": "Banter",
       "topic": "SHRI_YES",
       "goal": "ask:demitry-horn",
+      "complete_if_recorded": "magincia.demitry.suzanna-horn",
       "en": "Ask Demitry about the horn.",
       "ko": "데미트리에게 은 뿔을 물어보라."
+    },
+    {
+      "id": "magincia.demitry.suzanna-horn",
+      "place": "magincia",
+      "npc": "Demitry",
+      "topic": "HORN",
+      "chain": "magincia.silver-horn",
+      "chain_order": 10,
+      "goal": "ask:suzanna-horn",
+      "complete_if_recorded": "empath.suzanna.malchor-horn",
+      "en": "Ask the lady in waiting at Empath Abbey about the horn.",
+      "ko": "공감 대수도원의 시녀에게 은 뿔을 물어보라."
     },
     {
       "id": "magincia.ruskin.nate-rune",
@@ -926,6 +939,322 @@
       "topic": "MIX",
       "en": "Magic missile: one black pearl and one part sulfurous ash.",
       "ko": "매직 미사일: 검은 진주 하나와 유황회 한 부분."
+    },
+    {
+      "id": "empath.robert.word-amo",
+      "place": "empath",
+      "npc": "Lord Robert",
+      "topic": "WORD_YES",
+      "en": "Word of passage: one syllable is amo.",
+      "ko": "통과의 말: 한 음절은 amo."
+    },
+    {
+      "id": "empath.suzanna.malchor-horn",
+      "place": "empath",
+      "npc": "Suzanna",
+      "topic": "HORN",
+      "chain": "empath.silver-horn",
+      "chain_order": 10,
+      "goal": "ask:malchor-horn",
+      "complete_if_recorded": "empath.malchor.silver-horn",
+      "en": "Ask Malchor about the silver horn.",
+      "ko": "말코어에게 은 뿔을 물어보라."
+    },
+    {
+      "id": "empath.malchor.silver-horn",
+      "place": "empath",
+      "npc": "Malchor",
+      "topic": "HORN",
+      "chain": "empath.silver-horn",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Silver horn: buried on a small isle off the tip of Spiritwood.",
+      "ko": "은 뿔: 스피릿우드 끝 작은 섬에 묻혀 있다."
+    },
+    {
+      "id": "empath.life.derek-candle",
+      "place": "empath",
+      "npc": "Life.",
+      "topic": "LOVE_NO",
+      "chain": "empath.candle-location",
+      "chain_order": 10,
+      "goal": "ask:derek-candle",
+      "complete_if_recorded": "empath.derek.lock-lake-candle",
+      "speaker_en": "Life",
+      "speaker_ko": "생명",
+      "en": "Ask the bard beyond the secret passage about the candle.",
+      "ko": "비밀 통로 너머 음유시인에게 촛대를 물어보라."
+    },
+    {
+      "id": "empath.derek.lock-lake-candle",
+      "place": "empath",
+      "npc": "Derek the Bard",
+      "topic": "CAND",
+      "chain": "empath.candle-location",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Candle of Love: in a secret place hidden off Lock Lake.",
+      "ko": "사랑의 촛대: 로크 호수 밖 은밀한 곳에 있다."
+    },
+    {
+      "id": "empath.pass-guard.three-part-key",
+      "place": "empath",
+      "npc": "the pass guard",
+      "topic": "DANG_NO",
+      "speaker_en": "the pass guard",
+      "speaker_ko": "통로 경비",
+      "en": "Three-part key: gained from the dungeon altar rooms; needed for the Codex chamber.",
+      "ko": "세 부분 열쇠: 던전 제단 방에서 얻으며 코덱스 방에 필요하다."
+    },
+    {
+      "id": "empath.benjamin.compassion",
+      "place": "empath",
+      "npc": "Benjamin",
+      "topic": "COMP",
+      "en": "Compassion: derived from love alone among the eight Avatar virtues.",
+      "ko": "연민: 아바타 여덟 미덕 중 사랑만에서 나온다."
+    },
+    {
+      "id": "empath.deirdre.justice",
+      "place": "empath",
+      "npc": "Deirdre",
+      "topic": "JUST",
+      "en": "Justice: derived from truth tempered by love.",
+      "ko": "정의: 사랑에 단련된 진리에서 나온다."
+    },
+    {
+      "id": "empath.thomas.sacrifice",
+      "place": "empath",
+      "npc": "Thomas",
+      "topic": "SACR",
+      "en": "Sacrifice: built on love of others and the courage to face even death.",
+      "ko": "희생: 남을 향한 사랑과 죽음조차 맞설 용기 위에 세워진다."
+    },
+    {
+      "id": "lycaeum.frasier.word-ver",
+      "place": "lycaeum",
+      "npc": "Robert Frasier",
+      "topic": "WORD_YES",
+      "en": "Word of passage: one syllable is ver.",
+      "ko": "통과의 말: 한 음절은 ver."
+    },
+    {
+      "id": "lycaeum.terence.book-truth",
+      "place": "lycaeum",
+      "npc": "Lord Terence",
+      "topic": "TRUT",
+      "en": "Book of Truth: look under 't'.",
+      "ko": "진리의 책: ‘t’ 아래를 보라."
+    },
+    {
+      "id": "lycaeum.scatu.zircon-mystics",
+      "place": "lycaeum",
+      "npc": "Scatu",
+      "topic": "ARMO_YES",
+      "goal": "ask:zircon-mystics",
+      "complete_if_recorded": "minoc.zircon.mystic-arms",
+      "en": "When eight parts Avatar, ask Zircon in Minoc about the mystics.",
+      "ko": "아바타 여덟 부분이 되면 미녹의 지르콘에게 신비를 물어보라."
+    },
+    {
+      "id": "lycaeum.tymus.altar-stones",
+      "place": "lycaeum",
+      "npc": "Tymus",
+      "topic": "FOUR",
+      "en": "Dungeon altar rooms: need four stones each.",
+      "ko": "던전 제단 방: 돌이 각각 넷 필요하다."
+    },
+    {
+      "id": "lycaeum.seeker.meditate-cycles",
+      "place": "lycaeum",
+      "npc": "a truth\nseeker.",
+      "topic": "MEDI",
+      "speaker_en": "a truth seeker",
+      "speaker_ko": "진리 구도자",
+      "en": "Shrine meditation: for 1, 2 and 3 cycles to know the paths of goodness.",
+      "ko": "사원 명상: 1·2·3 주기로 선의 길을 안다."
+    },
+    {
+      "id": "lycaeum.fighter.altar-links-yes",
+      "place": "lycaeum",
+      "npc": "a fighter",
+      "topic": "WOUN_YES",
+      "speaker_en": "a fighter",
+      "speaker_ko": "전사",
+      "en": "Altar rooms: each of the three connects to four dungeons.",
+      "ko": "제단 방: 세 방 각각이 던전 넷과 연결된다."
+    },
+    {
+      "id": "lycaeum.fighter.altar-links-no",
+      "place": "lycaeum",
+      "npc": "a fighter",
+      "topic": "WOUN_NO",
+      "speaker_en": "a fighter",
+      "speaker_ko": "전사",
+      "en": "Altar rooms: they connect the dungeons unto each other.",
+      "ko": "제단 방: 던전들을 서로 잇는다."
+    },
+    {
+      "id": "lycaeum.nigel.resurrection",
+      "place": "lycaeum",
+      "npc": "Nigel, at thy\nservice.",
+      "topic": "RECA",
+      "speaker_en": "Nigel",
+      "speaker_ko": "나이젤",
+      "en": "Resurrection: ash, ginseng, garlic, silk, bloodmoss, and mandrake.",
+      "ko": "부활: 재·인삼·마늘·거미실·블러드모스·맨드레이크."
+    },
+    {
+      "id": "lycaeum.palamar.telescope",
+      "place": "lycaeum",
+      "npc": "Palamar",
+      "topic": "TELE",
+      "en": "Telescope: search by the end for a knob; set the dial to see.",
+      "ko": "망원경: 끝 쪽 손잡이를 찾아 다이얼을 맞추라."
+    },
+    {
+      "id": "lycaeum.estro.yew-judge",
+      "place": "lycaeum",
+      "npc": "Estro",
+      "topic": "JUST_NO",
+      "en": "Ask the judge in Yew.",
+      "ko": "유의 판사에게 물어보라."
+    },
+    {
+      "id": "serpent.sentri.word-cor",
+      "place": "serpent",
+      "npc": "Sentri",
+      "topic": "WORD",
+      "en": "Word of passage: one syllable is cor.",
+      "ko": "통과의 말: 한 음절은 cor."
+    },
+    {
+      "id": "serpent.sentri.courage-cities",
+      "place": "serpent",
+      "npc": "Sentri",
+      "topic": "WORD_NO",
+      "en": "Cities of courage: Jhelom, Minoc, Trinsic, and Skara Brae.",
+      "ko": "용기의 도시: 예울롬·미녹·트린식·스카라 브레."
+    },
+    {
+      "id": "serpent.sister-antos.garam-bell",
+      "place": "serpent",
+      "npc": "Sister Antos",
+      "topic": "BELL_NO",
+      "chain": "serpent.bell-location",
+      "chain_order": 10,
+      "goal": "ask:garam-bell",
+      "complete_if_recorded": "serpent.garam.bell-location",
+      "en": "Ask the fighter Garam where the bell of courage lies.",
+      "ko": "전사 가람에게 용기 종 위치를 물어보라."
+    },
+    {
+      "id": "serpent.garam.bell-location",
+      "place": "serpent",
+      "npc": "Garam",
+      "topic": "BELL",
+      "chain": "serpent.bell-location",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Bell of Courage: at the bottom of a deep well at sea, lat-N'A\" long-L'A\".",
+      "ko": "용기의 종: 바다 깊은 샘 밑, 위도 N'A\" 경도 L'A\"."
+    },
+    {
+      "id": "serpent.noxum.lassorn-wheel",
+      "place": "serpent",
+      "npc": "Noxum",
+      "topic": "SHIP",
+      "chain": "serpent.magic-wheel",
+      "chain_order": 10,
+      "goal": "ask:lassorn-wheel",
+      "complete_if_recorded": "serpent.lassorn.wheel-wreck",
+      "en": "Ask a survivor where to search the sunken ships.",
+      "ko": "가라앉은 배는 생존자에게 어디를 찾을지 물어보라."
+    },
+    {
+      "id": "serpent.noxum.magic-wheel",
+      "place": "serpent",
+      "npc": "Noxum",
+      "topic": "SHIP_YES",
+      "en": "H.M.S. Cape: had a magical wheel that strengthens the hull.",
+      "ko": "케이프 호: 선체를 강하게 하는 마법 타륜이 있었다."
+    },
+    {
+      "id": "serpent.lassorn.wheel-wreck",
+      "place": "serpent",
+      "npc": "Lassorn",
+      "topic": "WHEE",
+      "chain": "serpent.magic-wheel",
+      "chain_order": 20,
+      "goal": "",
+      "en": "H.M.S. Cape: sank in the deep waters of the bay in the Cape of Heroes.",
+      "ko": "케이프 호: 영웅의 곶 만 깊은 물에 가라앉았다."
+    },
+    {
+      "id": "serpent.ranger.shrya-rooms",
+      "place": "serpent",
+      "npc": "a ranger.",
+      "topic": "DUNG_YES",
+      "chain": "serpent.courage-altar",
+      "chain_order": 10,
+      "goal": "ask:shyra-rooms",
+      "complete_if_recorded": "serpent.shyra.courage-stones",
+      "speaker_en": "a ranger",
+      "speaker_ko": "레인저",
+      "en": "Ask the training master about the altar rooms.",
+      "ko": "훈련 교관에게 제단 방을 물어보라."
+    },
+    {
+      "id": "serpent.shyra.courage-stones",
+      "place": "serpent",
+      "npc": "Shyra",
+      "topic": "ROOM",
+      "chain": "serpent.courage-altar",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Altar of Courage: use the red, orange, purple, and white stones.",
+      "ko": "용기 제단: 빨강·주황·자주·흰 돌을 쓰라."
+    },
+    {
+      "id": "serpent.treasure-guard.durham",
+      "place": "serpent",
+      "npc": "a treasure guard",
+      "topic": "DUNG",
+      "chain": "serpent.courage-key",
+      "chain_order": 10,
+      "goal": "ask:durham-dungeon",
+      "complete_if_recorded": "serpent.durham.courage-key",
+      "speaker_en": "a treasure guard",
+      "speaker_ko": "보물 경비",
+      "en": "Ask Durham about the dungeons.",
+      "ko": "더럼에게 던전을 물어보라."
+    },
+    {
+      "id": "serpent.durham.courage-key",
+      "place": "serpent",
+      "npc": "Durham",
+      "topic": "DUNG",
+      "chain": "serpent.courage-key",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Altar of Courage: gives the third part of a key.",
+      "ko": "용기 제단: 열쇠의 세 번째 조각을 준다."
+    },
+    {
+      "id": "serpent.roark.abyss-codex",
+      "place": "serpent",
+      "npc": "Roark",
+      "topic": "ABYS",
+      "en": "Great Stygian Abyss: holds the Codex of Ultimate Wisdom.",
+      "ko": "대 스티기안 심연: 궁극 지혜의 코덱스가 있다."
+    },
+    {
+      "id": "serpent.roderick.blue-orbs",
+      "place": "serpent",
+      "npc": "Roderick",
+      "topic": "ORBS",
+      "en": "Blue orbs: raise strength, dexterity, or intelligence — at a cost.",
+      "ko": "푸른 오브: 힘·민첩·지성을 올리나 대가가 있다."
     }
   ]
 }

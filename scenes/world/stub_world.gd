@@ -4173,6 +4173,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_magincia_chain_keyword()
 	_maybe_offer_paws_chain_keyword()
 	_maybe_offer_cove_chain_keyword()
+	_maybe_offer_keep_chain_keyword()
 
 
 func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
@@ -4249,6 +4250,113 @@ func _maybe_offer_den_prompt_keywords() -> void:
 			hyth_key,
 			"히슬로스" if korean else "Hythloth",
 			"히슬로스" if korean else "hythloth"
+		)
+
+
+func _maybe_offer_keep_chain_keyword() -> void:
+	## Empath Abbey / Lycaeum / Serpent's Hold follow-up keywords.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var place := _talk_city_id()
+	if place not in ["empath", "lycaeum", "serpent"]:
+		return
+	var npc := _talk_npc_key_flat(str(_talk_entry.name))
+	var korean := GameState.lang_short() == "ko"
+	if (
+		place == "empath"
+		and npc == "malchor"
+		and GameState.journal_has_id("empath.suzanna.malchor-horn")
+	):
+		var horn_key := _talk_keyword_stable_key("뿔" if korean else "horn")
+		_offer_talk_keyword_item(
+			horn_key,
+			"뿔" if korean else "Horn",
+			"뿔" if korean else "horn"
+		)
+	elif (
+		place == "empath"
+		and npc == "suzanna"
+		and GameState.journal_has_id("magincia.demitry.suzanna-horn")
+	):
+		var horn_key := _talk_keyword_stable_key("뿔" if korean else "horn")
+		_offer_talk_keyword_item(
+			horn_key,
+			"뿔" if korean else "Horn",
+			"뿔" if korean else "horn"
+		)
+	elif (
+		place == "empath"
+		and npc == "derek the bard"
+		and GameState.journal_has_id("empath.life.derek-candle")
+	):
+		var candle_key := _talk_keyword_stable_key(
+			"촛대" if korean else "candle"
+		)
+		_offer_talk_keyword_item(
+			candle_key,
+			"촛대" if korean else "Candle",
+			"촛대" if korean else "candle"
+		)
+	elif (
+		place == "lycaeum"
+		and npc == "lord terence"
+		and GameState.journal_has_id("lycaeum.father-antos.book")
+	):
+		var truth_key := _talk_keyword_stable_key(
+			"진리" if korean else "truth"
+		)
+		_offer_talk_keyword_item(
+			truth_key,
+			"진리" if korean else "Truth",
+			"진리" if korean else "truth"
+		)
+	elif (
+		place == "serpent"
+		and npc == "garam"
+		and GameState.journal_has_id("serpent.sister-antos.garam-bell")
+	):
+		var bell_key := _talk_keyword_stable_key("종" if korean else "bell")
+		_offer_talk_keyword_item(
+			bell_key,
+			"종" if korean else "Bell",
+			"종" if korean else "bell"
+		)
+	elif (
+		place == "serpent"
+		and npc == "lassorn"
+		and GameState.journal_has_id("serpent.noxum.lassorn-wheel")
+	):
+		var wheel_key := _talk_keyword_stable_key(
+			"타륜" if korean else "wheel"
+		)
+		_offer_talk_keyword_item(
+			wheel_key,
+			"타륜" if korean else "Wheel",
+			"타륜" if korean else "wheel"
+		)
+	elif (
+		place == "serpent"
+		and npc == "shyra"
+		and GameState.journal_has_id("serpent.ranger.shrya-rooms")
+	):
+		var room_key := _talk_keyword_stable_key("방" if korean else "room")
+		_offer_talk_keyword_item(
+			room_key,
+			"방" if korean else "Room",
+			"방" if korean else "room"
+		)
+	elif (
+		place == "serpent"
+		and npc == "durham"
+		and GameState.journal_has_id("serpent.treasure-guard.durham")
+	):
+		var dung_key := _talk_keyword_stable_key(
+			"던전" if korean else "dungeon"
+		)
+		_offer_talk_keyword_item(
+			dung_key,
+			"던전" if korean else "Dungeon",
+			"던전" if korean else "dungeon"
 		)
 
 
@@ -10779,6 +10887,70 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"달문" if GameState.lang_short() == "ko" else "gate"
 				)
+			elif (
+				_talk_city_id() == "empath"
+				and str(entry.name).strip_edges().to_lower() == "malchor"
+				and GameState.journal_has_id("empath.suzanna.malchor-horn")
+			):
+				default_key = _talk_keyword_stable_key(
+					"뿔" if GameState.lang_short() == "ko" else "horn"
+				)
+			elif (
+				_talk_city_id() == "empath"
+				and str(entry.name).strip_edges().to_lower() == "suzanna"
+				and GameState.journal_has_id("magincia.demitry.suzanna-horn")
+			):
+				default_key = _talk_keyword_stable_key(
+					"뿔" if GameState.lang_short() == "ko" else "horn"
+				)
+			elif (
+				_talk_city_id() == "empath"
+				and str(entry.name).strip_edges().to_lower() == "derek the bard"
+				and GameState.journal_has_id("empath.life.derek-candle")
+			):
+				default_key = _talk_keyword_stable_key(
+					"촛대" if GameState.lang_short() == "ko" else "candle"
+				)
+			elif (
+				_talk_city_id() == "lycaeum"
+				and str(entry.name).strip_edges().to_lower() == "lord terence"
+				and GameState.journal_has_id("lycaeum.father-antos.book")
+			):
+				default_key = _talk_keyword_stable_key(
+					"진리" if GameState.lang_short() == "ko" else "truth"
+				)
+			elif (
+				_talk_city_id() == "serpent"
+				and str(entry.name).strip_edges().to_lower() == "garam"
+				and GameState.journal_has_id("serpent.sister-antos.garam-bell")
+			):
+				default_key = _talk_keyword_stable_key(
+					"종" if GameState.lang_short() == "ko" else "bell"
+				)
+			elif (
+				_talk_city_id() == "serpent"
+				and str(entry.name).strip_edges().to_lower() == "lassorn"
+				and GameState.journal_has_id("serpent.noxum.lassorn-wheel")
+			):
+				default_key = _talk_keyword_stable_key(
+					"타륜" if GameState.lang_short() == "ko" else "wheel"
+				)
+			elif (
+				_talk_city_id() == "serpent"
+				and str(entry.name).strip_edges().to_lower() == "shyra"
+				and GameState.journal_has_id("serpent.ranger.shrya-rooms")
+			):
+				default_key = _talk_keyword_stable_key(
+					"방" if GameState.lang_short() == "ko" else "room"
+				)
+			elif (
+				_talk_city_id() == "serpent"
+				and str(entry.name).strip_edges().to_lower() == "durham"
+				and GameState.journal_has_id("serpent.treasure-guard.durham")
+			):
+				default_key = _talk_keyword_stable_key(
+					"던전" if GameState.lang_short() == "ko" else "dungeon"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11786,6 +11958,105 @@ func _talk_answer_yn(yes: bool) -> void:
 		and str(e.topic2).strip_edges().to_upper() == "SOME"
 	):
 		if GameState.journal_try_capture("den", "Sniflet", "SOME_YES"):
+			journal_changed = true
+	## Empath / Lycaeum / Serpent Yes-No journal tips.
+	var place_id := _talk_city_id()
+	var topic2 := str(e.topic2).strip_edges().to_upper()
+	if (
+		yes
+		and place_id == "empath"
+		and npc_key == "lord robert"
+		and topic2 == "WORD"
+	):
+		if GameState.journal_try_capture("empath", "Lord Robert", "WORD_YES"):
+			journal_changed = true
+	if (
+		not yes
+		and place_id == "empath"
+		and npc_key == "life."
+		and topic2 == "LOVE"
+	):
+		if GameState.journal_try_capture("empath", "Life.", "LOVE_NO"):
+			journal_changed = true
+	if (
+		not yes
+		and place_id == "empath"
+		and npc_key == "the pass guard"
+		and topic2 == "DANG"
+	):
+		if GameState.journal_try_capture(
+			"empath", "the pass guard", "DANG_NO"
+		):
+			journal_changed = true
+	if (
+		yes
+		and place_id == "lycaeum"
+		and npc_key == "robert frasier"
+		and topic2 == "WORD"
+	):
+		if GameState.journal_try_capture(
+			"lycaeum", "Robert Frasier", "WORD_YES"
+		):
+			journal_changed = true
+	if (
+		yes
+		and place_id == "lycaeum"
+		and npc_key == "scatu"
+		and topic2 == "ARMO"
+	):
+		if GameState.journal_try_capture("lycaeum", "Scatu", "ARMO_YES"):
+			journal_changed = true
+	if (
+		place_id == "lycaeum"
+		and npc_key == "a fighter"
+		and topic2 == "WOUN"
+	):
+		var fighter_topic := "WOUN_YES" if yes else "WOUN_NO"
+		if GameState.journal_try_capture(
+			"lycaeum", "a fighter", fighter_topic
+		):
+			journal_changed = true
+	if (
+		not yes
+		and place_id == "lycaeum"
+		and npc_key == "estro"
+		and topic2 == "JUST"
+	):
+		if GameState.journal_try_capture("lycaeum", "Estro", "JUST_NO"):
+			journal_changed = true
+	if (
+		not yes
+		and place_id == "serpent"
+		and npc_key == "sentri"
+		and topic2 == "WORD"
+	):
+		if GameState.journal_try_capture("serpent", "Sentri", "WORD_NO"):
+			journal_changed = true
+	if (
+		not yes
+		and place_id == "serpent"
+		and npc_key == "sister antos"
+		and topic2 == "BELL"
+	):
+		if GameState.journal_try_capture(
+			"serpent", "Sister Antos", "BELL_NO"
+		):
+			journal_changed = true
+	if (
+		yes
+		and place_id == "serpent"
+		and npc_key == "noxum"
+		and topic2 == "SHIP"
+	):
+		if GameState.journal_try_capture("serpent", "Noxum", "SHIP_YES"):
+			journal_changed = true
+	if (
+		yes
+		and place_id == "serpent"
+		and npc_key == "a ranger."
+		and topic2 == "DUNG"
+	):
+		if GameState.journal_try_capture("serpent", "a ranger.", "DUNG_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -14185,6 +14456,46 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("cove.merlin.black-stone"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:merlin-gate"):
+			refresh = true
+	## Empath / Serpent local follow-ups.
+	if place == "empath" and npc_key == "suzanna" and topic == "HORN":
+		if GameState.journal_mark_id("magincia.demitry.suzanna-horn"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:suzanna-horn"):
+			refresh = true
+	if place == "empath" and npc_key == "malchor" and topic == "HORN":
+		if GameState.journal_mark_id("empath.suzanna.malchor-horn"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:malchor-horn"):
+			refresh = true
+	if (
+		place == "empath"
+		and npc_key == "derek the bard"
+		and topic == "CAND"
+	):
+		if GameState.journal_mark_id("empath.life.derek-candle"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:derek-candle"):
+			refresh = true
+	if place == "serpent" and npc_key == "garam" and topic == "BELL":
+		if GameState.journal_mark_id("serpent.sister-antos.garam-bell"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:garam-bell"):
+			refresh = true
+	if place == "serpent" and npc_key == "lassorn" and topic == "WHEE":
+		if GameState.journal_mark_id("serpent.noxum.lassorn-wheel"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:lassorn-wheel"):
+			refresh = true
+	if place == "serpent" and npc_key == "shyra" and topic == "ROOM":
+		if GameState.journal_mark_id("serpent.ranger.shrya-rooms"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:shyra-rooms"):
+			refresh = true
+	if place == "serpent" and npc_key == "durham" and topic == "DUNG":
+		if GameState.journal_mark_id("serpent.treasure-guard.durham"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:durham-dungeon"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
