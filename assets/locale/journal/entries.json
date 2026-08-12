@@ -11,6 +11,22 @@
       "ko": "미덕: 희생"
     },
     {
+      "id": "minoc.gimble.azure-rune",
+      "place": "minoc",
+      "npc": "Gimble",
+      "topic": "GOLD_YES",
+      "chain": "minoc.sacrifice-rune",
+      "chain_order": 5,
+      "goal": "ask:azure-rune",
+      "complete_if_recorded": [
+        "minoc.azure.mischief-rune",
+        "minoc.mischief.forge-rune"
+      ],
+      "complete_on_goal": "rune:sacrifice",
+      "en": "Ask Azure about the rune.",
+      "ko": "애저에게 룬에 대해 물어보라."
+    },
+    {
       "id": "minoc.azure.mischief-rune",
       "place": "minoc",
       "npc": "Azure",
@@ -93,11 +109,11 @@
       "topic": "MANT",
       "chain": "minoc.sacrifice-mantra",
       "chain_order": 20,
-      "goal": "ask:singsong-song",
+      "goal": "ask:singsong-verse",
       "complete_if_recorded": "minoc.singsong.sacrifice-mantra",
       "complete_on_goal": "mantra:sacrifice",
-      "en": "Listen to the bard's song; the key to the mantra lies in its verse.",
-      "ko": "음유시인의 노래를 들어라. 가사 안에 만트라의 열쇠가 있다."
+      "en": "Ask the bard about the verse; the key to the mantra lies in it.",
+      "ko": "음유시인에게 가사를 물어보라. 그 안에 만트라의 열쇠가 있다."
     },
     {
       "id": "minoc.singsong.sacrifice-mantra",

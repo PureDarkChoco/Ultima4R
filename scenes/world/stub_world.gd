@@ -3373,6 +3373,22 @@ func _maybe_offer_azure_sacrifice_keyword() -> void:
 	)
 
 
+func _maybe_offer_azure_rune_keyword() -> void:
+	## Gimble's tip names Azure and the rune — unlock Rune after Azure is named.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "azure":
+		return
+	if not GameState.journal_has_id("minoc.gimble.azure-rune"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var key := _talk_keyword_stable_key("룬" if korean else "rune")
+	_offer_talk_keyword_item(
+		key,
+		"룬" if korean else "rune",
+		"룬" if korean else "rune"
+	)
+
 
 func _maybe_offer_mischief_rune_keyword() -> void:
 	## After Azure pointed to Mischief for the sacrifice rune, open with Rune.
@@ -3431,19 +3447,21 @@ func _maybe_offer_sacrifice_mantra_chain_keyword() -> void:
 		npc == "singsong"
 		and GameState.journal_has_id("minoc.damon.bard-song")
 	):
-		## Korean topic1 and topic2 are both displayed as "노래".
-		## Send the distinct English SONG stem so the mantra verse is selected.
-		var song_key := _talk_keyword_stable_key("song")
+		## Damon points at the verse/lyrics — unlock SONG without a second "노래".
+		var verse_key := _talk_keyword_stable_key(
+			"가사" if korean else "song"
+		)
 		_offer_talk_keyword_item(
-			song_key,
-			"노래" if korean else "Song",
-			"song"
+			verse_key,
+			"가사" if korean else "Song",
+			"가사" if korean else "song"
 		)
 
 
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
+	_maybe_offer_azure_rune_keyword()
 	_maybe_offer_mischief_rune_keyword()
 	_maybe_offer_alkerion_stone_keyword()
 	_maybe_offer_sacrifice_mantra_chain_keyword()
@@ -9531,7 +9549,14 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 		var default_key := "job" if introduced_name else "name"
 		## Only a named NPC may expose journal-directed topic shortcuts.
 		if introduced_name:
-			if str(entry.name).strip_edges().to_lower() == "mischief":
+			if (
+				str(entry.name).strip_edges().to_lower() == "azure"
+				and GameState.journal_has_id("minoc.gimble.azure-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+			elif str(entry.name).strip_edges().to_lower() == "mischief":
 				if (
 					GameState.journal_has_id("minoc.azure.mischief-rune")
 					or GameState.journal_has_id("minoc.mischief.forge-rune")
@@ -9557,7 +9582,9 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				str(entry.name).strip_edges().to_lower() == "singsong"
 				and GameState.journal_has_id("minoc.damon.bard-song")
 			):
-				default_key = _talk_keyword_stable_key("song")
+				default_key = _talk_keyword_stable_key(
+					"가사" if GameState.lang_short() == "ko" else "song"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -10397,18 +10424,23 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes:
 		_maybe_offer_azure_sacrifice_keyword()
 	_TalkTlk.apply_yesno_rewards(e, yes)
+	var npc_key := str(e.name).strip_edges().to_lower()
+	var journal_changed := false
+	## Gimble's gold question: Yes points the party to Azure and the rune.
+	if yes and npc_key == "gimble":
+		if GameState.journal_try_capture("minoc", "Gimble", "GOLD_YES"):
+			journal_changed = true
 	## Mischief's Rune question: confirming possession advances the chain
 	## to Alkerion's information about the sacrifice stone.
-	if yes and str(e.name).strip_edges().to_lower() == "mischief":
-		var journal_changed := false
+	if yes and npc_key == "mischief":
 		if GameState.journal_mark_id("minoc.mischief.return-with-rune"):
 			journal_changed = true
 		if GameState.journal_mark_goal("confirm:mischief-rune"):
 			journal_changed = true
 		if GameState.journal_try_capture("minoc", "Mischief", "RUNE_YES"):
 			journal_changed = true
-		if journal_changed:
-			_refresh_journal_panel()
+	if journal_changed:
+		_refresh_journal_panel()
 	_talk_prompt_interest()
 
 
@@ -12595,6 +12627,12 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if GameState.journal_try_capture(place, npc, topic):
 		refresh = true
 	var npc_key := npc.strip_edges().to_lower()
+	## Gimble → Azure: asking Azure about the rune completes Gimble's tip.
+	if place == "minoc" and npc_key == "azure" and topic in ["RUNE", "SACR"]:
+		if GameState.journal_mark_id("minoc.gimble.azure-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:azure-rune"):
+			refresh = true
 	## Azure → Mischief: asking Mischief about the rune completes the prior tip.
 	if (
 		place == "minoc"
@@ -12621,11 +12659,11 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 		if GameState.journal_mark_goal("ask:damon-mantra"):
 			refresh = true
-	## Damon → Singsong: hearing the bard's song completes Damon's direction.
+	## Damon → Singsong: asking about the verse/lyrics completes Damon's direction.
 	if place == "minoc" and npc_key == "singsong" and topic == "SONG":
 		if GameState.journal_mark_id("minoc.damon.bard-song"):
 			refresh = true
-		if GameState.journal_mark_goal("ask:singsong-song"):
+		if GameState.journal_mark_goal("ask:singsong-verse"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
