@@ -3253,7 +3253,29 @@ func _talk_keyword_stable_key(word: String) -> String:
 	return _TalkLocale.normalize_interest(word)
 
 
+func _hawkwind_keyword_menu_items() -> Array[Dictionary]:
+	## Seer counsel is virtue-only; expose all eight paths immediately
+	## (keyboard can always type them — the gamepad menu should match).
+	var korean := GameState.lang_short() == "ko"
+	var lang := "ko" if korean else "en"
+	var items: Array[Dictionary] = []
+	for v in range(8):
+		var word := Virtues.name_of(v, lang)
+		items.append({
+			"key": "virtue_%d" % v,
+			"label": word,
+			"input": word,
+		})
+	if korean:
+		items.append({"key": "bye", "label": "안녕", "input": "안녕"})
+	else:
+		items.append({"key": "bye", "label": "Bye", "input": "bye"})
+	return items
+
+
 func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
+	if _talk_is_hawkwind:
+		return _hawkwind_keyword_menu_items()
 	if GameState.lang_short() == "ko":
 		return [
 			{"key": "name", "label": "이름", "input": "이름"},
@@ -3278,11 +3300,13 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_talk_keyword_menu_active = true
 	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
 	## Start on Job rather than Name — most first interests ask about work.
+	## Hawkwind opens on the first virtue instead.
 	_talk_keyword_menu_cursor = 0
-	for i in _talk_keyword_menu_items.size():
-		if str(_talk_keyword_menu_items[i].get("key", "")) == "job":
-			_talk_keyword_menu_cursor = i
-			break
+	if not _talk_is_hawkwind:
+		for i in _talk_keyword_menu_items.size():
+			if str(_talk_keyword_menu_items[i].get("key", "")) == "job":
+				_talk_keyword_menu_cursor = i
+				break
 	_talk_keyword_menu_seen.clear()
 	for item in _talk_keyword_menu_items:
 		_talk_keyword_menu_seen[str(item.get("key", ""))] = true
@@ -3320,7 +3344,8 @@ func _sync_talk_keyword_menu_visibility() -> void:
 
 
 func _discover_talk_keywords(text: String) -> void:
-	if not _talk_keyword_menu_active or text.is_empty():
+	## Hawkwind already seeds the eight virtues; do not re-insert from replies.
+	if not _talk_keyword_menu_active or text.is_empty() or _talk_is_hawkwind:
 		return
 	var changed := false
 	for raw_keyword in _talk_keywords:
