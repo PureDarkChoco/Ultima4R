@@ -228,6 +228,77 @@
       "goal": "mantra:sacrifice",
       "en": "Sacrifice mantra: CAH, hidden in the raven's song.",
       "ko": "희생의 만트라: 까마귀 노래에 숨은 ‘카아(CAH)’."
+    },
+    {
+      "id": "britain.sprite.pepper-rune",
+      "place": "britain",
+      "npc": "Sprite",
+      "topic": "HELP_YES",
+      "chain": "britain.compassion-rune",
+      "chain_order": 10,
+      "goal": "ask:pepper-rune",
+      "complete_if_recorded": "britain.pepper.compassion-rune",
+      "complete_on_goal": "rune:compassion",
+      "en": "Ask Pepper about the rune.",
+      "ko": "페퍼에게 룬에 대해 물어보라."
+    },
+    {
+      "id": "britain.pepper.compassion-rune",
+      "place": "britain",
+      "npc": "Pepper",
+      "topic": "RUNE",
+      "chain": "britain.compassion-rune",
+      "chain_order": 20,
+      "goal": "rune:compassion",
+      "en": "Compassion rune: at the end of a hall somewhere in this towne.",
+      "ko": "연민의 룬: 이 마을 어디 복도 끝에 있다."
+    },
+    {
+      "id": "britain.child.cricket-mantra",
+      "place": "britain",
+      "npc": "a child",
+      "topic": "COMP_NO",
+      "chain": "britain.compassion-mantra",
+      "chain_order": 10,
+      "goal": "ask:cricket-mantra",
+      "complete_if_recorded": "britain.cricket.compassion-mantra",
+      "complete_on_goal": "mantra:compassion",
+      "en": "Ask Cricket about the mantra of Compassion.",
+      "ko": "크리켓에게 연민의 만트라를 물어보라."
+    },
+    {
+      "id": "britain.cricket.compassion-mantra",
+      "place": "britain",
+      "npc": "Cricket",
+      "topic": "MANT",
+      "chain": "britain.compassion-mantra",
+      "chain_order": 20,
+      "goal": "mantra:compassion",
+      "en": "Compassion mantra: MU.",
+      "ko": "연민의 만트라: MU."
+    },
+    {
+      "id": "britain.shapero.julio-compassion",
+      "place": "britain",
+      "npc": "Shapero",
+      "topic": "COMP",
+      "chain": "britain.julio-compassion",
+      "chain_order": 10,
+      "goal": "ask:julio-compassion",
+      "complete_if_recorded": "britain.julio.compassion",
+      "en": "Seek Julio and ask him of compassion.",
+      "ko": "훌리오를 찾아 연민에 대해 물어보라."
+    },
+    {
+      "id": "britain.julio.compassion",
+      "place": "britain",
+      "npc": "Julio",
+      "topic": "COMP",
+      "chain": "britain.julio-compassion",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Compassion derives itself from unending love.",
+      "ko": "연민은 끝없는 사랑에서 우러나온다."
     }
   ]
 }

@@ -3846,6 +3846,48 @@ func _maybe_offer_zircon_mystic_keyword() -> void:
 	)
 
 
+func _maybe_offer_britain_chain_keyword() -> void:
+	## Britain name-directed tips: Pepper / Cricket / Julio.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "pepper"
+		and GameState.journal_has_id("britain.sprite.pepper-rune")
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+	elif (
+		npc == "cricket"
+		and GameState.journal_has_id("britain.child.cricket-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+	elif (
+		npc == "julio"
+		and GameState.journal_has_id("britain.shapero.julio-compassion")
+	):
+		var comp_key := _talk_keyword_stable_key(
+			"연민" if korean else "compassion"
+		)
+		_offer_talk_keyword_item(
+			comp_key,
+			"연민" if korean else "Compassion",
+			"연민" if korean else "compassion"
+		)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -3855,6 +3897,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_sacrifice_mantra_chain_keyword()
 	_maybe_offer_antos_relic_keyword()
 	_maybe_offer_zircon_mystic_keyword()
+	_maybe_offer_britain_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10212,6 +10255,27 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"신비" if GameState.lang_short() == "ko" else "mystic"
 				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "pepper"
+				and GameState.journal_has_id("britain.sprite.pepper-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "cricket"
+				and GameState.journal_has_id("britain.child.cricket-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "julio"
+				and GameState.journal_has_id("britain.shapero.julio-compassion")
+			):
+				default_key = _talk_keyword_stable_key(
+					"연민" if GameState.lang_short() == "ko" else "compassion"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11086,6 +11150,18 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Seesha (LCB): Yes names Zircon in Minoc and the mystic arms.
 	if yes and npc_key == "seesha":
 		if GameState.journal_try_capture("lcb", "Seesha", "COUN_YES"):
+			journal_changed = true
+	## Sprite (Britain): Yes points to Pepper and the compassion rune.
+	if yes and npc_key == "sprite":
+		if GameState.journal_try_capture("britain", "Sprite", "HELP_YES"):
+			journal_changed = true
+	## Learning child (Britain): No on the mantra points to Cricket.
+	if (
+		not yes
+		and npc_key == "a child"
+		and str(e.topic2).strip_edges().to_upper() == "COMP"
+	):
+		if GameState.journal_try_capture("britain", "a child", "COMP_NO"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13350,6 +13426,22 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("lcb.seesha.zircon-mystics"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:zircon-mystics"):
+			refresh = true
+	## Britain: Pepper / Cricket / Julio complete prior name-directed tips.
+	if place == "britain" and npc_key == "pepper" and topic == "RUNE":
+		if GameState.journal_mark_id("britain.sprite.pepper-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:pepper-rune"):
+			refresh = true
+	if place == "britain" and npc_key == "cricket" and topic == "MANT":
+		if GameState.journal_mark_id("britain.child.cricket-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:cricket-mantra"):
+			refresh = true
+	if place == "britain" and npc_key == "julio" and topic == "COMP":
+		if GameState.journal_mark_id("britain.shapero.julio-compassion"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:julio-compassion"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
