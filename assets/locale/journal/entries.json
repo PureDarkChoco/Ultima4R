@@ -640,6 +640,292 @@
       "goal": "ask:nate-rune",
       "en": "Ask Nate about the rune and stone.",
       "ko": "네이트에게 룬과 돌을 물어보라."
+    },
+    {
+      "id": "magincia.nate.barren-rune",
+      "place": "magincia",
+      "npc": "Nate",
+      "topic": "RUNE",
+      "chain": "magincia.humility-rune",
+      "chain_order": 10,
+      "goal": "ask:barren-rune",
+      "complete_if_recorded": "paws.barren.humility-rune",
+      "complete_on_goal": "rune:humility",
+      "en": "Ask Barren in Paws about the rune.",
+      "ko": "포우의 바렌에게 룬을 물어보라."
+    },
+    {
+      "id": "paws.barren.humility-rune",
+      "place": "paws",
+      "npc": "Barren",
+      "topic": "RUNE",
+      "chain": "paws.humility-rune",
+      "chain_order": 10,
+      "goal": "rune:humility",
+      "en": "Humility rune: search the hills in the south-east corner of town.",
+      "ko": "겸손의 룬: 마을 남동쪽 언덕을 찾으라."
+    },
+    {
+      "id": "paws.wheatpin.humility-rune",
+      "place": "paws",
+      "npc": "Wheatpin",
+      "topic": "RUNE",
+      "chain": "paws.humility-rune",
+      "chain_order": 20,
+      "goal": "rune:humility",
+      "en": "Humility rune: around there in the nook of the mountains.",
+      "ko": "겸손의 룬: 산자락 구석 저쪽에 있다."
+    },
+    {
+      "id": "paws.simon.mystic-armour",
+      "place": "paws",
+      "npc": "Sir Simon",
+      "topic": "MYST_YES",
+      "en": "Mystic armour: in the center of the oak grove.",
+      "ko": "신비 갑옷: 참나무 숲 한복판에 있다."
+    },
+    {
+      "id": "paws.tessa.mystic-weapons",
+      "place": "paws",
+      "npc": "Lady Tessa",
+      "topic": "MYST_YES",
+      "en": "Mystic weapons: in the training room of Serpent castle.",
+      "ko": "신비 무기: 뱀성 훈련장에 있다."
+    },
+    {
+      "id": "vesper.gem.humility-mantra",
+      "place": "vesper",
+      "npc": "Gem",
+      "topic": "MANT",
+      "goal": "mantra:humility",
+      "en": "Humility mantra: reverse the mantra of Pride.",
+      "ko": "겸손의 만트라: 자만의 만트라를 거꾸로."
+    },
+    {
+      "id": "vesper.simple.humility-shrine",
+      "place": "vesper",
+      "npc": "Simple",
+      "topic": "HUMI",
+      "en": "Humility shrine: on the north bank of the isle of the Abyss, guarded by daemons.",
+      "ko": "겸손의 사원: 심연 섬 북쪽 강가에 있으며 악마 무리가 지킨다."
+    },
+    {
+      "id": "vesper.simple.abyss-isle",
+      "place": "vesper",
+      "npc": "Simple",
+      "topic": "HUMI_NO",
+      "en": "Isle of the Abyss: southeast of Britannia.",
+      "ko": "심연 섬: 브리타니아 남동쪽."
+    },
+    {
+      "id": "vesper.joseph.humility-shrine",
+      "place": "vesper",
+      "npc": "Joseph",
+      "topic": "SHRI",
+      "en": "Humility shrine: on the dark island.",
+      "ko": "겸손의 사원: 어두운 섬에 있다."
+    },
+    {
+      "id": "vesper.servile.mondain-skull",
+      "place": "vesper",
+      "npc": "Servile",
+      "topic": "SKUL",
+      "en": "Skull of Mondain: an evil artifact; never use it.",
+      "ko": "몬데인의 해골: 사악한 유물, 쓰지 말라."
+    },
+    {
+      "id": "skara.presto.vesper-nightshade",
+      "place": "skara",
+      "npc": "Presto",
+      "topic": "NIGH",
+      "en": "Ask the barkeep at The Axe-n-Ale in Vesper about nightshade.",
+      "ko": "베스퍼 ‘도끼와 에일’ 술집 주인에게 나이트셰이드를 물어보라."
+    },
+    {
+      "id": "cove.allen.abyss-ship",
+      "place": "cove",
+      "npc": "Allen",
+      "topic": "ABYS",
+      "en": "Abyss: approach only by ship.",
+      "ko": "심연: 배로만 접근할 수 있다."
+    },
+    {
+      "id": "cove.allen.ship-hull",
+      "place": "cove",
+      "npc": "Allen",
+      "topic": "SHIP",
+      "en": "Abyss ship: needs a magically strengthened hull.",
+      "ko": "심연의 배: 마법으로 보강한 선체가 필요하다."
+    },
+    {
+      "id": "cove.allen.blissful-abyss",
+      "place": "cove",
+      "npc": "Allen",
+      "topic": "SHIP_YES",
+      "chain": "cove.abyss-entry",
+      "chain_order": 10,
+      "goal": "ask:blissful-abyss",
+      "complete_if_recorded": "cove.blissful.abyss-entry",
+      "en": "Ask Blissful about the abyss.",
+      "ko": "블리스풀에게 심연에 대해 물어보라."
+    },
+    {
+      "id": "cove.blissful.abyss-entry",
+      "place": "cove",
+      "npc": "Blissful",
+      "topic": "ABYS",
+      "chain": "cove.abyss-entry",
+      "chain_order": 20,
+      "goal": "",
+      "en": "Abyss entrance: meditate at the shrines of Honesty, Compassion and Valor for 3 cycles.",
+      "ko": "심연 입장: 정직·연민·용기 사원에서 세 주기 명상하라."
+    },
+    {
+      "id": "cove.blissful.ankh-chamber",
+      "place": "cove",
+      "npc": "Blissful",
+      "topic": "CODE",
+      "chain": "cove.codex-chamber",
+      "chain_order": 10,
+      "goal": "ask:ankh-chamber",
+      "complete_if_recorded": "cove.ankh.codex-chamber",
+      "en": "Ask the ankh about the Codex chamber.",
+      "ko": "앙크에게 코덱스 방을 물어보라."
+    },
+    {
+      "id": "cove.ankh.codex-chamber",
+      "place": "cove",
+      "npc": "the ankh",
+      "topic": "CHAM",
+      "chain": "cove.codex-chamber",
+      "chain_order": 20,
+      "goal": "",
+      "speaker_en": "the ankh",
+      "speaker_ko": "앙크",
+      "en": "Codex chamber: be 8 parts Avatar; have the key of 3 parts, the word of passage, and know the pure axiom.",
+      "ko": "코덱스 방: 아바타 여덟 부분, 세 부분 열쇠, 통과의 말, 순수한 공리를 알라."
+    },
+    {
+      "id": "cove.merlin.black-stone",
+      "place": "cove",
+      "npc": "Merlin",
+      "topic": "STON",
+      "chain": "cove.black-stone",
+      "chain_order": 10,
+      "goal": "ask:merlin-gate",
+      "complete_if_recorded": "cove.merlin.moongate-search",
+      "complete_on_goal": "stone:black",
+      "en": "Black stone: caught in a moon gate.",
+      "ko": "검은 돌: 달문에 잡혀 있다."
+    },
+    {
+      "id": "cove.merlin.moongate-search",
+      "place": "cove",
+      "npc": "Merlin",
+      "topic": "GATE",
+      "chain": "cove.black-stone",
+      "chain_order": 20,
+      "goal": "stone:black",
+      "en": "Black stone: stand where the gate of both moons dark shall appear; search when the moons go dark.",
+      "ko": "검은 돌: 두 달이 모두 어두운 문이 뜰 곳에 서서, 달이 어두울 때 찾으라."
+    },
+    {
+      "id": "cove.mentorian.gate-spell",
+      "place": "cove",
+      "npc": "Mentorian",
+      "topic": "GATE",
+      "en": "Gate spell: requires ash, pearl, and mandrake root.",
+      "ko": "차원문 주문: 재·진주·맨드레이크가 필요하다."
+    },
+    {
+      "id": "cove.zair.word-of-passage",
+      "place": "cove",
+      "npc": "Brother Zair",
+      "topic": "WORD",
+      "en": "Word of passage: the kings of the three principles' castles each know one syllable.",
+      "ko": "통과의 말: 세 원리의 성 왕들이 한 음절씩을 안다."
+    },
+    {
+      "id": "cove.spellbind.codex-principles",
+      "place": "cove",
+      "npc": "Spellbind",
+      "topic": "CODE",
+      "en": "Codex: know the combination of the three principles of virtue.",
+      "ko": "코덱스: 미덕 세 원리의 조합을 알라."
+    },
+    {
+      "id": "cove.circe.axiom",
+      "place": "cove",
+      "npc": "Circe",
+      "topic": "AXIO",
+      "en": "Axiom: the whole is greater than all its parts.",
+      "ko": "공리: 전체는 부분들의 합보다 크다."
+    },
+    {
+      "id": "cove.circe.axiom-parts",
+      "place": "cove",
+      "npc": "Circe",
+      "topic": "PART",
+      "en": "Axiom parts: unending love, limitless courage, truth that encompasses all.",
+      "ko": "공리의 부분: 끝없는 사랑, 무한 용기, 만물을 감싸는 진리."
+    },
+    {
+      "id": "lcb.reaper.den-artifact",
+      "place": "lcb",
+      "npc": "a reaper",
+      "topic": "THIN",
+      "en": "Deadly artifact: knowledge of it is found at Buccaneer's Den.",
+      "ko": "치명적인 유물: 지식은 해적 소굴에 있다."
+    },
+    {
+      "id": "britain.sebastian.den-skull",
+      "place": "britain",
+      "npc": "Sebastian",
+      "topic": "MOND_YES",
+      "en": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den about the skull.",
+      "ko": "해적 소굴 캡틴 블랙 주점의 캡틴에게 해골을 물어보라."
+    },
+    {
+      "id": "den.ragnar.skull-warning",
+      "place": "den",
+      "npc": "Ragnar",
+      "topic": "SKUL",
+      "en": "Skull: never use it except to destroy it, or all virtues are lost.",
+      "ko": "해골: 파괴 외 용도로 쓰면 미덕을 모두 잃는다."
+    },
+    {
+      "id": "den.scirlock.hythloth-entrance",
+      "place": "den",
+      "npc": "Jeremy James\nScirlock",
+      "topic": "HYTH",
+      "speaker_en": "Jeremy James Scirlock",
+      "speaker_ko": "제레미 제임스 스킬록",
+      "en": "Hythloth: reached only by a secret entrance in the great castle.",
+      "ko": "히슬로스: 큰 성의 비밀 입구로만 갈 수 있다."
+    },
+    {
+      "id": "den.sniflet.balloon",
+      "place": "den",
+      "npc": "Sniflet",
+      "topic": "SOME_YES",
+      "en": "Lighter-than-air device: near dungeon Hythloth.",
+      "ko": "공기보다 가벼운 장치: 히슬로스 던전 근처에 있다."
+    },
+    {
+      "id": "den.seanna.sleep-spell",
+      "place": "den",
+      "npc": "Seanna",
+      "topic": "SLEE",
+      "en": "Sleep spell: requires one part silk.",
+      "ko": "수면 주문: 비단 한 부분이 필요하다."
+    },
+    {
+      "id": "den.starlight.magic-missile",
+      "place": "den",
+      "npc": "Starlight",
+      "topic": "MIX",
+      "en": "Magic missile: one black pearl and one part sulfurous ash.",
+      "ko": "매직 미사일: 검은 진주 하나와 유황회 한 부분."
     }
   ]
 }

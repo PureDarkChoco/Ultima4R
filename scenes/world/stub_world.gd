@@ -4113,6 +4113,48 @@ func _maybe_offer_magincia_chain_keyword() -> void:
 		)
 
 
+func _talk_city_id() -> String:
+	if _city_map == null:
+		return ""
+	return _TalkLocale.city_id_from_path(str(_city_map.source_path))
+
+
+func _maybe_offer_paws_chain_keyword() -> void:
+	## Paws: Barren humility rune; Simon/Tessa mystic locations.
+	## Barren also exists in Skara Brae — scope by city.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "paws":
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "barren"
+		and GameState.journal_has_id("magincia.nate.barren-rune")
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+	elif (
+		(
+			npc == "sir simon"
+			or npc == "lady tessa"
+		)
+		and GameState.journal_has_id("minoc.zircon.mystic-arms")
+	):
+		var mystic_key := _talk_keyword_stable_key(
+			"신비" if korean else "mystic"
+		)
+		_offer_talk_keyword_item(
+			mystic_key,
+			"신비" if korean else "Mystic",
+			"신비" if korean else "mystic"
+		)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -4129,6 +4171,85 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_trinsic_chain_keyword()
 	_maybe_offer_skara_chain_keyword()
 	_maybe_offer_magincia_chain_keyword()
+	_maybe_offer_paws_chain_keyword()
+	_maybe_offer_cove_chain_keyword()
+
+
+func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
+	return npc_name.strip_edges().to_lower() == "the ankh"
+
+
+func _maybe_offer_cove_chain_keyword() -> void:
+	## Cove: Blissful (abyss) / the ankh (codex chamber) / Merlin (gate).
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "cove":
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "blissful"
+		and GameState.journal_has_id("cove.allen.blissful-abyss")
+	):
+		var abyss_key := _talk_keyword_stable_key(
+			"심연" if korean else "abyss"
+		)
+		_offer_talk_keyword_item(
+			abyss_key,
+			"심연" if korean else "Abyss",
+			"심연" if korean else "abyss"
+		)
+	elif (
+		_talk_npc_is_cove_ankh(str(_talk_entry.name))
+		and GameState.journal_has_id("cove.blissful.ankh-chamber")
+	):
+		var chamber_key := _talk_keyword_stable_key("방" if korean else "chamber")
+		_offer_talk_keyword_item(
+			chamber_key,
+			"방" if korean else "Chamber",
+			"방" if korean else "chamber"
+		)
+	elif (
+		npc == "merlin"
+		and GameState.journal_has_id("cove.merlin.black-stone")
+	):
+		var gate_key := _talk_keyword_stable_key("달문" if korean else "gate")
+		_offer_talk_keyword_item(
+			gate_key,
+			"달문" if korean else "Gate",
+			"달문" if korean else "gate"
+		)
+
+
+func _talk_npc_key_flat(npc_name: String) -> String:
+	## TLK names may embed newlines (e.g. Jeremy James / Scirlock).
+	return npc_name.strip_edges().to_lower().replace("\n", " ").replace("\r", " ")
+
+
+func _maybe_offer_den_prompt_keywords() -> void:
+	## Buccaneer's Den: after Yes, Ragnar asks "On what?" / Scirlock "Which?".
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "den":
+		return
+	var npc := _talk_npc_key_flat(str(_talk_entry.name))
+	var korean := GameState.lang_short() == "ko"
+	if npc == "ragnar":
+		var skull_key := _talk_keyword_stable_key("해골" if korean else "skull")
+		_offer_talk_keyword_item(
+			skull_key,
+			"해골" if korean else "Skull",
+			"해골" if korean else "skull"
+		)
+	elif npc.contains("scirlock"):
+		var hyth_key := _talk_keyword_stable_key(
+			"히슬로스" if korean else "hythloth"
+		)
+		_offer_talk_keyword_item(
+			hyth_key,
+			"히슬로스" if korean else "Hythloth",
+			"히슬로스" if korean else "hythloth"
+		)
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10617,6 +10738,47 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"룬" if GameState.lang_short() == "ko" else "rune"
 				)
+			elif (
+				_talk_city_id() == "paws"
+				and str(entry.name).strip_edges().to_lower() == "barren"
+				and GameState.journal_has_id("magincia.nate.barren-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+			elif (
+				_talk_city_id() == "paws"
+				and str(entry.name).strip_edges().to_lower()
+				in ["sir simon", "lady tessa"]
+				and GameState.journal_has_id("minoc.zircon.mystic-arms")
+			):
+				default_key = _talk_keyword_stable_key(
+					"신비" if GameState.lang_short() == "ko" else "mystic"
+				)
+			elif (
+				_talk_city_id() == "cove"
+				and str(entry.name).strip_edges().to_lower() == "blissful"
+				and GameState.journal_has_id("cove.allen.blissful-abyss")
+			):
+				default_key = _talk_keyword_stable_key(
+					"심연" if GameState.lang_short() == "ko" else "abyss"
+				)
+			elif (
+				_talk_city_id() == "cove"
+				and _talk_npc_is_cove_ankh(str(entry.name))
+				and GameState.journal_has_id("cove.blissful.ankh-chamber")
+			):
+				default_key = _talk_keyword_stable_key(
+					"방" if GameState.lang_short() == "ko" else "chamber"
+				)
+			elif (
+				_talk_city_id() == "cove"
+				and str(entry.name).strip_edges().to_lower() == "merlin"
+				and GameState.journal_has_id("cove.merlin.black-stone")
+			):
+				default_key = _talk_keyword_stable_key(
+					"달문" if GameState.lang_short() == "ko" else "gate"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11468,6 +11630,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		_offer_talk_join_keyword()
 	if yes:
 		_maybe_offer_azure_sacrifice_keyword()
+		_maybe_offer_den_prompt_keywords()
 	_TalkTlk.apply_yesno_rewards(e, yes)
 	var npc_key := str(e.name).strip_edges().to_lower()
 	var journal_changed := false
@@ -11566,6 +11729,63 @@ func _talk_answer_yn(yes: bool) -> void:
 		and str(e.topic2).strip_edges().to_upper() == "HUMB"
 	):
 		if GameState.journal_try_capture("magincia", "Splot", "HUMB_YES"):
+			journal_changed = true
+	## Sir Simon / Lady Tessa (Paws): Yes after Mystic reveals armour / weapons.
+	if (
+		yes
+		and npc_key == "sir simon"
+		and str(e.topic2).strip_edges().to_upper() == "MYST"
+	):
+		if GameState.journal_try_capture("paws", "Sir Simon", "MYST_YES"):
+			journal_changed = true
+	if (
+		yes
+		and npc_key == "lady tessa"
+		and str(e.topic2).strip_edges().to_upper() == "MYST"
+	):
+		if GameState.journal_try_capture("paws", "Lady Tessa", "MYST_YES"):
+			journal_changed = true
+	## Gem (Vesper): Yes/No after Mantra both teach reversing Pride's mantra.
+	if (
+		npc_key == "gem"
+		and str(e.topic2).strip_edges().to_upper() == "MANT"
+	):
+		if GameState.journal_try_capture("vesper", "Gem", "MANT"):
+			journal_changed = true
+	## Simple (Vesper): No after Humility names the isle's bearing.
+	if (
+		not yes
+		and npc_key == "simple"
+		and str(e.topic2).strip_edges().to_upper() == "HUMI"
+	):
+		if GameState.journal_try_capture("vesper", "Simple", "HUMI_NO"):
+			journal_changed = true
+	## Servile (Vesper): Yes/No after Help both warn that the skull is evil.
+	if npc_key == "servile":
+		if GameState.journal_try_capture("vesper", "Servile", "SKUL"):
+			journal_changed = true
+	## Allen (Cove): Yes/No after Ship both point to Blissful and the abyss.
+	if (
+		npc_key == "allen"
+		and str(e.topic2).strip_edges().to_upper() == "SHIP"
+	):
+		if GameState.journal_try_capture("cove", "Allen", "SHIP_YES"):
+			journal_changed = true
+	## Sebastian (Britain): Yes after Mondain points to Cap'n / skull.
+	if (
+		yes
+		and npc_key == "sebastian"
+		and str(e.topic2).strip_edges().to_upper() == "MOND"
+	):
+		if GameState.journal_try_capture("britain", "Sebastian", "MOND_YES"):
+			journal_changed = true
+	## Sniflet (Den): Yes after Something reveals the balloon near Hythloth.
+	if (
+		yes
+		and npc_key == "sniflet"
+		and str(e.topic2).strip_edges().to_upper() == "SOME"
+	):
+		if GameState.journal_try_capture("den", "Sniflet", "SOME_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13935,6 +14155,36 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("magincia.splot.nate-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:nate-rune"):
+			refresh = true
+	## Nate (Magincia): Rune reply points to Barren in Paws.
+	if place == "magincia" and npc_key == "nate" and topic == "RUNE":
+		if GameState.journal_try_capture("magincia", "Nate", "RUNE"):
+			refresh = true
+	## Paws: Barren completes Nate's tip; Wheatpin is a parallel humility-rune tip.
+	if place == "paws" and npc_key == "barren" and topic == "RUNE":
+		if GameState.journal_mark_id("magincia.nate.barren-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:barren-rune"):
+			refresh = true
+	## Cove: Blissful / ankh / Merlin complete prior tips.
+	if place == "cove" and npc_key == "blissful" and topic == "ABYS":
+		if GameState.journal_mark_id("cove.allen.blissful-abyss"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:blissful-abyss"):
+			refresh = true
+	if (
+		place == "cove"
+		and _talk_npc_is_cove_ankh(npc)
+		and topic in ["CODE", "CHAM"]
+	):
+		if GameState.journal_mark_id("cove.blissful.ankh-chamber"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:ankh-chamber"):
+			refresh = true
+	if place == "cove" and npc_key == "merlin" and topic == "GATE":
+		if GameState.journal_mark_id("cove.merlin.black-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:merlin-gate"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
