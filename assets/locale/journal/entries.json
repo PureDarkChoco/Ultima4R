@@ -436,6 +436,52 @@
       "goal": "mantra:justice",
       "en": "Justice mantra: BEH.",
       "ko": "정의의 만트라: BEH."
+    },
+    {
+      "id": "trinsic.kline.winthrop-rune",
+      "place": "trinsic",
+      "npc": "Kline",
+      "topic": "RUNE",
+      "chain": "trinsic.honor-rune",
+      "chain_order": 10,
+      "goal": "ask:winthrop-rune",
+      "complete_if_recorded": "trinsic.winthrop.terrin-rune",
+      "complete_on_goal": "rune:honor",
+      "en": "Ask Winthrop about the rune.",
+      "ko": "윈스롭에게 룬에 대해 물어보라."
+    },
+    {
+      "id": "trinsic.winthrop.terrin-rune",
+      "place": "trinsic",
+      "npc": "Winthrop",
+      "topic": "RUNE",
+      "chain": "trinsic.honor-rune",
+      "chain_order": 20,
+      "goal": "ask:terrin-rune",
+      "complete_if_recorded": "trinsic.terrin.honor-rune",
+      "complete_on_goal": "rune:honor",
+      "en": "Ask Terrin about the rune.",
+      "ko": "테린에게 룬에 대해 물어보라."
+    },
+    {
+      "id": "trinsic.terrin.honor-rune",
+      "place": "trinsic",
+      "npc": "Terrin",
+      "topic": "RUNE",
+      "chain": "trinsic.honor-rune",
+      "chain_order": 30,
+      "goal": "rune:honor",
+      "en": "Honor rune: buried in the southwest corner of towne.",
+      "ko": "명예의 룬: 마을 남서쪽 모서리에 묻혀 있다."
+    },
+    {
+      "id": "trinsic.kline.honor-mantra",
+      "place": "trinsic",
+      "npc": "Kline",
+      "topic": "MANT",
+      "goal": "mantra:honor",
+      "en": "Honor mantra: SUMM.",
+      "ko": "명예의 만트라: SUMM."
     }
   ]
 }

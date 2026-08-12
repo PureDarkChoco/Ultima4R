@@ -3964,6 +3964,34 @@ func _maybe_offer_yew_chain_keyword() -> void:
 		)
 
 
+func _maybe_offer_trinsic_chain_keyword() -> void:
+	## Trinsic honor-rune chain: Winthrop → Terrin.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "winthrop"
+		and GameState.journal_has_id("trinsic.kline.winthrop-rune")
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+	elif (
+		npc == "terrin"
+		and GameState.journal_has_id("trinsic.winthrop.terrin-rune")
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -3977,6 +4005,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_moonglow_chain_keyword()
 	_maybe_offer_jhelom_chain_keyword()
 	_maybe_offer_yew_chain_keyword()
+	_maybe_offer_trinsic_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10390,6 +10419,20 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"직업" if GameState.lang_short() == "ko" else "job"
 				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "winthrop"
+				and GameState.journal_has_id("trinsic.kline.winthrop-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "terrin"
+				and GameState.journal_has_id("trinsic.winthrop.terrin-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11308,6 +11351,17 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Pinrod (Yew): Yes after Council points to the chanting druids' mantra.
 	if yes and npc_key == "pinrod":
 		if GameState.journal_try_capture("yew", "Pinrod", "COUN_YES"):
+			journal_changed = true
+	## Winthrop (Trinsic): Yes/No after Rune both point to Terrin.
+	if (
+		npc_key == "winthrop"
+		and str(e.topic2).strip_edges().to_upper() == "RUNE"
+	):
+		if GameState.journal_try_capture("trinsic", "Winthrop", "RUNE"):
+			journal_changed = true
+		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
+			journal_changed = true
+		if GameState.journal_mark_goal("ask:winthrop-rune"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13618,6 +13672,17 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("yew.pinrod.druids-mantra"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:silent-mantra"):
+			refresh = true
+	## Trinsic: Winthrop / Terrin complete prior honor-rune tips.
+	if place == "trinsic" and npc_key == "winthrop" and topic == "RUNE":
+		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:winthrop-rune"):
+			refresh = true
+	if place == "trinsic" and npc_key == "terrin" and topic == "RUNE":
+		if GameState.journal_mark_id("trinsic.winthrop.terrin-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:terrin-rune"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
