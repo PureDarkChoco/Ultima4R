@@ -1723,6 +1723,8 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	_enter_btn_row.custom_minimum_size = Vector2.ZERO
 	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
 	var min_w := 48.0 if keys.length() >= 3 else 58.0
+	if keys == "abc":
+		min_w = 72.0
 	_enter_prompt_choice = clampi(_enter_prompt_choice, 0, maxi(keys.length() - 1, 0))
 	for i in _choice_btns.size():
 		var btn := _choice_btns[i]
@@ -1756,9 +1758,19 @@ func _shop_choice_keys() -> String:
 		return "yn"
 	if keys == "sb":
 		return "bs"
-	## Yes/No, Buy/Sell, Minoc inn beds 1/2/3.
-	if keys == "yn" or keys == "bs" or keys == "123":
+	## Yes/No, Buy/Sell, Minoc inn beds 1/2/3, healer A/B/C services.
+	if keys == "yn" or keys == "bs" or keys == "123" or keys == "abc":
 		return keys
+	## Healer "Who is in need?" — one digit per living party member.
+	if keys.length() >= 1 and keys.length() <= 8:
+		var all_digits := true
+		for i in keys.length():
+			var ch := keys.unicode_at(i)
+			if ch < 49 or ch > 56: ## '1'..'8'
+				all_digits = false
+				break
+		if all_digits:
+			return keys
 	return ""
 
 
@@ -1781,6 +1793,15 @@ func _binary_prompt_active() -> bool:
 
 
 func _prompt_choice_label(key: String) -> String:
+	## Healer service row (A/B/C) — not Buy/Sell letter keys.
+	if _shop_choice_keys() == "abc":
+		match key:
+			"a":
+				return Locale.t("shop_heal_cure")
+			"b":
+				return Locale.t("shop_heal_heal")
+			"c":
+				return Locale.t("shop_heal_resurrect")
 	match key:
 		"y":
 			return Locale.t("cmd_yes")

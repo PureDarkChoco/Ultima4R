@@ -1004,6 +1004,21 @@ const _T := {
 		"en_us": "Sell",
 		"ko": "판매",
 	},
+	"shop_heal_cure": {
+		"en_u4": "Curing",
+		"en_us": "Curing",
+		"ko": "해독",
+	},
+	"shop_heal_heal": {
+		"en_u4": "Healing",
+		"en_us": "Healing",
+		"ko": "치유",
+	},
+	"shop_heal_resurrect": {
+		"en_u4": "Resurrection",
+		"en_us": "Resurrection",
+		"ko": "부활",
+	},
 	"cmd_nothing_to_open": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",

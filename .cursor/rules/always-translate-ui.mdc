@@ -1,0 +1,34 @@
+---
+description: Always ship en_u4 + en_us + ko for any player-facing UI or dialogue text
+alwaysApply: true
+---
+
+# Always translate player-facing text
+
+Whenever adding or changing anything the player can see or hear in-game, provide translations in the same change — do not wait for the user to ask.
+
+## Required languages
+
+For `Locale` / message keys and similar packs, always fill all three:
+
+- `en_u4` — classic Ultima IV / archaic English tone when the string is classic-flavored
+- `en_us` — clear modern English
+- `ko` — Korean
+
+If a string is already identical in classic and modern English, still set both `en_u4` and `en_us` explicitly (same text is fine).
+
+## What this covers
+
+- Buttons, menus, prompts, HUD, status, errors
+- Shop / healer / inn / vendor choice labels and lines
+- System messages (`Locale.t`, `src/core/locale.gd`)
+- Journal / 여행 기록 (`assets/locale/journal/**`)
+- Town talk overlays (`assets/locale/talk/**`) and vendor locale
+- Any new hardcoded player-visible string — prefer a locale key over English-only literals
+
+## How to apply
+
+1. Add or update the locale keys in the same edit as the feature/UI change.
+2. Button labels and short UI words must be translated (e.g. healer A/B/C → Curing/Healing/Resurrection and 해독/치유/부활), not left as raw letters unless the classic UI itself is letter-only.
+3. Keep Korean talk keyword policy from `talk-locale-ko-nouns.mdc` (short nouns for topics/aliases).
+4. Do not leave TODO/FIXME “translate later” for player-facing copy.
