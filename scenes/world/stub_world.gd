@@ -321,6 +321,10 @@ var _command_menu_layer: Control
 var _command_menu_backdrop: ColorRect
 var _command_menu_frame: Panel
 var _command_menu_separator: ColorRect
+var _command_menu_scroll_track: ColorRect
+var _command_menu_scroll_thumb: ColorRect
+var _command_menu_scroll_up: Label
+var _command_menu_scroll_down: Label
 var _command_menu_rows: Array[ColorRect] = []
 ## LOCAL CHEAT (⌘/Ctrl+P) — city warp list. Do not commit.
 var _city_warp_open := false
@@ -332,6 +336,9 @@ var _city_warp_items: Array[Dictionary] = []
 var _talk_gamepad_requested := false
 var _talk_keyword_menu_active := false
 var _talk_keyword_menu_cursor := 0
+var _talk_keyword_menu_scroll := 0
+## After T:Dir opens the menu, ignore the still-held tilt until neutral.
+var _talk_keyword_menu_await_neutral := false
 var _talk_keyword_menu_items: Array[Dictionary] = []
 var _talk_keyword_menu_seen: Dictionary = {}
 ## Talk session (city .TLK discourse). 0 = idle.
@@ -1190,6 +1197,7 @@ func _ensure_command_menu_layer() -> void:
 	if _command_menu_layer != null and is_instance_valid(_command_menu_layer):
 		if _command_menu_layer.get_parent() != _map_pane:
 			_command_menu_layer.reparent(_map_pane)
+		_ensure_command_menu_scroll_nodes()
 		return
 	_command_menu_layer = Control.new()
 	_command_menu_layer.name = "CommandMenuLayer"
@@ -1216,7 +1224,72 @@ func _ensure_command_menu_layer() -> void:
 	_command_menu_separator.color = UiTheme.ACCENT
 	_command_menu_separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_command_menu_layer.add_child(_command_menu_separator)
+	_ensure_command_menu_scroll_nodes()
 	_command_menu_layer.move_to_front()
+
+
+func _ensure_command_menu_scroll_nodes() -> void:
+	if _command_menu_layer == null:
+		return
+	if _command_menu_scroll_track == null or not is_instance_valid(_command_menu_scroll_track):
+		_command_menu_scroll_track = ColorRect.new()
+		_command_menu_scroll_track.name = "ScrollTrack"
+		_command_menu_scroll_track.color = Color(UiTheme.ACCENT, 0.28)
+		_command_menu_scroll_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_command_menu_scroll_track.visible = false
+		_command_menu_layer.add_child(_command_menu_scroll_track)
+	if _command_menu_scroll_thumb == null or not is_instance_valid(_command_menu_scroll_thumb):
+		_command_menu_scroll_thumb = ColorRect.new()
+		_command_menu_scroll_thumb.name = "ScrollThumb"
+		_command_menu_scroll_thumb.color = UiTheme.ACCENT
+		_command_menu_scroll_thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_command_menu_scroll_thumb.visible = false
+		_command_menu_layer.add_child(_command_menu_scroll_thumb)
+	if _command_menu_scroll_up == null or not is_instance_valid(_command_menu_scroll_up):
+		_command_menu_scroll_up = Label.new()
+		_command_menu_scroll_up.name = "ScrollMoreUp"
+		_command_menu_scroll_up.text = "▲"
+		_command_menu_scroll_up.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_command_menu_scroll_up.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_command_menu_scroll_up.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_command_menu_scroll_up.visible = false
+		_command_menu_scroll_up.add_theme_color_override("font_color", UiTheme.ACCENT)
+		UiTheme.apply_font(_command_menu_scroll_up)
+		_command_menu_layer.add_child(_command_menu_scroll_up)
+	if _command_menu_scroll_down == null or not is_instance_valid(_command_menu_scroll_down):
+		_command_menu_scroll_down = Label.new()
+		_command_menu_scroll_down.name = "ScrollMoreDown"
+		_command_menu_scroll_down.text = "▼"
+		_command_menu_scroll_down.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_command_menu_scroll_down.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_command_menu_scroll_down.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_command_menu_scroll_down.visible = false
+		_command_menu_scroll_down.add_theme_color_override("font_color", UiTheme.ACCENT)
+		UiTheme.apply_font(_command_menu_scroll_down)
+		_command_menu_layer.add_child(_command_menu_scroll_down)
+
+
+func _command_menu_scroll_metrics() -> Dictionary:
+	## Shared by keyword / city-warp lists that window into MSG_OPEN_LINES.
+	var total := 0
+	var scroll := 0
+	var vis := 0
+	if _city_warp_open:
+		total = _city_warp_items.size()
+		scroll = _city_warp_scroll
+		vis = _city_warp_visible_count()
+	elif _talk_keyword_menu_active:
+		total = _talk_keyword_menu_items.size()
+		scroll = _talk_keyword_menu_scroll
+		vis = _talk_keyword_visible_count()
+	return {
+		"active": total > vis and vis > 0,
+		"total": total,
+		"scroll": scroll,
+		"vis": vis,
+		"can_up": scroll > 0,
+		"can_down": scroll + vis < total,
+	}
 
 
 func _rebuild_command_menu_rows() -> void:
@@ -1239,8 +1312,12 @@ func _rebuild_command_menu_rows() -> void:
 				continue
 			row_texts.append(str(_city_warp_items[abs_i].get("label", "")))
 	elif _talk_keyword_menu_active:
-		for item in _talk_keyword_menu_items:
-			row_texts.append(str(item.get("label", "")))
+		var vis := _talk_keyword_visible_count()
+		for i in vis:
+			var abs_i := _talk_keyword_menu_scroll + i
+			if abs_i < 0 or abs_i >= _talk_keyword_menu_items.size():
+				continue
+			row_texts.append(str(_talk_keyword_menu_items[abs_i].get("label", "")))
 	else:
 		for cmd in _command_menu_items:
 			var letter := U4Commands.letter_for(cmd)
@@ -1304,19 +1381,21 @@ func _layout_command_menu_layer() -> void:
 		float(MSG_OPEN_LINES)
 	)
 	var pitch := content_h / float(MSG_OPEN_LINES)
-	## Match MsgBlock's inner 15-line grid exactly. This leaves the surrounding
-	## message-panel border/insets visible and never paints over its chrome.
-	## Use one shared margin so the top and right gaps are visually identical.
+	## Match MsgBlock's inner 15-line grid for row pitch; width stays half the
+	## dialogue panel. Sit immediately left of the message pane — menu top-right
+	## to dialogue top-left — so keywords never cover talk text.
 	var menu_margin := float(MSG_INSET_Y)
+	var gap := float(MSG_INSET_X)
 	var inner_w := maxf(panel_w - menu_margin * 2.0, 8.0)
 	var menu_w := maxf(floorf(inner_w * 0.5), 8.0)
 	var menu_h := minf(content_h, float(count) * pitch)
-	## Independent map overlay: use the expanded dialogue region as a visual
-	## guide, but do not parent to or move with the actual dialogue panel.
-	_command_menu_layer.position = Vector2(
-		pane_size.x - menu_margin - menu_w,
-		float(g["bottom_open_y"]) + menu_margin
-	)
+	## Always dock to the open dialogue corner so Talk keywords and the
+	## right-click command palette share one stable spot.
+	var dialogue_x := float(g["right_open_x"])
+	var dialogue_y := float(g["bottom_open_y"])
+	var menu_x := dialogue_x - gap - menu_w
+	menu_x = clampf(menu_x, menu_margin, maxf(pane_size.x - menu_w, 0.0))
+	_command_menu_layer.position = Vector2(menu_x, dialogue_y)
 	_command_menu_layer.size = Vector2(menu_w, menu_h)
 	_command_menu_layer.custom_minimum_size = Vector2.ZERO
 	if _command_menu_backdrop != null:
@@ -1331,7 +1410,18 @@ func _layout_command_menu_layer() -> void:
 		_command_menu_separator.position = Vector2(0, maxf(menu_h - 1.0, 0.0))
 		_command_menu_separator.size = Vector2(menu_w, 1)
 		_command_menu_separator.move_to_front()
+	var scroll_info := _command_menu_scroll_metrics()
+	var scroll_active := bool(scroll_info.get("active", false))
+	var scroll_gutter := 10.0 if scroll_active else 0.0
 	if count <= 0:
+		if _command_menu_scroll_track != null:
+			_command_menu_scroll_track.visible = false
+		if _command_menu_scroll_thumb != null:
+			_command_menu_scroll_thumb.visible = false
+		if _command_menu_scroll_up != null:
+			_command_menu_scroll_up.visible = false
+		if _command_menu_scroll_down != null:
+			_command_menu_scroll_down.visible = false
 		return
 	var font_sz := clampi(int(floorf(pitch)) - 2, 10, MSG_FONT_SIZE)
 	var row_w := menu_w
@@ -1339,7 +1429,7 @@ func _layout_command_menu_layer() -> void:
 	if _city_warp_open:
 		selected_cursor = _city_warp_cursor - _city_warp_scroll
 	elif _talk_keyword_menu_active:
-		selected_cursor = _talk_keyword_menu_cursor
+		selected_cursor = _talk_keyword_menu_cursor - _talk_keyword_menu_scroll
 	for i in count:
 		var row := _command_menu_rows[i]
 		row.position = Vector2(0, float(i) * pitch)
@@ -1353,13 +1443,74 @@ func _layout_command_menu_layer() -> void:
 		var label := row.get_node_or_null("Label") as RichTextLabel
 		if label != null:
 			label.position = Vector2(8, 0)
-			label.size = Vector2(maxf(row_w - 14.0, 4.0), pitch)
+			label.size = Vector2(maxf(row_w - 14.0 - scroll_gutter, 4.0), pitch)
 			label.add_theme_font_size_override("normal_font_size", font_sz)
 			label.add_theme_color_override("default_color", MSG_COLOR)
 		var edge := row.get_node_or_null("SelectionEdge") as Control
 		if edge != null:
 			UiTheme.layout_selection_edge(edge, row_w, pitch, font_sz)
 			UiTheme.set_selection_edge_active(edge, i == selected_cursor)
+	_layout_command_menu_scroll_chrome(menu_w, menu_h, pitch, font_sz, scroll_info)
+
+
+func _layout_command_menu_scroll_chrome(
+	menu_w: float,
+	menu_h: float,
+	pitch: float,
+	font_sz: int,
+	scroll_info: Dictionary
+) -> void:
+	## Thin right-edge scrollbar + ▲/▼ when a keyword/warp list overflows.
+	if (
+		_command_menu_scroll_track == null
+		or _command_menu_scroll_thumb == null
+		or _command_menu_scroll_up == null
+		or _command_menu_scroll_down == null
+	):
+		return
+	var active := bool(scroll_info.get("active", false))
+	_command_menu_scroll_track.visible = active
+	_command_menu_scroll_thumb.visible = active
+	if not active:
+		_command_menu_scroll_up.visible = false
+		_command_menu_scroll_down.visible = false
+		return
+	var total := maxi(int(scroll_info.get("total", 0)), 1)
+	var scroll := clampi(int(scroll_info.get("scroll", 0)), 0, total)
+	var vis := clampi(int(scroll_info.get("vis", 1)), 1, total)
+	var track_w := 3.0
+	var track_pad := 3.0
+	var track_x := menu_w - track_pad - track_w
+	var track_top := 4.0
+	var track_h := maxf(menu_h - track_top * 2.0, 8.0)
+	_command_menu_scroll_track.position = Vector2(track_x, track_top)
+	_command_menu_scroll_track.size = Vector2(track_w, track_h)
+	var thumb_h := maxf(track_h * (float(vis) / float(total)), 10.0)
+	var travel := maxf(track_h - thumb_h, 0.0)
+	var thumb_t := 0.0
+	if total > vis:
+		thumb_t = travel * (float(scroll) / float(total - vis))
+	_command_menu_scroll_thumb.position = Vector2(track_x, track_top + thumb_t)
+	_command_menu_scroll_thumb.size = Vector2(track_w, thumb_h)
+	var mark_sz := maxf(float(font_sz) - 2.0, 9.0)
+	var mark_w := 10.0
+	_command_menu_scroll_up.visible = bool(scroll_info.get("can_up", false))
+	_command_menu_scroll_down.visible = bool(scroll_info.get("can_down", false))
+	_command_menu_scroll_up.add_theme_font_size_override("font_size", int(mark_sz))
+	_command_menu_scroll_down.add_theme_font_size_override("font_size", int(mark_sz))
+	_command_menu_scroll_up.size = Vector2(mark_w, pitch)
+	_command_menu_scroll_down.size = Vector2(mark_w, pitch)
+	_command_menu_scroll_up.position = Vector2(menu_w - mark_w - 1.0, 0.0)
+	_command_menu_scroll_down.position = Vector2(
+		menu_w - mark_w - 1.0,
+		maxf(menu_h - pitch, 0.0)
+	)
+	_command_menu_scroll_track.move_to_front()
+	_command_menu_scroll_thumb.move_to_front()
+	_command_menu_scroll_up.move_to_front()
+	_command_menu_scroll_down.move_to_front()
+	if _command_menu_frame != null:
+		_command_menu_frame.move_to_front()
 
 
 func _load_msg_charset_glyphs() -> void:
@@ -1775,6 +1926,9 @@ func _shop_choice_keys() -> String:
 
 
 func _talk_gamepad_yes_no_active() -> bool:
+	## NPC follow-up Y/N (gamepad keyword talks) + Lord British "Art thou well?".
+	if _talk_stage == 13:
+		return true
 	return _talk_keyword_menu_active and _talk_stage == 3
 
 
@@ -1830,6 +1984,13 @@ func _resolve_prompt_choice_index(index: int) -> void:
 		return
 	if _enter_prompt_stage == 1:
 		_resolve_enter_prompt(ch == "y")
+		return
+	if _talk_stage == 13:
+		var lb_answer := Locale.t("cmd_yes" if ch == "y" else "cmd_no")
+		_talk_buffer = ""
+		_reset_talk_hangul()
+		_push_talk_player_input(lb_answer)
+		_talk_answer_lb_heal_yn(ch == "y")
 		return
 	if _talk_gamepad_yes_no_active():
 		var answer := Locale.t("cmd_yes" if ch == "y" else "cmd_no")
@@ -2695,7 +2856,9 @@ func _tick_select_cursor() -> void:
 
 
 func _dialogue_choice_hold_active() -> bool:
-	## Shop weapon/armor/reagent rows, sell letter pick, or horizontal choice buttons.
+	## Talk keyword list, shop rows, sell letter pick, or horizontal choice buttons.
+	if _talk_keyword_menu_can_select():
+		return true
 	if _talk_stage == 10 and _shop != null:
 		if not _shop_item_menu_items.is_empty():
 			return true
@@ -2716,7 +2879,16 @@ func _tick_dialogue_choice_nav() -> void:
 	var step_x := 0
 	var step_y := 0
 	var vertical := false
-	if _talk_stage == 10 and _shop != null and not _shop_item_menu_items.is_empty():
+	if _talk_keyword_menu_can_select():
+		step_y = _read_select_step()
+		vertical = true
+		if _talk_keyword_menu_await_neutral:
+			if step_y == 0:
+				_talk_keyword_menu_await_neutral = false
+			else:
+				_reset_hold_state()
+				return
+	elif _talk_stage == 10 and _shop != null and not _shop_item_menu_items.is_empty():
 		step_y = _read_select_step()
 		vertical = true
 	elif (
@@ -2744,7 +2916,9 @@ func _tick_dialogue_choice_nav() -> void:
 	if _move_repeating and _hold_arm > 0.0:
 		return
 	if vertical:
-		if not _shop_item_menu_items.is_empty():
+		if _talk_keyword_menu_can_select():
+			_move_talk_keyword_menu_cursor(step)
+		elif not _shop_item_menu_items.is_empty():
 			_move_shop_item_menu_cursor(step)
 		elif _ztats_panel != null:
 			_ztats_panel.shop_pick_nudge(step)
@@ -3273,9 +3447,30 @@ func _hawkwind_keyword_menu_items() -> Array[Dictionary]:
 	return items
 
 
+func _lord_british_keyword_menu_items() -> Array[Dictionary]:
+	## LB has no beggar Give; heal is the classic HEAL keyword (not town Health).
+	if GameState.lang_short() == "ko":
+		return [
+			{"key": "name", "label": "이름", "input": "이름"},
+			{"key": "job", "label": "직업", "input": "직업"},
+			{"key": "heal", "label": "치유", "input": "치유"},
+			{"key": "help", "label": "도움", "input": "도움"},
+			{"key": "bye", "label": "안녕", "input": "안녕"},
+		]
+	return [
+		{"key": "name", "label": "Name", "input": "name"},
+		{"key": "job", "label": "Job", "input": "job"},
+		{"key": "heal", "label": "Heal", "input": "heal"},
+		{"key": "help", "label": "Help", "input": "help"},
+		{"key": "bye", "label": "Bye", "input": "bye"},
+	]
+
+
 func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
 	if _talk_is_hawkwind:
 		return _hawkwind_keyword_menu_items()
+	if _talk_is_lb:
+		return _lord_british_keyword_menu_items()
 	if GameState.lang_short() == "ko":
 		return [
 			{"key": "name", "label": "이름", "input": "이름"},
@@ -3293,6 +3488,31 @@ func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
 	]
 
 
+func _talk_keyword_visible_count() -> int:
+	return mini(MSG_OPEN_LINES, _talk_keyword_menu_items.size())
+
+
+func _sync_talk_keyword_menu_scroll() -> void:
+	## Prefer the focused keyword on the middle row (8 of 15). Near the start
+	## the window stays pinned to the top; near the end it pins to the bottom.
+	## Wrapping past the last item returns to the first row and scroll 0.
+	var total := _talk_keyword_menu_items.size()
+	var vis := _talk_keyword_visible_count()
+	if vis <= 0 or total <= 0:
+		_talk_keyword_menu_scroll = 0
+		return
+	_talk_keyword_menu_cursor = clampi(_talk_keyword_menu_cursor, 0, total - 1)
+	if total <= vis:
+		_talk_keyword_menu_scroll = 0
+		return
+	var center := int(vis / 2) ## 15 → 7 (0-based) = 8번째 줄
+	_talk_keyword_menu_scroll = clampi(
+		_talk_keyword_menu_cursor - center,
+		0,
+		total - vis
+	)
+
+
 func _begin_talk_keyword_menu_if_requested() -> void:
 	if not _talk_gamepad_requested:
 		return
@@ -3302,6 +3522,7 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	## Start on Job rather than Name — most first interests ask about work.
 	## Hawkwind opens on the first virtue instead.
 	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
 	if not _talk_is_hawkwind:
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == "job":
@@ -3309,20 +3530,47 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 				break
 	_talk_keyword_menu_seen.clear()
 	for item in _talk_keyword_menu_items:
-		_talk_keyword_menu_seen[str(item.get("key", ""))] = true
-	## T:Dir? may have opened this menu while the direction stick is still held.
-	## Keep that tilt latched until neutral so it cannot move the first choice.
+		_remember_talk_keyword_menu_word(str(item.get("key", "")))
+		_remember_talk_keyword_menu_word(str(item.get("input", "")))
+	if _talk_is_lb:
+		## LB lines say 치유/heal after counsel — do not spawn a second Heal row.
+		for alias in [
+			"heal", "health", "치유", "힐", "회복", "건강",
+			"help", "도움", "도움말", "헬프",
+		]:
+			_remember_talk_keyword_menu_word(alias)
+	_sync_talk_keyword_menu_scroll()
+	## T:Dir? may have opened this menu while the direction stick/key is still held.
+	## Wait for neutral before the first hold-repeat step.
+	_talk_keyword_menu_await_neutral = true
+	_reset_hold_state()
 	_GameInput.latch_current_stick_navigation()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
+
+
+func _remember_talk_keyword_menu_word(word: String) -> void:
+	var raw := word.strip_edges()
+	if raw.is_empty():
+		return
+	_talk_keyword_menu_seen[raw] = true
+	var sk := _talk_keyword_stable_key(raw)
+	if not sk.is_empty():
+		_talk_keyword_menu_seen[sk] = true
+	var nk := _TalkLocale.normalize_interest(raw)
+	if not nk.is_empty():
+		_talk_keyword_menu_seen[nk] = true
 
 
 func _end_talk_keyword_menu() -> void:
 	_talk_gamepad_requested = false
 	_talk_keyword_menu_active = false
 	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
+	_talk_keyword_menu_await_neutral = false
 	_talk_keyword_menu_items.clear()
 	_talk_keyword_menu_seen.clear()
+	_reset_hold_state()
 	if _command_menu_layer != null and not _command_menu_open:
 		_command_menu_layer.visible = false
 
@@ -3375,9 +3623,11 @@ func _discover_talk_keywords(text: String) -> void:
 			"label": label,
 			"input": word,
 		})
-		_talk_keyword_menu_seen[key] = true
+		_remember_talk_keyword_menu_word(key)
+		_remember_talk_keyword_menu_word(word)
 		changed = true
 	if changed:
+		_sync_talk_keyword_menu_scroll()
 		_rebuild_command_menu_rows()
 		_sync_talk_keyword_menu_visibility()
 
@@ -3409,7 +3659,9 @@ func _offer_talk_keyword_item(key: String, label: String, input: String) -> void
 		"label": label,
 		"input": input,
 	})
-	_talk_keyword_menu_seen[key] = true
+	_remember_talk_keyword_menu_word(key)
+	_remember_talk_keyword_menu_word(input)
+	_sync_talk_keyword_menu_scroll()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
 
@@ -3590,6 +3842,8 @@ func _move_talk_keyword_menu_cursor(step: int) -> void:
 		_talk_keyword_menu_cursor + step,
 		_talk_keyword_menu_items.size()
 	)
+	_sync_talk_keyword_menu_scroll()
+	_rebuild_command_menu_rows()
 	_layout_command_menu_layer()
 
 
@@ -3632,28 +3886,45 @@ func _choose_talk_keyword_menu_item() -> void:
 			):
 				next_index += 1
 			_talk_keyword_menu_cursor = next_index
+			_sync_talk_keyword_menu_scroll()
+			_rebuild_command_menu_rows()
 			_layout_command_menu_layer()
 
 
 func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
+	## ↑↓ hold-repeat is polled in _tick_dialogue_choice_nav.
 	if not _talk_keyword_menu_can_select():
 		return false
 	if event is InputEventJoypadMotion:
-		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
-		if stick_step != 0:
-			_move_talk_keyword_menu_cursor(stick_step)
 		return true
-	if not (event is InputEventJoypadButton):
+	if not event.is_pressed():
 		return false
-	if not event.is_pressed() or event.is_echo():
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if (
+			key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
+			or key_event.keycode == KEY_DOWN or key_event.physical_keycode == KEY_DOWN
+		):
+			return true
+		var key_dir := _GameInput.dir_from_event(key_event)
+		if key_dir.y != 0:
+			return true
+		if not key_event.echo and (
+			_is_talk_enter(key_event)
+			or key_event.is_action_pressed("confirm")
+		):
+			_choose_talk_keyword_menu_item()
+			return true
 		return false
-	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
-		_choose_talk_keyword_menu_item()
-		return true
-	var dir := _GameInput.dir_from_event(event)
-	if dir.y != 0:
-		_move_talk_keyword_menu_cursor(dir.y)
-		return true
+	if event is InputEventJoypadButton:
+		if event.is_echo():
+			return false
+		if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+			_choose_talk_keyword_menu_item()
+			return true
+		var pad_dir := _GameInput.dir_from_event(event)
+		if pad_dir.y != 0:
+			return true
 	return false
 
 
@@ -10229,6 +10500,9 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 			_push_talk_script(_LordBritish.heal_ask())
 			_talk_stage = 13
 			_talk_buffer = ""
+			_reset_talk_hangul()
+			_enter_prompt_choice = 0
+			_GameInput.reset_stick_navigation()
 			_layout_prompt_row()
 			return true
 		_push_talk_script(_LordBritish.reply_text(match_input))
@@ -10250,8 +10524,23 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 	return true
 
 
+func _talk_answer_lb_heal_yn(yes: bool) -> void:
+	## xu4: Yes = already well; No = heal the party.
+	if yes:
+		_push_talk_script(_LordBritish.heal_good())
+	else:
+		_push_talk_script(_LordBritish.heal_wounds())
+		_LordBritish.heal_party()
+		_refresh_party()
+	_talk_stage = 12
+	_talk_buffer = ""
+	_reset_talk_hangul()
+	_push_talk_script(_LordBritish.prompt())
+	_layout_prompt_row()
+
+
 func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
-	## xu4 CONFIRMATION — "Art thou well?" Y / N / 예 / 아니.
+	## xu4 CONFIRMATION — "Art thou well?" Y / N / 예 / 아니 (+ on-screen buttons).
 	if _is_talk_enter(k):
 		var s := _talk_buffer.strip_edges()
 		_talk_buffer = ""
@@ -10261,18 +10550,10 @@ func _talk_input_lb_heal_yn(k: InputEventKey) -> bool:
 		_push_talk_player_input(s)
 		var yn := _talk_parse_yn(s)
 		if yn == 1:
-			_push_talk_script(_LordBritish.heal_good())
-			_talk_stage = 12
-			_push_talk_script(_LordBritish.prompt())
-			_layout_prompt_row()
+			_talk_answer_lb_heal_yn(true)
 			return true
 		if yn == 0:
-			_push_talk_script(_LordBritish.heal_wounds())
-			_LordBritish.heal_party()
-			_refresh_party()
-			_talk_stage = 12
-			_push_talk_script(_LordBritish.prompt())
-			_layout_prompt_row()
+			_talk_answer_lb_heal_yn(false)
 			return true
 		_push_talk_script(_LordBritish.heal_bad_answer())
 		_talk_stage = 12

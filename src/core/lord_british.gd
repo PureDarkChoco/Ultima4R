@@ -483,8 +483,11 @@ static func reply_kind(typed: String) -> String:
 	var key := TalkLocale.normalize_interest(typed)
 	if key.is_empty() or TalkLocale.match_builtin_interest(typed) == "bye":
 		return "bye"
-	## Classic LB keyword is "heal" (not all health synonyms).
-	if key.begins_with("heal") or TalkLocale.interest_matches_any(typed, ["치유", "힐", "회복"]):
+	## Classic LB keyword is HEAL; accept Health / 건강 as the same counsel.
+	if (
+		key.begins_with("heal")
+		or TalkLocale.interest_matches_any(typed, ["치유", "힐", "회복", "건강"])
+	):
 		return "heal"
 	if key.begins_with("help") or TalkLocale.interest_matches_any(typed, ["도움", "도움말", "헬프"]):
 		return "help"
@@ -514,6 +517,8 @@ static func highlight_keywords() -> Array[String]:
 	out.append("help")
 	out.append("heal")
 	out.append("bye")
+	## Do not highlight Health/건강 — that is town talk; LB's keyword is Heal/치유.
+	## (Typing Health/건강 still maps to heal via reply_kind.)
 	for alias in ["도움", "치유", "힐", "회복", "안녕", "작별", "바이"]:
 		if not out.has(alias):
 			out.append(alias)
