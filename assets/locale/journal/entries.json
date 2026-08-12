@@ -388,6 +388,54 @@
       "topic": "CRIM_YES",
       "en": "Ask the barkeep about the sextant.",
       "ko": "술집 주인에게 육분의에 대해 물어보라."
+    },
+    {
+      "id": "yew.druid.talfourd-rune",
+      "place": "yew",
+      "npc": "Druid",
+      "topic": "SHRI_NO",
+      "chain": "yew.justice-rune",
+      "chain_order": 10,
+      "goal": "ask:talfourd-rune",
+      "complete_if_recorded": "yew.talfourd.justice-rune",
+      "complete_on_goal": "rune:justice",
+      "en": "Ask Talfourd about the rune.",
+      "ko": "탈푸르드에게 룬에 대해 물어보라."
+    },
+    {
+      "id": "yew.talfourd.justice-rune",
+      "place": "yew",
+      "npc": "Talfourd",
+      "topic": "RUNE_NO",
+      "chain": "yew.justice-rune",
+      "chain_order": 20,
+      "goal": "rune:justice",
+      "en": "Justice rune: search well in a jail cell with the felon.",
+      "ko": "정의의 룬: 감옥 감방에서 중죄인과 함께 잘 찾으라."
+    },
+    {
+      "id": "yew.pinrod.druids-mantra",
+      "place": "yew",
+      "npc": "Pinrod",
+      "topic": "COUN_YES",
+      "chain": "yew.justice-mantra",
+      "chain_order": 10,
+      "goal": "ask:silent-mantra",
+      "complete_if_recorded": "yew.silent.justice-mantra",
+      "complete_on_goal": "mantra:justice",
+      "en": "Ask the chanting druids about the mantra of Justice.",
+      "ko": "염원하는 드루이드에게 정의의 만트라를 물어보라."
+    },
+    {
+      "id": "yew.silent.justice-mantra",
+      "place": "yew",
+      "npc": "Silent",
+      "topic": "JOB",
+      "chain": "yew.justice-mantra",
+      "chain_order": 20,
+      "goal": "mantra:justice",
+      "en": "Justice mantra: BEH.",
+      "ko": "정의의 만트라: BEH."
     }
   ]
 }

@@ -3935,6 +3935,35 @@ func _maybe_offer_jhelom_chain_keyword() -> void:
 		)
 
 
+func _maybe_offer_yew_chain_keyword() -> void:
+	## Yew name-directed tips: Talfourd (rune) / Silent (mantra via job).
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "talfourd"
+		and GameState.journal_has_id("yew.druid.talfourd-rune")
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+	elif (
+		npc == "silent"
+		and GameState.journal_has_id("yew.pinrod.druids-mantra")
+	):
+		## Silent reveals BEH on Job; keep Job selectable after the tip.
+		var job_key := _talk_keyword_stable_key("직업" if korean else "job")
+		_offer_talk_keyword_item(
+			job_key,
+			"직업" if korean else "Job",
+			"직업" if korean else "job"
+		)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -3947,6 +3976,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_britain_chain_keyword()
 	_maybe_offer_moonglow_chain_keyword()
 	_maybe_offer_jhelom_chain_keyword()
+	_maybe_offer_yew_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10346,6 +10376,20 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"만트라" if GameState.lang_short() == "ko" else "mantra"
 				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "talfourd"
+				and GameState.journal_has_id("yew.druid.talfourd-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "silent"
+				and GameState.journal_has_id("yew.pinrod.druids-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"직업" if GameState.lang_short() == "ko" else "job"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11240,6 +11284,30 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Senora (Jhelom): Yes after Crime points to the barkeep and sextant.
 	if yes and npc_key == "senora":
 		if GameState.journal_try_capture("jhelom", "Senora", "CRIM_YES"):
+			journal_changed = true
+	## Druid (Yew): No after Shrine points to Talfourd and the justice rune.
+	if (
+		not yes
+		and npc_key == "druid"
+		and str(e.topic2).strip_edges().to_upper() == "SHRI"
+	):
+		if GameState.journal_try_capture("yew", "Druid", "SHRI_NO"):
+			journal_changed = true
+	## Talfourd (Yew): No after Rune reveals the jail-cell search.
+	if (
+		not yes
+		and npc_key == "talfourd"
+		and str(e.topic2).strip_edges().to_upper() == "RUNE"
+	):
+		if GameState.journal_try_capture("yew", "Talfourd", "RUNE_NO"):
+			journal_changed = true
+		if GameState.journal_mark_id("yew.druid.talfourd-rune"):
+			journal_changed = true
+		if GameState.journal_mark_goal("ask:talfourd-rune"):
+			journal_changed = true
+	## Pinrod (Yew): Yes after Council points to the chanting druids' mantra.
+	if yes and npc_key == "pinrod":
+		if GameState.journal_try_capture("yew", "Pinrod", "COUN_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13537,6 +13605,19 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("jhelom.hrothgar.aesop-mantra"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:aesop-mantra"):
+			refresh = true
+	## Yew: Silent's Job/Beh chant completes Pinrod's mantra tip.
+	## Catalog key is JOB; Beh.* replies also reveal the same mantra.
+	if (
+		place == "yew"
+		and npc_key == "silent"
+		and topic in ["JOB", "HEAL", "BEH", "BEH."]
+	):
+		if GameState.journal_try_capture("yew", "Silent", "JOB"):
+			refresh = true
+		if GameState.journal_mark_id("yew.pinrod.druids-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:silent-mantra"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()
