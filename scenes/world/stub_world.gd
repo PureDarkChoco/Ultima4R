@@ -3905,6 +3905,36 @@ func _maybe_offer_moonglow_chain_keyword() -> void:
 	)
 
 
+func _maybe_offer_jhelom_chain_keyword() -> void:
+	## Jhelom name-directed tips: Nostro (rune) / Aesop (mantra).
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "nostro"
+		and GameState.journal_has_id("jhelom.robert.nostro-rune")
+	):
+		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+		_offer_talk_keyword_item(
+			rune_key,
+			"룬" if korean else "Rune",
+			"룬" if korean else "rune"
+		)
+	elif (
+		npc == "aesop"
+		and GameState.journal_has_id("jhelom.hrothgar.aesop-mantra")
+	):
+		var mantra_key := _talk_keyword_stable_key(
+			"만트라" if korean else "mantra"
+		)
+		_offer_talk_keyword_item(
+			mantra_key,
+			"만트라" if korean else "Mantra",
+			"만트라" if korean else "mantra"
+		)
+
+
 func _offer_named_npc_journal_keywords() -> void:
 	## Directed journal clues become selectable only after this NPC's name
 	## has actually been spoken in the current conversation.
@@ -3916,6 +3946,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_zircon_mystic_keyword()
 	_maybe_offer_britain_chain_keyword()
 	_maybe_offer_moonglow_chain_keyword()
+	_maybe_offer_jhelom_chain_keyword()
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -10301,6 +10332,20 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"룬" if GameState.lang_short() == "ko" else "rune"
 				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "nostro"
+				and GameState.journal_has_id("jhelom.robert.nostro-rune")
+			):
+				default_key = _talk_keyword_stable_key(
+					"룬" if GameState.lang_short() == "ko" else "rune"
+				)
+			elif (
+				str(entry.name).strip_edges().to_lower() == "aesop"
+				and GameState.journal_has_id("jhelom.hrothgar.aesop-mantra")
+			):
+				default_key = _talk_keyword_stable_key(
+					"만트라" if GameState.lang_short() == "ko" else "mantra"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -11187,6 +11232,14 @@ func _talk_answer_yn(yes: bool) -> void:
 		and str(e.topic2).strip_edges().to_upper() == "COMP"
 	):
 		if GameState.journal_try_capture("britain", "a child", "COMP_NO"):
+			journal_changed = true
+	## Lord Robert (Jhelom): Yes after Job points to Nostro and the valor rune.
+	if yes and npc_key == "lord robert":
+		if GameState.journal_try_capture("jhelom", "Lord Robert", "JOB_YES"):
+			journal_changed = true
+	## Senora (Jhelom): Yes after Crime points to the barkeep and sextant.
+	if yes and npc_key == "senora":
+		if GameState.journal_try_capture("jhelom", "Senora", "CRIM_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -13473,6 +13526,17 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("moonglow.christen.william-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:william-rune"):
+			refresh = true
+	## Jhelom: Nostro / Aesop complete prior name-directed tips.
+	if place == "jhelom" and npc_key == "nostro" and topic == "RUNE":
+		if GameState.journal_mark_id("jhelom.robert.nostro-rune"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:nostro-rune"):
+			refresh = true
+	if place == "jhelom" and npc_key == "aesop" and topic == "MANT":
+		if GameState.journal_mark_id("jhelom.hrothgar.aesop-mantra"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:aesop-mantra"):
 			refresh = true
 	if refresh:
 		_refresh_journal_panel()

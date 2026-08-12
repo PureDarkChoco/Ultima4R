@@ -332,6 +332,62 @@
       "goal": "mantra:honesty",
       "en": "Honesty mantra: AHM.",
       "ko": "정직의 만트라: AHM."
+    },
+    {
+      "id": "jhelom.robert.nostro-rune",
+      "place": "jhelom",
+      "npc": "Lord Robert",
+      "topic": "JOB_YES",
+      "chain": "jhelom.valor-rune",
+      "chain_order": 10,
+      "goal": "ask:nostro-rune",
+      "complete_if_recorded": "jhelom.nostro.valor-rune",
+      "complete_on_goal": "rune:valor",
+      "en": "Ask Nostro about the rune.",
+      "ko": "노스트로에게 룬에 대해 물어보라."
+    },
+    {
+      "id": "jhelom.nostro.valor-rune",
+      "place": "jhelom",
+      "npc": "Nostro",
+      "topic": "RUNE",
+      "chain": "jhelom.valor-rune",
+      "chain_order": 20,
+      "goal": "rune:valor",
+      "en": "Valor rune: buried in a tower.",
+      "ko": "용기의 룬: 탑에 묻혀 있다."
+    },
+    {
+      "id": "jhelom.hrothgar.aesop-mantra",
+      "place": "jhelom",
+      "npc": "Sir Hrothgar",
+      "topic": "SHRI",
+      "chain": "jhelom.valor-mantra",
+      "chain_order": 10,
+      "goal": "ask:aesop-mantra",
+      "complete_if_recorded": "jhelom.aesop.valor-mantra",
+      "complete_on_goal": "mantra:valor",
+      "en": "Ask Aesop about the mantra of Valor.",
+      "ko": "이솝에게 용기의 만트라를 물어보라."
+    },
+    {
+      "id": "jhelom.aesop.valor-mantra",
+      "place": "jhelom",
+      "npc": "Aesop",
+      "topic": "MANT",
+      "chain": "jhelom.valor-mantra",
+      "chain_order": 20,
+      "goal": "mantra:valor",
+      "en": "Valor mantra: RA.",
+      "ko": "용기의 만트라: RA."
+    },
+    {
+      "id": "jhelom.senora.sextant",
+      "place": "jhelom",
+      "npc": "Senora",
+      "topic": "CRIM_YES",
+      "en": "Ask the barkeep about the sextant.",
+      "ko": "술집 주인에게 육분의에 대해 물어보라."
     }
   ]
 }
