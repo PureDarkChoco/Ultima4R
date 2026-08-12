@@ -623,6 +623,32 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 	return out
 
 
+static func keyword_first_index(text: String, keyword: String) -> int:
+	## First occurrence accepted by colorize_keywords, for spoken-order menus.
+	var key := keyword.strip_edges()
+	if text.is_empty() or not _colorize_key_ok(key):
+		return -1
+	var lower := text.to_lower()
+	var kl := key.to_lower()
+	for i in text.length():
+		if i + kl.length() > text.length():
+			break
+		if lower.substr(i, kl.length()) != kl:
+			continue
+		if i > 0 and _is_word_char(text.unicode_at(i - 1)):
+			continue
+		if _is_hangul_code(kl.unicode_at(0)):
+			return i
+		var after_i := i + kl.length()
+		var after_ok := (
+			after_i >= text.length()
+			or not _is_word_char(text.unicode_at(after_i))
+		)
+		if after_ok or _colorize_stem_ok(kl):
+			return i
+	return -1
+
+
 static func _colorize_key_ok(s: String) -> bool:
 	## Latin needs ≥2 letters; Hangul allows 1-syllable topics (룬, 꽃, 방…).
 	if s.is_empty():

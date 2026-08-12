@@ -3600,6 +3600,8 @@ func _discover_talk_keywords(text: String) -> void:
 	if not _talk_keyword_menu_active or text.is_empty() or _talk_is_hawkwind:
 		return
 	var changed := false
+	var discoveries: Array[Dictionary] = []
+	var source_order := 0
 	for raw_keyword in _talk_keywords:
 		var word := str(raw_keyword).strip_edges()
 		if word.is_empty():
@@ -3613,9 +3615,30 @@ func _discover_talk_keywords(text: String) -> void:
 			continue
 		## Reuse the dialogue highlighter's exact whole-word/stem rules so only
 		## words actually exposed to the player become selectable.
-		if _TalkTlk.colorize_keywords(text, [word]) == text:
+		var text_index := _TalkTlk.keyword_first_index(text, word)
+		if text_index < 0:
 			continue
 		var label := word if GameState.lang_short() == "ko" else word.capitalize()
+		discoveries.append({
+			"key": key,
+			"label": label,
+			"input": word,
+			"text_index": text_index,
+			"source_order": source_order,
+		})
+		source_order += 1
+	discoveries.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			var ai := int(a.get("text_index", 0))
+			var bi := int(b.get("text_index", 0))
+			if ai == bi:
+				return int(a.get("source_order", 0)) < int(b.get("source_order", 0))
+			return ai < bi
+	)
+	for discovery in discoveries:
+		var key := str(discovery.get("key", ""))
+		if key.is_empty() or _talk_keyword_menu_seen.has(key):
+			continue
 		## Preserve discovery order between Job and Health.
 		var health_index := _talk_keyword_menu_items.size()
 		for i in _talk_keyword_menu_items.size():
@@ -3624,11 +3647,11 @@ func _discover_talk_keywords(text: String) -> void:
 				break
 		_talk_keyword_menu_items.insert(health_index, {
 			"key": key,
-			"label": label,
-			"input": word,
+			"label": str(discovery.get("label", "")),
+			"input": str(discovery.get("input", "")),
 		})
 		_remember_talk_keyword_menu_word(key)
-		_remember_talk_keyword_menu_word(word)
+		_remember_talk_keyword_menu_word(str(discovery.get("input", "")))
 		changed = true
 	if changed:
 		_sync_talk_keyword_menu_scroll()
