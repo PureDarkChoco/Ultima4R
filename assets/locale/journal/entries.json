@@ -1,6 +1,17 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens.",
   "entries": [
+    {
+      "id": "lcb.manual.zorin",
+      "place": "lcb",
+      "npc": "The Way of the Avatar",
+      "topic": "ENTER",
+      "goal": "ask:zorin",
+      "speaker_en": "The Way of the Avatar",
+      "speaker_ko": "아바타의 길",
+      "en": "A conversation with one Zorin may also prove fruitful whilst in this castle.",
+      "ko": "이 성에서 조린이라는 이와의 대화 또한 유익하리라."
+    },
     {
       "id": "lcb.zorin.antos-book",
       "place": "lcb",
@@ -42,8 +53,8 @@
       "place": "lycaeum",
       "npc": "Father Antos",
       "topic": "BOOK",
-      "chain": "lcb.antos-book",
-      "chain_order": 20,
+      "chain": "lycaeum.antos-book",
+      "chain_order": 10,
       "goal": "",
       "en": "Book of Truth: seek it where other books lie.",
       "ko": "진리의 책: 다른 책들이 있는 곳에서 찾으라."
@@ -53,8 +64,8 @@
       "place": "empath",
       "npc": "Brother Antos",
       "topic": "CAND",
-      "chain": "lcb.antos-candle",
-      "chain_order": 20,
+      "chain": "empath.antos-candle",
+      "chain_order": 10,
       "goal": "",
       "en": "Candle of Love: needed to enter the Abyss.",
       "ko": "사랑의 촛대: 심연에 들어가려면 필요하다."
@@ -64,8 +75,8 @@
       "place": "serpent",
       "npc": "Sister Antos",
       "topic": "BELL",
-      "chain": "lcb.antos-bell",
-      "chain_order": 20,
+      "chain": "serpent.antos-bell",
+      "chain_order": 10,
       "goal": "",
       "en": "Bell of Courage: needed to enter the Abyss.",
       "ko": "용기의 종: 심연에 들어가려면 필요하다."
@@ -87,8 +98,8 @@
       "place": "minoc",
       "npc": "Zircon",
       "topic": "MYST",
-      "chain": "lcb.zircon-mystics",
-      "chain_order": 20,
+      "chain": "minoc.zircon-mystics",
+      "chain_order": 10,
       "goal": "",
       "en": "Mystic arms: given to Sir Simon and Lady Tessa.",
       "ko": "신비 무기: 사이먼 경과 테사 부인에게 건네졌다."

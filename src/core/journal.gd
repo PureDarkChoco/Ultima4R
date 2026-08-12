@@ -132,13 +132,17 @@ static func _append_catalog_capture(
 		)
 		or _catalog_completion_recorded(gs, cat)
 	)
-	var speaker_en := npc.strip_edges()
-	var speaker_ko := speaker_en
-	## Prefer city pack name translation when Korean talk data is loaded.
-	_TalkLocale.ensure_city(place.strip_edges().to_lower())
-	var translated := _TalkLocale.line(speaker_en)
-	if not translated.is_empty() and translated != speaker_en:
-		speaker_ko = translated
+	var speaker_en := str(cat.get("speaker_en", "")).strip_edges()
+	var speaker_ko := str(cat.get("speaker_ko", "")).strip_edges()
+	if speaker_en.is_empty():
+		speaker_en = npc.strip_edges()
+	if speaker_ko.is_empty():
+		speaker_ko = speaker_en
+		## Prefer city pack name translation when Korean talk data is loaded.
+		_TalkLocale.ensure_city(place.strip_edges().to_lower())
+		var translated := _TalkLocale.line(speaker_en)
+		if not translated.is_empty() and translated != speaker_en:
+			speaker_ko = translated
 	var entry := {
 		"id": id,
 		"place": place.strip_edges().to_lower(),
@@ -161,25 +165,22 @@ static func _append_catalog_capture(
 
 static func _insert_in_chain_order(rows: Array, entry: Dictionary) -> void:
 	## A late-discovered earlier clue is inserted before known later clues.
-	## Unheard links are never synthesized.
-	var chain := str(entry.get("chain", "")).strip_edges()
+	## Chains are place-local; unheard links are never synthesized.
+	var chain := entry_chain(entry)
 	if chain.is_empty():
 		rows.append(entry)
 		return
-	var order := int(entry.get("chain_order", 0))
+	var place := str(entry.get("place", "")).strip_edges().to_lower()
+	var order := entry_chain_order(entry)
 	for i in rows.size():
 		var row: Variant = rows[i]
 		if typeof(row) != TYPE_DICTIONARY:
 			continue
 		var d: Dictionary = row
-		var row_chain := str(d.get("chain", "")).strip_edges()
-		var row_order := int(d.get("chain_order", 0))
-		## Older saves may not contain chain metadata; recover it from catalog.
-		if row_chain.is_empty():
-			var old_cat := find_catalog_by_id(str(d.get("id", "")))
-			row_chain = str(old_cat.get("chain", "")).strip_edges()
-			row_order = int(old_cat.get("chain_order", 0))
-		if row_chain == chain and row_order > order:
+		var row_place := str(d.get("place", "")).strip_edges().to_lower()
+		if row_place != place:
+			continue
+		if entry_chain(d) == chain and entry_chain_order(d) > order:
 			rows.insert(i, entry)
 			return
 	rows.append(entry)
@@ -358,18 +359,19 @@ static func grouped_for_ui(gs: Node) -> Array[Dictionary]:
 
 
 static func entry_chain(row: Dictionary) -> String:
-	var chain := str(row.get("chain", "")).strip_edges()
-	if not chain.is_empty():
-		return chain
+	## Catalog is authoritative so renamed local chains also update old saves.
 	var cat := find_catalog_by_id(str(row.get("id", "")))
-	return str(cat.get("chain", "")).strip_edges()
+	if not cat.is_empty():
+		return str(cat.get("chain", "")).strip_edges()
+	return str(row.get("chain", "")).strip_edges()
 
 
 static func entry_chain_order(row: Dictionary) -> int:
-	if row.has("chain_order"):
-		return int(row.get("chain_order", 0))
+	## Catalog is authoritative so reordered local chains also update old saves.
 	var cat := find_catalog_by_id(str(row.get("id", "")))
-	return int(cat.get("chain_order", 0))
+	if not cat.is_empty():
+		return int(cat.get("chain_order", 0))
+	return int(row.get("chain_order", 0))
 
 
 static func _rows_with_chains_grouped(rows: Array) -> Array:

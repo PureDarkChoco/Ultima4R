@@ -7748,7 +7748,28 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 		## Re-apply mount sprite immediately (enter used to wipe MapView transport).
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 		_map.clear_moongate()
+	_maybe_capture_manual_zorin_tip(fname)
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
+
+
+func _maybe_capture_manual_zorin_tip(fname: String) -> void:
+	## Way of the Avatar: seek Zorin in Castle Britannia (first LCB enter).
+	var f := fname.strip_edges().to_lower()
+	if f != "lcb_1.ult" and f != "lcb_2.ult":
+		return
+	if not GameState.journal_try_capture("lcb", "The Way of the Avatar", "ENTER"):
+		return
+	_refresh_journal_panel()
+
+
+func _maybe_complete_manual_zorin_tip() -> bool:
+	## Talking to Zorin fulfills the manual hint.
+	var changed := false
+	if GameState.journal_mark_id("lcb.manual.zorin"):
+		changed = true
+	if GameState.journal_mark_goal("ask:zorin"):
+		changed = true
+	return changed
 
 
 func _open_sides_for_shrine() -> void:
@@ -10262,6 +10283,9 @@ func _talk_say_name() -> void:
 		return
 	_push_talk_script("%s says: I am %s" % [str(e.pronoun), str(e.name)])
 	_offer_named_npc_journal_keywords()
+	if str(e.name).strip_edges().to_lower() == "zorin":
+		if _maybe_complete_manual_zorin_tip():
+			_refresh_journal_panel()
 
 
 func _push_talk_script(raw: String) -> void:
@@ -13228,6 +13252,10 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if GameState.journal_try_capture(place, npc, topic):
 		refresh = true
 	var npc_key := npc.strip_edges().to_lower()
+	## Manual → Zorin: any talk with Zorin completes the Way of the Avatar tip.
+	if place == "lcb" and npc_key == "zorin":
+		if _maybe_complete_manual_zorin_tip():
+			refresh = true
 	## Gimble → Azure: asking Azure about the rune completes Gimble's tip.
 	if place == "minoc" and npc_key == "azure" and topic in ["RUNE", "SACR"]:
 		if GameState.journal_mark_id("minoc.gimble.azure-rune"):
