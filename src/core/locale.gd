@@ -1735,6 +1735,11 @@ const _T := {
 		"en_us": "None Left!",
 		"ko": "남은 시약이 없다!",
 	},
+	"talk_learned_reagent_mix": {
+		"en_u4": "Thou hast learned a new reagent mixture.",
+		"en_us": "You have learned a new reagent mixture.",
+		"ko": "새로운 시약 조합법을 익혔습니다.",
+	},
 	"cmd_locate": {
 		"en_u4": "%s  %s %s",
 		"en_us": "%s  %s %s",

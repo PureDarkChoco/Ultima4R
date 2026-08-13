@@ -407,12 +407,16 @@ func is_spell_known(spell_id: int) -> bool:
 	return bool(spell_known[spell_id])
 
 
-func mark_spell_known(spell_id: int) -> void:
+func mark_spell_known(spell_id: int) -> bool:
+	## True only when the recipe was unknown and is newly recorded.
 	if spell_id < 0 or spell_id >= Spells.COUNT:
-		return
+		return false
 	if spell_known.size() < Spells.COUNT:
 		_seed_spell_known_from_mixtures()
+	if bool(spell_known[spell_id]):
+		return false
 	spell_known[spell_id] = true
+	return true
 
 
 func is_weapon_known(weapon_id: int) -> bool:

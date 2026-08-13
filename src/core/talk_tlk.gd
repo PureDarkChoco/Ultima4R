@@ -496,43 +496,48 @@ static func should_ask_after(entry: Entry, kind: int) -> bool:
 			return false
 
 
-static func apply_keyword_rewards(entry: Entry, kind: int) -> void:
+static func apply_keyword_rewards(entry: Entry, kind: int) -> bool:
 	## Side effects after a matched keyword line is shown (recipe learning, etc.).
 	## Book-of-Wisdom “double portion” corrections (PC U4: one of each type only).
+	## Returns true if a new spell recipe was learned this reply.
 	if entry == null:
-		return
+		return false
 	var nm := _speaker_key(entry)
+	var learned := false
 	match nm:
 		"cosima", "seanna":
 			## Sleep — one spider silk (not two). Cosima REAG / Seanna SLEE.
 			if kind == REPLY_TOPIC2:
-				GameState.mark_spell_known(Spells.SLEEP)
+				learned = GameState.mark_spell_known(Spells.SLEEP) or learned
 		"starlight":
 			## Magic Missile — one pearl + one ash (not two ash). MIX topic.
 			if kind == REPLY_TOPIC2:
-				GameState.mark_spell_known(Spells.MAGIC_MISSILE)
+				learned = GameState.mark_spell_known(Spells.MAGIC_MISSILE) or learned
 		"nigel":
 			## Lycaeum Nigel — RECA lists full Resurrect reagents.
 			if kind == REPLY_TOPIC2:
-				GameState.mark_spell_known(Spells.RESURRECT)
+				learned = GameState.mark_spell_known(Spells.RESURRECT) or learned
 		"mentorian":
 			## Cove Mentorian — GATE lists ash, pearl, mandrake.
 			if kind == REPLY_TOPIC2:
-				GameState.mark_spell_known(Spells.GATE)
+				learned = GameState.mark_spell_known(Spells.GATE) or learned
+	return learned
 
 
-static func apply_yesno_rewards(entry: Entry, yes: bool) -> void:
+static func apply_yesno_rewards(entry: Entry, yes: bool) -> bool:
 	## Recipe corrections that live on the Y answer after a follow-up question.
+	## Returns true if a new spell recipe was learned this answer.
 	if entry == null or not yes:
-		return
+		return false
 	var nm := _speaker_key(entry)
 	match nm:
 		"carlyle":
 			## Magic Missile — need but 1 part ash (after “believe in magic?”).
-			GameState.mark_spell_known(Spells.MAGIC_MISSILE)
+			return GameState.mark_spell_known(Spells.MAGIC_MISSILE)
 		"calumny":
 			## Quickness — but one bloodmoss (after “can thou cast it?”).
-			GameState.mark_spell_known(Spells.QUICKNESS)
+			return GameState.mark_spell_known(Spells.QUICKNESS)
+	return false
 
 
 static func _speaker_key(entry: Entry) -> String:

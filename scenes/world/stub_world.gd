@@ -11129,6 +11129,18 @@ func _push_talk_script(raw: String) -> void:
 	_refresh_message_view()
 
 
+func _push_talk_learned_reagent_mix() -> void:
+	## One-line system notice after dialogue teaches a previously unknown recipe.
+	var line := Locale.t("talk_learned_reagent_mix").strip_edges()
+	if line.is_empty():
+		return
+	_msg_lines.append("[color=#7ec8ff]%s[/color]" % line)
+	while _msg_lines.size() > MSG_KEEP:
+		_msg_lines.remove_at(0)
+	_refresh_message_view()
+	_layout_prompt_row()
+
+
 func _reflow_talk_hard_breaks(text: String) -> String:
 	## Collapse classic DOS soft-layout newlines so text fills the panel width.
 	var s := text.replace("\r\n", "\n").replace("\r", "\n")
@@ -11755,7 +11767,8 @@ func _talk_process_keyword(input: String) -> void:
 		var kind := int(hit.get("kind", 0))
 		var reply := str(hit.get("text", ""))
 		_push_talk_script(reply)
-		_TalkTlk.apply_keyword_rewards(e, kind)
+		if _TalkTlk.apply_keyword_rewards(e, kind):
+			_push_talk_learned_reagent_mix()
 		_try_journal_talk_capture(e, kind)
 		if (
 			str(e.name).to_lower() == "shamino"
@@ -11847,7 +11860,8 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes:
 		_maybe_offer_azure_sacrifice_keyword()
 		_maybe_offer_den_prompt_keywords()
-	_TalkTlk.apply_yesno_rewards(e, yes)
+	if _TalkTlk.apply_yesno_rewards(e, yes):
+		_push_talk_learned_reagent_mix()
 	var npc_key := str(e.name).strip_edges().to_lower()
 	var journal_changed := false
 	## Gimble's gold question: Yes points the party to Azure and the rune.
