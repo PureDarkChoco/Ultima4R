@@ -74,6 +74,8 @@ const MSG_INSET_X := 8
 const MSG_INSET_Y := 6
 const MSG_FONT_SIZE := 14
 const MSG_COLOR := Color(0.91, 0.9, 0.82, 1)
+## Talk keyword menu: not-yet-spoken NPC topics (still selectable for debugging).
+const MSG_COLOR_LATENT := Color(0.48, 0.5, 0.52, 1)
 const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 const CHARSET_GLYPH := 16
 ## xu4 CHARSET_PROMPT ('\020' = index 16) — blue right-triangle from charset.png.
@@ -1317,7 +1319,14 @@ func _rebuild_command_menu_rows() -> void:
 			var abs_i := _talk_keyword_menu_scroll + i
 			if abs_i < 0 or abs_i >= _talk_keyword_menu_items.size():
 				continue
-			row_texts.append(str(_talk_keyword_menu_items[abs_i].get("label", "")))
+			var item: Dictionary = _talk_keyword_menu_items[abs_i]
+			var lab := str(item.get("label", ""))
+			if not bool(item.get("revealed", true)):
+				lab = "[color=#%s]%s[/color]" % [
+					MSG_COLOR_LATENT.to_html(false),
+					lab,
+				]
+			row_texts.append(lab)
 	else:
 		for cmd in _command_menu_items:
 			var letter := U4Commands.letter_for(cmd)
@@ -3439,11 +3448,12 @@ func _hawkwind_keyword_menu_items() -> Array[Dictionary]:
 			"key": "virtue_%d" % v,
 			"label": word,
 			"input": word,
+			"revealed": true,
 		})
 	if korean:
-		items.append({"key": "bye", "label": "안녕", "input": "안녕"})
+		items.append({"key": "bye", "label": "안녕", "input": "안녕", "revealed": true})
 	else:
-		items.append({"key": "bye", "label": "Bye", "input": "bye"})
+		items.append({"key": "bye", "label": "Bye", "input": "bye", "revealed": true})
 	return items
 
 
@@ -3451,20 +3461,20 @@ func _lord_british_keyword_menu_items() -> Array[Dictionary]:
 	## LB has no beggar Give; heal is the classic HEAL keyword (not town Health).
 	if GameState.lang_short() == "ko":
 		return [
-			{"key": "look", "label": "모습", "input": "모습"},
-			{"key": "name", "label": "이름", "input": "이름"},
-			{"key": "job", "label": "직업", "input": "직업"},
-			{"key": "heal", "label": "치유", "input": "치유"},
-			{"key": "help", "label": "도움", "input": "도움"},
-			{"key": "bye", "label": "안녕", "input": "안녕"},
+			{"key": "look", "label": "모습", "input": "모습", "revealed": true},
+			{"key": "name", "label": "이름", "input": "이름", "revealed": true},
+			{"key": "job", "label": "직업", "input": "직업", "revealed": true},
+			{"key": "heal", "label": "치유", "input": "치유", "revealed": true},
+			{"key": "help", "label": "도움", "input": "도움", "revealed": true},
+			{"key": "bye", "label": "안녕", "input": "안녕", "revealed": true},
 		]
 	return [
-		{"key": "look", "label": "Look", "input": "look"},
-		{"key": "name", "label": "Name", "input": "name"},
-		{"key": "job", "label": "Job", "input": "job"},
-		{"key": "heal", "label": "Heal", "input": "heal"},
-		{"key": "help", "label": "Help", "input": "help"},
-		{"key": "bye", "label": "Bye", "input": "bye"},
+		{"key": "look", "label": "Look", "input": "look", "revealed": true},
+		{"key": "name", "label": "Name", "input": "name", "revealed": true},
+		{"key": "job", "label": "Job", "input": "job", "revealed": true},
+		{"key": "heal", "label": "Heal", "input": "heal", "revealed": true},
+		{"key": "help", "label": "Help", "input": "help", "revealed": true},
+		{"key": "bye", "label": "Bye", "input": "bye", "revealed": true},
 	]
 
 
@@ -3475,20 +3485,20 @@ func _talk_keyword_menu_initial_items() -> Array[Dictionary]:
 		return _lord_british_keyword_menu_items()
 	if GameState.lang_short() == "ko":
 		return [
-			{"key": "look", "label": "모습", "input": "모습"},
-			{"key": "name", "label": "이름", "input": "이름"},
-			{"key": "job", "label": "직업", "input": "직업"},
-			{"key": "heal", "label": "건강", "input": "건강"},
-			{"key": "give", "label": "기부", "input": "기부"},
-			{"key": "bye", "label": "안녕", "input": "안녕"},
+			{"key": "look", "label": "모습", "input": "모습", "revealed": true},
+			{"key": "name", "label": "이름", "input": "이름", "revealed": true},
+			{"key": "job", "label": "직업", "input": "직업", "revealed": true},
+			{"key": "heal", "label": "건강", "input": "건강", "revealed": true},
+			{"key": "give", "label": "기부", "input": "기부", "revealed": true},
+			{"key": "bye", "label": "안녕", "input": "안녕", "revealed": true},
 		]
 	return [
-		{"key": "look", "label": "Look", "input": "look"},
-		{"key": "name", "label": "Name", "input": "name"},
-		{"key": "job", "label": "Job", "input": "job"},
-		{"key": "heal", "label": "Health", "input": "health"},
-		{"key": "give", "label": "Donate", "input": "give"},
-		{"key": "bye", "label": "Bye", "input": "bye"},
+		{"key": "look", "label": "Look", "input": "look", "revealed": true},
+		{"key": "name", "label": "Name", "input": "name", "revealed": true},
+		{"key": "job", "label": "Job", "input": "job", "revealed": true},
+		{"key": "heal", "label": "Health", "input": "health", "revealed": true},
+		{"key": "give", "label": "Donate", "input": "give", "revealed": true},
+		{"key": "bye", "label": "Bye", "input": "bye", "revealed": true},
 	]
 
 
@@ -3549,8 +3559,61 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_talk_keyword_menu_await_neutral = true
 	_reset_hold_state()
 	_GameInput.latch_current_stick_navigation()
+	_seed_talk_latent_keywords()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
+
+
+func _talk_keyword_menu_health_index() -> int:
+	for i in _talk_keyword_menu_items.size():
+		if str(_talk_keyword_menu_items[i].get("key", "")) == "heal":
+			return i
+	return _talk_keyword_menu_items.size()
+
+
+func _reveal_talk_keyword_if_latent(key: String) -> int:
+	## 0 = missing, 1 = already revealed, 2 = flipped gray → white.
+	if key.is_empty():
+		return 0
+	for i in _talk_keyword_menu_items.size():
+		var item: Dictionary = _talk_keyword_menu_items[i]
+		if str(item.get("key", "")) != key:
+			continue
+		if bool(item.get("revealed", true)):
+			return 1
+		item["revealed"] = true
+		_talk_keyword_menu_items[i] = item
+		return 2
+	return 0
+
+
+func _insert_talk_keyword_menu_item(
+	key: String, label: String, input: String, revealed: bool
+) -> void:
+	## Insert before Health (same slot as discovered / journal-directed topics).
+	var health_index := _talk_keyword_menu_health_index()
+	_talk_keyword_menu_items.insert(health_index, {
+		"key": key,
+		"label": label,
+		"input": input,
+		"revealed": revealed,
+	})
+	_remember_talk_keyword_menu_word(key)
+	_remember_talk_keyword_menu_word(input)
+
+
+func _seed_talk_latent_keywords() -> void:
+	## Show every NPC interest that exists but has not been spoken yet (gray).
+	## Builtins + journal offers stay white; selecting gray still works.
+	if not _talk_keyword_menu_active or _talk_is_hawkwind:
+		return
+	var korean := GameState.lang_short() == "ko"
+	for word in _TalkLocale.latent_menu_words(_talk_keywords):
+		var key := _talk_keyword_stable_key(word)
+		if key.is_empty() or _talk_keyword_menu_seen.has(key):
+			continue
+		var label := word if korean else word.capitalize()
+		_insert_talk_keyword_menu_item(key, label, word, false)
 
 
 func _remember_talk_keyword_menu_word(word: String) -> void:
@@ -3599,7 +3662,6 @@ func _discover_talk_keywords(text: String) -> void:
 	## Hawkwind already seeds the eight virtues; do not re-insert from replies.
 	if not _talk_keyword_menu_active or text.is_empty() or _talk_is_hawkwind:
 		return
-	var changed := false
 	var discoveries: Array[Dictionary] = []
 	var source_order := 0
 	for raw_keyword in _talk_keywords:
@@ -3607,14 +3669,10 @@ func _discover_talk_keywords(text: String) -> void:
 		if word.is_empty():
 			continue
 		var key := _talk_keyword_stable_key(word)
-		if (
-			key.is_empty()
-			or key == _TalkLocale.normalize_interest("관심사")
-			or _talk_keyword_menu_seen.has(key)
-		):
+		if key.is_empty() or key == _TalkLocale.normalize_interest("관심사"):
 			continue
 		## Reuse the dialogue highlighter's exact whole-word/stem rules so only
-		## words actually exposed to the player become selectable.
+		## words actually exposed to the player become selectable / turn white.
 		var text_index := _TalkTlk.keyword_first_index(text, word)
 		if text_index < 0:
 			continue
@@ -3656,23 +3714,25 @@ func _discover_talk_keywords(text: String) -> void:
 		if not dominated:
 			trimmed.append(a)
 	discoveries = trimmed
+	var changed := false
 	for discovery in discoveries:
 		var key := str(discovery.get("key", ""))
-		if key.is_empty() or _talk_keyword_menu_seen.has(key):
+		if key.is_empty():
 			continue
-		## Preserve discovery order between Job and Health.
-		var health_index := _talk_keyword_menu_items.size()
-		for i in _talk_keyword_menu_items.size():
-			if str(_talk_keyword_menu_items[i].get("key", "")) == "heal":
-				health_index = i
-				break
-		_talk_keyword_menu_items.insert(health_index, {
-			"key": key,
-			"label": str(discovery.get("label", "")),
-			"input": str(discovery.get("input", "")),
-		})
-		_remember_talk_keyword_menu_word(key)
-		_remember_talk_keyword_menu_word(str(discovery.get("input", "")))
+		var reveal_status := _reveal_talk_keyword_if_latent(key)
+		if reveal_status == 1:
+			continue
+		if reveal_status == 2:
+			changed = true
+			continue
+		if _talk_keyword_menu_seen.has(key):
+			continue
+		_insert_talk_keyword_menu_item(
+			key,
+			str(discovery.get("label", "")),
+			str(discovery.get("input", "")),
+			true
+		)
 		changed = true
 	if changed:
 		_sync_talk_keyword_menu_scroll()
@@ -3695,20 +3755,20 @@ func _offer_talk_join_keyword() -> void:
 
 func _offer_talk_keyword_item(key: String, label: String, input: String) -> void:
 	## Insert a selectable interest before Health (same order as discovered topics).
-	if not _talk_keyword_menu_active or key.is_empty() or _talk_keyword_menu_seen.has(key):
+	## Latent (gray) rows flip white when journal / dialogue unlocks them.
+	if not _talk_keyword_menu_active or key.is_empty():
 		return
-	var health_index := _talk_keyword_menu_items.size()
-	for i in _talk_keyword_menu_items.size():
-		if str(_talk_keyword_menu_items[i].get("key", "")) == "heal":
-			health_index = i
-			break
-	_talk_keyword_menu_items.insert(health_index, {
-		"key": key,
-		"label": label,
-		"input": input,
-	})
-	_remember_talk_keyword_menu_word(key)
-	_remember_talk_keyword_menu_word(input)
+	var reveal_status := _reveal_talk_keyword_if_latent(key)
+	if reveal_status == 1:
+		return
+	if reveal_status == 2:
+		_sync_talk_keyword_menu_scroll()
+		_rebuild_command_menu_rows()
+		_sync_talk_keyword_menu_visibility()
+		return
+	if _talk_keyword_menu_seen.has(key):
+		return
+	_insert_talk_keyword_menu_item(key, label, input, true)
 	_sync_talk_keyword_menu_scroll()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
