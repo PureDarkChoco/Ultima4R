@@ -87,6 +87,11 @@ const CANNON_SEC_PER_TILE := 0.10
 const MAGIC_MISSILE_SPEED := 1.5
 ## Multi-frame terrain flip period (spit, etc.).
 const TILE_ANIM_PERIOD := 0.20
+## Horse frames: 0 = walk A (`NNN.png`), 1 = stand (`_1`), 2 = walk B (`_2`).
+const HORSE_WALK_FRAME_A := 0
+const HORSE_STAND_FRAME := 1
+const HORSE_WALK_FRAME_B := 2
+const HORSE_IDLE_STAND_SEC := 0.5
 ## Open chest cavity in `060_chest_1.png` is 18×2 (x=7..24, y=14..15);
 ## outer chest ~22×23. Icon sized to cavity width (16) and centered on that mouth.
 const CHEST_LOOT_ICON_SIZE := 16
@@ -269,6 +274,11 @@ var _horse_rider_class := -999
 ## Fallback Avatar-on-horse art from disk.
 var _horse_rider_w_asset: Image
 var _horse_rider_e_asset: Image
+## Mounted gait: stand on `_1` until a tile step, then A/`_2` per tile; stand again after idle.
+var _horse_standing := true
+## Last walk frame: true = `_2`. Start true so the first step of a session is frame A.
+var _horse_walk_on_b := true
+var _horse_idle_left := 0.0
 
 var _scroll_from := Vector2i.ZERO
 var _scroll_dir := Vector2i.ZERO
@@ -2149,6 +2159,8 @@ func set_center(tile: Vector2i, animate: bool = true) -> void:
 		and cheby == 1
 		and (is_in_city() or (world != null and world.loaded))
 	)
+	if animate and cheby == 1:
+		_note_horse_step()
 	if can_scroll:
 		_scroll_from = center
 		_scroll_dir = step
@@ -2313,7 +2325,10 @@ func set_transport_tile(tile_id: int) -> void:
 	## -1 = walk on foot (class sprite); else horse/ship tile under the party.
 	if _transport_tile == tile_id:
 		return
+	var was_horse := is_horse_tile(_transport_tile)
 	_transport_tile = tile_id
+	if is_horse_tile(tile_id) and not was_horse:
+		_reset_horse_stand()
 	_rebuild()
 
 
@@ -2506,6 +2521,8 @@ func _process(delta: float) -> void:
 		_tile_anim_frame += 1
 		tile_anim_changed = true
 
+	var horse_changed := _tick_horse_idle(delta)
+
 	var moongate_changed := false
 	if _moongate_tid >= 0 and not is_in_city():
 		## Rise/fall in source-tile pixels only (1 of 32 per step — not screen px).
@@ -2592,6 +2609,7 @@ func _process(delta: float) -> void:
 				frame_changed or water_changed or tile_anim_changed or npc_changed
 				or combat_focus_changed
 				or shake_changed or moongate_changed or flash_changed
+				or horse_changed
 				or not _tile_flashes.is_empty()
 				or not _cannon_proj.is_empty()
 				or not _combat_proj.is_empty()
@@ -2606,6 +2624,7 @@ func _process(delta: float) -> void:
 		frame_changed or water_changed or tile_anim_changed or npc_changed
 		or combat_focus_changed
 		or shake_changed or moongate_changed or flash_changed
+		or horse_changed
 		or not _tile_flashes.is_empty()
 		or not _combat_tile_flashes.is_empty()
 		or not _cannon_proj.is_empty()
@@ -2697,14 +2716,8 @@ func _ensure_horse_riders() -> void:
 	_horse_rider_class = cls
 	_horse_rider_w_frames = _compose_horse_rider_frames(TILE_HORSE_W, _horse_rider_w_asset)
 	_horse_rider_e_frames = _compose_horse_rider_frames(TILE_HORSE_E, _horse_rider_e_asset)
-	_horse_rider_w = (
-		_horse_rider_w_frames[0] if not _horse_rider_w_frames.is_empty()
-		else _horse_rider_w_asset
-	)
-	_horse_rider_e = (
-		_horse_rider_e_frames[0] if not _horse_rider_e_frames.is_empty()
-		else _horse_rider_e_asset
-	)
+	_horse_rider_w = _horse_rider_frame_or(_horse_rider_w_frames, HORSE_STAND_FRAME, _horse_rider_w_asset)
+	_horse_rider_e = _horse_rider_frame_or(_horse_rider_e_frames, HORSE_STAND_FRAME, _horse_rider_e_asset)
 
 
 func _compose_horse_rider_frames(horse_id: int, fallback: Image) -> Array:
@@ -2774,15 +2787,65 @@ func _compose_horse_rider(horse_id: int, frame: int = 0) -> Image:
 	return out
 
 
+func _reset_horse_stand() -> void:
+	_horse_standing = true
+	_horse_idle_left = 0.0
+
+
+func _note_horse_step() -> void:
+	if not is_horse_tile(_transport_tile):
+		return
+	_horse_standing = false
+	_horse_walk_on_b = not _horse_walk_on_b
+	_horse_idle_left = HORSE_IDLE_STAND_SEC
+
+
+func _tick_horse_idle(delta: float) -> bool:
+	if _horse_standing or not is_horse_tile(_transport_tile):
+		return false
+	if _scroll_frames_left > 0:
+		return false
+	_horse_idle_left -= delta
+	if _horse_idle_left > 0.0:
+		return false
+	_reset_horse_stand()
+	return true
+
+
+func _horse_stand_frame_id(tile_id: int) -> int:
+	var n := _U4TileBankScript.frame_count(tile_id)
+	return HORSE_STAND_FRAME if n > HORSE_STAND_FRAME else 0
+
+
+func _horse_pose_frame() -> int:
+	var tid := _transport_tile if is_horse_tile(_transport_tile) else TILE_HORSE_W
+	var n := _U4TileBankScript.frame_count(tid)
+	if n <= 1:
+		return 0
+	var f := HORSE_STAND_FRAME
+	if not _horse_standing:
+		f = HORSE_WALK_FRAME_B if _horse_walk_on_b else HORSE_WALK_FRAME_A
+	if f >= n:
+		return 0
+	return f
+
+
+func _horse_rider_frame_or(frames: Array, frame: int, fallback: Image) -> Image:
+	if frames.is_empty():
+		return fallback
+	var i := frame if frame >= 0 and frame < frames.size() else 0
+	var img: Image = frames[i]
+	return img if img != null else fallback
+
+
 func _horse_rider_for_transport() -> Image:
 	_ensure_horse_riders()
 	var frames: Array = (
 		_horse_rider_e_frames if _transport_tile == TILE_HORSE_E
 		else _horse_rider_w_frames
 	)
-	if frames.is_empty():
-		return _horse_rider_e if _transport_tile == TILE_HORSE_E else _horse_rider_w
-	return frames[posmod(_tile_anim_frame, frames.size())]
+	var fallback := _horse_rider_e if _transport_tile == TILE_HORSE_E else _horse_rider_w
+	return _horse_rider_frame_or(frames, _horse_pose_frame(), fallback)
 
 
 func _slice_keyed_tile(tile_id: int) -> Image:
@@ -4475,6 +4538,9 @@ func _blit_terrain_to(
 	elif tid == TILE_CHEST:
 		## xu4 chest uses replacement floor under transparent margins.
 		_blit_chest_tile(target, dst, 0, _city_map != null)
+	elif is_horse_tile(tid):
+		## Parked / terrain horses stay on the standing frame.
+		_U4TileBankScript.blit_to(target, tid, dst, _horse_stand_frame_id(tid))
 	elif _U4TileBankScript.frame_count(tid) > 1:
 		_U4TileBankScript.blit_anim_to(target, tid, dst, _tile_anim_frame)
 	else:
@@ -5327,9 +5393,7 @@ func _paint_bridge_near_rails(cam: Vector2) -> void:
 
 func _overlay_slice(tile_id: int) -> Image:
 	if is_horse_tile(tile_id):
-		var n := _U4TileBankScript.frame_count(tile_id)
-		var f := 0 if n <= 1 else posmod(_tile_anim_frame, n)
-		return _U4TileBankScript.keyed_copy(tile_id, f)
+		return _U4TileBankScript.keyed_copy(tile_id, _horse_stand_frame_id(tile_id))
 	if _overlay_slices.has(tile_id):
 		return _overlay_slices[tile_id] as Image
 	var img := _slice_keyed_tile(tile_id)
