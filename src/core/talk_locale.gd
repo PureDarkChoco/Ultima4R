@@ -12,8 +12,8 @@ const DIR := "res://assets/locale/talk"
 
 const _SHELL_KO := {
 	"Your Interest:": "관심사:",
-	"That I cannot\nhelp thee with.": "그것은 내가\n도울 수 없구나.",
-	"That I cannot help thee with.": "그것은 내가 도울 수 없구나.",
+	"That I cannot\nhelp thee with.": "그것은 내가\n도울 수 없습니다.",
+	"That I cannot help thee with.": "그것은 내가 도울 수 없습니다.",
 	"How much?": "얼마를?",
 	"Yes or no!": "예 또는 아니!",
 	"Thou hast not that much gold!": "그만한 금은 없구나!",
