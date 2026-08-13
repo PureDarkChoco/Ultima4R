@@ -449,26 +449,29 @@
         "name": "이누",
         "pronoun": "그녀",
         "look": "늙은 집시다.",
-        "job": "점술가요.\n손금을 보오.",
+        "job": "손금을 보오.",
         "health": "오늘은 괜찮으리라\n예언하오!",
         "response1": "손금이 운세를\n말하오!",
-        "response2": "손바닥을\n내미시오.",
-        "question": "그대의 운명을\n알고 싶소?",
+        "response2": "손을\n내미시오.",
+        "question": "그대의 운세를\n알고 싶소?",
         "yes": "큰 퀘스트가\n그대를 심연으로\n이끌리니, 그곳에서\n코덱스가 기다리오!",
         "no": "현명한 선택이오.",
         "topic1": "손금",
         "topic1_aliases": [
           "손금",
           "손바닥",
-          "palm"
+          "palm",
+          "palms"
         ],
         "topic2": "운세",
         "topic2_aliases": [
           "운세",
           "점",
+          "점술",
+          "점술가",
           "운명",
           "fortune",
-          "fort"
+          "fortunes"
         ]
       }
     },

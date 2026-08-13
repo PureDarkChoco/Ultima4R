@@ -278,6 +278,11 @@ class Entry:
 			elif tl == "begg":
 				_add_kw(out, seen, "beggar")
 				_add_kw(out, seen, "beggars")
+			elif tl == "fort":
+				_add_kw(out, seen, "fortune")
+				_add_kw(out, seen, "fortunes")
+			elif tl == "palm":
+				_add_kw(out, seen, "palms")
 		## Omit "bye" — farewell is a system line, not an in-dialogue topic hint.
 		for t: String in ["job", "heal", "health", "name", "look", "give", "join"]:
 			_add_kw(out, seen, t)

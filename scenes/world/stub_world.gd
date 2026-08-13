@@ -3635,6 +3635,27 @@ func _discover_talk_keywords(text: String) -> void:
 				return int(a.get("source_order", 0)) < int(b.get("source_order", 0))
 			return ai < bi
 	)
+	## Drop short stems that only hit because a longer form sits at the same
+	## spot (fort inside fortune, 점 inside 점술가). Keep the longer label.
+	var trimmed: Array[Dictionary] = []
+	for i in discoveries.size():
+		var a: Dictionary = discoveries[i]
+		var a_in := str(a.get("input", "")).to_lower()
+		var a_idx := int(a.get("text_index", -1))
+		var dominated := false
+		for j in discoveries.size():
+			if i == j:
+				continue
+			var b: Dictionary = discoveries[j]
+			if int(b.get("text_index", -1)) != a_idx:
+				continue
+			var b_in := str(b.get("input", "")).to_lower()
+			if b_in.length() > a_in.length() and b_in.begins_with(a_in):
+				dominated = true
+				break
+		if not dominated:
+			trimmed.append(a)
+	discoveries = trimmed
 	for discovery in discoveries:
 		var key := str(discovery.get("key", ""))
 		if key.is_empty() or _talk_keyword_menu_seen.has(key):
