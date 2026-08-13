@@ -6,8 +6,17 @@ extends Node
 const SFX_DIR := "res://assets/sfx"
 const POOL_SIZE := 4
 
-const ID_WALK_FOOT := "walk_foot"
+const ID_WALK_OUTDOOR := "walk_outdoor"
+const ID_WALK_INDOOR := "walk_indoor"
 const ID_WALK_HORSE := "walk_horse"
+const ID_DOOR := "door"
+
+## City paved floors → indoor steps; dirt/grass/scrub/forest/hills (and other) → outdoor.
+const FOOT_INDOOR_TILES := {
+	22: true, ## tile floor
+	62: true, ## brick floor
+	63: true, ## planks
+}
 
 var _streams: Dictionary = {} ## id → AudioStream
 var _pool: Array[AudioStreamPlayer] = []
@@ -19,8 +28,10 @@ var _volume_linear := 0.7
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pool()
-	_load_stream(ID_WALK_FOOT, "walk_foot.wav")
+	_load_stream(ID_WALK_OUTDOOR, "walk_outdoor.ogg")
+	_load_stream(ID_WALK_INDOOR, "walk_indoor.ogg")
 	_load_stream(ID_WALK_HORSE, "walk_horse.wav")
+	_load_stream(ID_DOOR, "door.ogg")
 	_apply_volume()
 
 
@@ -54,12 +65,21 @@ func play_id(id: String) -> void:
 	player.play()
 
 
-func play_foot_step() -> void:
-	play_id(ID_WALK_FOOT)
+func play_foot_step(terrain_tid: int = -1, in_city: bool = false) -> void:
+	## Outdoor soft ground → grass/leaves clip; city tile floors → indoor steps.
+	## Other tiles fall back to outdoor (replaces the old single walk_foot).
+	if in_city and FOOT_INDOOR_TILES.has(terrain_tid):
+		play_id(ID_WALK_INDOOR)
+		return
+	play_id(ID_WALK_OUTDOOR)
 
 
 func play_horse_step() -> void:
 	play_id(ID_WALK_HORSE)
+
+
+func play_door() -> void:
+	play_id(ID_DOOR)
 
 
 func _build_pool() -> void:

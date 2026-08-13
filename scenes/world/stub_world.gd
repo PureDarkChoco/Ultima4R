@@ -2780,7 +2780,7 @@ func _play_transport_step_sfx() -> void:
 	## One clip per successful tile step (gallop plays twice on a 2-tile move).
 	match _transport:
 		Transport.FOOT:
-			AudioSfx.play_foot_step()
+			AudioSfx.play_foot_step(_terrain_tid_at(_tile_pos), _is_in_city())
 		Transport.HORSE:
 			AudioSfx.play_horse_step()
 		_:
@@ -13985,6 +13985,7 @@ func _do_open(dir: Vector2i) -> String:
 			return Locale.t("cmd_cant")
 		if _TileRules.is_door(ctid):
 			if _map.open_combat_door(ctarget):
+				AudioSfx.play_door()
 				return Locale.t("cmd_opened")
 			return Locale.t("cmd_nothing_to_open")
 		return Locale.t("cmd_nothing_to_open")
@@ -14017,6 +14018,7 @@ func _do_open(dir: Vector2i) -> String:
 		_city_map.add_annotation(target.x, target.y, TILE_BRICK_FLOOR, DOOR_OPEN_TTL)
 		if _map != null and _map.has_method("refresh"):
 			_map.refresh()
+		AudioSfx.play_door()
 		return Locale.t("cmd_opened")
 	## World map: doors are rare; chests only open in cities.
 	if _world == null or not _world.loaded:

@@ -191,6 +191,13 @@ https://clockworkraven.itch.io/raven-fantasy-icons
 
 해당 에셋은 제작자가 itch.io 상품 페이지에서 제시한 이용 조건에 따라 사용됩니다. 수정 및 프로젝트 내 사용은 허용되지만, 에셋 자체를 별도 상품으로 재배포하거나 판매할 수 없습니다. 표시는 필수가 아니지만 감사의 뜻으로 출처를 기재합니다.
 
+Freesound
+
+일부 효과음은 Freesound에서 제공하는 무료 음원을 사용합니다.
+https://freesound.org/
+
+각 음원의 라이선스와 제작자 표시는 Freesound의 해당 음원 페이지를 따릅니다.
+
 D2Coding
 
 UI 글꼴은 SIL Open Font License(OFL)의 D2Coding을 사용합니다.
@@ -202,7 +209,7 @@ https://github.com/naver/d2codingfont
 
 AI 사용
 
-개발과 대화 번역에는 AI가 사용되었습니다."""
+개발, 대화 번역, 일부 이미지 생성에 AI가 사용되었습니다."""
 
 
 func _text_en() -> String:
@@ -246,6 +253,13 @@ https://clockworkraven.itch.io/raven-fantasy-icons
 
 The assets are used under the terms presented by the creator on the itch.io product page. Modification and use within a project are permitted, but the asset may not be redistributed or sold as a separate product. Attribution is not required, but is included with thanks.
 
+Freesound
+
+Some sound effects use free audio from Freesound.
+https://freesound.org/
+
+License and attribution for each clip follow that clip's page on Freesound.
+
 D2Coding
 
 The UI uses the D2Coding font under the SIL Open Font License (OFL).
@@ -257,4 +271,4 @@ Copyrights and trademarks in third-party projects and assets remain with their r
 
 AI usage
 
-AI was used for development and dialogue translation."""
+AI was used for development, dialogue translation, and some image generation."""
