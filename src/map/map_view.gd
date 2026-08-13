@@ -263,6 +263,8 @@ var _transport_tile := -1
 ## Cached mounted sprites (horse + rider); rebuilt when party leader class changes.
 var _horse_rider_w: Image
 var _horse_rider_e: Image
+var _horse_rider_w_frames: Array = []
+var _horse_rider_e_frames: Array = []
 var _horse_rider_class := -999
 ## Fallback Avatar-on-horse art from disk.
 var _horse_rider_w_asset: Image
@@ -2684,20 +2686,43 @@ func _load_horse_rider_assets() -> void:
 func _ensure_horse_riders() -> void:
 	## Live-composite horse + party #1 upper body when possible; else PNG assets.
 	var cls := GameState.party_leader_class()
-	if _horse_rider_w != null and _horse_rider_e != null and cls == _horse_rider_class:
+	if (
+		_horse_rider_w != null
+		and _horse_rider_e != null
+		and cls == _horse_rider_class
+		and not _horse_rider_w_frames.is_empty()
+		and not _horse_rider_e_frames.is_empty()
+	):
 		return
 	_horse_rider_class = cls
-	var composed_w := _compose_horse_rider(TILE_HORSE_W)
-	var composed_e := _compose_horse_rider(TILE_HORSE_E)
-	_horse_rider_w = composed_w if composed_w != null else _horse_rider_w_asset
-	_horse_rider_e = composed_e if composed_e != null else _horse_rider_e_asset
+	_horse_rider_w_frames = _compose_horse_rider_frames(TILE_HORSE_W, _horse_rider_w_asset)
+	_horse_rider_e_frames = _compose_horse_rider_frames(TILE_HORSE_E, _horse_rider_e_asset)
+	_horse_rider_w = (
+		_horse_rider_w_frames[0] if not _horse_rider_w_frames.is_empty()
+		else _horse_rider_w_asset
+	)
+	_horse_rider_e = (
+		_horse_rider_e_frames[0] if not _horse_rider_e_frames.is_empty()
+		else _horse_rider_e_asset
+	)
 
 
-func _compose_horse_rider(horse_id: int) -> Image:
+func _compose_horse_rider_frames(horse_id: int, fallback: Image) -> Array:
+	var n := _U4TileBankScript.frame_count(horse_id)
+	if n < 1:
+		n = 1
+	var out: Array = []
+	for i in n:
+		var img := _compose_horse_rider(horse_id, i)
+		out.append(img if img != null else fallback)
+	return out
+
+
+func _compose_horse_rider(horse_id: int, frame: int = 0) -> Image:
 	## Horse base + rider torso from the current party walker sprite.
 	if not tiles_ready or _avatar_a == null or _avatar_a.is_empty():
 		return null
-	var horse := _slice_keyed_tile(horse_id)
+	var horse := _U4TileBankScript.keyed_copy(horse_id, frame)
 	if horse == null or horse.is_empty():
 		return null
 	var rider := _avatar_a
@@ -2751,9 +2776,13 @@ func _compose_horse_rider(horse_id: int) -> Image:
 
 func _horse_rider_for_transport() -> Image:
 	_ensure_horse_riders()
-	if _transport_tile == TILE_HORSE_E:
-		return _horse_rider_e
-	return _horse_rider_w
+	var frames: Array = (
+		_horse_rider_e_frames if _transport_tile == TILE_HORSE_E
+		else _horse_rider_w_frames
+	)
+	if frames.is_empty():
+		return _horse_rider_e if _transport_tile == TILE_HORSE_E else _horse_rider_w
+	return frames[posmod(_tile_anim_frame, frames.size())]
 
 
 func _slice_keyed_tile(tile_id: int) -> Image:
@@ -5297,6 +5326,10 @@ func _paint_bridge_near_rails(cam: Vector2) -> void:
 
 
 func _overlay_slice(tile_id: int) -> Image:
+	if is_horse_tile(tile_id):
+		var n := _U4TileBankScript.frame_count(tile_id)
+		var f := 0 if n <= 1 else posmod(_tile_anim_frame, n)
+		return _U4TileBankScript.keyed_copy(tile_id, f)
 	if _overlay_slices.has(tile_id):
 		return _overlay_slices[tile_id] as Image
 	var img := _slice_keyed_tile(tile_id)
