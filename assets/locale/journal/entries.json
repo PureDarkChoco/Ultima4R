@@ -22,7 +22,7 @@
       "goal": "ask:antos-book",
       "complete_if_recorded": "lycaeum.father-antos.book",
       "en": "At the Lycaeum, ask Father Antos of the book.",
-      "ko": "리케이엄의 안토스 신부에게 책을 물으라."
+      "ko": "라이시엄의 안토스 신부에게 책을 물으라."
     },
     {
       "id": "lcb.zorin.antos-candle",
@@ -353,6 +353,26 @@
       "goal": "stone:blue",
       "en": "Honesty stone: found on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
       "ko": "정직의 돌: 기만의 던전 제단 위에 있다. 던전 제단실과 심연에서 쓰인다."
+    },
+    {
+      "id": "moonglow.shazom.nigel-recall",
+      "place": "moonglow",
+      "npc": "Shazom",
+      "topic": "NIGE_YES",
+      "goal": "ask:nigel-recall",
+      "complete_if_recorded": "lycaeum.nigel.resurrection",
+      "en": "Seek Nigel at the Lycaeum; he can teach the recall spell.",
+      "ko": "라이시엄의 나이절을 찾으라. 기억 소환 주문을 가르칠 것이다."
+    },
+    {
+      "id": "moonglow.shazom.nigel-recall",
+      "place": "moonglow",
+      "npc": "Shazom",
+      "topic": "NIGE_NO",
+      "goal": "ask:nigel-recall",
+      "complete_if_recorded": "lycaeum.nigel.resurrection",
+      "en": "Seek Nigel at the Lycaeum; he can teach the recall spell.",
+      "ko": "라이시엄의 나이절을 찾으라. 기억 소환 주문을 가르칠 것이다."
     },
     {
       "id": "jhelom.robert.nostro-rune",
@@ -1121,7 +1141,7 @@
       "npc": "Nigel, at thy\nservice.",
       "topic": "RECA",
       "speaker_en": "Nigel",
-      "speaker_ko": "나이젤",
+      "speaker_ko": "나이절",
       "en": "Resurrection: ash, ginseng, garlic, silk, bloodmoss, and mandrake.",
       "ko": "부활: 재·인삼·마늘·거미실·블러드모스·맨드레이크."
     },

@@ -11910,6 +11910,11 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes and npc_key == "sprite":
 		if GameState.journal_try_capture("britain", "Sprite", "HELP_YES"):
 			journal_changed = true
+	## Shazom (Moonglow): Yes/No after Nigel points to the Lycaeum teacher.
+	if npc_key == "shazom":
+		var shazom_topic := "NIGE_YES" if yes else "NIGE_NO"
+		if GameState.journal_try_capture("moonglow", "Shazom", shazom_topic):
+			journal_changed = true
 	## Learning child (Britain): No on the mantra points to Cricket.
 	if (
 		not yes
@@ -14412,6 +14417,16 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("moonglow.christen.william-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:william-rune"):
+			refresh = true
+	## Lycaeum: Nigel's Recall/Resurrection reagents complete Shazom's tip.
+	if (
+		place == "lycaeum"
+		and topic == "RECA"
+		and npc_key.replace("\n", " ").replace("\r", " ").begins_with("nigel")
+	):
+		if GameState.journal_mark_id("moonglow.shazom.nigel-recall"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:nigel-recall"):
 			refresh = true
 	## Jhelom: Nostro / Aesop complete prior name-directed tips.
 	if place == "jhelom" and npc_key == "nostro" and topic == "RUNE":

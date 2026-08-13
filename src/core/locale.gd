@@ -932,7 +932,7 @@ const _T := {
 	"place_lycaeum": {
 		"en_u4": "Lycaeum",
 		"en_us": "Lycaeum",
-		"ko": "리케이엄",
+		"ko": "라이시엄",
 	},
 	"place_empath": {
 		"en_u4": "Empath Abbey",
