@@ -119,6 +119,9 @@ static func _append_catalog_capture(
 			npc.strip_edges().to_lower(),
 			str(cat.get("topic", "")).strip_edges().to_lower(),
 		]
+	## Same id + upgrade: expand an existing clue in place (e.g. Tyrone stone → use).
+	if bool(cat.get("upgrade", false)):
+		return _upgrade_catalog_capture(gs, cat, place, npc, id)
 	if has_entry_id(gs, id):
 		return false
 	var goal := str(cat.get("goal", "")).strip_edges()
@@ -132,23 +135,13 @@ static func _append_catalog_capture(
 		)
 		or _catalog_completion_recorded(gs, cat)
 	)
-	var speaker_en := str(cat.get("speaker_en", "")).strip_edges()
-	var speaker_ko := str(cat.get("speaker_ko", "")).strip_edges()
-	if speaker_en.is_empty():
-		speaker_en = npc.strip_edges()
-	if speaker_ko.is_empty():
-		speaker_ko = speaker_en
-		## Prefer city pack name translation when Korean talk data is loaded.
-		_TalkLocale.ensure_city(place.strip_edges().to_lower())
-		var translated := _TalkLocale.line(speaker_en)
-		if not translated.is_empty() and translated != speaker_en:
-			speaker_ko = translated
+	var speakers := _catalog_speakers(cat, place, npc)
 	var entry := {
 		"id": id,
 		"place": place.strip_edges().to_lower(),
 		"npc": npc.strip_edges(),
-		"speaker_en": speaker_en,
-		"speaker_ko": speaker_ko,
+		"speaker_en": speakers[0],
+		"speaker_ko": speakers[1],
 		"en": str(cat.get("en", "")),
 		"ko": str(cat.get("ko", "")),
 		"at": int(Time.get_unix_time_from_system()),
@@ -156,11 +149,81 @@ static func _append_catalog_capture(
 		"goal": goal,
 		"chain": str(cat.get("chain", "")).strip_edges(),
 		"chain_order": int(cat.get("chain_order", 0)),
+		"upgraded": false,
 	}
 	var rows: Array = gs.journal_entries
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
 	return true
+
+
+static func _upgrade_catalog_capture(
+	gs: Node, cat: Dictionary, place: String, npc: String, id: String
+) -> bool:
+	## Mark an existing row upgraded, or insert already-upgraded if missing.
+	var rows: Array = gs.journal_entries
+	for i in rows.size():
+		var row: Variant = rows[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		if str(d.get("id", "")).strip_edges() != id:
+			continue
+		if bool(d.get("upgraded", false)):
+			return false
+		d["upgraded"] = true
+		d["en"] = str(cat.get("en", d.get("en", "")))
+		d["ko"] = str(cat.get("ko", d.get("ko", "")))
+		rows[i] = d
+		gs.journal_entries = rows
+		return true
+	## Heard the later tip first — record the expanded clue directly.
+	var base := find_catalog_by_id(id)
+	var goal := str(cat.get("goal", base.get("goal", ""))).strip_edges()
+	var complete_on_goal := str(cat.get("complete_on_goal", base.get("complete_on_goal", ""))).strip_edges()
+	var done := (
+		goal.is_empty()
+		or goal_already_met(gs, goal)
+		or (
+			not complete_on_goal.is_empty()
+			and goal_already_met(gs, complete_on_goal)
+		)
+		or _catalog_completion_recorded(gs, cat)
+		or _catalog_completion_recorded(gs, base)
+	)
+	var speakers := _catalog_speakers(cat if not cat.is_empty() else base, place, npc)
+	var entry := {
+		"id": id,
+		"place": place.strip_edges().to_lower(),
+		"npc": npc.strip_edges(),
+		"speaker_en": speakers[0],
+		"speaker_ko": speakers[1],
+		"en": str(cat.get("en", "")),
+		"ko": str(cat.get("ko", "")),
+		"at": int(Time.get_unix_time_from_system()),
+		"done": done,
+		"goal": goal,
+		"chain": str(cat.get("chain", base.get("chain", ""))).strip_edges(),
+		"chain_order": int(cat.get("chain_order", base.get("chain_order", 0))),
+		"upgraded": true,
+	}
+	_insert_in_chain_order(rows, entry)
+	gs.journal_entries = rows
+	return true
+
+
+static func _catalog_speakers(cat: Dictionary, place: String, npc: String) -> Array:
+	var speaker_en := str(cat.get("speaker_en", "")).strip_edges()
+	var speaker_ko := str(cat.get("speaker_ko", "")).strip_edges()
+	if speaker_en.is_empty():
+		speaker_en = npc.strip_edges()
+	if speaker_ko.is_empty():
+		speaker_ko = speaker_en
+		_TalkLocale.ensure_city(place.strip_edges().to_lower())
+		var translated := _TalkLocale.line(speaker_en)
+		if not translated.is_empty() and translated != speaker_en:
+			speaker_ko = translated
+	return [speaker_en, speaker_ko]
 
 
 static func _insert_in_chain_order(rows: Array, entry: Dictionary) -> void:
@@ -411,11 +474,25 @@ static func _rows_with_chains_grouped(rows: Array) -> Array:
 
 static func entry_text(row: Dictionary, lang: String) -> String:
 	## Catalog wording is authoritative so corrected clues also update old saves.
+	## Upgraded rows use en_upgraded / ko_upgraded when present.
 	var cat := find_catalog_by_id(str(row.get("id", "")))
+	var upgraded := bool(row.get("upgraded", false))
 	if lang == "ko":
+		if upgraded:
+			var ku := str(cat.get("ko_upgraded", "")).strip_edges()
+			if ku.is_empty():
+				ku = str(row.get("ko", "")).strip_edges()
+			if not ku.is_empty():
+				return ku
 		var ko := str(cat.get("ko", row.get("ko", ""))).strip_edges()
 		if not ko.is_empty():
 			return ko
+	if upgraded:
+		var eu := str(cat.get("en_upgraded", "")).strip_edges()
+		if eu.is_empty():
+			eu = str(row.get("en", "")).strip_edges()
+		if not eu.is_empty():
+			return eu
 	var en := str(cat.get("en", row.get("en", ""))).strip_edges()
 	if not en.is_empty():
 		return en

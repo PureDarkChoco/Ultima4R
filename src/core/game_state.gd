@@ -798,8 +798,12 @@ func companion_class_by_name(name: String) -> int:
 	var n := name.strip_edges()
 	if n.is_empty():
 		return -1
+	var n_lower := n.to_lower()
 	for i in PartyRoster.COMPANION_NAMES.size():
-		if str(PartyRoster.COMPANION_NAMES[i]).to_lower() == n.to_lower():
+		if str(PartyRoster.COMPANION_NAMES[i]).to_lower() == n_lower:
+			return i
+	for i in PartyRoster.COMPANION_NAMES_KO.size():
+		if str(PartyRoster.COMPANION_NAMES_KO[i]) == n:
 			return i
 	return -1
 
@@ -1166,7 +1170,7 @@ func party_member_display_name(slot: int) -> String:
 	if mid == player_cls:
 		return player_display_name()
 	if mid >= 0 and mid < PartyRoster.COMPANION_NAMES.size():
-		return PartyRoster.COMPANION_NAMES[mid]
+		return PartyRoster.companion_display_name(mid)
 	return Virtues.class_name_of(mid, lang_short())
 
 

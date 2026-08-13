@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row).",
   "entries": [
     {
       "id": "lcb.manual.zorin",
@@ -322,7 +322,7 @@
       "chain_order": 20,
       "goal": "rune:honesty",
       "en": "Honesty rune: search by Mariah's gold.",
-      "ko": "정직의 룬: 마리아의 금 쪽에서 찾으라."
+      "ko": "정직의 룬: 머라이어의 금 쪽에서 찾으라."
     },
     {
       "id": "moonglow.cromwell.honesty-mantra",
@@ -332,6 +332,27 @@
       "goal": "mantra:honesty",
       "en": "Honesty mantra: AHM.",
       "ko": "정직의 만트라: AHM."
+    },
+    {
+      "id": "moonglow.tyrone.honesty-stone",
+      "place": "moonglow",
+      "npc": "Tyrone",
+      "topic": "STON",
+      "goal": "stone:blue",
+      "en": "Honesty stone: found on an altar in the dungeon of Deceit.",
+      "ko": "정직의 돌: 기만의 던전 제단 위에 있다.",
+      "en_upgraded": "Honesty stone: found on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
+      "ko_upgraded": "정직의 돌: 기만의 던전 제단 위에 있다. 던전 제단실과 심연에서 쓰인다."
+    },
+    {
+      "id": "moonglow.tyrone.honesty-stone",
+      "place": "moonglow",
+      "npc": "Tyrone",
+      "topic": "USE",
+      "upgrade": true,
+      "goal": "stone:blue",
+      "en": "Honesty stone: found on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
+      "ko": "정직의 돌: 기만의 던전 제단 위에 있다. 던전 제단실과 심연에서 쓰인다."
     },
     {
       "id": "jhelom.robert.nostro-rune",

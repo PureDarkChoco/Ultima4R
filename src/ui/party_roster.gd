@@ -43,6 +43,20 @@ const COMPANION_NAMES := [
 	"Mariah", "Iolo", "Geoffrey", "Jaana",
 	"Julia", "Dupre", "Shamino", "Katrina",
 ]
+## Korean display names (talk locale / party roster when language is ko).
+const COMPANION_NAMES_KO := [
+	"머라이어", "아이올로", "제프리", "자나",
+	"줄리아", "듀프리", "샤미노", "카트리나",
+]
+
+
+static func companion_display_name(klass: int) -> String:
+	## English or Korean companion name for UI language.
+	if klass < 0 or klass >= COMPANION_NAMES.size():
+		return ""
+	if GameState.language == "ko" and klass < COMPANION_NAMES_KO.size():
+		return COMPANION_NAMES_KO[klass]
+	return COMPANION_NAMES[klass]
 
 const STUB_LEVELS := [8, 5, 7, 4, 3, 6, 5, 1]
 const STUB_HP := [250, 110, 88, 180, 35, 0, 38, 160]
@@ -642,7 +656,7 @@ static func member_ztats(slot: int) -> Dictionary:
 	if mid == player_cls:
 		nm = GameState.player_display_name()
 	else:
-		nm = COMPANION_NAMES[mid]
+		nm = companion_display_name(mid)
 	var sex := "M"
 	if mid == player_cls:
 		sex = "F" if GameState.player_sex == "female" else "M"
@@ -897,7 +911,7 @@ func refresh() -> void:
 		if mid == player_cls:
 			_names[i].text = pname
 		else:
-			_names[i].text = COMPANION_NAMES[mid]
+			_names[i].text = companion_display_name(mid)
 
 		var name_col := COL_TEXT if lv >= 8 else COL_TEXT_LOW
 		match st:
