@@ -379,9 +379,8 @@
         "question": "주문 배합을\n가장 잘하는 법을\n아시오?",
         "yes": "좋소!",
         "no": "비결은 시약에\n있소!",
-        "topic1": "연금",
+        "topic1": "연금술",
         "topic1_aliases": [
-          "연금",
           "연금술",
           "alchemy",
           "alch"
