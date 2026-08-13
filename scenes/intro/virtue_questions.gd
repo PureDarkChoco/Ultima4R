@@ -120,12 +120,7 @@ func _card_nav_delta(event: InputEvent) -> int:
 
 
 func _is_card_confirm(event: InputEvent) -> bool:
-	if _GameInput.is_select(event):
-		return true
-	if not (event is InputEventKey and event.pressed and not event.echo):
-		return false
-	var key := event as InputEventKey
-	return key.keycode == KEY_SPACE or key.physical_keycode == KEY_SPACE
+	return _GameInput.is_select(event)
 
 
 func _focus_card(index: int) -> void:

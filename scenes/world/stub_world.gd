@@ -4905,10 +4905,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
 			if _is_direction_key(event):
 				return
-			## xu4: Space / Enter cancel Dir? without a message.
-			if _is_dir_cancel_key(event):
-				_clear_pending_dir()
-				_clear_ship_yell_await()
+			## Space is Pass only — ignore it while Dir? is waiting.
+			if _is_space_key(event):
 				get_viewport().set_input_as_handled()
 				return
 			## Any other key → classic grey "What?" (no prompt), abort Dir?.
@@ -4971,15 +4969,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _is_peer_dismiss_key(event: InputEventKey) -> bool:
-	## xu4 peer(): readChoice("\\015 \\033") — Enter, Space, Esc.
+	## xu4 peer(): readChoice("\\015 \\033") — Enter, Esc.
 	var code := event.keycode
 	var phys := event.physical_keycode
 	return (
 		code == KEY_ESCAPE or phys == KEY_ESCAPE
-		or code == KEY_SPACE or phys == KEY_SPACE
 		or code == KEY_ENTER or phys == KEY_ENTER
 		or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
 	)
+
+
+func _is_space_key(event: InputEventKey) -> bool:
+	return event.keycode == KEY_SPACE or event.physical_keycode == KEY_SPACE
 
 
 func _is_direction_key(event: InputEventKey) -> bool:
@@ -4991,14 +4992,6 @@ func _is_direction_key(event: InputEventKey) -> bool:
 	)
 
 
-func _is_dir_cancel_key(event: InputEventKey) -> bool:
-	var code := event.keycode
-	var phys := event.physical_keycode
-	return (
-		code == KEY_SPACE or phys == KEY_SPACE
-		or code == KEY_ENTER or phys == KEY_ENTER
-		or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
-	)
 
 
 func _handle_command(cmd: int) -> void:
@@ -5974,12 +5967,10 @@ func _handle_save_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_cancel_save(true)
 			return true
-		if _is_order_cancel_key(k):
-			_cancel_save(true)
-			return true
 		if _save_stage == 2 and _is_delete_save_key(k):
 			_prompt_delete_load_slot()
 			return true
+		## Enter confirms the highlighted slot (load and save). Space is Pass, not confirm.
 		if _is_order_confirm_key(k):
 			_confirm_slot_pick(_save_panel.cursor() if _save_panel else 0)
 			return true
@@ -6667,7 +6658,7 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			return true
-	## Viewing sheet: Esc / Space / Enter cancel; Z returns to pick list.
+	## Viewing sheet: Esc / Enter close; Z returns to pick list.
 	if _ztats_stage == 2:
 		if _is_cancel_event(event):
 			_close_ztats(false)
@@ -6714,9 +6705,6 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_close_ztats(true)
 		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
-		_close_ztats(true)
-		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_ztats_slot(_ztats_cursor)
 		return true
@@ -6743,14 +6731,13 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 
 
 func _is_ztats_dismiss(event: InputEvent) -> bool:
-	## Only Esc / Space / Enter fully cancel Ztats.
+	## Esc / Enter close the sheet. Space is Pass, not dismiss.
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		var code := k.keycode
 		var phys := k.physical_keycode
 		return (
 			code == KEY_ESCAPE or phys == KEY_ESCAPE
-			or code == KEY_SPACE or phys == KEY_SPACE
 			or code == KEY_ENTER or phys == KEY_ENTER
 			or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
 		)
@@ -7021,9 +7008,6 @@ func _handle_ready_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_close_ready(true)
 		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
-		_close_ready(true)
-		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_ready_slot(_ready_cursor)
 		return true
@@ -7047,9 +7031,6 @@ func _handle_ready_weapon_input(event: InputEvent) -> bool:
 		_close_ready(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_close_ready(true)
-		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
 		_close_ready(true)
 		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
@@ -7300,9 +7281,6 @@ func _handle_wear_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_close_wear(true)
 		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
-		_close_wear(true)
-		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_wear_slot(_wear_cursor)
 		return true
@@ -7326,9 +7304,6 @@ func _handle_wear_armor_input(event: InputEvent) -> bool:
 		_close_wear(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_close_wear(true)
-		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
 		_close_wear(true)
 		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
@@ -7547,10 +7522,6 @@ func _handle_mix_input(event: InputEvent) -> bool:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
-			return true
-		## Space cancels the whole Mix session (list / letter / reagents).
-		if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
-			_close_mix(true)
 			return true
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
 		_close_mix(true)
@@ -7860,9 +7831,6 @@ func _handle_use_input(event: InputEvent) -> bool:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
-			return true
-		if k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE:
-			_close_use(true)
 			return true
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
 		_close_use(true)
@@ -8528,18 +8496,16 @@ func _handle_shrine_vision_key(event: InputEvent) -> bool:
 	if not (event is InputEventKey):
 		return true
 	var k := event as InputEventKey
-	## xu4 waitAnyKey after vision / advice.
+	## xu4 waitAnyKey after vision / advice. Space is Pass, not advance.
 	if (
 		k.keycode == KEY_ESCAPE
 		or k.physical_keycode == KEY_ESCAPE
 		or _is_order_confirm_key(k)
-		or k.keycode == KEY_SPACE
-		or k.physical_keycode == KEY_SPACE
 	):
 		_shrine_eject()
 		return true
-	## Any printable key advances.
-	if k.unicode > 0 or (k.keycode >= KEY_A and k.keycode <= KEY_Z):
+	## Any printable key advances, except space.
+	if (k.unicode > 32) or (k.keycode >= KEY_A and k.keycode <= KEY_Z):
 		_shrine_eject()
 		return true
 	return true
@@ -8962,13 +8928,10 @@ func _handle_camp_input(event: InputEvent) -> bool:
 
 
 func _handle_camp_watch_yn(event: InputEvent) -> bool:
-	## U5: Set a watch? — Y / N (A=Yes, B/Esc/Space=cancel→None).
+	## U5: Set a watch? — Y / N (A=Yes, B/Esc=cancel→None).
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			_cancel_camp(true)
-			return true
-		if _is_order_cancel_key(k):
 			_cancel_camp(true)
 			return true
 		if k.keycode == KEY_Y or k.physical_keycode == KEY_Y:
@@ -9021,9 +8984,6 @@ func _handle_camp_guard_pick(event: InputEvent) -> bool:
 		_cancel_camp(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_camp(true)
-		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
 		_cancel_camp(true)
 		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
@@ -9301,7 +9261,7 @@ func _close_camp(_show_none: bool) -> void:
 
 
 func _handle_order_input(event: InputEvent) -> bool:
-	## Digits / ↑↓+Enter / gamepad D-pad+A. Space/B/Esc cancel.
+	## Digits / ↑↓+Enter / gamepad D-pad+A. Esc / B cancel. Space is Pass, ignored here.
 	## Returns true if the event was consumed.
 	if event.is_echo() or not event.is_pressed():
 		return false
@@ -9318,11 +9278,7 @@ func _handle_order_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_clear_pending_order(true)
 		return true
-	## Keyboard Space cancels (Enter / pad A confirms).
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
-		_clear_pending_order(true)
-		return true
-	## Confirm: Enter or gamepad A (JOY_BUTTON_A = 0). Avoid `confirm` action — it includes Space.
+	## Confirm: Enter or gamepad A.
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_order_slot(_order_cursor)
 		return true
@@ -9341,13 +9297,6 @@ func _handle_order_input(event: InputEvent) -> bool:
 		_accept_order_slot(slot)
 		return true
 	return false
-
-
-func _is_order_cancel_key(event: InputEventKey) -> bool:
-	## Space cancels (Enter confirms via cursor). Esc handled separately.
-	var code := event.keycode
-	var phys := event.physical_keycode
-	return code == KEY_SPACE or phys == KEY_SPACE
 
 
 func _is_order_confirm_key(event: InputEventKey) -> bool:
@@ -11607,8 +11556,7 @@ func _is_talk_enter(k: InputEventKey) -> bool:
 
 
 func _is_talk_submit(k: InputEventKey) -> bool:
-	## Stage 2 any-key includes Space/Enter.
-	return _is_talk_enter(k) or k.keycode == KEY_SPACE or k.physical_keycode == KEY_SPACE
+	return _is_talk_enter(k)
 
 
 func _talk_append_char(ch: String) -> void:
@@ -12804,15 +12752,7 @@ func _handle_combat_pending_dir_event(event: InputEvent) -> bool:
 		_push_message(Locale.t("cmd_cancelled"), false)
 		_layout_prompt_row()
 		return true
-	if event is InputEventKey and _is_dir_cancel_key(event as InputEventKey):
-		_clear_pending_dir(true)
-		_push_message(Locale.t("cmd_cancelled"), false)
-		_layout_prompt_row()
-		return true
-	if _GameInput.is_select(event):
-		_clear_pending_dir(true)
-		_push_message(Locale.t("cmd_cancelled"), false)
-		_layout_prompt_row()
+	if event is InputEventKey and _is_space_key(event as InputEventKey):
 		return true
 	var dir := _GameInput.dir_from_event(event)
 	if dir == Vector2i.ZERO:
@@ -13925,9 +13865,6 @@ func _handle_chest_open_input(event: InputEvent) -> bool:
 		_cancel_chest_open(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_chest_open(true)
-		return true
-	if event is InputEventKey and _is_order_cancel_key(event as InputEventKey):
 		_cancel_chest_open(true)
 		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):

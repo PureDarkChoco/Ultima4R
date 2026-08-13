@@ -779,17 +779,7 @@ func _on_licenses_panel_closed() -> void:
 func _handle_load_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
-	## Same cancel path as name-form Esc / Back — restore Journey menu immediately.
-	if (
-		_GameInput.is_cancel(event)
-		or (
-			event is InputEventKey
-			and (
-				(event as InputEventKey).keycode == KEY_SPACE
-				or (event as InputEventKey).physical_keycode == KEY_SPACE
-			)
-		)
-	):
+	if _GameInput.is_cancel(event):
 		_close_load()
 		return true
 	if _GameInput.is_select(event):

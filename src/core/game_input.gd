@@ -32,7 +32,7 @@ static func is_cancel(event: InputEvent) -> bool:
 
 
 static func is_select(event: InputEvent) -> bool:
-	## South-face (A) / Enter — not Space (Space often cancels Dir? or Passes).
+	## South-face (A) / Enter — Space is Pass only, never confirm.
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
@@ -338,7 +338,6 @@ static func _ensure_confirm_cancel() -> void:
 		"confirm",
 		[
 			_key(KEY_ENTER),
-			_key(KEY_SPACE),
 			_joy_button(JOY_BUTTON_A),
 		]
 	)
@@ -389,10 +388,12 @@ static func _ensure_ui_nav() -> void:
 		[
 			_key(KEY_ENTER),
 			_key(KEY_KP_ENTER),
-			_key(KEY_SPACE),
 			_joy_button(JOY_BUTTON_A),
 		]
 	)
+	_erase_key_from_action("confirm", KEY_SPACE)
+	_erase_key_from_action("ui_accept", KEY_SPACE)
+	_erase_key_from_action("ui_select", KEY_SPACE)
 	_ensure_action(
 		"ui_cancel",
 		[
@@ -400,6 +401,21 @@ static func _ensure_ui_nav() -> void:
 			_joy_button(JOY_BUTTON_B),
 		]
 	)
+
+
+static func _erase_key_from_action(action: String, phys: Key) -> void:
+	if not InputMap.has_action(action):
+		return
+	var to_erase: Array[InputEvent] = []
+	for existing in InputMap.action_get_events(action):
+		if not (existing is InputEventKey):
+			continue
+		var a := existing as InputEventKey
+		var code := a.physical_keycode if a.physical_keycode != KEY_NONE else a.keycode
+		if code == phys:
+			to_erase.append(existing)
+	for existing in to_erase:
+		InputMap.action_erase_event(action, existing)
 
 
 static func _remove_joy_motion_events(action: String) -> void:
