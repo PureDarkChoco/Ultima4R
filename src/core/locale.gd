@@ -942,7 +942,7 @@ const _T := {
 	"place_serpent": {
 		"en_u4": "Serpents Hold",
 		"en_us": "Serpents Hold",
-		"ko": "서펜츠 홀드",
+		"ko": "서펀츠 홀드",
 	},
 	"place_shame": {
 		"en_u4": "Shame",
