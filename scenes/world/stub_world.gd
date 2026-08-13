@@ -4685,6 +4685,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_shop_number_input(event):
 			get_viewport().set_input_as_handled()
 			return
+		if _handle_talk_give_number_input(event):
+			get_viewport().set_input_as_handled()
+			return
 		if _handle_shop_sell_pick_input(event):
 			get_viewport().set_input_as_handled()
 			return
@@ -10300,6 +10303,69 @@ func _shop_number_adjust(delta: int) -> void:
 	_layout_prompt_row()
 
 
+func _talk_give_number_adjust(delta: int) -> void:
+	## Beggar Give amount — xu4 readInt(2), so 0..99.
+	if _talk_stage != 4 or delta == 0:
+		return
+	var current := int(_talk_buffer) if _talk_buffer.is_valid_int() else 0
+	_talk_buffer = str(clampi(current + delta, 0, 99))
+	_layout_prompt_row()
+
+
+func _submit_talk_give_number() -> void:
+	if _talk_stage != 4:
+		return
+	var submitted := _talk_buffer.strip_edges()
+	_talk_buffer = ""
+	_layout_prompt_row()
+	if not submitted.is_empty():
+		_push_talk_player_input(submitted)
+	var gold_amt := int(submitted) if submitted.is_valid_int() else 0
+	_talk_finish_give(gold_amt)
+
+
+func _handle_talk_give_number_input(event: InputEvent) -> bool:
+	## Same D-pad / stick / arrow affordances as vendor qty (↑↓ ±1, ←→ ±10).
+	if _talk_stage != 4:
+		return false
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		var delta := 0
+		if motion.axis == JOY_AXIS_LEFT_X:
+			delta = _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X) * 10
+		elif motion.axis == JOY_AXIS_LEFT_Y:
+			delta = -_GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
+		if delta != 0:
+			_talk_give_number_adjust(delta)
+		return true
+	if not event.is_pressed():
+		return false
+	if event is InputEventJoypadButton:
+		if event.is_echo():
+			return false
+		if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+			_submit_talk_give_number()
+			return true
+		var pad_dir := _GameInput.dir_from_event(event)
+		if pad_dir.x != 0:
+			_talk_give_number_adjust(pad_dir.x * 10)
+			return true
+		if pad_dir.y != 0:
+			_talk_give_number_adjust(-pad_dir.y)
+			return true
+		return false
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		var key_dir := _GameInput.dir_from_event(key_event)
+		if key_dir.x != 0:
+			_talk_give_number_adjust(key_dir.x * 10)
+			return true
+		if key_dir.y != 0:
+			_talk_give_number_adjust(-key_dir.y)
+			return true
+	return false
+
+
 func _submit_shop_number() -> void:
 	if _shop == null or int(_shop.mode) != _VendorShop.Mode.NUMBER:
 		return
@@ -12027,6 +12093,7 @@ func _talk_start_give() -> void:
 		_push_talk_script("How much?")
 		_talk_stage = 4
 		_talk_buffer = ""
+		_GameInput.reset_stick_navigation()
 		_layout_prompt_row()
 		return
 	_push_talk_script("%s says: I do not need thy gold.  Keep it!" % str(e.pronoun))
