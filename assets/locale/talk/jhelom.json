@@ -30,15 +30,11 @@
         "no": "전투에서 도망치는\n것은 비겁하오!",
         "topic1": "전사",
         "topic1_aliases": [
-          "전사",
-          "전사자",
           "warrior",
           "warr"
         ],
         "topic2": "전투",
         "topic2_aliases": [
-          "전투",
-          "싸움",
           "battle",
           "batt"
         ]
@@ -70,14 +66,11 @@
         "no": "겁쟁이로군!",
         "topic1": "전사",
         "topic1_aliases": [
-          "전사",
           "warrior",
           "warr"
         ],
         "topic2": "전투",
         "topic2_aliases": [
-          "전투",
-          "싸움",
           "battle",
           "batt"
         ]
@@ -109,15 +102,11 @@
         "no": "다행히도!",
         "topic1": "임신",
         "topic1_aliases": [
-          "임신",
-          "뱃속",
           "pregnant",
           "preg"
         ],
         "topic2": "양",
         "topic2_aliases": [
-          "양",
-          "양떼",
           "sheep",
           "shee"
         ]
@@ -149,15 +138,11 @@
         "no": "찾으시오!",
         "topic1": "던전",
         "topic1_aliases": [
-          "던전",
-          "지하",
           "dungeon",
           "dung"
         ],
         "topic2": "방",
         "topic2_aliases": [
-          "방",
-          "제단",
           "room"
         ]
       }
@@ -188,13 +173,10 @@
         "no": "그렇군.",
         "topic1": "악",
         "topic1_aliases": [
-          "악",
           "evil"
         ],
         "topic2": "살해",
         "topic2_aliases": [
-          "살해",
-          "죽임",
           "kill"
         ]
       }
@@ -225,18 +207,13 @@
         "no": "용기의 사원을\n찾으시오!",
         "topic1": "용기",
         "topic1_aliases": [
-          "용기",
-          "용맹",
           "valor",
           "valo"
         ],
         "topic2": "사원",
         "topic2_aliases": [
-          "사원",
-          "제단",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ]
       }
     },
@@ -266,14 +243,10 @@
         "no": "A",
         "topic1": "문",
         "topic1_aliases": [
-          "문",
-          "성문",
           "gate"
         ],
         "topic2": "통로",
         "topic2_aliases": [
-          "통로",
-          "통행",
           "passage",
           "pass"
         ]
@@ -305,15 +278,11 @@
         "no": "그대는 용감하오!",
         "topic1": "용기",
         "topic1_aliases": [
-          "용기",
-          "용맹",
           "valor",
           "valo"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
-          "진언",
           "mantra",
           "mant"
         ]
@@ -345,14 +314,11 @@
         "no": "던전 데스타드에\n있소!",
         "topic1": "던전",
         "topic1_aliases": [
-          "던전",
           "dungeon",
           "dung"
         ],
         "topic2": "돌",
         "topic2_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ]
@@ -384,15 +350,11 @@
         "no": "아쉽소.",
         "topic1": "탑",
         "topic1_aliases": [
-          "탑",
-          "망루",
           "tower",
           "towe"
         ],
         "topic2": "죄",
         "topic2_aliases": [
-          "죄",
-          "범죄",
           "crime",
           "crim"
         ]
@@ -424,13 +386,11 @@
         "no": "비열한 자!\n그래도 따라가겠소!",
         "topic1": "통로",
         "topic1_aliases": [
-          "통로",
           "passage",
           "pass"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -461,15 +421,11 @@
         "no": "영성의 도시요!",
         "topic1": "빛",
         "topic1_aliases": [
-          "빛",
-          "광명",
           "light",
           "ligh"
         ],
         "topic2": "유",
         "topic2_aliases": [
-          "유",
-          "유 시",
           "yew"
         ]
       }
@@ -500,14 +456,11 @@
         "no": "걱정하게\n만들었군!",
         "topic1": "숙소",
         "topic1_aliases": [
-          "숙소",
-          "방",
           "house",
           "hous"
         ],
         "topic2": "방",
         "topic2_aliases": [
-          "방",
           "room"
         ]
       }
@@ -538,15 +491,11 @@
         "no": "그럼 제단 방에서\n붉은 돌이 필요하오.\n열쇠 세 번째 조각을\n얻으려면!",
         "topic1": "돌",
         "topic1_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ],
         "topic2": "빨강",
         "topic2_aliases": [
-          "빨강",
-          "붉은",
           "red"
         ]
       }
@@ -577,15 +526,11 @@
         "no": "겁쟁이.",
         "topic1": "전투",
         "topic1_aliases": [
-          "전투",
-          "싸움",
           "battle",
           "batt"
         ],
         "topic2": "용기",
         "topic2_aliases": [
-          "용기",
-          "용맹",
           "valor",
           "valo"
         ]
@@ -617,14 +562,11 @@
         "no": "겁쟁이.",
         "topic1": "용기",
         "topic1_aliases": [
-          "용기",
-          "용맹",
           "valor",
           "valo"
         ],
         "topic2": "용감",
         "topic2_aliases": [
-          "용감",
           "brave",
           "brav"
         ]

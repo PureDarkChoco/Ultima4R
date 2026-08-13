@@ -30,15 +30,11 @@
         "no": "다음에 또.",
         "topic1": "영지",
         "topic1_aliases": [
-          "영지",
-          "지방",
           "province",
           "prov"
         ],
         "topic2": "말씀",
         "topic2_aliases": [
-          "말씀",
-          "단어",
           "word"
         ]
       }
@@ -69,13 +65,10 @@
         "no": "그러면\n못 찾을 것이오!",
         "topic1": "통치",
         "topic1_aliases": [
-          "통치",
-          "다스림",
           "rule"
         ],
         "topic2": "영지",
         "topic2_aliases": [
-          "영지",
           "province",
           "prov"
         ]
@@ -107,14 +100,11 @@
         "no": "인색한 자!",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "시간",
         "topic2_aliases": [
-          "시간",
-          "근무",
           "hour"
         ]
       }
@@ -145,13 +135,10 @@
         "no": "보라!!!",
         "topic1": "보여 줌",
         "topic1_aliases": [
-          "보여",
-          "전시",
           "show"
         ],
         "topic2": "망원경",
         "topic2_aliases": [
-          "망원경",
           "telescope",
           "tele"
         ]
@@ -183,12 +170,10 @@
         "no": "오.",
         "topic1": "지식",
         "topic1_aliases": [
-          "지식",
           "know"
         ],
         "topic2": "책",
         "topic2_aliases": [
-          "책",
           "book"
         ]
       }
@@ -219,14 +204,11 @@
         "no": "원리 세 가지의\n조합은 여덟,\n도시도 여덟!",
         "topic1": "왕좌",
         "topic1_aliases": [
-          "왕좌",
-          "알현",
           "throne",
           "thro"
         ],
         "topic2": "진리",
         "topic2_aliases": [
-          "진리",
           "truth",
           "trut"
         ]
@@ -258,13 +240,11 @@
         "no": "아아.",
         "topic1": "조언",
         "topic1_aliases": [
-          "조언",
           "advice",
           "advi"
         ],
         "topic2": "갑옷",
         "topic2_aliases": [
-          "갑옷",
           "armor",
           "armo"
         ]
@@ -296,13 +276,11 @@
         "no": "그러면 유의\n판사에게 말하시오!",
         "topic1": "연구",
         "topic1_aliases": [
-          "연구",
           "research",
           "reas"
         ],
         "topic2": "정의",
         "topic2_aliases": [
-          "정의",
           "justice",
           "just"
         ]
@@ -334,14 +312,11 @@
         "no": "여행하며\n배우시오!",
         "topic1": "환영",
         "topic1_aliases": [
-          "환영",
           "welcome",
           "welc"
         ],
         "topic2": "넷",
         "topic2_aliases": [
-          "넷",
-          "네",
           "four"
         ]
       }
@@ -372,13 +347,11 @@
         "no": "A",
         "topic1": "진리",
         "topic1_aliases": [
-          "진리",
           "truth",
           "trut"
         ],
         "topic2": "명상",
         "topic2_aliases": [
-          "명상",
           "meditate",
           "medi"
         ]
@@ -410,14 +383,11 @@
         "no": "던전들을\n서로 잇소!",
         "topic1": "전사",
         "topic1_aliases": [
-          "전사",
           "warrior",
           "warr"
         ],
         "topic2": "부상",
         "topic2_aliases": [
-          "부상",
-          "상처",
           "wound",
           "woun"
         ]
@@ -449,14 +419,11 @@
         "no": "마음껏\n둘러보시오.",
         "topic1": "도서관",
         "topic1_aliases": [
-          "도서관",
-          "사서",
           "library",
           "libr"
         ],
         "topic2": "진리",
         "topic2_aliases": [
-          "진리",
           "truth",
           "trut"
         ]
@@ -488,14 +455,11 @@
         "no": "브리타니아 성에\n살며 단서를\n물어보시오!",
         "topic1": "연예",
         "topic1_aliases": [
-          "연예",
-          "오락",
           "entertain",
           "ente"
         ],
         "topic2": "불행",
         "topic2_aliases": [
-          "불행",
           "unhappy",
           "unha"
         ]
@@ -527,13 +491,11 @@
         "no": "좋소, 걱정\n했소!",
         "topic1": "보물",
         "topic1_aliases": [
-          "보물",
           "treasure",
           "trea"
         ],
         "topic2": "가치",
         "topic2_aliases": [
-          "가치",
           "value",
           "valu"
         ]
@@ -565,14 +527,11 @@
         "no": "미안하오.",
         "topic1": "주문",
         "topic1_aliases": [
-          "주문",
           "spell",
           "spel"
         ],
         "topic2": "회상",
         "topic2_aliases": [
-          "회상",
-          "부활",
           "recall",
           "reca"
         ]
@@ -604,12 +563,10 @@
         "no": "오… 제발…",
         "topic1": "구걸",
         "topic1_aliases": [
-          "구걸",
           "beg"
         ],
         "topic2": "병",
         "topic2_aliases": [
-          "병",
           "sick"
         ]
       }

@@ -30,13 +30,11 @@
         "no": "심연은 블리스풀에게\n물어보시오.",
         "topic1": "심연",
         "topic1_aliases": [
-          "심연",
           "abyss",
           "abys"
         ],
         "topic2": "배",
         "topic2_aliases": [
-          "배",
           "ship"
         ]
       }
@@ -67,13 +65,11 @@
         "no": "치유사에게 가오.\n도울 것이오!",
         "topic1": "지혜",
         "topic1_aliases": [
-          "지혜",
           "wisdom",
           "wisd"
         ],
         "topic2": "평화",
         "topic2_aliases": [
-          "평화",
           "peace",
           "peac"
         ]
@@ -105,15 +101,11 @@
         "no": "그가 나타날 때까지\n여관에 머무시오!",
         "topic1": "은둔",
         "topic1_aliases": [
-          "은둔",
-          "은둔자",
           "recluse",
           "recl"
         ],
         "topic2": "돌",
         "topic2_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ]
@@ -145,14 +137,10 @@
         "no": "좋소.",
         "topic1": "예술",
         "topic1_aliases": [
-          "예술",
-          "마법예술",
           "arts"
         ],
         "topic2": "차원문",
         "topic2_aliases": [
-          "차원문",
-          "문",
           "gate"
         ]
       }
@@ -183,14 +171,11 @@
         "no": "오.",
         "topic1": "코덱스",
         "topic1_aliases": [
-          "코덱스",
           "codex",
           "code"
         ],
         "topic2": "방",
         "topic2_aliases": [
-          "방",
-          "챔버",
           "chamber",
           "cham"
         ]
@@ -222,12 +207,10 @@
         "no": "아쉽소.",
         "topic1": "사랑",
         "topic1_aliases": [
-          "사랑",
           "love"
         ],
         "topic2": "문제",
         "topic2_aliases": [
-          "문제",
           "problem",
           "prob"
         ]
@@ -259,15 +242,11 @@
         "no": "흠.",
         "topic1": "아이",
         "topic1_aliases": [
-          "아이",
-          "아이들",
           "child",
           "chil"
         ],
         "topic2": "세상",
         "topic2_aliases": [
-          "세상",
-          "세계",
           "world",
           "worl"
         ]
@@ -299,15 +278,11 @@
         "no": "아쉽소.",
         "topic1": "돌",
         "topic1_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ],
         "topic2": "달문",
         "topic2_aliases": [
-          "달문",
-          "문",
           "gate"
         ]
       }
@@ -338,7 +313,6 @@
         "no": "마을과 성을\n배우시오!",
         "topic1": "관계",
         "topic1_aliases": [
-          "관계",
           "relation",
           "rela"
         ],
@@ -372,13 +346,11 @@
         "no": "A",
         "topic1": "코덱스",
         "topic1_aliases": [
-          "코덱스",
           "codex",
           "code"
         ],
         "topic2": "심연",
         "topic2_aliases": [
-          "심연",
           "abyss",
           "abys"
         ]
@@ -410,13 +382,10 @@
         "no": "어리석은 자.",
         "topic1": "사랑",
         "topic1_aliases": [
-          "사랑",
           "love"
         ],
         "topic2": "마음",
         "topic2_aliases": [
-          "마음",
-          "심장",
           "heart",
           "hear"
         ]
@@ -448,14 +417,11 @@
         "no": "과연.",
         "topic1": "강",
         "topic1_aliases": [
-          "강",
           "river",
           "rive"
         ],
         "topic2": "말씀",
         "topic2_aliases": [
-          "말씀",
-          "단어",
           "word"
         ]
       }
@@ -486,13 +452,11 @@
         "no": "A",
         "topic1": "코덱스",
         "topic1_aliases": [
-          "코덱스",
           "codex",
           "code"
         ],
         "topic2": "조합",
         "topic2_aliases": [
-          "조합",
           "combination",
           "comb"
         ]
@@ -524,13 +488,11 @@
         "no": "A",
         "topic1": "연구",
         "topic1_aliases": [
-          "연구",
           "study",
           "stud"
         ],
         "topic2": "코덱스",
         "topic2_aliases": [
-          "코덱스",
           "codex",
           "code"
         ]
@@ -562,12 +524,10 @@
         "no": "우주의 진리,\n마음의 사랑,\n영혼의 용기!",
         "topic1": "열쇠",
         "topic1_aliases": [
-          "열쇠",
           "key"
         ],
         "topic2": "공리",
         "topic2_aliases": [
-          "공리",
           "axiom",
           "axio"
         ]
@@ -599,13 +559,11 @@
         "no": "A",
         "topic1": "공리",
         "topic1_aliases": [
-          "공리",
           "axiom",
           "axio"
         ],
         "topic2": "부분",
         "topic2_aliases": [
-          "부분",
           "part"
         ]
       }

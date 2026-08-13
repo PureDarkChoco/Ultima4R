@@ -30,14 +30,11 @@
         "no": "좋소.",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "소란",
         "topic2_aliases": [
-          "소란",
-          "문제",
           "trouble",
           "trou"
         ]
@@ -69,14 +66,11 @@
         "no": "그럼 스미스를\n보러 온 거겠소!",
         "topic1": "마구간",
         "topic1_aliases": [
-          "마구간",
           "stable",
           "stab"
         ],
         "topic2": "스미스",
         "topic2_aliases": [
-          "스미스",
-          "말",
           "smith",
           "smit"
         ]
@@ -108,14 +102,11 @@
         "no": "팔을 키우시오,\n예!",
         "topic1": "벌목",
         "topic1_aliases": [
-          "벌목",
-          "벌목꾼",
           "lumber",
           "lumb"
         ],
         "topic2": "도끼",
         "topic2_aliases": [
-          "도끼",
           "axe"
         ]
       }
@@ -146,14 +137,11 @@
         "no": "찾으시오!",
         "topic1": "코덱스",
         "topic1_aliases": [
-          "코덱스",
           "codex",
           "code"
         ],
         "topic2": "말씀",
         "topic2_aliases": [
-          "말씀",
-          "단어",
           "word"
         ]
       }
@@ -184,14 +172,10 @@
         "no": "아쉽소. 이게\n최고요!",
         "topic1": "에일",
         "topic1_aliases": [
-          "에일",
-          "맥주",
           "ale"
         ],
         "topic2": "양조",
         "topic2_aliases": [
-          "양조",
-          "맥주",
           "brew"
         ]
       }
@@ -222,13 +206,11 @@
         "no": "로크 호수 숨은\n마을에 사시니 배로만\n가오. 차원문을\n물어보시오!",
         "topic1": "마법",
         "topic1_aliases": [
-          "마법",
           "magic",
           "magi"
         ],
         "topic2": "스승",
         "topic2_aliases": [
-          "스승",
           "master",
           "mast"
         ]
@@ -260,14 +242,11 @@
         "no": "참으로\n아쉽소!",
         "topic1": "충성",
         "topic1_aliases": [
-          "충성",
-          "신실",
           "faith",
           "fait"
         ],
         "topic2": "퀘스트",
         "topic2_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ]
@@ -299,12 +278,10 @@
         "no": "겁쟁이\n같군.",
         "topic1": "음식",
         "topic1_aliases": [
-          "음식",
           "food"
         ],
         "topic2": "식량",
         "topic2_aliases": [
-          "식량",
           "ration",
           "rati"
         ]
@@ -336,7 +313,6 @@
         "no": "그렇군.",
         "topic1": "룬",
         "topic1_aliases": [
-          "룬",
           "rune"
         ],
         "topic2": "",
@@ -369,13 +345,10 @@
         "no": "두고 봅시다.",
         "topic1": "땅",
         "topic1_aliases": [
-          "땅",
-          "국토",
           "land"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -436,15 +409,11 @@
         "no": "아아.",
         "topic1": "수호",
         "topic1_aliases": [
-          "수호",
-          "지키는",
           "keeper",
           "keep"
         ],
         "topic2": "신비",
         "topic2_aliases": [
-          "신비",
-          "미스틱",
           "mystic",
           "myst"
         ]
@@ -476,15 +445,11 @@
         "no": "아아.",
         "topic1": "수호",
         "topic1_aliases": [
-          "수호",
-          "지키는",
           "keeper",
           "keep"
         ],
         "topic2": "신비",
         "topic2_aliases": [
-          "신비",
-          "미스틱",
           "mystic",
           "myst"
         ]
@@ -516,15 +481,11 @@
         "no": "그럼 내 도움이\n전혀 없겠군.",
         "topic1": "섬김",
         "topic1_aliases": [
-          "섬김",
-          "봉사",
           "serve",
           "serv"
         ],
         "topic2": "춤",
         "topic2_aliases": [
-          "춤",
-          "댄스",
           "dance",
           "danc"
         ]
@@ -556,14 +517,11 @@
         "no": "소문일 뿐이오.",
         "topic1": "브리타니아",
         "topic1_aliases": [
-          "브리타니아",
           "britannia",
           "brit"
         ],
         "topic2": "지구",
         "topic2_aliases": [
-          "지구",
-          "세상",
           "earth",
           "eart"
         ]

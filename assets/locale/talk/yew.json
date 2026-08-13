@@ -30,13 +30,11 @@
         "no": "아아.",
         "topic1": "정의",
         "topic1_aliases": [
-          "정의",
           "justice",
           "just"
         ],
         "topic2": "이해",
         "topic2_aliases": [
-          "이해",
           "understand",
           "unde"
         ]
@@ -68,14 +66,11 @@
         "no": "심리를 방해하지\n마시오!",
         "topic1": "정의",
         "topic1_aliases": [
-          "정의",
           "justice",
           "just"
         ],
         "topic2": "법정",
         "topic2_aliases": [
-          "법정",
-          "재판",
           "court",
           "cour"
         ]
@@ -107,13 +102,11 @@
         "no": "방문이오,\n그런가.",
         "topic1": "경범죄",
         "topic1_aliases": [
-          "경범죄",
           "misdemeanor",
           "misd"
         ],
         "topic2": "중죄",
         "topic2_aliases": [
-          "중죄",
           "felony",
           "felo"
         ]
@@ -145,15 +138,11 @@
         "no": "숙달자.",
         "topic1": "주문",
         "topic1_aliases": [
-          "주문",
-          "마법",
           "spell",
           "spel"
         ],
         "topic2": "맨드레이크",
         "topic2_aliases": [
-          "맨드레이크",
-          "만드레이크",
           "mandrake",
           "mand"
         ]
@@ -185,13 +174,11 @@
         "no": "감방에서 속죄하고,\n중죄인과 함께\n잘 찾으시오.",
         "topic1": "정의",
         "topic1_aliases": [
-          "정의",
           "justice",
           "just"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -222,14 +209,11 @@
         "no": "적어도 정직하오.",
         "topic1": "정의",
         "topic1_aliases": [
-          "정의",
           "justice",
           "just"
         ],
         "topic2": "결",
         "topic2_aliases": [
-          "결",
-          "천",
           "fabric",
           "fabr"
         ]
@@ -261,12 +245,10 @@
         "no": "A",
         "topic1": "베",
         "topic1_aliases": [
-          "베",
           "beh"
         ],
         "topic2": "베",
         "topic2_aliases": [
-          "베",
           "beh"
         ]
       }
@@ -297,13 +279,11 @@
         "no": "아쉽소.",
         "topic1": "정의",
         "topic1_aliases": [
-          "정의",
           "justice",
           "just"
         ],
         "topic2": "유",
         "topic2_aliases": [
-          "유",
           "yew"
         ]
       }
@@ -334,13 +314,11 @@
         "no": "좋소.",
         "topic1": "죄",
         "topic1_aliases": [
-          "죄",
           "sin",
           "sine"
         ],
         "topic2": "중죄",
         "topic2_aliases": [
-          "중죄",
           "felon",
           "felo"
         ]
@@ -372,13 +350,11 @@
         "no": "그래, 왔잖소!",
         "topic1": "악당",
         "topic1_aliases": [
-          "악당",
           "villain",
           "vill"
         ],
         "topic2": "사람",
         "topic2_aliases": [
-          "사람",
           "people",
           "peop"
         ]
@@ -410,13 +386,10 @@
         "no": "아, 왜 망쳐\n놓소!",
         "topic1": "집",
         "topic1_aliases": [
-          "집",
-          "고향",
           "home"
         ],
         "topic2": "초원",
         "topic2_aliases": [
-          "초원",
           "range",
           "rang"
         ]
@@ -448,13 +421,11 @@
         "no": "아쉽네요. 모두\n원해요!",
         "topic1": "존스",
         "topic1_aliases": [
-          "존스",
           "jones",
           "jone"
         ],
         "topic2": "퀘스트",
         "topic2_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ]
@@ -486,13 +457,10 @@
         "no": "사악한 자,\n저주하리!",
         "topic1": "아기",
         "topic1_aliases": [
-          "아기",
-          "아이",
           "baby"
         ],
         "topic2": "정의",
         "topic2_aliases": [
-          "정의",
           "justice",
           "just"
         ]
@@ -524,14 +492,11 @@
         "no": "비열한 자.",
         "topic1": "의회",
         "topic1_aliases": [
-          "의회",
-          "자문",
           "council",
           "coun"
         ],
         "topic2": "정의",
         "topic2_aliases": [
-          "정의",
           "justice",
           "just"
         ]
@@ -563,13 +528,11 @@
         "no": "노력하시오!",
         "topic1": "평화",
         "topic1_aliases": [
-          "평화",
           "peace",
           "peac"
         ],
         "topic2": "정의",
         "topic2_aliases": [
-          "정의",
           "justice",
           "just"
         ]
@@ -601,16 +564,13 @@
         "no": "탈푸르드에게\n룬을 물으시오.",
         "topic1": "정의",
         "topic1_aliases": [
-          "정의",
           "justice",
           "just"
         ],
         "topic2": "사원",
         "topic2_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ]
       }
     }

@@ -30,14 +30,11 @@
         "no": "예울롬·미녹·\n트린식·\n스카라 브레.",
         "topic1": "영지",
         "topic1_aliases": [
-          "영지",
           "province",
           "prov"
         ],
         "topic2": "말씀",
         "topic2_aliases": [
-          "말씀",
-          "단어",
           "word"
         ]
       }
@@ -68,12 +65,10 @@
         "no": "아니면 경비가\n되려 하는가!",
         "topic1": "문",
         "topic1_aliases": [
-          "문",
           "gate"
         ],
         "topic2": "경비",
         "topic2_aliases": [
-          "경비",
           "guard",
           "guar"
         ]
@@ -105,13 +100,10 @@
         "no": "강한 배였소!",
         "topic1": "배",
         "topic1_aliases": [
-          "배",
           "ship"
         ],
         "topic2": "타륜",
         "topic2_aliases": [
-          "타륜",
-          "바퀴",
           "wheel",
           "whee"
         ]
@@ -143,13 +135,11 @@
         "no": "여기가\n제자리요.",
         "topic1": "심연",
         "topic1_aliases": [
-          "심연",
           "abyss",
           "abys"
         ],
         "topic2": "코덱스",
         "topic2_aliases": [
-          "코덱스",
           "codex",
           "code"
         ]
@@ -181,13 +171,11 @@
         "no": "겁쟁이.",
         "topic1": "훈련",
         "topic1_aliases": [
-          "훈련",
           "train",
           "trai"
         ],
         "topic2": "던전",
         "topic2_aliases": [
-          "던전",
           "dungeon",
           "dung"
         ]
@@ -219,14 +207,11 @@
         "no": "아쉽소.",
         "topic1": "훈련",
         "topic1_aliases": [
-          "훈련",
           "train",
           "trai"
         ],
         "topic2": "방",
         "topic2_aliases": [
-          "방",
-          "제단",
           "room"
         ]
       }
@@ -257,12 +242,10 @@
         "no": "방해하지\n마시오.",
         "topic1": "영주",
         "topic1_aliases": [
-          "영주",
           "lord"
         ],
         "topic2": "성",
         "topic2_aliases": [
-          "성",
           "castle",
           "cast"
         ]
@@ -294,13 +277,11 @@
         "no": "현명한 선택!",
         "topic1": "보물",
         "topic1_aliases": [
-          "보물",
           "treasure",
           "trea"
         ],
         "topic2": "던전",
         "topic2_aliases": [
-          "던전",
           "dungeon",
           "dung"
         ]
@@ -332,13 +313,11 @@
         "no": "그럼 훈련!",
         "topic1": "용기",
         "topic1_aliases": [
-          "용기",
           "courage",
           "cour"
         ],
         "topic2": "종",
         "topic2_aliases": [
-          "종",
           "bell"
         ]
       }
@@ -369,13 +348,11 @@
         "no": "아깝소.",
         "topic1": "퀘스트",
         "topic1_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ],
         "topic2": "던전",
         "topic2_aliases": [
-          "던전",
           "dungeon",
           "dung"
         ]
@@ -407,13 +384,11 @@
         "no": "그럼 가시오!",
         "topic1": "가람",
         "topic1_aliases": [
-          "가람",
           "garam",
           "gara"
         ],
         "topic2": "더럼",
         "topic2_aliases": [
-          "더럼",
           "durham",
           "durh"
         ]
@@ -445,13 +420,11 @@
         "no": "그럼 가시오!",
         "topic1": "가람",
         "topic1_aliases": [
-          "가람",
           "garam",
           "gara"
         ],
         "topic2": "더럼",
         "topic2_aliases": [
-          "더럼",
           "durham",
           "durh"
         ]
@@ -483,12 +456,10 @@
         "no": "인색하군!",
         "topic1": "손",
         "topic1_aliases": [
-          "손",
           "hand"
         ],
         "topic2": "오브",
         "topic2_aliases": [
-          "오브",
           "orb",
           "orbs"
         ]
@@ -520,12 +491,10 @@
         "no": "전사 가람에게\n물으시오. 위치를\n아오!",
         "topic1": "정보",
         "topic1_aliases": [
-          "정보",
           "info"
         ],
         "topic2": "종",
         "topic2_aliases": [
-          "종",
           "bell"
         ]
       }
@@ -556,13 +525,11 @@
         "no": "위대한 배!",
         "topic1": "바다",
         "topic1_aliases": [
-          "바다",
           "seas",
           "sea"
         ],
         "topic2": "배",
         "topic2_aliases": [
-          "배",
           "ship"
         ]
       }
@@ -593,13 +560,11 @@
         "no": "그럼 치유사를\n찾으시오!",
         "topic1": "센트린",
         "topic1_aliases": [
-          "센트린",
           "sentri",
           "sent"
         ],
         "topic2": "치유",
         "topic2_aliases": [
-          "치유",
           "heal"
         ]
       }

@@ -30,15 +30,10 @@
         "no": "인색한 분이군요.",
         "topic1": "돌봄",
         "topic1_aliases": [
-          "돌봄",
-          "보살핌",
           "care"
         ],
         "topic2": "가난",
         "topic2_aliases": [
-          "가난",
-          "빈민",
-          "곤궁",
           "poor"
         ]
       }
@@ -69,15 +64,11 @@
         "no": "흠.",
         "topic1": "무기",
         "topic1_aliases": [
-          "무기",
-          "병기",
           "weapon",
           "weap"
         ],
         "topic2": "신비",
         "topic2_aliases": [
-          "신비",
-          "미스틱",
           "mystic",
           "myst"
         ]
@@ -109,15 +100,10 @@
         "no": "그러면 같이\n구걸이라도 하지요!",
         "topic1": "도움",
         "topic1_aliases": [
-          "도움",
-          "원조",
           "help"
         ],
         "topic2": "병",
         "topic2_aliases": [
-          "병",
-          "질병",
-          "아픔",
           "sick"
         ]
       }
@@ -148,16 +134,11 @@
         "no": "아, 그렇군요.",
         "topic1": "배고픔",
         "topic1_aliases": [
-          "배고픔",
-          "굶주림",
           "hunger",
           "hung"
         ],
         "topic2": "음식",
         "topic2_aliases": [
-          "음식",
-          "밥",
-          "양식",
           "food"
         ]
       }
@@ -188,14 +169,10 @@
         "no": "슬프군요.",
         "topic1": "죽음",
         "topic1_aliases": [
-          "죽음",
-          "사망",
           "die"
         ],
         "topic2": "의식",
         "topic2_aliases": [
-          "의식",
-          "정신",
           "conscious",
           "cons"
         ]
@@ -227,15 +204,11 @@
         "no": "오.",
         "topic1": "구원",
         "topic1_aliases": [
-          "구원",
-          "속죄",
           "redeem",
           "rede"
         ],
         "topic2": "해골",
         "topic2_aliases": [
-          "해골",
-          "스컬",
           "skull",
           "skul"
         ]
@@ -267,14 +240,10 @@
         "no": "오.",
         "topic1": "소문",
         "topic1_aliases": [
-          "소문",
-          "이야기",
           "hear"
         ],
         "topic2": "돌",
         "topic2_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ]
@@ -306,13 +275,10 @@
         "no": "스카라 브레에는\n없소.",
         "topic1": "방",
         "topic1_aliases": [
-          "방",
-          "숙소",
           "room"
         ],
         "topic2": "스카라",
         "topic2_aliases": [
-          "스카라",
           "skara",
           "skar"
         ]
@@ -344,13 +310,11 @@
         "no": "아쉽군요.",
         "topic1": "꽃",
         "topic1_aliases": [
-          "꽃",
           "flower",
           "flow"
         ],
         "topic2": "친절",
         "topic2_aliases": [
-          "친절",
           "kind"
         ]
       }
@@ -381,13 +345,11 @@
         "no": "당신은 아바타가\n아니로군요!",
         "topic1": "희생",
         "topic1_aliases": [
-          "희생",
           "sacrifice",
           "sacr"
         ],
         "topic2": "미덕",
         "topic2_aliases": [
-          "미덕",
           "virtue",
           "virt"
         ]
@@ -419,12 +381,10 @@
         "no": "아쉽네요…",
         "topic1": "노래",
         "topic1_aliases": [
-          "노래",
           "sing"
         ],
         "topic2": "가사",
         "topic2_aliases": [
-          "가사",
           "song"
         ]
       }
@@ -455,14 +415,11 @@
         "no": "아, 물론 할 수\n있지. 이 잔소리꾼이!",
         "topic1": "생각",
         "topic1_aliases": [
-          "생각",
-          "사유",
           "think",
           "thin"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ]
@@ -494,13 +451,10 @@
         "no": "찾으면\n다시 오세요!",
         "topic1": "이것",
         "topic1_aliases": [
-          "이것",
-          "저것",
           "this"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -531,12 +485,10 @@
         "no": "그렇군요.",
         "topic1": "룬",
         "topic1_aliases": [
-          "룬",
           "rune"
         ],
         "topic2": "희생",
         "topic2_aliases": [
-          "희생",
           "sacrifice",
           "sacr"
         ]
@@ -568,14 +520,11 @@
         "no": "사원은 동쪽\n호수에 있습니다!",
         "topic1": "사원",
         "topic1_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ]
@@ -607,15 +556,11 @@
         "no": "아쉽군.",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
-          "경호",
           "guard",
           "guar"
         ],
         "topic2": "생명",
         "topic2_aliases": [
-          "생명",
-          "목숨",
           "life"
         ]
       }

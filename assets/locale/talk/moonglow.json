@@ -30,14 +30,11 @@
         "no": "퀘스트를\n하시길!",
         "topic1": "모험",
         "topic1_aliases": [
-          "모험",
           "adventure",
           "adve"
         ],
         "topic2": "퀘스트",
         "topic2_aliases": [
-          "퀘스트",
-          "탐색",
           "quest",
           "ques"
         ]
@@ -69,15 +66,11 @@
         "no": "시작하지 마세요!",
         "topic1": "글",
         "topic1_aliases": [
-          "글",
-          "작가",
           "write",
           "writ"
         ],
         "topic2": "담배",
         "topic2_aliases": [
-          "담배",
-          "흡연",
           "smoke",
           "smok"
         ]
@@ -109,14 +102,11 @@
         "no": "수치스럽군!",
         "topic1": "정직",
         "topic1_aliases": [
-          "정직",
           "honesty",
           "hone"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
-          "명상어",
           "mantra",
           "mant"
         ]
@@ -148,14 +138,11 @@
         "no": "비참한 자!",
         "topic1": "정직",
         "topic1_aliases": [
-          "정직",
           "honesty",
           "hone"
         ],
         "topic2": "악",
         "topic2_aliases": [
-          "악",
-          "사악",
           "evil"
         ]
       }
@@ -186,14 +173,11 @@
         "no": "슬퍼…",
         "topic1": "친구",
         "topic1_aliases": [
-          "친구",
-          "우정",
           "friend",
           "frie"
         ],
         "topic2": "정직",
         "topic2_aliases": [
-          "정직",
           "honesty",
           "hone"
         ]
@@ -225,14 +209,11 @@
         "no": "그리 되도록\n애쓰시오.",
         "topic1": "겸손",
         "topic1_aliases": [
-          "겸손",
-          "겸양",
           "humility",
           "humb"
         ],
         "topic2": "겸허",
         "topic2_aliases": [
-          "겸허",
           "humble",
           "humi"
         ]
@@ -264,14 +245,11 @@
         "no": "그는 라이시엄에\n살고 있소.",
         "topic1": "나이절",
         "topic1_aliases": [
-          "나이절",
           "nigel",
           "nige"
         ],
         "topic2": "죽음",
         "topic2_aliases": [
-          "죽음",
-          "사망",
           "die"
         ]
       }
@@ -302,14 +280,11 @@
         "no": "바보!",
         "topic1": "정직",
         "topic1_aliases": [
-          "정직",
           "honesty",
           "hone"
         ],
         "topic2": "부패",
         "topic2_aliases": [
-          "부패",
-          "타락",
           "corruption",
           "corr"
         ]
@@ -341,14 +316,11 @@
         "no": "진실은 말하는 이를\n해치지 않소!",
         "topic1": "정직",
         "topic1_aliases": [
-          "정직",
           "honesty",
           "hone"
         ],
         "topic2": "진실",
         "topic2_aliases": [
-          "진실",
-          "진리",
           "truth",
           "trut"
         ]
@@ -380,14 +352,11 @@
         "no": "비결은 시약에\n있소!",
         "topic1": "연금술",
         "topic1_aliases": [
-          "연금술",
           "alchemy",
           "alch"
         ],
         "topic2": "시약",
         "topic2_aliases": [
-          "시약",
-          "재료",
           "reagent",
           "reag"
         ]
@@ -419,14 +388,10 @@
         "no": "바보, 날 미쳤다고\n생각하는군!",
         "topic1": "태양",
         "topic1_aliases": [
-          "태양",
-          "해",
           "sun"
         ],
         "topic2": "달",
         "topic2_aliases": [
-          "달",
-          "월",
           "moon"
         ]
       }
@@ -457,18 +422,11 @@
         "no": "현명한 선택이오.",
         "topic1": "손금",
         "topic1_aliases": [
-          "손금",
-          "손바닥",
           "palm",
           "palms"
         ],
         "topic2": "운세",
         "topic2_aliases": [
-          "운세",
-          "점",
-          "점술",
-          "점술가",
-          "운명",
           "fortune",
           "fortunes"
         ]
@@ -500,14 +458,10 @@
         "no": "북녘 섬의\n사원을 찾아볼\n수도 있소!",
         "topic1": "여관",
         "topic1_aliases": [
-          "여관",
-          "숙소",
           "inn"
         ],
         "topic2": "치유",
         "topic2_aliases": [
-          "치유",
-          "치료",
           "heal",
           "healer"
         ]
@@ -539,15 +493,11 @@
         "no": "아마 심술궂은\n사람이겠군!",
         "topic1": "정직",
         "topic1_aliases": [
-          "정직",
           "honesty",
           "hone"
         ],
         "topic2": "익살",
         "topic2_aliases": [
-          "익살",
-          "농담",
-          "광대",
           "jest",
           "joke"
         ]
@@ -579,14 +529,11 @@
         "no": "진짜\n맛있는데!",
         "topic1": "샌드위치",
         "topic1_aliases": [
-          "샌드위치",
-          "빵",
           "sandwich",
           "sand"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -617,16 +564,11 @@
         "no": "흠.",
         "topic1": "돌",
         "topic1_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ],
         "topic2": "쓰임",
         "topic2_aliases": [
-          "쓰임",
-          "사용",
-          "용도",
           "use"
         ]
       }

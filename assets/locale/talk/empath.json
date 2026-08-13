@@ -30,14 +30,11 @@
         "no": "다음에 또.",
         "topic1": "영지",
         "topic1_aliases": [
-          "영지",
           "province",
           "prov"
         ],
         "topic2": "말씀",
         "topic2_aliases": [
-          "말씀",
-          "단어",
           "word"
         ]
       }
@@ -68,12 +65,10 @@
         "no": "그러면\n못 찾을 것이오!",
         "topic1": "통치",
         "topic1_aliases": [
-          "통치",
           "rule"
         ],
         "topic2": "영지",
         "topic2_aliases": [
-          "영지",
           "province",
           "prov"
         ]
@@ -105,13 +100,10 @@
         "no": "떠나시오!",
         "topic1": "부인",
         "topic1_aliases": [
-          "부인",
           "lady"
         ],
         "topic2": "뿔",
         "topic2_aliases": [
-          "뿔",
-          "혼",
           "horn"
         ]
       }
@@ -142,13 +134,11 @@
         "no": "비밀 통로\n너머 음유시인에게\n물으시오!",
         "topic1": "공명",
         "topic1_aliases": [
-          "공명",
           "resonate",
           "reso"
         ],
         "topic2": "사랑",
         "topic2_aliases": [
-          "사랑",
           "love"
         ]
       }
@@ -179,12 +169,10 @@
         "no": "거기에서 열쇠의\n세 부분을 얻어\n코덱스 방에\n들 수 있소!",
         "topic1": "통로",
         "topic1_aliases": [
-          "통로",
           "pass"
         ],
         "topic2": "위험",
         "topic2_aliases": [
-          "위험",
           "danger",
           "dang"
         ]
@@ -216,12 +204,10 @@
         "no": "수도원 안\n작은 사원을!",
         "topic1": "문",
         "topic1_aliases": [
-          "문",
           "gate"
         ],
         "topic2": "수도원",
         "topic2_aliases": [
-          "수도원",
           "abbey",
           "abbe"
         ]
@@ -253,13 +239,10 @@
         "no": "아쉽소,\n새 곡이었는데.",
         "topic1": "노래",
         "topic1_aliases": [
-          "노래",
           "song"
         ],
         "topic2": "촛대",
         "topic2_aliases": [
-          "촛대",
-          "촛불",
           "candle",
           "cand"
         ]
@@ -291,13 +274,11 @@
         "no": "그럼 참나무 숲.",
         "topic1": "숲",
         "topic1_aliases": [
-          "숲",
           "grove",
           "grov"
         ],
         "topic2": "참나무",
         "topic2_aliases": [
-          "참나무",
           "oak"
         ]
       }
@@ -328,13 +309,11 @@
         "no": "사랑을 위해\n힘쓰시오!",
         "topic1": "조언",
         "topic1_aliases": [
-          "조언",
           "counsel",
           "coun"
         ],
         "topic2": "사랑",
         "topic2_aliases": [
-          "사랑",
           "love"
         ]
       }
@@ -365,12 +344,10 @@
         "no": "아쉽소…",
         "topic1": "사랑",
         "topic1_aliases": [
-          "사랑",
           "love"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
           "compassion",
           "comp"
         ]
@@ -402,12 +379,10 @@
         "no": "그렇군.",
         "topic1": "사랑",
         "topic1_aliases": [
-          "사랑",
           "love"
         ],
         "topic2": "정의",
         "topic2_aliases": [
-          "정의",
           "justice",
           "just"
         ]
@@ -439,12 +414,10 @@
         "no": "부끄럽소.",
         "topic1": "사랑",
         "topic1_aliases": [
-          "사랑",
           "love"
         ],
         "topic2": "희생",
         "topic2_aliases": [
-          "희생",
           "sacrifice",
           "sacr"
         ]
@@ -476,13 +449,11 @@
         "no": "슬프군.",
         "topic1": "영성",
         "topic1_aliases": [
-          "영성",
           "spirit",
           "spir"
         ],
         "topic2": "존재",
         "topic2_aliases": [
-          "존재",
           "being",
           "bein"
         ]
@@ -514,13 +485,11 @@
         "no": "절박하오!",
         "topic1": "중얼",
         "topic1_aliases": [
-          "중얼",
           "mumble",
           "mumb"
         ],
         "topic2": "구원",
         "topic2_aliases": [
-          "구원",
           "salvation",
           "salv"
         ]
@@ -552,14 +521,11 @@
         "no": "오.",
         "topic1": "퀘스트",
         "topic1_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ],
         "topic2": "뿔",
         "topic2_aliases": [
-          "뿔",
-          "혼",
           "horn"
         ]
       }
@@ -590,14 +556,11 @@
         "no": "우리 사원에서\n사랑을 명상하시오.",
         "topic1": "지혜",
         "topic1_aliases": [
-          "지혜",
           "wisdom",
           "wisd"
         ],
         "topic2": "촛대",
         "topic2_aliases": [
-          "촛대",
-          "촛불",
           "candle",
           "cand"
         ]

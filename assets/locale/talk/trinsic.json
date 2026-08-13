@@ -30,14 +30,11 @@
         "no": "어리석은 자!",
         "topic1": "지도",
         "topic1_aliases": [
-          "지도",
-          "지도자",
           "leader",
           "lead"
         ],
         "topic2": "명예",
         "topic2_aliases": [
-          "명예",
           "honor",
           "hono"
         ]
@@ -69,14 +66,11 @@
         "no": "관심 없소!",
         "topic1": "장",
         "topic1_aliases": [
-          "장",
-          "필드",
           "field",
           "fiel"
         ],
         "topic2": "나이트셰이드",
         "topic2_aliases": [
-          "나이트셰이드",
           "nightshade",
           "nigh"
         ]
@@ -108,14 +102,11 @@
         "no": "명예 없으면\n의미 없소!",
         "topic1": "명예",
         "topic1_aliases": [
-          "명예",
           "honor",
           "hono"
         ],
         "topic2": "무",
         "topic2_aliases": [
-          "무",
-          "없음",
           "nothing",
           "noth"
         ]
@@ -147,14 +138,11 @@
         "no": "필요한 물건이\n있소.",
         "topic1": "던전",
         "topic1_aliases": [
-          "던전",
           "dungeon",
           "dung"
         ],
         "topic2": "돌",
         "topic2_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ]
@@ -186,14 +174,11 @@
         "no": "육분의가 없는\n모양이군?",
         "topic1": "바다",
         "topic1_aliases": [
-          "바다",
-          "항해",
           "seas",
           "sea"
         ],
         "topic2": "육분의",
         "topic2_aliases": [
-          "육분의",
           "sextant",
           "sext"
         ]
@@ -225,14 +210,11 @@
         "no": "그렇게 되려\n노력하시오.",
         "topic1": "명예",
         "topic1_aliases": [
-          "명예",
           "honor",
           "hono"
         ],
         "topic2": "위엄",
         "topic2_aliases": [
-          "위엄",
-          "존엄",
           "dignity",
           "dign"
         ]
@@ -264,13 +246,10 @@
         "no": "살려 주세요!",
         "topic1": "황소",
         "topic1_aliases": [
-          "황소",
-          "소",
           "bull"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -301,13 +280,11 @@
         "no": "이곳이\n아닙니다!",
         "topic1": "환영",
         "topic1_aliases": [
-          "환영",
           "welcome",
           "welc"
         ],
         "topic2": "명예",
         "topic2_aliases": [
-          "명예",
           "honor",
           "hono"
         ]
@@ -339,13 +316,11 @@
         "no": "그를 찾아 룬을\n물어보시오!",
         "topic1": "소문",
         "topic1_aliases": [
-          "소문",
           "rumor",
           "rumo"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -376,13 +351,11 @@
         "no": "주된 재료를\n아오?",
         "topic1": "주문",
         "topic1_aliases": [
-          "주문",
           "spell",
           "spel"
         ],
         "topic2": "맨드레이크",
         "topic2_aliases": [
-          "맨드레이크",
           "mandrake",
           "mand"
         ]
@@ -414,13 +387,11 @@
         "no": "어떻게\n생각하오?",
         "topic1": "만트라",
         "topic1_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -451,14 +422,11 @@
         "no": "오.",
         "topic1": "군주",
         "topic1_aliases": [
-          "군주",
-          "전쟁군주",
           "warlord",
           "warl"
         ],
         "topic2": "퀘스트",
         "topic2_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ]
@@ -490,12 +458,10 @@
         "no": "사원은 남서,\n늪 너머에!",
         "topic1": "휴식",
         "topic1_aliases": [
-          "휴식",
           "rest"
         ],
         "topic2": "퀘스트",
         "topic2_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ]
@@ -527,12 +493,10 @@
         "no": "바보.",
         "topic1": "문",
         "topic1_aliases": [
-          "문",
           "gate"
         ],
         "topic2": "경비",
         "topic2_aliases": [
-          "경비",
           "guard",
           "guar"
         ]
@@ -564,13 +528,11 @@
         "no": "매우 쓸모 있으니\n찾으시오!",
         "topic1": "해골",
         "topic1_aliases": [
-          "해골",
           "skeleton",
           "skel"
         ],
         "topic2": "비밀",
         "topic2_aliases": [
-          "비밀",
           "secret",
           "secr"
         ]
@@ -602,14 +564,11 @@
         "no": "A",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "강함",
         "topic2_aliases": [
-          "강함",
-          "강한",
           "strong",
           "stro"
         ]

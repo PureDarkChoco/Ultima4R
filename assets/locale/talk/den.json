@@ -30,7 +30,6 @@
         "no": "꺼져!",
         "topic1": "다리",
         "topic1_aliases": [
-          "다리",
           "bridge",
           "brid"
         ],
@@ -64,14 +63,11 @@
         "no": "그럼 뛰어야 할걸!!!",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "배고픔",
         "topic2_aliases": [
-          "배고픔",
-          "기아",
           "hungry",
           "hung"
         ]
@@ -103,15 +99,11 @@
         "no": "오.",
         "topic1": "항해",
         "topic1_aliases": [
-          "항해",
-          "선원",
           "sailor",
           "sail"
         ],
         "topic2": "삶",
         "topic2_aliases": [
-          "삶",
-          "인생",
           "life"
         ]
       }
@@ -142,14 +134,11 @@
         "no": "사고 나기 전에\n이 곳을 뜨는 게\n좋겠소!",
         "topic1": "해적",
         "topic1_aliases": [
-          "해적",
           "pirate",
           "pira"
         ],
         "topic2": "습격",
         "topic2_aliases": [
-          "습격",
-          "급습",
           "raid"
         ]
       }
@@ -180,13 +169,11 @@
         "no": "그럴 줄\n알았소.",
         "topic1": "도둑",
         "topic1_aliases": [
-          "도둑",
           "thief",
           "thie"
         ],
         "topic2": "영리",
         "topic2_aliases": [
-          "영리",
           "clever",
           "clev"
         ]
@@ -218,13 +205,11 @@
         "no": "그럼 꺼지시오.",
         "topic1": "여행",
         "topic1_aliases": [
-          "여행",
           "travel",
           "trav"
         ],
         "topic2": "해골",
         "topic2_aliases": [
-          "해골",
           "skull",
           "skul"
         ]
@@ -256,14 +241,11 @@
         "no": "아.",
         "topic1": "마법",
         "topic1_aliases": [
-          "마법",
           "magic",
           "magi"
         ],
         "topic2": "수면",
         "topic2_aliases": [
-          "수면",
-          "잠",
           "sleep",
           "slee"
         ]
@@ -295,13 +277,11 @@
         "no": "도울 수\n없소.",
         "topic1": "봉사",
         "topic1_aliases": [
-          "봉사",
           "service",
           "serv"
         ],
         "topic2": "히슬로스",
         "topic2_aliases": [
-          "히슬로스",
           "hythloth",
           "hyth"
         ]
@@ -333,14 +313,11 @@
         "no": "아쉽소.",
         "topic1": "마법",
         "topic1_aliases": [
-          "마법",
           "magic",
           "magi"
         ],
         "topic2": "배합",
         "topic2_aliases": [
-          "배합",
-          "믹스",
           "mix"
         ]
       }
@@ -371,7 +348,6 @@
         "no": "닥치라고 했지!",
         "topic1": "그것",
         "topic1_aliases": [
-          "그것",
           "it"
         ],
         "topic2": "",
@@ -404,7 +380,6 @@
         "no": "음, 다음에\n또.",
         "topic1": "물건",
         "topic1_aliases": [
-          "물건",
           "item"
         ],
         "topic2": "",
@@ -437,12 +412,10 @@
         "no": "현명한 판단!",
         "topic1": "경고",
         "topic1_aliases": [
-          "경고",
           "warn"
         ],
         "topic2": "파멸",
         "topic2_aliases": [
-          "파멸",
           "doom"
         ]
       }
@@ -473,15 +446,12 @@
         "no": "알았으면!",
         "topic1": "갑옷",
         "topic1_aliases": [
-          "갑옷",
           "armor",
           "armour",
           "armo"
         ],
         "topic2": "모름",
         "topic2_aliases": [
-          "모름",
-          "어디",
           "nowhere",
           "nowh"
         ]
@@ -513,12 +483,10 @@
         "no": "뭘 놓치는지\n모르겠군!",
         "topic1": "포도주",
         "topic1_aliases": [
-          "포도주",
           "wine"
         ],
         "topic2": "빈티지",
         "topic2_aliases": [
-          "빈티지",
           "vintage",
           "vint"
         ]
@@ -550,15 +518,11 @@
         "no": "한 척 사는 게\n정말 좋소!",
         "topic1": "팅커",
         "topic1_aliases": [
-          "팅커",
           "tinker",
           "tink"
         ],
         "topic2": "기계",
         "topic2_aliases": [
-          "기계",
-          "함포",
-          "대포",
           "machine",
           "mach"
         ]
@@ -590,14 +554,10 @@
         "no": "오, 안 돼.",
         "topic1": "은신",
         "topic1_aliases": [
-          "은신",
-          "숨기",
           "hide"
         ],
         "topic2": "무언가",
         "topic2_aliases": [
-          "무언가",
-          "정보",
           "something",
           "some"
         ]

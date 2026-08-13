@@ -30,12 +30,10 @@
         "no": "오.",
         "topic1": "도움",
         "topic1_aliases": [
-          "도움",
           "help"
         ],
         "topic2": "수수께끼",
         "topic2_aliases": [
-          "수수께끼",
           "riddle",
           "ridd"
         ]
@@ -67,12 +65,10 @@
         "no": "찾으시오!",
         "topic1": "도움",
         "topic1_aliases": [
-          "도움",
           "help"
         ],
         "topic2": "하나",
         "topic2_aliases": [
-          "하나",
           "one"
         ]
       }
@@ -103,14 +99,11 @@
         "no": "아쉽소, 우린\n좋아하오!",
         "topic1": "광대",
         "topic1_aliases": [
-          "광대",
           "jester",
           "jest"
         ],
         "topic2": "음유시인",
         "topic2_aliases": [
-          "음유시인",
-          "바드",
           "bard"
         ]
       }
@@ -141,14 +134,11 @@
         "no": "그래도 전투에서\n도망치지 마시오!",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "주군",
         "topic2_aliases": [
-          "주군",
-          "군주",
           "liege",
           "lieg"
         ]
@@ -180,12 +170,10 @@
         "no": "그럼 영성주의자로군!",
         "topic1": "음식",
         "topic1_aliases": [
-          "음식",
           "food"
         ],
         "topic2": "요리",
         "topic2_aliases": [
-          "요리",
           "cook"
         ]
       }
@@ -216,13 +204,10 @@
         "no": "그럼 어리석군.",
         "topic1": "살해",
         "topic1_aliases": [
-          "살해",
           "kill"
         ],
         "topic2": "물건",
         "topic2_aliases": [
-          "물건",
-          "그것",
           "thing",
           "thin"
         ]
@@ -254,13 +239,11 @@
         "no": "진리이기를!",
         "topic1": "범죄",
         "topic1_aliases": [
-          "범죄",
           "crime",
           "crim"
         ],
         "topic2": "감옥",
         "topic2_aliases": [
-          "감옥",
           "prison",
           "pris"
         ]
@@ -292,13 +275,10 @@
         "no": "아아.",
         "topic1": "도움",
         "topic1_aliases": [
-          "도움",
           "help"
         ],
         "topic2": "성",
         "topic2_aliases": [
-          "성",
-          "성채",
           "castle",
           "cast"
         ]
@@ -330,13 +310,11 @@
         "no": "필요할 때\n도와 주실 것이오!",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "성",
         "topic2_aliases": [
-          "성",
           "castle",
           "cast"
         ]
@@ -368,13 +346,11 @@
         "no": "오.",
         "topic1": "비밀",
         "topic1_aliases": [
-          "비밀",
           "secret",
           "secr"
         ],
         "topic2": "제단",
         "topic2_aliases": [
-          "제단",
           "altar",
           "alta"
         ]
@@ -406,13 +382,11 @@
         "no": "내 마을은 자만으로\n멸망. 폐허는 섬에\n위도 K'J\" 경도 L'L\"!",
         "topic1": "물",
         "topic1_aliases": [
-          "물",
           "water",
           "wate"
         ],
         "topic2": "평화",
         "topic2_aliases": [
-          "평화",
           "peace",
           "peac"
         ]
@@ -444,15 +418,11 @@
         "no": "흠.",
         "topic1": "부상",
         "topic1_aliases": [
-          "부상",
-          "상처",
           "wound",
           "woun"
         ],
         "topic2": "조국",
         "topic2_aliases": [
-          "조국",
-          "나라",
           "country",
           "coun"
         ]
@@ -484,13 +454,11 @@
         "no": "그럼 왜\n왔소?",
         "topic1": "광대",
         "topic1_aliases": [
-          "광대",
           "jester",
           "jest"
         ],
         "topic2": "단서",
         "topic2_aliases": [
-          "단서",
           "clue"
         ]
       }
@@ -521,13 +489,11 @@
         "no": "그럼 지금\n떠나시오!",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
           "guard",
           "guar"
         ],
         "topic2": "보물",
         "topic2_aliases": [
-          "보물",
           "treasure",
           "trea"
         ]
@@ -559,17 +525,13 @@
         "no": "만트라는 명상할 때\n생각을 모을\n진언이오.",
         "topic1": "빛",
         "topic1_aliases": [
-          "빛",
-          "광명",
           "light",
           "ligh"
         ],
         "topic2": "사원",
         "topic2_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ]
       }
     },
@@ -599,12 +561,10 @@
         "no": "좋소.",
         "topic1": "경고",
         "topic1_aliases": [
-          "경고",
           "warn"
         ],
         "topic2": "위험",
         "topic2_aliases": [
-          "위험",
           "peril",
           "peri"
         ]

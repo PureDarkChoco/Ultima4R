@@ -4,8 +4,8 @@ extends RefCounted
 ## Town discourse overlays (Korean etc.) keyed by classic English TLK lines.
 ## Packs: res://assets/locale/talk/<city>.json
 ## Original en_u4 stays in GOG .TLK; this layer only affects display / keyword aliases.
-## KO topic/alias policy: short nouns only (no verb stems, conjugations, or particles on the keyword).
-## Dialogue may read naturally but should include those nouns so highlight/input stay aligned.
+## KO topic/alias policy: short nouns for topic1/topic2 only (must appear in dialogue).
+## topicN_aliases are Latin classic stems; no extra Korean synonyms to guess.
 ## See .cursor/rules/talk-locale-ko-nouns.mdc
 
 const DIR := "res://assets/locale/talk"
@@ -284,15 +284,14 @@ static func _ingest_npc(npc: Dictionary) -> void:
 		if ko_d.has(akey) and typeof(ko_d[akey]) == TYPE_ARRAY:
 			for a in ko_d[akey]:
 				als.append(str(a).strip_edges().to_lower())
-		elif ko_d.has(ti) and not str(ko_d[ti]).is_empty():
+		## Primary KO topic label always matches (aliases stay Latin / extras only).
+		if ko_d.has(ti) and not str(ko_d[ti]).is_empty():
 			als.append(str(ko_d[ti]).strip_edges().to_lower())
 		_merge_alias(stem, als)
 		var hls: Array = []
 		for a in als:
 			if not str(a).is_empty():
 				hls.append(str(a))
-		if ko_d.has(ti) and not str(ko_d[ti]).is_empty():
-			hls.append(str(ko_d[ti]))
 		_merge_hl(stem, hls)
 
 

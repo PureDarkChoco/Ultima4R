@@ -30,13 +30,11 @@
         "no": "퀘스트 중인 분의\n방문에 영광이오!",
         "topic1": "베스퍼",
         "topic1_aliases": [
-          "베스퍼",
           "vesper",
           "vesp"
         ],
         "topic2": "환영",
         "topic2_aliases": [
-          "환영",
           "welcome",
           "welc"
         ]
@@ -68,14 +66,11 @@
         "no": "윽, 나 세다!",
         "topic1": "강함",
         "topic1_aliases": [
-          "강함",
-          "터프",
           "tough",
           "toug"
         ],
         "topic2": "윽",
         "topic2_aliases": [
-          "윽",
           "ug"
         ]
       }
@@ -106,12 +101,10 @@
         "no": "사악한\n유물이오!",
         "topic1": "도움",
         "topic1_aliases": [
-          "도움",
           "help"
         ],
         "topic2": "해골",
         "topic2_aliases": [
-          "해골",
           "skull",
           "skul"
         ]
@@ -143,14 +136,11 @@
         "no": "가격도\n최고요!",
         "topic1": "수리공",
         "topic1_aliases": [
-          "수리공",
-          "팅커",
           "tinker",
           "tink"
         ],
         "topic2": "여행",
         "topic2_aliases": [
-          "여행",
           "travel",
           "trav"
         ]
@@ -182,13 +172,10 @@
         "no": "참으로 운이\n좋소!",
         "topic1": "농노",
         "topic1_aliases": [
-          "농노",
           "serf"
         ],
         "topic2": "일",
         "topic2_aliases": [
-          "일",
-          "노동",
           "work"
         ]
       }
@@ -219,14 +206,11 @@
         "no": "A",
         "topic1": "겸손",
         "topic1_aliases": [
-          "겸손",
           "humility",
           "humi"
         ],
         "topic2": "자만",
         "topic2_aliases": [
-          "자만",
-          "교만",
           "pride",
           "prid"
         ]
@@ -258,14 +242,11 @@
         "no": "브리타니아\n남동쪽이오!",
         "topic1": "사원",
         "topic1_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ],
         "topic2": "겸손",
         "topic2_aliases": [
-          "겸손",
           "humility",
           "humi"
         ]
@@ -297,12 +278,10 @@
         "no": "알게 되면\n거꾸로!",
         "topic1": "일",
         "topic1_aliases": [
-          "일",
           "work"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ]
@@ -334,16 +313,13 @@
         "no": "자만은 아바타의\n미덕이 아니오!",
         "topic1": "양치기",
         "topic1_aliases": [
-          "양치기",
           "shepherd",
           "shep"
         ],
         "topic2": "사원",
         "topic2_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ]
       }
     },
@@ -373,13 +349,10 @@
         "no": "좋소.",
         "topic1": "금",
         "topic1_aliases": [
-          "금",
-          "골드",
           "gold"
         ],
         "topic2": "경고",
         "topic2_aliases": [
-          "경고",
           "warn"
         ]
       }
@@ -410,10 +383,8 @@
         "no": "아바타의 길에서\n그걸 첫 목표로!",
         "topic1": "사원",
         "topic1_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ],
         "topic2": "",
         "topic2_aliases": []
@@ -445,13 +416,11 @@
         "no": "반드시 길을\n잃으리!",
         "topic1": "조언",
         "topic1_aliases": [
-          "조언",
           "counsel",
           "coun"
         ],
         "topic2": "미덕",
         "topic2_aliases": [
-          "미덕",
           "virtue",
           "virt"
         ]
@@ -483,14 +452,11 @@
         "no": "아쉽소. 내가\n그런 줄 알았소.",
         "topic1": "재미",
         "topic1_aliases": [
-          "재미",
-          "우스움",
           "funny",
           "funn"
         ],
         "topic2": "네이트",
         "topic2_aliases": [
-          "네이트",
           "nate"
         ]
       }
@@ -521,12 +487,10 @@
         "no": "칼럼니가 신속 주문을\n아오! 찾으시오!",
         "topic1": "마법사",
         "topic1_aliases": [
-          "마법사",
           "mage"
         ],
         "topic2": "칼럼니",
         "topic2_aliases": [
-          "칼럼니",
           "calumny",
           "calu"
         ]
@@ -558,7 +522,6 @@
         "no": "그렇지 않으면\n길을 잃을지!",
         "topic1": "미덕",
         "topic1_aliases": [
-          "미덕",
           "virtue",
           "virt"
         ],
@@ -592,15 +555,11 @@
         "no": "아마 겁쟁이\n같은 자!",
         "topic1": "빌림",
         "topic1_aliases": [
-          "빌림",
-          "훔침",
           "borrow",
           "borr"
         ],
         "topic2": "말",
         "topic2_aliases": [
-          "말",
-          "말들",
           "horse",
           "hors"
         ]

@@ -30,14 +30,11 @@
         "no": "겸손이 자만을\n이겨야 할\n미덕이오!",
         "topic1": "생존",
         "topic1_aliases": [
-          "생존",
           "survivor",
           "surv"
         ],
         "topic2": "자만",
         "topic2_aliases": [
-          "자만",
-          "교만",
           "pride",
           "prid"
         ]
@@ -69,13 +66,11 @@
         "no": "A",
         "topic1": "평화",
         "topic1_aliases": [
-          "평화",
           "peace",
           "peac"
         ],
         "topic2": "영혼",
         "topic2_aliases": [
-          "영혼",
           "spirit",
           "spir"
         ]
@@ -107,7 +102,6 @@
         "no": "이 근처 사람이\n아니로군!",
         "topic1": "귀족",
         "topic1_aliases": [
-          "귀족",
           "noble",
           "nobl"
         ],
@@ -141,13 +135,11 @@
         "no": "자만!",
         "topic1": "유령",
         "topic1_aliases": [
-          "유령",
           "haunt",
           "haun"
         ],
         "topic2": "자만",
         "topic2_aliases": [
-          "자만",
           "pride",
           "prid"
         ]
@@ -179,13 +171,10 @@
         "no": "자만은 악의\n총애 죄요!",
         "topic1": "교수",
         "topic1_aliases": [
-          "교수",
-          "목맴",
           "hang"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ]
@@ -217,13 +206,11 @@
         "no": "자만한 혼은\n자기 값을\n모르오!",
         "topic1": "유령",
         "topic1_aliases": [
-          "유령",
           "haunt",
           "haun"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ]
@@ -255,12 +242,10 @@
         "no": "겸손에 자만하지\n말라. 파괴하리니!",
         "topic1": "뼈",
         "topic1_aliases": [
-          "뼈",
           "bone"
         ],
         "topic2": "자만",
         "topic2_aliases": [
-          "자만",
           "pride",
           "prid"
         ]
@@ -292,16 +277,12 @@
         "no": "오.",
         "topic1": "뿔",
         "topic1_aliases": [
-          "뿔",
-          "혼",
           "horn"
         ],
         "topic2": "사원",
         "topic2_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ]
       }
     },
@@ -331,13 +312,10 @@
         "no": "네이트를\n조심하시오!",
         "topic1": "뼈",
         "topic1_aliases": [
-          "뼈",
           "bone"
         ],
         "topic2": "뿔",
         "topic2_aliases": [
-          "뿔",
-          "혼",
           "horn"
         ]
       }
@@ -368,16 +346,13 @@
         "no": "A",
         "topic1": "유령",
         "topic1_aliases": [
-          "유령",
           "haunt",
           "haun"
         ],
         "topic2": "사원",
         "topic2_aliases": [
-          "사원",
           "shrine",
-          "shri",
-          "신전"
+          "shri"
         ]
       }
     },
@@ -407,14 +382,11 @@
         "no": "세상은 나 없이도\n돌아갑니다.",
         "topic1": "상인",
         "topic1_aliases": [
-          "상인",
           "merchant",
           "merc"
         ],
         "topic2": "권력",
         "topic2_aliases": [
-          "권력",
-          "힘",
           "power",
           "powe"
         ]
@@ -446,14 +418,10 @@
         "no": "최고만\n팝니다.",
         "topic1": "가게",
         "topic1_aliases": [
-          "가게",
-          "상점",
           "shop"
         ],
         "topic2": "상함",
         "topic2_aliases": [
-          "상함",
-          "부패",
           "spoil",
           "spoi"
         ]
@@ -485,13 +453,11 @@
         "no": "바보!",
         "topic1": "후회",
         "topic1_aliases": [
-          "후회",
           "regret",
           "regr"
         ],
         "topic2": "겸손",
         "topic2_aliases": [
-          "겸손",
           "humility",
           "humb"
         ]
@@ -523,13 +489,11 @@
         "no": "아쉽소.",
         "topic1": "겸손",
         "topic1_aliases": [
-          "겸손",
           "humility",
           "humi"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -560,14 +524,11 @@
         "no": "A",
         "topic1": "돌",
         "topic1_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -598,7 +559,6 @@
         "no": "아.",
         "topic1": "마진시아",
         "topic1_aliases": [
-          "마진시아",
           "magincia",
           "magi"
         ],

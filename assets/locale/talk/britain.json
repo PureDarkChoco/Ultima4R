@@ -30,15 +30,10 @@
         "no": "아쉽군요.",
         "topic1": "연주",
         "topic1_aliases": [
-          "연주",
-          "음악",
-          "류트",
           "play"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
-          "동정",
           "compassion",
           "comp"
         ]
@@ -70,16 +65,11 @@
         "no": "아아.",
         "topic1": "춤",
         "topic1_aliases": [
-          "춤",
-          "무용",
-          "댄스",
           "dance",
           "danc"
         ],
         "topic2": "거지",
         "topic2_aliases": [
-          "거지",
-          "빈민",
           "beggar",
           "begg"
         ]
@@ -111,16 +101,11 @@
         "no": "아쉽네요.",
         "topic1": "노래",
         "topic1_aliases": [
-          "노래",
-          "합창",
           "sing",
           "singing"
         ],
         "topic2": "호 에요",
         "topic2_aliases": [
-          "호 에요",
-          "호에요",
-          "흠",
           "ho e",
           "ho eyo"
         ]
@@ -152,15 +137,11 @@
         "no": "그렇다면 다리 건너\n볼일이 없소.",
         "topic1": "다리",
         "topic1_aliases": [
-          "다리",
-          "교량",
           "bridge",
           "brid"
         ],
         "topic2": "경비",
         "topic2_aliases": [
-          "경비",
-          "수비",
           "guard",
           "guar"
         ]
@@ -192,13 +173,10 @@
         "no": "아쉽군.\n도울 수 있었을지도\n모르오.",
         "topic1": "음유시인",
         "topic1_aliases": [
-          "음유시인",
-          "바드",
           "bard"
         ],
         "topic2": "룬",
         "topic2_aliases": [
-          "룬",
           "rune"
         ]
       }
@@ -229,14 +207,11 @@
         "no": "뱀성에서\n찾으시오. 그가\n오브를 압니다!",
         "topic1": "오브",
         "topic1_aliases": [
-          "오브",
-          "구슬",
           "orb",
           "orbs"
         ],
         "topic2": "마법",
         "topic2_aliases": [
-          "마법",
           "magic",
           "magi"
         ]
@@ -268,16 +243,11 @@
         "no": "아, 조가 되어\n주라고!",
         "topic1": "돌",
         "topic1_aliases": [
-          "돌",
-          "스톤",
           "stone",
-          "ston",
-          "노란 돌"
+          "ston"
         ],
         "topic2": "럼",
         "topic2_aliases": [
-          "럼",
-          "술",
           "rum"
         ]
       }
@@ -308,16 +278,11 @@
         "no": "경비병을\n부르겠소!",
         "topic1": "쉿",
         "topic1_aliases": [
-          "쉿",
-          "조용",
-          "침묵",
           "shhh",
           "shh"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
-          "진언",
           "mantra",
           "mant"
         ]
@@ -349,15 +314,11 @@
         "no": "좋소.",
         "topic1": "경비",
         "topic1_aliases": [
-          "경비",
-          "수비",
           "guard",
           "guar"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
-          "동정",
           "compassion",
           "comp"
         ]
@@ -389,16 +350,11 @@
         "no": "크리켓에게\n물어보세요!",
         "topic1": "배움",
         "topic1_aliases": [
-          "배움",
-          "공부",
-          "학습",
           "learn",
           "lear"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
-          "동정",
           "compassion",
           "comp"
         ]
@@ -430,17 +386,12 @@
         "no": "아쉽습니다.",
         "topic1": "아이",
         "topic1_aliases": [
-          "아이",
-          "아이들",
-          "어린이",
           "child",
           "chil",
           "kids"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
-          "동정",
           "compassion",
           "comp"
         ]
@@ -472,13 +423,11 @@
         "no": "오.",
         "topic1": "비밀",
         "topic1_aliases": [
-          "비밀",
           "secret",
           "secr"
         ],
         "topic2": "몬데인",
         "topic2_aliases": [
-          "몬데인",
           "mondain",
           "mond"
         ]
@@ -510,14 +459,11 @@
         "no": "아쉽소.",
         "topic1": "훌리오",
         "topic1_aliases": [
-          "훌리오",
           "julio",
           "juli"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
-          "동정",
           "compassion",
           "comp"
         ]
@@ -549,15 +495,11 @@
         "no": "필멸자는\n알 수 없소.",
         "topic1": "본질",
         "topic1_aliases": [
-          "본질",
-          "본성",
           "nature",
           "natu"
         ],
         "topic2": "연민",
         "topic2_aliases": [
-          "연민",
-          "동정",
           "compassion",
           "comp"
         ]
@@ -589,15 +531,11 @@
         "no": "자만은 진리·사랑·\n용기 없이도\n존재하오!",
         "topic1": "마진시아",
         "topic1_aliases": [
-          "마진시아",
           "magincia",
           "magi"
         ],
         "topic2": "자만",
         "topic2_aliases": [
-          "자만",
-          "교만",
-          "오만",
           "pride",
           "prid"
         ]
@@ -629,16 +567,11 @@
         "no": "굶어 죽을\n것입니다!",
         "topic1": "굶주림",
         "topic1_aliases": [
-          "굶주림",
-          "배고픔",
-          "기아",
           "starvation",
           "star"
         ],
         "topic2": "구걸",
         "topic2_aliases": [
-          "구걸",
-          "거지",
           "beg",
           "begging"
         ]

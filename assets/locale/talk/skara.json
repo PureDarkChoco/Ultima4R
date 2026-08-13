@@ -30,14 +30,11 @@
         "no": "아아.",
         "topic1": "빛",
         "topic1_aliases": [
-          "빛",
-          "광명",
           "light",
           "ligh"
         ],
         "topic2": "진리",
         "topic2_aliases": [
-          "진리",
           "truth",
           "trut"
         ]
@@ -69,15 +66,11 @@
         "no": "사악한 길!",
         "topic1": "영성",
         "topic1_aliases": [
-          "영성",
-          "정신",
           "spirit",
           "spir"
         ],
         "topic2": "부상",
         "topic2_aliases": [
-          "부상",
-          "상처",
           "wound",
           "woun"
         ]
@@ -109,13 +102,11 @@
         "no": "드물지만\n노력하시오!",
         "topic1": "빛",
         "topic1_aliases": [
-          "빛",
           "light",
           "ligh"
         ],
         "topic2": "철학",
         "topic2_aliases": [
-          "철학",
           "philosophy",
           "phil"
         ]
@@ -147,13 +138,11 @@
         "no": "맞춰 보시오!",
         "topic1": "주문",
         "topic1_aliases": [
-          "주문",
           "spell",
           "spel"
         ],
         "topic2": "나이트셰이드",
         "topic2_aliases": [
-          "나이트셰이드",
           "nightshade",
           "nigh"
         ]
@@ -185,14 +174,10 @@
         "no": "인색하군요!",
         "topic1": "음식",
         "topic1_aliases": [
-          "음식",
-          "밥",
           "food"
         ],
         "topic2": "돈",
         "topic2_aliases": [
-          "돈",
-          "금",
           "money",
           "mone"
         ]
@@ -224,15 +209,11 @@
         "no": "아쉽소.",
         "topic1": "일기",
         "topic1_aliases": [
-          "일기",
-          "저널",
           "journal",
           "jour"
         ],
         "topic2": "돌",
         "topic2_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ]
@@ -264,14 +245,11 @@
         "no": "A",
         "topic1": "가르침",
         "topic1_aliases": [
-          "가르침",
-          "교사",
           "teach",
           "teac"
         ],
         "topic2": "고귀",
         "topic2_aliases": [
-          "고귀",
           "noble",
           "nobl"
         ]
@@ -303,12 +281,10 @@
         "no": "두려워 말소.\n그렇게 되리.",
         "topic1": "길",
         "topic1_aliases": [
-          "길",
           "path"
         ],
         "topic2": "여정",
         "topic2_aliases": [
-          "여정",
           "journey",
           "jour"
         ]
@@ -340,15 +316,11 @@
         "no": "배우시오!",
         "topic1": "가르침",
         "topic1_aliases": [
-          "가르침",
-          "교사",
           "teach",
           "teac"
         ],
         "topic2": "말씀",
         "topic2_aliases": [
-          "말씀",
-          "단어",
           "word"
         ]
       }
@@ -379,13 +351,11 @@
         "no": "그렇군.",
         "topic1": "마법",
         "topic1_aliases": [
-          "마법",
           "magic",
           "magi"
         ],
         "topic2": "믿음",
         "topic2_aliases": [
-          "믿음",
           "belief",
           "beli"
         ]
@@ -417,14 +387,11 @@
         "no": "그렇군.",
         "topic1": "이야기",
         "topic1_aliases": [
-          "이야기",
           "story",
           "stor"
         ],
         "topic2": "영성",
         "topic2_aliases": [
-          "영성",
-          "영혼",
           "spirit",
           "spir"
         ]
@@ -456,13 +423,11 @@
         "no": "위험은\n실재하오!",
         "topic1": "퀘스트",
         "topic1_aliases": [
-          "퀘스트",
           "quest",
           "ques"
         ],
         "topic2": "위험",
         "topic2_aliases": [
-          "위험",
           "danger",
           "dang"
         ]
@@ -494,12 +459,10 @@
         "no": "보름달 문으로\n들어가시오!",
         "topic1": "룬",
         "topic1_aliases": [
-          "룬",
           "rune"
         ],
         "topic2": "옴",
         "topic2_aliases": [
-          "옴",
           "om"
         ]
       }
@@ -530,13 +493,10 @@
         "no": "인색하군요. 많이\n가졌을 텐데요!",
         "topic1": "구걸",
         "topic1_aliases": [
-          "구걸",
-          "거지",
           "beg"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ]
@@ -568,7 +528,6 @@
         "no": "A",
         "topic1": "만트라",
         "topic1_aliases": [
-          "만트라",
           "mantra",
           "mant"
         ],
@@ -602,14 +561,11 @@
         "no": "아아.",
         "topic1": "유령",
         "topic1_aliases": [
-          "유령",
           "haunt",
           "haun"
         ],
         "topic2": "돌",
         "topic2_aliases": [
-          "돌",
-          "스톤",
           "stone",
           "ston"
         ]
