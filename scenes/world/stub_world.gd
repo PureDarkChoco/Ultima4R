@@ -4374,9 +4374,31 @@ func _talk_answer_unlocks_join(e, yes: bool) -> bool:
 			return false
 
 
+func _talk_typed_draft() -> String:
+	## Keyboard/IME text waiting to submit (menu Enter must not override this).
+	if _talk_ime_stage_active() and _talk_edit != null:
+		return _talk_edit.text.strip_edges()
+	return (_talk_buffer + _talk_hangul_preedit).strip_edges()
+
+
+func _clear_talk_typed_draft() -> void:
+	## Discard partial typing so the next Enter selects the highlighted menu row.
+	_reset_talk_hangul()
+	_talk_buffer = ""
+	if _talk_edit != null and _talk_ime_stage_active():
+		_talk_edit_syncing = true
+		_talk_edit.text = ""
+		_talk_edit.caret_column = 0
+		_talk_edit_syncing = false
+	_layout_prompt_row()
+
+
 func _move_talk_keyword_menu_cursor(step: int) -> void:
 	if _talk_keyword_menu_items.is_empty() or step == 0:
 		return
+	## Navigating the list abandons typed draft; Enter then picks the row again.
+	if not _talk_typed_draft().is_empty():
+		_clear_talk_typed_draft()
 	_talk_keyword_menu_cursor = posmod(
 		_talk_keyword_menu_cursor + step,
 		_talk_keyword_menu_items.size()
@@ -4399,6 +4421,11 @@ func _choose_talk_keyword_menu_item() -> void:
 	## A gamepad choice replaces any partially typed keyboard/IME text.
 	_reset_talk_hangul()
 	_talk_buffer = str(item.get("input", ""))
+	if _talk_edit != null and _talk_ime_stage_active():
+		_talk_edit_syncing = true
+		_talk_edit.text = _talk_buffer
+		_talk_edit.caret_column = _talk_edit.text.length()
+		_talk_edit_syncing = false
 	_layout_prompt_row()
 	var enter := InputEventKey.new()
 	enter.pressed = true
@@ -4452,6 +4479,9 @@ func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
 			_is_talk_enter(key_event)
 			or key_event.is_action_pressed("confirm")
 		):
+			## Typed keyword + Enter submits the draft; empty Enter picks the row.
+			if not _talk_typed_draft().is_empty():
+				return false
 			_choose_talk_keyword_menu_item()
 			return true
 		return false
