@@ -27,6 +27,11 @@ static var _cities: Dictionary = {} ## city_id -> true
 static var _lines: Dictionary = {} ## norm(en) -> ko
 static var _aliases: Dictionary = {} ## "CARE" -> Array of lowercase aliases
 static var _hl: Dictionary = {} ## "CARE" -> highlight words
+## Per-NPC topic words. Classic TLK stems are 4 letters, so MAGI is both
+## "magic" (Thevel) and "Magincia" (Mentor); do not merge those lists.
+static var _npc_aliases: Dictionary = {} ## "britain/thevel" / "thevel" -> { "MAGI": [...] }
+static var _npc_hl: Dictionary = {}
+static var _ingest_city := ""
 
 
 static func _lang() -> String:
@@ -135,22 +140,28 @@ static func ensure_city(city_id: String) -> void:
 	if id.is_empty() or _cities.has(id):
 		return
 	_cities[id] = true
+	_ingest_city = id
 	var path := DIR.path_join("%s.json" % id)
 	if not FileAccess.file_exists(path):
+		_ingest_city = ""
 		return
 	var raw := FileAccess.get_file_as_string(path)
 	if raw.is_empty():
+		_ingest_city = ""
 		return
 	var data: Variant = JSON.parse_string(raw)
 	if typeof(data) != TYPE_DICTIONARY:
 		push_warning("TalkLocale: bad JSON %s" % path)
+		_ingest_city = ""
 		return
 	var npcs: Variant = (data as Dictionary).get("npcs", [])
 	if typeof(npcs) != TYPE_ARRAY:
+		_ingest_city = ""
 		return
 	for item in npcs:
 		if typeof(item) == TYPE_DICTIONARY:
 			_ingest_npc(item as Dictionary)
+	_ingest_city = ""
 
 
 static func _fill_places(text: String) -> String:
@@ -169,7 +180,24 @@ static func line(en: String) -> String:
 	return _fill_places(_translate_line(en))
 
 
-static func match_topic_alias(topic: String, input: String) -> bool:
+static func _npc_topic_map(store: Dictionary, npc_name: String, city_id: String = "") -> Dictionary:
+	var n := npc_name.strip_edges().to_lower()
+	if n.is_empty():
+		return {}
+	var c := city_id.strip_edges().to_lower()
+	if not c.is_empty():
+		var keyed: Variant = store.get("%s/%s" % [c, n], {})
+		if typeof(keyed) == TYPE_DICTIONARY and not (keyed as Dictionary).is_empty():
+			return keyed
+	var by_name: Variant = store.get(n, {})
+	if typeof(by_name) == TYPE_DICTIONARY:
+		return by_name
+	return {}
+
+
+static func match_topic_alias(
+	topic: String, input: String, npc_name: String = "", city_id: String = ""
+) -> bool:
 	if topic.is_empty() or input.is_empty():
 		return false
 	var stem := topic.strip_edges().to_upper()
@@ -180,7 +208,8 @@ static func match_topic_alias(topic: String, input: String) -> bool:
 	## Classic 4-letter stem (and longer full words).
 	if h.length() >= n.length() and h.substr(0, n.length()) == n:
 		return true
-	var als: Array = _aliases.get(stem, [])
+	var pack := _npc_topic_map(_npc_aliases, npc_name, city_id)
+	var als: Array = pack.get(stem, []) if not pack.is_empty() else _aliases.get(stem, [])
 	for a in als:
 		var al := normalize_interest(str(a))
 		if al.is_empty():
@@ -190,14 +219,17 @@ static func match_topic_alias(topic: String, input: String) -> bool:
 	return false
 
 
-static func highlight_extras(topic1: String, topic2: String) -> Array[String]:
+static func highlight_extras(
+	topic1: String, topic2: String, npc_name: String = "", city_id: String = ""
+) -> Array[String]:
 	var out: Array[String] = []
 	var seen: Dictionary = {}
+	var pack := _npc_topic_map(_npc_hl, npc_name, city_id)
 	for t in [topic1, topic2]:
 		var stem := str(t).strip_edges().to_upper()
 		if stem.is_empty():
 			continue
-		var words: Array = _hl.get(stem, [])
+		var words: Array = pack.get(stem, []) if not pack.is_empty() else _hl.get(stem, [])
 		for w in words:
 			var k := str(w).to_lower()
 			if k.is_empty() or seen.has(k):
@@ -304,6 +336,7 @@ static func _ingest_npc(npc: Dictionary) -> void:
 			if not str(a).is_empty():
 				hls.append(str(a))
 		_merge_hl(stem, hls)
+		_store_npc_topic(str(npc.get("name", "")), stem, als, hls)
 
 
 static func _unescape(s: String) -> String:
@@ -334,6 +367,22 @@ static func _merge_hl(stem: String, words: Array) -> void:
 			continue
 		cur.append(s)
 	_hl[key] = cur
+
+
+static func _store_npc_topic(npc_name: String, stem: String, als: Array, hls: Array) -> void:
+	var n := npc_name.strip_edges().to_lower()
+	if n.is_empty() or stem.is_empty():
+		return
+	var keys: Array[String] = [n]
+	if not _ingest_city.is_empty():
+		keys.append("%s/%s" % [_ingest_city, n])
+	for key in keys:
+		var al_pack: Dictionary = _npc_aliases.get(key, {})
+		var hl_pack: Dictionary = _npc_hl.get(key, {})
+		al_pack[stem] = als.duplicate()
+		hl_pack[stem] = hls.duplicate()
+		_npc_aliases[key] = al_pack
+		_npc_hl[key] = hl_pack
 
 
 static func _translate_line(en: String) -> String:

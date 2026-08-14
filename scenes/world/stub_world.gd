@@ -4314,9 +4314,11 @@ func _talk_stored_key_matches(stored: String, item_key: String) -> bool:
 		return true
 	if _TalkLocale.normalize_interest(stored) == _TalkLocale.normalize_interest(item_key):
 		return true
+	var npc := str(_talk_entry.name).strip_edges() if _talk_entry != null else ""
+	var city := _talk_city_id()
 	return (
-		_TalkLocale.match_topic_alias(stored, item_key)
-		or _TalkLocale.match_topic_alias(item_key, stored)
+		_TalkLocale.match_topic_alias(stored, item_key, npc, city)
+		or _TalkLocale.match_topic_alias(item_key, stored, npc, city)
 	)
 
 
@@ -11051,7 +11053,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_reset_talk_hangul()
 	_talk_turn_away = int(entry.turn_away)
 	_talk_pending_ask = false
-	_talk_keywords = entry.highlight_keywords()
+	_talk_keywords = entry.highlight_keywords(_talk_city_id())
 	_begin_talk_keyword_menu_if_requested()
 	_city_map.pause_follow(person_i)
 	## Message + character panels (left inventory stays closed unless already Tab-open).

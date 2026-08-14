@@ -256,7 +256,7 @@ class Entry:
 	var topic1: String = ""
 	var topic2: String = ""
 
-	func highlight_keywords() -> Array[String]:
+	func highlight_keywords(city_id: String = "") -> Array[String]:
 		## Words tinted in NPC speech when they appear (player interest keywords).
 		## Topics are often 4-letter stems (PLAY/COMP); expand a few common full forms.
 		var out: Array[String] = []
@@ -286,7 +286,7 @@ class Entry:
 		## Omit "bye" — farewell is a system line, not an in-dialogue topic hint.
 		for t: String in ["job", "heal", "health", "name", "look", "give", "join"]:
 			_add_kw(out, seen, t)
-		for extra in _TalkLocale.highlight_extras(topic1, topic2):
+		for extra in _TalkLocale.highlight_extras(topic1, topic2, name, city_id):
 			_add_kw(out, seen, str(extra))
 		return out
 
@@ -471,11 +471,13 @@ static func match_keyword(entry: Entry, input: String) -> Dictionary:
 	if in_s.is_empty():
 		return {}
 	if not entry.topic1.is_empty() and (
-		_prefix_ci(entry.topic1, in_s) or _TalkLocale.match_topic_alias(entry.topic1, in_s)
+		_prefix_ci(entry.topic1, in_s)
+		or _TalkLocale.match_topic_alias(entry.topic1, in_s, entry.name)
 	):
 		return {"kind": REPLY_TOPIC1, "text": entry.response1}
 	if not entry.topic2.is_empty() and (
-		_prefix_ci(entry.topic2, in_s) or _TalkLocale.match_topic_alias(entry.topic2, in_s)
+		_prefix_ci(entry.topic2, in_s)
+		or _TalkLocale.match_topic_alias(entry.topic2, in_s, entry.name)
 	):
 		return {"kind": REPLY_TOPIC2, "text": entry.response2}
 	## Builtins: Latin + Hangul (language-independent so 직업/이름 always work).
