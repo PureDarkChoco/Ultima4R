@@ -12345,7 +12345,7 @@ func _talk_answer_yn(yes: bool) -> void:
 	var journal_changed := false
 	## Gimble's gold question: Yes points the party to Azure and the rune.
 	if yes and npc_key == "gimble":
-		if GameState.journal_try_capture("minoc", "Gimble", "GOLD_YES"):
+		if GameState.journal_try_capture_talk("minoc", "Gimble", "GOLD_YES"):
 			journal_changed = true
 	## Mischief's Rune question: confirming possession advances the chain
 	## to Alkerion's information about the sacrifice stone.
@@ -12354,28 +12354,28 @@ func _talk_answer_yn(yes: bool) -> void:
 			journal_changed = true
 		if GameState.journal_mark_goal("confirm:mischief-rune"):
 			journal_changed = true
-		if GameState.journal_try_capture("minoc", "Mischief", "RUNE_YES"):
+		if GameState.journal_try_capture_talk("minoc", "Mischief", "RUNE_YES"):
 			journal_changed = true
 	## Zorin (LCB): Yes names Antos and the bell / book / candle.
 	if yes and npc_key == "zorin":
-		if GameState.journal_try_capture("lcb", "Zorin", "CAST_YES"):
+		if GameState.journal_try_capture_talk("lcb", "Zorin", "CAST_YES"):
 			journal_changed = true
 	## Seesha (LCB): Yes names Zircon in Minoc and the mystic arms.
 	if yes and npc_key == "seesha":
-		if GameState.journal_try_capture("lcb", "Seesha", "COUN_YES"):
+		if GameState.journal_try_capture_talk("lcb", "Seesha", "COUN_YES"):
 			journal_changed = true
 	## Sprite (Britain): Yes points to Pepper and the compassion rune.
 	if yes and npc_key == "sprite":
-		if GameState.journal_try_capture("britain", "Sprite", "HELP_YES"):
+		if GameState.journal_try_capture_talk("britain", "Sprite", "HELP_YES"):
 			journal_changed = true
 	## Thevel (Britain): No after the one-handed beggar points to Serpent's Hold.
 	if not yes and npc_key == "thevel":
-		if GameState.journal_try_capture("britain", "Thevel", "ORBS_NO"):
+		if GameState.journal_try_capture_talk("britain", "Thevel", "ORBS_NO"):
 			journal_changed = true
 	## Shazom (Moonglow): Yes/No after Nigel points to the Lycaeum teacher.
 	if npc_key == "shazom":
 		var shazom_topic := "NIGE_YES" if yes else "NIGE_NO"
-		if GameState.journal_try_capture("moonglow", "Shazom", shazom_topic):
+		if GameState.journal_try_capture_talk("moonglow", "Shazom", shazom_topic):
 			journal_changed = true
 	## Learning child (Britain): No on the mantra points to Cricket.
 	if (
@@ -12383,19 +12383,19 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "a child"
 		and str(e.topic2).strip_edges().to_upper() == "COMP"
 	):
-		if GameState.journal_try_capture("britain", "a child", "COMP_NO"):
+		if GameState.journal_try_capture_talk("britain", "a child", "COMP_NO"):
 			journal_changed = true
 	## Lord Robert (Jhelom): Yes after Job points to Nostro and the valor rune.
 	if yes and npc_key == "lord robert":
-		if GameState.journal_try_capture("jhelom", "Lord Robert", "JOB_YES"):
+		if GameState.journal_try_capture_talk("jhelom", "Lord Robert", "JOB_YES"):
 			journal_changed = true
 	## Senora (Jhelom): Yes after Crime points to the barkeep and sextant.
 	if yes and npc_key == "senora":
-		if GameState.journal_try_capture("jhelom", "Senora", "CRIM_YES"):
+		if GameState.journal_try_capture_talk("jhelom", "Senora", "CRIM_YES"):
 			journal_changed = true
 	## Gravnor (Jhelom): No after "Dost thou have it?" names Destard and the red stone.
 	if not yes and npc_key == "gravnor":
-		if GameState.journal_try_capture("jhelom", "Gravnor", "STON_NO"):
+		if GameState.journal_try_capture_talk("jhelom", "Gravnor", "STON_NO"):
 			journal_changed = true
 	## X (Jhelom): No after Red — red stone is used in an altar room for the key.
 	if (
@@ -12403,11 +12403,11 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "x"
 		and str(e.topic2).strip_edges().to_upper() == "RED"
 	):
-		if GameState.journal_try_capture("jhelom", "X", "RED_NO"):
+		if GameState.journal_try_capture_talk("jhelom", "X", "RED_NO"):
 			journal_changed = true
 	## Bengrod (Jhelom): Yes after Destard names the three connecting dungeons.
 	if yes and npc_key == "bengrod":
-		if GameState.journal_try_capture("jhelom", "Bengrod", "DUNG_YES"):
+		if GameState.journal_try_capture_talk("jhelom", "Bengrod", "DUNG_YES"):
 			journal_changed = true
 	## Luke (Jhelom): No after Light — Skara Brae is the city of Spirituality.
 	if (
@@ -12415,7 +12415,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "luke"
 		and str(e.topic1).strip_edges().to_upper() == "LIGH"
 	):
-		if GameState.journal_try_capture("skara", "Luke", "LIGH_NO"):
+		if GameState.journal_try_capture_talk("skara", "Luke", "LIGH_NO"):
 			journal_changed = true
 	## Druid (Yew): No after Shrine points to Talfourd and the justice rune.
 	if (
@@ -12423,7 +12423,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "druid"
 		and str(e.topic2).strip_edges().to_upper() == "SHRI"
 	):
-		if GameState.journal_try_capture("yew", "Druid", "SHRI_NO"):
+		if GameState.journal_try_capture_talk("yew", "Druid", "SHRI_NO"):
 			journal_changed = true
 	## Talfourd (Yew): No after Rune reveals the jail-cell search.
 	if (
@@ -12431,7 +12431,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "talfourd"
 		and str(e.topic2).strip_edges().to_upper() == "RUNE"
 	):
-		if GameState.journal_try_capture("yew", "Talfourd", "RUNE_NO"):
+		if GameState.journal_try_capture_talk("yew", "Talfourd", "RUNE_NO"):
 			journal_changed = true
 		if GameState.journal_mark_id("yew.druid.talfourd-rune"):
 			journal_changed = true
@@ -12439,14 +12439,14 @@ func _talk_answer_yn(yes: bool) -> void:
 			journal_changed = true
 	## Pinrod (Yew): Yes after Council points to the chanting druids' mantra.
 	if yes and npc_key == "pinrod":
-		if GameState.journal_try_capture("yew", "Pinrod", "COUN_YES"):
+		if GameState.journal_try_capture_talk("yew", "Pinrod", "COUN_YES"):
 			journal_changed = true
 	## Winthrop (Trinsic): Yes/No after Rune both point to Terrin.
 	if (
 		npc_key == "winthrop"
 		and str(e.topic2).strip_edges().to_upper() == "RUNE"
 	):
-		if GameState.journal_try_capture("trinsic", "Winthrop", "RUNE"):
+		if GameState.journal_try_capture_talk("trinsic", "Winthrop", "RUNE"):
 			journal_changed = true
 		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
 			journal_changed = true
@@ -12454,7 +12454,7 @@ func _talk_answer_yn(yes: bool) -> void:
 			journal_changed = true
 	## Granted (Skara): Yes after Money points to the Ankh (rune) and Ambule (mantra).
 	if yes and npc_key == "granted":
-		if GameState.journal_try_capture("skara", "Granted", "MONE_YES"):
+		if GameState.journal_try_capture_talk("skara", "Granted", "MONE_YES"):
 			journal_changed = true
 	## Banter (Magincia): Yes after Shrine points to Demitry and the silver horn.
 	if (
@@ -12462,7 +12462,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "banter"
 		and str(e.topic2).strip_edges().to_upper() == "SHRI"
 	):
-		if GameState.journal_try_capture("magincia", "Banter", "SHRI_YES"):
+		if GameState.journal_try_capture_talk("magincia", "Banter", "SHRI_YES"):
 			journal_changed = true
 	## Splot (Magincia): Yes after Humility points to Nate (the snake).
 	if (
@@ -12470,7 +12470,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "splot"
 		and str(e.topic2).strip_edges().to_upper() == "HUMB"
 	):
-		if GameState.journal_try_capture("magincia", "Splot", "HUMB_YES"):
+		if GameState.journal_try_capture_talk("magincia", "Splot", "HUMB_YES"):
 			journal_changed = true
 	## Sir Simon / Lady Tessa (Paws): Yes after Mystic reveals armour / weapons.
 	if (
@@ -12478,21 +12478,21 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "sir simon"
 		and str(e.topic2).strip_edges().to_upper() == "MYST"
 	):
-		if GameState.journal_try_capture("paws", "Sir Simon", "MYST_YES"):
+		if GameState.journal_try_capture_talk("paws", "Sir Simon", "MYST_YES"):
 			journal_changed = true
 	if (
 		yes
 		and npc_key == "lady tessa"
 		and str(e.topic2).strip_edges().to_upper() == "MYST"
 	):
-		if GameState.journal_try_capture("paws", "Lady Tessa", "MYST_YES"):
+		if GameState.journal_try_capture_talk("paws", "Lady Tessa", "MYST_YES"):
 			journal_changed = true
 	## Gem (Vesper): Yes/No after Mantra both teach reversing Pride's mantra.
 	if (
 		npc_key == "gem"
 		and str(e.topic2).strip_edges().to_upper() == "MANT"
 	):
-		if GameState.journal_try_capture("vesper", "Gem", "MANT"):
+		if GameState.journal_try_capture_talk("vesper", "Gem", "MANT"):
 			journal_changed = true
 	## Simple (Vesper): No after Humility names the isle's bearing.
 	if (
@@ -12500,18 +12500,18 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "simple"
 		and str(e.topic2).strip_edges().to_upper() == "HUMI"
 	):
-		if GameState.journal_try_capture("vesper", "Simple", "HUMI_NO"):
+		if GameState.journal_try_capture_talk("vesper", "Simple", "HUMI_NO"):
 			journal_changed = true
 	## Servile (Vesper): Yes/No after Help both warn that the skull is evil.
 	if npc_key == "servile":
-		if GameState.journal_try_capture("vesper", "Servile", "SKUL"):
+		if GameState.journal_try_capture_talk("vesper", "Servile", "SKUL"):
 			journal_changed = true
 	## Allen (Cove): Yes/No after Ship both point to Blissful and the abyss.
 	if (
 		npc_key == "allen"
 		and str(e.topic2).strip_edges().to_upper() == "SHIP"
 	):
-		if GameState.journal_try_capture("cove", "Allen", "SHIP_YES"):
+		if GameState.journal_try_capture_talk("cove", "Allen", "SHIP_YES"):
 			journal_changed = true
 	## Sebastian (Britain): Yes after Mondain points to Cap'n / skull.
 	if (
@@ -12519,7 +12519,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "sebastian"
 		and str(e.topic2).strip_edges().to_upper() == "MOND"
 	):
-		if GameState.journal_try_capture("britain", "Sebastian", "MOND_YES"):
+		if GameState.journal_try_capture_talk("britain", "Sebastian", "MOND_YES"):
 			journal_changed = true
 	## Sniflet (Den): Yes after Something reveals the balloon near Hythloth.
 	if (
@@ -12527,7 +12527,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "sniflet"
 		and str(e.topic2).strip_edges().to_upper() == "SOME"
 	):
-		if GameState.journal_try_capture("den", "Sniflet", "SOME_YES"):
+		if GameState.journal_try_capture_talk("den", "Sniflet", "SOME_YES"):
 			journal_changed = true
 	## Empath / Lycaeum / Serpent Yes-No journal tips.
 	var place_id := _talk_city_id()
@@ -12538,7 +12538,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "lord robert"
 		and topic2 == "WORD"
 	):
-		if GameState.journal_try_capture("empath", "Lord Robert", "WORD_YES"):
+		if GameState.journal_try_capture_talk("empath", "Lord Robert", "WORD_YES"):
 			journal_changed = true
 	if (
 		not yes
@@ -12546,7 +12546,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "life."
 		and topic2 == "LOVE"
 	):
-		if GameState.journal_try_capture("empath", "Life.", "LOVE_NO"):
+		if GameState.journal_try_capture_talk("empath", "Life.", "LOVE_NO"):
 			journal_changed = true
 	if (
 		not yes
@@ -12554,7 +12554,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "the pass guard"
 		and topic2 == "DANG"
 	):
-		if GameState.journal_try_capture(
+		if GameState.journal_try_capture_talk(
 			"empath", "the pass guard", "DANG_NO"
 		):
 			journal_changed = true
@@ -12564,7 +12564,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "robert frasier"
 		and topic2 == "WORD"
 	):
-		if GameState.journal_try_capture(
+		if GameState.journal_try_capture_talk(
 			"lycaeum", "Robert Frasier", "WORD_YES"
 		):
 			journal_changed = true
@@ -12574,7 +12574,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "scatu"
 		and topic2 == "ARMO"
 	):
-		if GameState.journal_try_capture("lycaeum", "Scatu", "ARMO_YES"):
+		if GameState.journal_try_capture_talk("lycaeum", "Scatu", "ARMO_YES"):
 			journal_changed = true
 	if (
 		place_id == "lycaeum"
@@ -12582,7 +12582,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and topic2 == "WOUN"
 	):
 		var fighter_topic := "WOUN_YES" if yes else "WOUN_NO"
-		if GameState.journal_try_capture(
+		if GameState.journal_try_capture_talk(
 			"lycaeum", "a fighter", fighter_topic
 		):
 			journal_changed = true
@@ -12592,7 +12592,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "estro"
 		and topic2 == "JUST"
 	):
-		if GameState.journal_try_capture("lycaeum", "Estro", "JUST_NO"):
+		if GameState.journal_try_capture_talk("lycaeum", "Estro", "JUST_NO"):
 			journal_changed = true
 	if (
 		not yes
@@ -12600,7 +12600,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "sentri"
 		and topic2 == "WORD"
 	):
-		if GameState.journal_try_capture("serpent", "Sentri", "WORD_NO"):
+		if GameState.journal_try_capture_talk("serpent", "Sentri", "WORD_NO"):
 			journal_changed = true
 	if (
 		not yes
@@ -12608,7 +12608,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "sister antos"
 		and topic2 == "BELL"
 	):
-		if GameState.journal_try_capture(
+		if GameState.journal_try_capture_talk(
 			"serpent", "Sister Antos", "BELL_NO"
 		):
 			journal_changed = true
@@ -12618,7 +12618,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "noxum"
 		and topic2 == "SHIP"
 	):
-		if GameState.journal_try_capture("serpent", "Noxum", "SHIP_YES"):
+		if GameState.journal_try_capture_talk("serpent", "Noxum", "SHIP_YES"):
 			journal_changed = true
 	if (
 		yes
@@ -12626,7 +12626,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		and npc_key == "a ranger."
 		and topic2 == "DUNG"
 	):
-		if GameState.journal_try_capture("serpent", "a ranger.", "DUNG_YES"):
+		if GameState.journal_try_capture_talk("serpent", "a ranger.", "DUNG_YES"):
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
@@ -12700,6 +12700,7 @@ func _talk_do_join() -> void:
 					if _map != null and _map.has_method("refresh"):
 						_map.refresh()
 				_refresh_party()
+				_refresh_journal_panel()
 				_end_talk(false)
 				return
 			GameState.JoinError.NOT_VIRTUOUS:
@@ -12888,6 +12889,8 @@ func _begin_combat(
 		return
 	## Lock input; open panels while the map wipes explore → combat (0.6s tile diagonals).
 	_combat_active = true
+	if GameState.journal_mark_goal("combat:first"):
+		_refresh_journal_panel()
 	_GameInput.reset_stick_navigation()
 	_combat_resolving = true
 	_combat_victory_aftermath = false
@@ -14974,7 +14977,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		return
 	var npc := str(entry.name)
 	var refresh := false
-	if GameState.journal_try_capture(place, npc, topic):
+	if GameState.journal_try_capture_talk(place, npc, topic):
 		refresh = true
 	var npc_key := npc.strip_edges().to_lower()
 	## Manual → Zorin: any talk with Zorin completes the Way of the Avatar tip.
@@ -15103,7 +15106,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 	## Luke (Jhelom): Yew is the city of Justice — file under Yew.
 	if place == "jhelom" and npc_key == "luke" and topic == "YEW":
-		if GameState.journal_try_capture("yew", "Luke", "YEW"):
+		if GameState.journal_try_capture_talk("yew", "Luke", "YEW"):
 			refresh = true
 	## Yew: Silent's Job/Beh chant completes Pinrod's mantra tip.
 	## Catalog key is JOB; Beh.* replies also reveal the same mantra.
@@ -15112,7 +15115,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		and npc_key == "silent"
 		and topic in ["JOB", "HEAL", "BEH", "BEH."]
 	):
-		if GameState.journal_try_capture("yew", "Silent", "JOB"):
+		if GameState.journal_try_capture_talk("yew", "Silent", "JOB"):
 			refresh = true
 		if GameState.journal_mark_id("yew.pinrod.druids-mantra"):
 			refresh = true
@@ -15179,7 +15182,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 	## Nate (Magincia): Rune reply points to Barren in Paws.
 	if place == "magincia" and npc_key == "nate" and topic == "RUNE":
-		if GameState.journal_try_capture("magincia", "Nate", "RUNE"):
+		if GameState.journal_try_capture_talk("magincia", "Nate", "RUNE"):
 			refresh = true
 	## Paws: Barren completes Nate's tip; Wheatpin is a parallel humility-rune tip.
 	if place == "paws" and npc_key == "barren" and topic == "RUNE":

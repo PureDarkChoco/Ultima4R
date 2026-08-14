@@ -2,6 +2,45 @@
   "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
+      "id": "britannia.start.talk",
+      "place": "britannia",
+      "npc": "The Quest of the Avatar",
+      "topic": "TALK",
+      "goal": "talk:first-note",
+      "speaker_en": "The Quest of the Avatar",
+      "speaker_ko": "아바타의 여정",
+      "en": "Talk to townspeople to gather information.",
+      "ko": "마을 사람들과 대화해서 정보 모으기",
+      "en_u4": "Speak with the folk of the towns, and gather knowledge.",
+      "en_us": "Talk to townspeople to gather information."
+    },
+    {
+      "id": "britannia.start.combat",
+      "place": "britannia",
+      "npc": "The Quest of the Avatar",
+      "topic": "COMBAT",
+      "goal": "combat:first",
+      "speaker_en": "The Quest of the Avatar",
+      "speaker_ko": "아바타의 여정",
+      "en": "Fight battles to gain experience.",
+      "ko": "전투를 해서 경험치 획득하기",
+      "en_u4": "Do battle, and gain in experience.",
+      "en_us": "Fight battles to gain experience."
+    },
+    {
+      "id": "britannia.start.companions",
+      "place": "britannia",
+      "npc": "The Quest of the Avatar",
+      "topic": "PARTY",
+      "goal": "companions:7",
+      "speaker_en": "The Quest of the Avatar",
+      "speaker_ko": "아바타의 여정",
+      "en": "Gather 7 companions.",
+      "ko": "동료 7명 모으기",
+      "en_u4": "Gather seven companions.",
+      "en_us": "Gather 7 companions."
+    },
+    {
       "id": "lcb.manual.zorin",
       "place": "lcb",
       "npc": "The Way of the Avatar",

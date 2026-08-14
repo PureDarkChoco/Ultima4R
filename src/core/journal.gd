@@ -80,6 +80,25 @@ static func find_catalog_by_id(id: String) -> Dictionary:
 	return {}
 
 
+static func seed_new_game(gs: Node) -> void:
+	## Starter Britannia goals for a freshly created party.
+	if gs == null:
+		return
+	ensure_catalog()
+	const IDS: Array[String] = [
+		"britannia.start.talk",
+		"britannia.start.combat",
+		"britannia.start.companions",
+	]
+	for id in IDS:
+		var cat := find_catalog_by_id(id)
+		if cat.is_empty():
+			continue
+		_append_catalog_capture(
+			gs, cat, "britannia", str(cat.get("npc", "The Quest of the Avatar")), false
+		)
+
+
 static func try_capture(gs: Node, place: String, npc: String, topic: String) -> bool:
 	## Add every matching catalog row (e.g. Zorin Yes → three Antos tips). Returns true if any new.
 	if gs == null:
@@ -110,7 +129,7 @@ static func try_capture(gs: Node, place: String, npc: String, topic: String) -> 
 
 
 static func _append_catalog_capture(
-	gs: Node, cat: Dictionary, place: String, npc: String
+	gs: Node, cat: Dictionary, place: String, npc: String, note_new: bool = true
 ) -> bool:
 	var id := str(cat.get("id", "")).strip_edges()
 	if id.is_empty():
@@ -154,7 +173,8 @@ static func _append_catalog_capture(
 	var rows: Array = gs.journal_entries
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
-	_note_new_entry(gs, id, place)
+	if note_new:
+		_note_new_entry(gs, id, place)
 	return true
 
 
@@ -380,7 +400,10 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "key:courage":
 		## Courage altar stones used → third part of the key.
 		return gs.has_item_flag(gs.ITEM_KEY_C)
-	## mantra:* is only completed by shrine success (not inventory).
+	if g == "companions:7":
+		## Avatar + 7 companions.
+		return gs.party_size() >= 8
+	## talk:first-note / combat:first / mantra:* complete only when the event fires.
 	return false
 
 

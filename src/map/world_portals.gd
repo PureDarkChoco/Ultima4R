@@ -111,7 +111,7 @@ const JOURNAL_VILLAGES: Array[String] = ["paws", "den", "vesper", "cove"]
 
 
 static func journal_place_order() -> Array[String]:
-	var out: Array[String] = []
+	var out: Array[String] = ["britannia"]
 	out.append_array(JOURNAL_CASTLES)
 	out.append_array(JOURNAL_TOWNS)
 	out.append_array(JOURNAL_VILLAGES)

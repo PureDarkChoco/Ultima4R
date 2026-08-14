@@ -865,6 +865,11 @@ const _T := {
 		"ko": "아직 기록이 없다.",
 	},
 	## Official names. Prose uses {lcb} / {britain} / … via fill_places(); land "Britannia" is not a token.
+	"place_britannia": {
+		"en_u4": "Britannia",
+		"en_us": "Britannia",
+		"ko": "브리타니아",
+	},
 	"place_lcb": {
 		"en_u4": "Britannia Castle",
 		"en_us": "Britannia Castle",

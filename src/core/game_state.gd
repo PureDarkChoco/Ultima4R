@@ -699,6 +699,11 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	party_order.clear()
 	party_order.append(klass)
 	clear_aura()
+	journal_entries.clear()
+	journal_collapsed.clear()
+	journal_selected_id = ""
+	journal_unseen_id = ""
+	_Journal.seed_new_game(self)
 
 
 func _init_party_from_xu4(avatar_klass: int, selected_virtues: Array[int]) -> void:
@@ -802,6 +807,8 @@ func add_party_member(klass: int) -> bool:
 	party_order.append(klass)
 	mark_weapon_known(weapon_of_class(klass))
 	mark_armor_known(armor_of_class(klass))
+	if party_order.size() >= 8:
+		journal_mark_goal("companions:7")
 	return true
 
 
@@ -2881,6 +2888,14 @@ func _probe_u4_data() -> bool:
 
 func journal_try_capture(place: String, npc: String, topic: String) -> bool:
 	return _Journal.try_capture(self, place, npc, topic)
+
+
+func journal_try_capture_talk(place: String, npc: String, topic: String) -> bool:
+	## Dialogue-only: first new note completes the Britannia talk starter.
+	if not journal_try_capture(place, npc, topic):
+		return false
+	journal_mark_goal("talk:first-note")
+	return true
 
 
 func journal_has_id(id: String) -> bool:
