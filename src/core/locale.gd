@@ -1020,6 +1020,16 @@ const _T := {
 		"en_us": "Resurrection",
 		"ko": "부활",
 	},
+	"shop_tavern_food": {
+		"en_u4": "Food",
+		"en_us": "Food",
+		"ko": "음식",
+	},
+	"shop_tavern_ale": {
+		"en_u4": "Ale",
+		"en_us": "Ale",
+		"ko": "에일",
+	},
 	"cmd_nothing_to_open": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",

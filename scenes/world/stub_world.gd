@@ -1889,7 +1889,7 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	_enter_btn_row.custom_minimum_size = Vector2.ZERO
 	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
 	var min_w := 48.0 if keys.length() >= 3 else 58.0
-	if keys == "abc":
+	if keys == "abc" or keys == "fa":
 		min_w = 72.0
 	_enter_prompt_choice = clampi(_enter_prompt_choice, 0, maxi(keys.length() - 1, 0))
 	for i in _choice_btns.size():
@@ -1924,8 +1924,8 @@ func _shop_choice_keys() -> String:
 		return "yn"
 	if keys == "sb":
 		return "bs"
-	## Yes/No, Buy/Sell, Minoc inn beds 1/2/3, healer A/B/C services.
-	if keys == "yn" or keys == "bs" or keys == "123" or keys == "abc":
+	## Yes/No, Buy/Sell, tavern Food/Ale, Minoc inn beds 1/2/3, healer A/B/C.
+	if keys == "yn" or keys == "bs" or keys == "fa" or keys == "123" or keys == "abc":
 		return keys
 	## Healer "Who is in need?" — one digit per living party member.
 	if keys.length() >= 1 and keys.length() <= 8:
@@ -1971,6 +1971,12 @@ func _prompt_choice_label(key: String) -> String:
 				return Locale.t("shop_heal_heal")
 			"c":
 				return Locale.t("shop_heal_resurrect")
+	if _shop_choice_keys() == "fa":
+		match key:
+			"f":
+				return Locale.t("shop_tavern_food")
+			"a":
+				return Locale.t("shop_tavern_ale")
 	match key:
 		"y":
 			return Locale.t("cmd_yes")
