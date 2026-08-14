@@ -280,10 +280,10 @@
       "chain": "britain.compassion-rune",
       "chain_order": 20,
       "goal": "rune:compassion",
-      "en": "Search at the end of a hall in this town.",
-      "ko": "이 마을 복도 끝에서 찾기",
-      "en_u4": "Search at the end of a hall in this towne.",
-      "en_us": "Search at the end of a hall in this town."
+      "en": "Search for the rune at the end of a hall in this town.",
+      "ko": "이 마을 복도 끝에서 룬 찾기",
+      "en_u4": "Search for the rune at the end of a hall in this towne.",
+      "en_us": "Search for the rune at the end of a hall in this town."
     },
     {
       "id": "britain.child.cricket-mantra",
@@ -335,6 +335,17 @@
       "goal": "",
       "en": "Compassion derives itself from unending love.",
       "ko": "연민은 끝없는 사랑에서 우러나온다."
+    },
+    {
+      "id": "britain.joe.yellow-stone",
+      "place": "britain",
+      "npc": "Joe",
+      "topic": "STON",
+      "goal": "stone:yellow",
+      "en": "Yellow stone: in the dungeon of {despise}.",
+      "ko": "노란 돌: {despise}의 던전에 있다.",
+      "en_u4": "Yellow stone: in the dungeon of {despise}.",
+      "en_us": "Yellow stone: in the dungeon of {despise}."
     },
     {
       "id": "moonglow.christen.william-rune",

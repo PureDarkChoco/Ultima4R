@@ -11276,7 +11276,7 @@ func _talk_say_name() -> void:
 			_refresh_journal_panel()
 
 
-func _push_talk_script(raw: String) -> void:
+func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
 	## NPC / talk script lines. Classic .TLK is modernized when lang is en_us.
 	## DOS .tlk embeds hard breaks for the tiny classic text window — reflow to
 	## the modern message strip, then soft-wrap to full content width.
@@ -11288,7 +11288,8 @@ func _push_talk_script(raw: String) -> void:
 	var flat := _reflow_talk_hard_breaks(script)
 	if flat.is_empty():
 		return
-	_discover_talk_keywords(flat)
+	if match_keywords:
+		_discover_talk_keywords(flat)
 	## Ensure geometry before measuring wrap width (first line of a talk).
 	if _msg_rw < 8.0 or (_msg_block != null and _msg_block.size.x < 8.0):
 		if _map_pane != null:
@@ -11304,7 +11305,8 @@ func _push_talk_script(raw: String) -> void:
 			## Vendor: gold Buy/Sell + cyan A-/B- catalog letters.
 			_msg_lines.append(_TalkTlk.colorize_shop_dialogue(part))
 		else:
-			_msg_lines.append(_TalkTlk.colorize_keywords(part, _talk_keywords))
+			var keys: Array = _talk_keywords if match_keywords else []
+			_msg_lines.append(_TalkTlk.colorize_keywords(part, keys))
 	while _msg_lines.size() > MSG_KEEP:
 		_msg_lines.remove_at(0)
 	_refresh_message_view()
@@ -11936,9 +11938,9 @@ func _talk_process_keyword(input: String) -> void:
 		var prob := randi() % 256
 		if prob < _talk_turn_away:
 			if _talk_turn_away - prob < 0x40:
-				_push_talk_script("%s turns away!" % str(e.pronoun))
+				_push_talk_script("%s turns away!" % str(e.pronoun), false)
 			else:
-				_push_talk_script("%s says: On guard! Fool!" % str(e.pronoun))
+				_push_talk_script("%s says: On guard! Fool!" % str(e.pronoun), false)
 				if _talk_person_i >= 0 and _talk_person_i < _city_map.person_move.size():
 					_city_map.person_move[_talk_person_i] = _CityMapData.MOVE_ATTACK
 			_end_talk(false)
