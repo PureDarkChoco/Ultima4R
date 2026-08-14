@@ -92,8 +92,18 @@ var runes: int = 0
 var lb_intro: bool = false
 ## Journal / 여행 기록 — catalog hits in acquisition order (see Journal / entries.json).
 var journal_entries: Array = []
-## Spoken NPC interests: "city/npc" → Array of stable keyword keys (survives town exit + save).
+## Place id → true when that settlement's journal group is collapsed.
+var journal_collapsed: Dictionary = {}
+## Catalog id or `place:<id>` of the highlighted journal row (browse cursor / save restore).
+var journal_selected_id: String = ""
+## New catalog id not yet shown in journal browse; next open jumps here once.
+var journal_unseen_id: String = ""
+## Spoken NPC interests: "city/d{discourse}" → Array of stable keyword keys.
+## Legacy saves may still use "city/npc-name".
 var talk_known_keywords: Dictionary = {}
+## Interest words actually heard in any spoken line (any NPC). Used to surface
+## another speaker's hidden topic (e.g. Iolo + compassion) from the first prompt.
+var talk_heard_words: Array = []
 ## xu4 camp.h — heal only when the moves/100 bucket differs from lastcamp.
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
@@ -319,7 +329,11 @@ func reset_party() -> void:
 	runes = 0
 	lb_intro = false
 	journal_entries.clear()
+	journal_collapsed.clear()
+	journal_selected_id = ""
+	journal_unseen_id = ""
 	talk_known_keywords.clear()
+	talk_heard_words.clear()
 	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
@@ -2557,7 +2571,11 @@ func to_save_dict() -> Dictionary:
 		"runes": runes,
 		"lb_intro": lb_intro,
 		"journal": journal_entries.duplicate(true),
+		"journal_collapsed": journal_collapsed.duplicate(true),
+		"journal_selected_id": journal_selected_id,
+		"journal_unseen_id": journal_unseen_id,
 		"talk_known_keywords": talk_known_keywords.duplicate(true),
+		"talk_heard_words": talk_heard_words.duplicate(),
 		"lastreagent": lastreagent,
 		"has_sextant": has_sextant,
 		"weapons": weapons.duplicate(),
@@ -2625,6 +2643,19 @@ func apply_save_dict(d: Dictionary) -> void:
 		for row in journal_raw:
 			if typeof(row) == TYPE_DICTIONARY:
 				journal_entries.append((row as Dictionary).duplicate(true))
+	journal_collapsed.clear()
+	var collapsed_raw: Variant = d.get("journal_collapsed", {})
+	if typeof(collapsed_raw) == TYPE_DICTIONARY:
+		for place in (collapsed_raw as Dictionary).keys():
+			if bool((collapsed_raw as Dictionary)[place]):
+				journal_collapsed[str(place)] = true
+	elif typeof(collapsed_raw) == TYPE_ARRAY:
+		for place in collapsed_raw:
+			var pid := str(place).strip_edges()
+			if not pid.is_empty():
+				journal_collapsed[pid] = true
+	journal_selected_id = str(d.get("journal_selected_id", "")).strip_edges()
+	journal_unseen_id = str(d.get("journal_unseen_id", "")).strip_edges()
 	talk_known_keywords.clear()
 	var talk_raw: Variant = d.get("talk_known_keywords", {})
 	if typeof(talk_raw) == TYPE_DICTIONARY:
@@ -2640,6 +2671,14 @@ func apply_save_dict(d: Dictionary) -> void:
 				keys.append(s)
 			if not keys.is_empty():
 				talk_known_keywords[str(npc_id)] = keys
+	talk_heard_words.clear()
+	var heard_raw: Variant = d.get("talk_heard_words", [])
+	if typeof(heard_raw) == TYPE_ARRAY:
+		for v in heard_raw:
+			var hs := str(v).strip_edges()
+			if hs.is_empty() or talk_heard_words.has(hs):
+				continue
+			talk_heard_words.append(hs)
 	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
 	## Legacy saves stored only `skull` count — promote into the items bitfield.
 	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
@@ -2860,6 +2899,26 @@ func talk_remember_keyword(npc_id: String, key: String) -> void:
 		return
 	cur.append(k)
 	talk_known_keywords[id] = cur
+
+
+func talk_remember_heard_word(word: String) -> void:
+	var k := word.strip_edges()
+	if k.is_empty() or talk_heard_words.has(k):
+		return
+	talk_heard_words.append(k)
+
+
+func talk_has_heard_word(word: String) -> bool:
+	var want := word.strip_edges()
+	if want.is_empty():
+		return false
+	if talk_heard_words.has(want):
+		return true
+	var low := want.to_lower()
+	for raw in talk_heard_words:
+		if str(raw).strip_edges().to_lower() == low:
+			return true
+	return false
 
 
 func talk_known_keys(npc_id: String) -> Array[String]:

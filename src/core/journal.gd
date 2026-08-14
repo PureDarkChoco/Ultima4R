@@ -154,6 +154,7 @@ static func _append_catalog_capture(
 	var rows: Array = gs.journal_entries
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
+	_note_new_entry(gs, id, place)
 	return true
 
 
@@ -209,7 +210,26 @@ static func _upgrade_catalog_capture(
 	}
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
+	_note_new_entry(gs, id, place)
 	return true
+
+
+static func _note_new_entry(gs: Node, id: String, place: String) -> void:
+	## Remember the new row for the next journal open, and uncollapse its city.
+	if gs == null:
+		return
+	var nid := id.strip_edges()
+	if nid.is_empty():
+		return
+	gs.journal_unseen_id = nid
+	var p := place.strip_edges().to_lower()
+	if p.is_empty() or typeof(gs.journal_collapsed) != TYPE_DICTIONARY:
+		return
+	var cur: Dictionary = (gs.journal_collapsed as Dictionary).duplicate()
+	if not cur.has(p):
+		return
+	cur.erase(p)
+	gs.journal_collapsed = cur
 
 
 static func _catalog_speakers(cat: Dictionary, place: String, npc: String) -> Array:
@@ -419,6 +439,63 @@ static func grouped_for_ui(gs: Node) -> Array[Dictionary]:
 			"entries": _rows_with_chains_grouped(by_place[place] as Array),
 		})
 	return out
+
+
+static func latest_id_for_place(gs: Node, place: String) -> String:
+	## Most recently acquired row for a settlement (highest `at`, then later in list).
+	if gs == null:
+		return ""
+	var want := place.strip_edges().to_lower()
+	if want.is_empty():
+		return ""
+	var best_id := ""
+	var best_at := -1
+	for row in gs.journal_entries:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		if str(d.get("place", "")).strip_edges().to_lower() != want:
+			continue
+		var id := str(d.get("id", "")).strip_edges()
+		if id.is_empty():
+			continue
+		var at := int(d.get("at", 0))
+		if at >= best_at:
+			best_at = at
+			best_id = id
+	return best_id
+
+
+static func last_acquired_id(gs: Node) -> String:
+	if gs == null:
+		return ""
+	var best_id := ""
+	var best_at := -1
+	for row in gs.journal_entries:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		var id := str(d.get("id", "")).strip_edges()
+		if id.is_empty():
+			continue
+		var at := int(d.get("at", 0))
+		if at >= best_at:
+			best_at = at
+			best_id = id
+	return best_id
+
+
+static func place_for_entry_id(gs: Node, id: String) -> String:
+	if gs == null or id.strip_edges().is_empty():
+		return ""
+	var want := id.strip_edges()
+	for row in gs.journal_entries:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		if str(d.get("id", "")).strip_edges() == want:
+			return str(d.get("place", "")).strip_edges().to_lower()
+	return ""
 
 
 static func entry_chain(row: Dictionary) -> String:

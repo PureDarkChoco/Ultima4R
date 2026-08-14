@@ -133,6 +133,7 @@ var _move_cd := 0.0
 var _hold_arm := 0.0
 var _move_repeating := false
 var _left_trigger_held := false
+var _right_trigger_held := false
 var _held_dir := Vector2i.ZERO
 var _pending_cmd: int = U4Commands.Id.NONE
 ## Label shown while waiting on the same line: "Attack: Dir?" (xu4 style).
@@ -330,6 +331,11 @@ var _command_menu_scroll_down: Label
 var _command_menu_rows: Array[ColorRect] = []
 ## LOCAL CHEAT (⌘/Ctrl+P) — city warp list. Do not commit.
 var _city_warp_open := false
+## Cmd/Ctrl+J: browse the left-pane journal; Esc restores prior side-panel state.
+var _journal_focus_active := false
+var _journal_saved_sides_open := false
+## Journal opened the left pane without the right roster (sides were closed).
+var _journal_opened_left_only := false
 var _city_warp_cursor := 0
 var _city_warp_scroll := 0
 var _city_warp_items: Array[Dictionary] = []
@@ -2288,6 +2294,8 @@ func _on_sides_opened() -> void:
 	_msg_h = _msg_full_h
 	_apply_msg_geometry()
 	_refresh_message_view()
+	if _journal_focus_active and _journal_panel != null and _journal_panel.has_method("recenter_selection"):
+		_journal_panel.recenter_selection()
 
 
 func _await_side_tween() -> void:
@@ -2366,7 +2374,7 @@ func _toggle_left_panel_during_talk() -> void:
 			_refresh_message_view()
 
 
-func _animate_left_panel_only(open: bool) -> void:
+func _animate_left_panel_only(open: bool, restore_compact: bool = false) -> void:
 	if _left_pane == null or _map_pane == null:
 		return
 	var g := _side_geom()
@@ -2382,6 +2390,9 @@ func _animate_left_panel_only(open: bool) -> void:
 		_left_pane.position = Vector2(target_x, 0.0)
 		if not open:
 			_left_pane.visible = false
+			if restore_compact and _compact_pane and not _sides_open and not _order_opened_roster:
+				_compact_pane.visible = true
+				_compact_pane.modulate.a = 1.0
 		return
 	if _side_tween != null and is_instance_valid(_side_tween):
 		_side_tween.kill()
@@ -2392,6 +2403,9 @@ func _animate_left_panel_only(open: bool) -> void:
 		_side_tween.chain().tween_callback(func() -> void:
 			if not _sides_open and _left_pane:
 				_left_pane.visible = false
+			if restore_compact and _compact_pane and not _sides_open and not _order_opened_roster:
+				_compact_pane.visible = true
+				_compact_pane.modulate.a = 1.0
 		)
 
 
@@ -2562,6 +2576,9 @@ func _process(delta: float) -> void:
 	if _is_party_asleep_locked():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
+	if _journal_focus_active:
+		_tick_journal_browse_nav()
+		return
 	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
@@ -2577,7 +2594,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -3282,7 +3299,7 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 
 
 func _can_open_command_menu() -> bool:
-	if _command_menu_open or _city_warp_open or _enter_prompt_stage != 0:
+	if _command_menu_open or _city_warp_open or _journal_focus_active or _enter_prompt_stage != 0:
 		return false
 	if (
 		_death_busy or _moongate_busy or _cannon_busy or _search_busy
@@ -3591,8 +3608,9 @@ func _insert_talk_keyword_menu_item(
 
 
 func _seed_talk_latent_keywords() -> void:
-	## Show every NPC interest that exists but has not been spoken yet (gray).
-	## Builtins + journal offers stay white; selecting gray still works.
+	## Every NPC interest starts on the list. Look/Name/Job/Health/Give/Bye
+	## are already white. Join and unspoken topics are gray. Iolo's compassion
+	## flips white immediately if anyone else in town already said 연민.
 	if not _talk_keyword_menu_active or _talk_is_hawkwind:
 		return
 	var korean := GameState.lang_short() == "ko"
@@ -3600,8 +3618,49 @@ func _seed_talk_latent_keywords() -> void:
 		var key := _talk_keyword_stable_key(word)
 		if key.is_empty() or _talk_keyword_menu_seen.has(key):
 			continue
+		if _talk_is_white_builtin_key(key):
+			continue
+		var revealed := (
+			_talk_npc_is_iolo()
+			and _talk_word_is_compassion(word)
+			and _talk_has_heard_interest(word)
+		)
 		var label := word if korean else word.capitalize()
-		_insert_talk_keyword_menu_item(key, label, word, false)
+		_insert_talk_keyword_menu_item(key, label, word, revealed)
+
+
+func _talk_has_heard_interest(word: String) -> bool:
+	if GameState.talk_has_heard_word(_talk_keyword_stable_key(word)):
+		return true
+	if GameState.talk_has_heard_word(word):
+		return true
+	for extra in _talk_keywords:
+		var other := str(extra).strip_edges()
+		if other.is_empty() or other == word:
+			continue
+		if not _talk_words_are_same_topic(word, other):
+			continue
+		if GameState.talk_has_heard_word(_talk_keyword_stable_key(other)):
+			return true
+		if GameState.talk_has_heard_word(other):
+			return true
+	return false
+
+
+func _talk_npc_is_iolo() -> bool:
+	if _talk_entry == null:
+		return false
+	return str(_talk_entry.name).strip_edges().to_lower() == "iolo"
+
+
+func _talk_word_is_compassion(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["연민", "compassion", "comp"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
 
 
 func _remember_talk_keyword_menu_word(word: String) -> void:
@@ -4192,24 +4251,60 @@ func _talk_city_id() -> String:
 	return _TalkLocale.city_id_from_path(str(_city_map.source_path))
 
 
+func _talk_discourse_index() -> int:
+	## .TLK slot for the current speaker. Shared by clones of the same script.
+	if _city_map == null:
+		return -1
+	if _talk_person_i >= 0 and _talk_person_i < _city_map.person_conv.size():
+		return int(_city_map.person_conv[_talk_person_i])
+	if _talk_entry == null:
+		return -1
+	for i in _city_map.discourses.size():
+		if _city_map.discourses[i] == _talk_entry:
+			return i
+	return -1
+
+
 func _talk_memory_npc_id() -> String:
+	## Persist by discourse slot, not display name — "a child" / "a guard"
+	## can be several different scripts in one town.
+	if _talk_is_hawkwind or _talk_is_lb or _talk_entry == null:
+		return ""
+	var city := _talk_city_id()
+	if city.is_empty():
+		return ""
+	var di := _talk_discourse_index()
+	if di >= 0:
+		return "%s/d%d" % [city, di]
+	if _talk_person_i < 0:
+		return ""
+	return "%s/#%d" % [city, _talk_person_i]
+
+
+func _talk_memory_legacy_npc_id() -> String:
+	## Older saves keyed by English TLK name (`britain/a child`).
 	if _talk_is_hawkwind or _talk_is_lb or _talk_entry == null:
 		return ""
 	var city := _talk_city_id()
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
-	if city.is_empty():
+	if city.is_empty() or npc.is_empty():
 		return ""
-	if npc.is_empty():
-		if _talk_person_i < 0:
-			return ""
-		return "%s/#%d" % [city, _talk_person_i]
 	return "%s/%s" % [city, npc]
 
 
+func _talk_is_white_builtin_key(key: String) -> bool:
+	## Already on the opening row as white. Join is a builtin but stays gray.
+	return key in ["look", "name", "job", "heal", "give", "bye"]
+
+
+func _talk_is_menu_builtin_key(key: String) -> bool:
+	return _talk_is_white_builtin_key(key) or key in ["join", "help"]
+
+
 func _talk_should_persist_key(key: String) -> bool:
-	if key.is_empty():
+	if key.is_empty() or _talk_is_menu_builtin_key(key):
 		return false
-	return key not in ["look", "name", "job", "heal", "give", "bye"]
+	return true
 
 
 func _talk_stored_key_matches(stored: String, item_key: String) -> bool:
@@ -4241,12 +4336,21 @@ func _persist_talk_known_word(word: String) -> void:
 		return
 	var seen: Dictionary = {}
 	_persist_talk_known_one(npc_id, raw, seen)
+	_persist_talk_heard_word(raw)
 	for extra in _talk_keywords:
 		var other := str(extra).strip_edges()
 		if other.is_empty() or other == raw:
 			continue
 		if _talk_words_are_same_topic(raw, other):
 			_persist_talk_known_one(npc_id, other, seen)
+			_persist_talk_heard_word(other)
+
+
+func _persist_talk_heard_word(word: String) -> void:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty() or not _talk_should_persist_key(key):
+		return
+	GameState.talk_remember_heard_word(key)
 
 
 func _persist_talk_known_one(npc_id: String, word: String, seen: Dictionary) -> void:
@@ -4281,14 +4385,36 @@ func _talk_label_for_stored_key(stored: String) -> String:
 	return stored
 
 
+func _talk_stored_key_belongs_here(stored: String) -> bool:
+	if stored.is_empty():
+		return false
+	for raw in _talk_keywords:
+		var word := str(raw).strip_edges()
+		if word.is_empty():
+			continue
+		if _talk_stored_key_matches(stored, _talk_keyword_stable_key(word)):
+			return true
+	return false
+
+
 func _restore_talk_known_keywords() -> void:
 	if not _talk_keyword_menu_active:
 		return
 	var npc_id := _talk_memory_npc_id()
 	if npc_id.is_empty():
 		return
+	var stored_keys: Array[String] = GameState.talk_known_keys(npc_id)
+	var legacy_id := _talk_memory_legacy_npc_id()
+	if not legacy_id.is_empty() and legacy_id != npc_id:
+		for stored in GameState.talk_known_keys(legacy_id):
+			if stored_keys.has(stored):
+				continue
+			## Same display name can be several scripts; keep only this script's words.
+			if _talk_stored_key_belongs_here(stored):
+				stored_keys.append(stored)
+				GameState.talk_remember_keyword(npc_id, stored)
 	var korean := GameState.lang_short() == "ko"
-	for stored in GameState.talk_known_keys(npc_id):
+	for stored in stored_keys:
 		if _reveal_talk_keyword_if_latent(stored) != 0:
 			continue
 		if _talk_keyword_menu_seen.has(stored):
@@ -4691,6 +4817,9 @@ func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
 
 
 func _on_escape(allow_menu_open: bool = true) -> void:
+	if _journal_focus_active:
+		_close_journal_focus()
+		return
 	if _city_warp_open:
 		_close_city_warp()
 		return
@@ -4757,17 +4886,28 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	## Left trigger mirrors Tab. Axis events repeat while held, so fire once
-	## after crossing the threshold and re-arm on release.
+	## L2 opens journal browse (left pane only if sides are closed).
+	## R2 mirrors Tab — open/close the side panels.
+	## Axis events repeat while held, so fire once after crossing the
+	## threshold and re-arm on release.
 	if event is InputEventJoypadMotion:
 		var motion := event as InputEventJoypadMotion
 		if motion.axis == JOY_AXIS_TRIGGER_LEFT:
 			var down := motion.axis_value > 0.5
 			if down and not _left_trigger_held:
 				_left_trigger_held = true
-				_handle_panel_toggle()
+				_open_journal_focus()
 			elif not down:
 				_left_trigger_held = false
+			get_viewport().set_input_as_handled()
+			return
+		if motion.axis == JOY_AXIS_TRIGGER_RIGHT:
+			var down_r := motion.axis_value > 0.5
+			if down_r and not _right_trigger_held:
+				_right_trigger_held = true
+				_handle_panel_toggle()
+			elif not down_r:
+				_right_trigger_held = false
 			get_viewport().set_input_as_handled()
 			return
 	if _death_busy:
@@ -4810,6 +4950,8 @@ func _handle_panel_toggle() -> void:
 	## Camp rest allows Tab so inventory panels stay reachable.
 	## Shrine session: panels stay forced open; Tab/left trigger locked.
 	## Talk: only toggle the left inventory panel; state persists after Bye.
+	if _journal_focus_active:
+		return
 	if _death_busy or (_combat_active and not _command_menu_open):
 		return
 	if _command_menu_open:
@@ -4851,6 +4993,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_city_warp_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _journal_focus_active:
+		if _handle_journal_focus_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed() or event is InputEventJoypadMotion:
 			get_viewport().set_input_as_handled()
 		return
 	if _command_menu_open:
@@ -5112,6 +5260,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _is_party_asleep_locked():
 			get_viewport().set_input_as_handled()
 			return
+		## Ctrl/⌘+J: open the left pane and browse the journal.
+		if _is_mod_chord_key(event) and _is_journal_key(event):
+			_open_journal_focus()
+			get_viewport().set_input_as_handled()
+			return
 		## Ctrl/⌘+L: toggle persistent Locate HUD (sextant required).
 		if _is_mod_chord_key(event) and _is_locate_key(event):
 			_toggle_locate_hud()
@@ -5336,6 +5489,10 @@ func _is_mod_chord_key(event: InputEventKey) -> bool:
 	return event.ctrl_pressed or event.meta_pressed
 
 
+func _is_journal_key(event: InputEventKey) -> bool:
+	return event.keycode == KEY_J or event.physical_keycode == KEY_J
+
+
 func _is_locate_key(event: InputEventKey) -> bool:
 	return event.keycode == KEY_L or event.physical_keycode == KEY_L
 
@@ -5378,7 +5535,7 @@ func _build_city_warp_items() -> Array[Dictionary]:
 
 
 func _can_open_city_warp() -> bool:
-	if _city_warp_open or _command_menu_open or _enter_prompt_stage != 0:
+	if _city_warp_open or _command_menu_open or _journal_focus_active or _enter_prompt_stage != 0:
 		return false
 	if (
 		_death_busy or _moongate_busy or _cannon_busy or _search_busy
@@ -6332,7 +6489,7 @@ func _world_save_dict() -> Dictionary:
 	var d := {
 		"x": _tile_pos.x,
 		"y": _tile_pos.y,
-		"sides_open": _sides_open,
+		"sides_open": _journal_saved_sides_open if _journal_focus_active else _sides_open,
 		"transport": _transport,
 		"transport_tile": _transport_tile,
 		"horse_gallop": _horse_gallop,
@@ -9935,6 +10092,8 @@ func _set_death_blackout(on: bool) -> void:
 func _close_ui_for_death() -> void:
 	## Drop modal UIs so the message log owns the sequence.
 	## Avoid helpers that call `_finish_party_turn` (would re-enter death).
+	if _journal_focus_active:
+		_close_journal_focus(false)
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_peer_overlay.close_peer()
 	_close_ztats(false)
@@ -10099,7 +10258,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -14506,8 +14665,171 @@ func _sync_left_panel_mode() -> void:
 
 
 func _refresh_journal_panel() -> void:
-	if _journal_panel != null and _journal_panel.has_method("refresh"):
-		_journal_panel.refresh()
+	if _journal_panel == null or not _journal_panel.has_method("refresh"):
+		return
+	var visible := (
+		(_sides_open or _journal_focus_active or _journal_opened_left_only)
+		and _journal_panel.visible
+		and not (_combat_active and _map != null and _map.is_in_combat())
+	)
+	_journal_panel.refresh(visible)
+
+
+func _can_open_journal_focus() -> bool:
+	if _journal_focus_active or _command_menu_open or _city_warp_open or _enter_prompt_stage != 0:
+		return false
+	if (
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy
+		or _shrine_busy or _shrine_stage != 0 or _shrine_session or _inn_stage != 0
+	):
+		return false
+	if (
+		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
+		or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0
+		or _ready_stage != 0 or _wear_stage != 0 or _use_stage != 0
+		or _ztats_stage != 0 or _order_stage != 0
+		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
+		or _esc_menu_is_open() or _options_panel_is_open()
+		or _combat_active
+	):
+		return false
+	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	return true
+
+
+func _open_journal_focus() -> void:
+	if _journal_focus_active:
+		_close_journal_focus()
+		return
+	if not _can_open_journal_focus():
+		return
+	_journal_saved_sides_open = _sides_open
+	_journal_opened_left_only = false
+	_journal_focus_active = true
+	_GameInput.reset_stick_navigation()
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	if not _sides_open:
+		## Keep the right roster closed — only the journal pane slides in.
+		_journal_opened_left_only = true
+		_cancel_order_roster_close()
+		_animate_left_panel_only(true)
+		if _side_tween != null and is_instance_valid(_side_tween):
+			_side_tween.chain().tween_callback(func() -> void:
+				if _journal_focus_active and _journal_panel != null \
+						and _journal_panel.has_method("recenter_selection"):
+					_journal_panel.recenter_selection()
+			)
+	var place := _talk_city_id() if _is_in_city() else ""
+	if _journal_panel != null and _journal_panel.has_method("begin_browse"):
+		_journal_panel.begin_browse(place)
+
+
+func _close_journal_focus(restore_sides: bool = true) -> void:
+	if not _journal_focus_active:
+		return
+	var left_only := _journal_opened_left_only
+	_journal_focus_active = false
+	_journal_opened_left_only = false
+	if _journal_panel != null and _journal_panel.has_method("end_browse"):
+		_journal_panel.end_browse()
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	if restore_sides and left_only:
+		_animate_left_panel_only(false, true)
+	elif restore_sides and _sides_open != _journal_saved_sides_open:
+		_sides_open = _journal_saved_sides_open
+		_cancel_order_roster_close()
+		_order_opened_roster = false
+		if _sides_open:
+			_refresh_party()
+		_layout_side_panels(true)
+	grab_focus()
+
+
+func _tick_journal_browse_nav() -> void:
+	var step := _read_select_step()
+	if step == 0:
+		_reset_hold_state()
+		return
+	var held := Vector2i(0, step)
+	if held != _held_dir:
+		_held_dir = held
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	if _journal_panel != null and _journal_panel.has_method("move_selection"):
+		_journal_panel.move_selection(step)
+	_arm_hold_after_step()
+
+
+func _handle_journal_focus_input(event: InputEvent) -> bool:
+	## ↑↓ hold-repeat is polled in _tick_journal_browse_nav.
+	if not _journal_focus_active:
+		return false
+	if event is InputEventKey and event.pressed and not event.echo:
+		var key := event as InputEventKey
+		if _is_quick_save_key(key):
+			_do_quick_save()
+			return true
+		if _is_fullscreen_key(key):
+			DisplaySettings.toggle_fullscreen()
+			if _options_panel_is_open() and _options_panel != null:
+				_options_panel.refresh()
+			return true
+		if _is_mod_chord_key(key) and _is_journal_key(key):
+			_close_journal_focus()
+			return true
+	if event is InputEventJoypadMotion:
+		var stick_x := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
+		if stick_x != 0 and _journal_panel != null and _journal_panel.has_method("nudge_selected_place"):
+			_journal_panel.nudge_selected_place(stick_x)
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _is_cancel_event(event):
+		_close_journal_focus()
+		return true
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		if _journal_panel != null and _journal_panel.has_method("activate_selection"):
+			_journal_panel.activate_selection()
+		return true
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if (
+			key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
+			or key_event.keycode == KEY_DOWN or key_event.physical_keycode == KEY_DOWN
+		):
+			return true
+		var key_dir := _GameInput.dir_from_event(key_event)
+		if key_dir.y != 0:
+			return true
+		if key_dir.x != 0:
+			if _journal_panel != null and _journal_panel.has_method("nudge_selected_place"):
+				_journal_panel.nudge_selected_place(key_dir.x)
+			return true
+		if (
+			key_event.keycode == KEY_ENTER or key_event.physical_keycode == KEY_ENTER
+			or key_event.keycode == KEY_KP_ENTER or key_event.physical_keycode == KEY_KP_ENTER
+		):
+			if _journal_panel != null and _journal_panel.has_method("activate_selection"):
+				_journal_panel.activate_selection()
+			return true
+		return true
+	if event is InputEventJoypadButton:
+		var pad_dir := _GameInput.dir_from_event(event)
+		if pad_dir.y != 0:
+			return true
+		if pad_dir.x != 0:
+			if _journal_panel != null and _journal_panel.has_method("nudge_selected_place"):
+				_journal_panel.nudge_selected_place(pad_dir.x)
+			return true
+		return true
+	return true
 
 
 func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
