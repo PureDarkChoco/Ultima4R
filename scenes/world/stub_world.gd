@@ -3560,6 +3560,7 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_reset_hold_state()
 	_GameInput.latch_current_stick_navigation()
 	_seed_talk_latent_keywords()
+	_restore_talk_known_keywords()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
 
@@ -3577,12 +3578,13 @@ func _reveal_talk_keyword_if_latent(key: String) -> int:
 		return 0
 	for i in _talk_keyword_menu_items.size():
 		var item: Dictionary = _talk_keyword_menu_items[i]
-		if str(item.get("key", "")) != key:
+		if not _talk_stored_key_matches(key, str(item.get("key", ""))):
 			continue
 		if bool(item.get("revealed", true)):
 			return 1
 		item["revealed"] = true
 		_talk_keyword_menu_items[i] = item
+		_persist_talk_known_word(str(item.get("input", item.get("key", ""))))
 		return 2
 	return 0
 
@@ -3600,6 +3602,8 @@ func _insert_talk_keyword_menu_item(
 	})
 	_remember_talk_keyword_menu_word(key)
 	_remember_talk_keyword_menu_word(input)
+	if revealed:
+		_persist_talk_known_word(input if not input.is_empty() else key)
 
 
 func _seed_talk_latent_keywords() -> void:
@@ -3660,7 +3664,7 @@ func _sync_talk_keyword_menu_visibility() -> void:
 
 func _discover_talk_keywords(text: String) -> void:
 	## Hawkwind already seeds the eight virtues; do not re-insert from replies.
-	if not _talk_keyword_menu_active or text.is_empty() or _talk_is_hawkwind:
+	if text.is_empty() or _talk_is_hawkwind:
 		return
 	var discoveries: Array[Dictionary] = []
 	var source_order := 0
@@ -3719,6 +3723,9 @@ func _discover_talk_keywords(text: String) -> void:
 		var key := str(discovery.get("key", ""))
 		if key.is_empty():
 			continue
+		_persist_talk_known_word(str(discovery.get("input", key)))
+		if not _talk_keyword_menu_active:
+			continue
 		var reveal_status := _reveal_talk_keyword_if_latent(key)
 		if reveal_status == 1:
 			continue
@@ -3743,8 +3750,6 @@ func _discover_talk_keywords(text: String) -> void:
 func _offer_talk_join_keyword() -> void:
 	## Some natural Korean translations say "함께하다" instead of the literal
 	## "합류", so expose Join after the source TLK explicitly offers to join.
-	if not _talk_keyword_menu_active or _talk_keyword_menu_seen.has("join"):
-		return
 	var korean := GameState.lang_short() == "ko"
 	_offer_talk_keyword_item(
 		"join",
@@ -3756,7 +3761,10 @@ func _offer_talk_join_keyword() -> void:
 func _offer_talk_keyword_item(key: String, label: String, input: String) -> void:
 	## Insert a selectable interest before Health (same order as discovered topics).
 	## Latent (gray) rows flip white when journal / dialogue unlocks them.
-	if not _talk_keyword_menu_active or key.is_empty():
+	if key.is_empty():
+		return
+	_persist_talk_known_word(input if not input.is_empty() else key)
+	if not _talk_keyword_menu_active:
 		return
 	var reveal_status := _reveal_talk_keyword_if_latent(key)
 	if reveal_status == 1:
@@ -4198,6 +4206,114 @@ func _talk_city_id() -> String:
 	if _city_map == null:
 		return ""
 	return _TalkLocale.city_id_from_path(str(_city_map.source_path))
+
+
+func _talk_memory_npc_id() -> String:
+	if _talk_is_hawkwind or _talk_is_lb or _talk_entry == null:
+		return ""
+	var city := _talk_city_id()
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	if city.is_empty():
+		return ""
+	if npc.is_empty():
+		if _talk_person_i < 0:
+			return ""
+		return "%s/#%d" % [city, _talk_person_i]
+	return "%s/%s" % [city, npc]
+
+
+func _talk_should_persist_key(key: String) -> bool:
+	if key.is_empty():
+		return false
+	return key not in ["look", "name", "job", "heal", "give", "bye"]
+
+
+func _talk_stored_key_matches(stored: String, item_key: String) -> bool:
+	if stored.is_empty() or item_key.is_empty():
+		return false
+	if stored == item_key:
+		return true
+	if _TalkLocale.normalize_interest(stored) == _TalkLocale.normalize_interest(item_key):
+		return true
+	return (
+		_TalkLocale.match_topic_alias(stored, item_key)
+		or _TalkLocale.match_topic_alias(item_key, stored)
+	)
+
+
+func _talk_words_are_same_topic(a: String, b: String) -> bool:
+	return _talk_stored_key_matches(
+		_talk_keyword_stable_key(a),
+		_talk_keyword_stable_key(b)
+	)
+
+
+func _persist_talk_known_word(word: String) -> void:
+	var npc_id := _talk_memory_npc_id()
+	if npc_id.is_empty():
+		return
+	var raw := word.strip_edges()
+	if raw.is_empty():
+		return
+	var seen: Dictionary = {}
+	_persist_talk_known_one(npc_id, raw, seen)
+	for extra in _talk_keywords:
+		var other := str(extra).strip_edges()
+		if other.is_empty() or other == raw:
+			continue
+		if _talk_words_are_same_topic(raw, other):
+			_persist_talk_known_one(npc_id, other, seen)
+
+
+func _persist_talk_known_one(npc_id: String, word: String, seen: Dictionary) -> void:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty() or seen.has(key) or not _talk_should_persist_key(key):
+		return
+	seen[key] = true
+	GameState.talk_remember_keyword(npc_id, key)
+
+
+func _talk_label_for_stored_key(stored: String) -> String:
+	var korean := GameState.lang_short() == "ko"
+	var hangul := ""
+	var latin := ""
+	for raw in _talk_keywords:
+		var word := str(raw).strip_edges()
+		if word.is_empty():
+			continue
+		if not _talk_stored_key_matches(stored, _talk_keyword_stable_key(word)):
+			continue
+		if _TalkLocale.word_has_hangul(word):
+			if hangul.is_empty():
+				hangul = word
+		elif latin.is_empty():
+			latin = word
+	if korean and not hangul.is_empty():
+		return hangul
+	if not latin.is_empty():
+		return latin
+	if not hangul.is_empty():
+		return hangul
+	return stored
+
+
+func _restore_talk_known_keywords() -> void:
+	if not _talk_keyword_menu_active:
+		return
+	var npc_id := _talk_memory_npc_id()
+	if npc_id.is_empty():
+		return
+	var korean := GameState.lang_short() == "ko"
+	for stored in GameState.talk_known_keys(npc_id):
+		if _reveal_talk_keyword_if_latent(stored) != 0:
+			continue
+		if _talk_keyword_menu_seen.has(stored):
+			continue
+		var word := _talk_label_for_stored_key(stored)
+		if word.is_empty():
+			word = stored
+		var label := word if korean else word.capitalize()
+		_insert_talk_keyword_menu_item(stored, label, word, true)
 
 
 func _maybe_offer_paws_chain_keyword() -> void:

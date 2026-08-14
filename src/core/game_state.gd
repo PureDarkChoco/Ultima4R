@@ -92,6 +92,8 @@ var runes: int = 0
 var lb_intro: bool = false
 ## Journal / 여행 기록 — catalog hits in acquisition order (see Journal / entries.json).
 var journal_entries: Array = []
+## Spoken NPC interests: "city/npc" → Array of stable keyword keys (survives town exit + save).
+var talk_known_keywords: Dictionary = {}
 ## xu4 camp.h — heal only when the moves/100 bucket differs from lastcamp.
 const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
@@ -317,6 +319,7 @@ func reset_party() -> void:
 	runes = 0
 	lb_intro = false
 	journal_entries.clear()
+	talk_known_keywords.clear()
 	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
@@ -2554,6 +2557,7 @@ func to_save_dict() -> Dictionary:
 		"runes": runes,
 		"lb_intro": lb_intro,
 		"journal": journal_entries.duplicate(true),
+		"talk_known_keywords": talk_known_keywords.duplicate(true),
 		"lastreagent": lastreagent,
 		"has_sextant": has_sextant,
 		"weapons": weapons.duplicate(),
@@ -2621,6 +2625,21 @@ func apply_save_dict(d: Dictionary) -> void:
 		for row in journal_raw:
 			if typeof(row) == TYPE_DICTIONARY:
 				journal_entries.append((row as Dictionary).duplicate(true))
+	talk_known_keywords.clear()
+	var talk_raw: Variant = d.get("talk_known_keywords", {})
+	if typeof(talk_raw) == TYPE_DICTIONARY:
+		for npc_id in (talk_raw as Dictionary).keys():
+			var keys_v: Variant = (talk_raw as Dictionary)[npc_id]
+			if typeof(keys_v) != TYPE_ARRAY:
+				continue
+			var keys: Array = []
+			for v in keys_v:
+				var s := str(v).strip_edges()
+				if s.is_empty() or keys.has(s):
+					continue
+				keys.append(s)
+			if not keys.is_empty():
+				talk_known_keywords[str(npc_id)] = keys
 	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
 	## Legacy saves stored only `skull` count — promote into the items bitfield.
 	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
@@ -2827,6 +2846,33 @@ func journal_try_capture(place: String, npc: String, topic: String) -> bool:
 
 func journal_has_id(id: String) -> bool:
 	return _Journal.has_entry_id(self, id)
+
+
+func talk_remember_keyword(npc_id: String, key: String) -> void:
+	var id := npc_id.strip_edges().to_lower()
+	var k := key.strip_edges()
+	if id.is_empty() or k.is_empty():
+		return
+	var cur: Array = talk_known_keywords.get(id, [])
+	if typeof(cur) != TYPE_ARRAY:
+		cur = []
+	if cur.has(k):
+		return
+	cur.append(k)
+	talk_known_keywords[id] = cur
+
+
+func talk_known_keys(npc_id: String) -> Array[String]:
+	var out: Array[String] = []
+	var raw: Variant = talk_known_keywords.get(npc_id.strip_edges().to_lower(), [])
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for v in raw:
+		var s := str(v).strip_edges()
+		if s.is_empty() or out.has(s):
+			continue
+		out.append(s)
+	return out
 
 
 func journal_mark_goal(goal: String) -> bool:
