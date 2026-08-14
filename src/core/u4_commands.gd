@@ -125,6 +125,7 @@ const LABEL_KO := {
 }
 
 ## Commands that need a direction afterward (A, G, J, O, T).
+## Dir? is skipped when exactly one NESW neighbor is a valid target.
 ## F asks Dir? only on ship; otherwise xu4 prints "Fire What?".
 ## G is directional here (adjacent tile); classic U4 got the current tile.
 const NEEDS_DIRECTION := {

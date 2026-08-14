@@ -2987,119 +2987,218 @@ func _command_menu_cardinal_dirs() -> Array[Vector2i]:
 	]
 
 
-func _command_menu_has_adjacent_world_enemy() -> bool:
+func _command_menu_world_enemy_in_dir(dir: Vector2i) -> bool:
 	if _world_creatures == null:
 		return false
+	var pos := Vector2i(
+		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+	)
+	return _world_creatures.creature_at(pos) >= 0
+
+
+func _command_menu_has_adjacent_world_enemy() -> bool:
 	for dir in _command_menu_cardinal_dirs():
-		var pos := Vector2i(
-			posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
-			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
-		)
-		if _world_creatures.creature_at(pos) >= 0:
+		if _command_menu_world_enemy_in_dir(dir):
 			return true
 	return false
 
 
-func _command_menu_has_adjacent_city_person(allow_talk_over: bool = false) -> bool:
+func _command_menu_city_person_in_dir(dir: Vector2i, allow_talk_over: bool = false) -> bool:
 	## When allow_talk_over is true, match _do_talk reach: vendors one step
 	## past a shop-counter letter tile (xu4 canTalkOver) also count.
 	if not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return false
 	var max_dist := 2 if allow_talk_over else 1
-	for dir in _command_menu_cardinal_dirs():
-		for dist in range(1, max_dist + 1):
-			var pos := Vector2i(_tile_pos.x + dir.x * dist, _tile_pos.y + dir.y * dist)
-			if (
-				pos.x < 0 or pos.y < 0
-				or pos.x >= _CityMapData.WIDTH
-				or pos.y >= _CityMapData.HEIGHT
-			):
-				break
-			var pi: int = int(_city_map.person_index_at(pos.x, pos.y))
-			if pi >= 0 and (not allow_talk_over or _talk_can_address(pi, dist)):
-				return true
-			if not allow_talk_over:
-				break
-			## After this cell: only continue past talk-over counter tiles.
-			var cell_tid: int
-			if pi >= 0:
-				cell_tid = int(_city_map.persons[pi].z)
-			else:
-				cell_tid = int(_city_map.effective_tile_at(pos.x, pos.y))
-			if not _TileRules.can_talk_over(cell_tid):
-				break
+	for dist in range(1, max_dist + 1):
+		var pos := Vector2i(_tile_pos.x + dir.x * dist, _tile_pos.y + dir.y * dist)
+		if (
+			pos.x < 0 or pos.y < 0
+			or pos.x >= _CityMapData.WIDTH
+			or pos.y >= _CityMapData.HEIGHT
+		):
+			break
+		var pi: int = int(_city_map.person_index_at(pos.x, pos.y))
+		if pi >= 0 and (not allow_talk_over or _talk_can_address(pi, dist)):
+			return true
+		if not allow_talk_over:
+			break
+		## After this cell: only continue past talk-over counter tiles.
+		var cell_tid: int
+		if pi >= 0:
+			cell_tid = int(_city_map.persons[pi].z)
+		else:
+			cell_tid = int(_city_map.effective_tile_at(pos.x, pos.y))
+		if not _TileRules.can_talk_over(cell_tid):
+			break
 	return false
 
 
-func _command_menu_has_adjacent_city_tile(kind: String) -> bool:
-	if not _is_in_city() or _city_map == null:
-		return false
+func _command_menu_has_adjacent_city_person(allow_talk_over: bool = false) -> bool:
 	for dir in _command_menu_cardinal_dirs():
-		var pos := _tile_pos + dir
-		if (
-			pos.x < 0 or pos.y < 0
-			or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT
-		):
-			continue
-		var tid := int(_city_map.effective_tile_at(pos.x, pos.y))
-		if kind == "chest" and _TileRules.is_chest(tid):
-			return true
-		if kind == "locked_door" and _TileRules.is_locked_door(tid):
-			return true
-		if kind == "door" and _TileRules.is_door(tid):
+		if _command_menu_city_person_in_dir(dir, allow_talk_over):
 			return true
 	return false
 
 
-func _command_menu_has_adjacent_city_chest(opened: bool) -> bool:
+func _command_menu_city_tile_in_dir(dir: Vector2i, kind: String) -> bool:
 	if not _is_in_city() or _city_map == null:
 		return false
-	for dir in _command_menu_cardinal_dirs():
-		var pos := _tile_pos + dir
-		if (
-			pos.x < 0 or pos.y < 0
-			or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT
-		):
-			continue
-		## A person visually/physically owns the cell; do not expose the
-		## chest underneath until that NPC moves away.
-		if _city_map.person_index_at(pos.x, pos.y) >= 0:
-			continue
-		var tid := int(_city_map.effective_tile_at(pos.x, pos.y))
-		if not _TileRules.is_chest(tid):
-			continue
-		var is_open := bool(_city_map.is_chest_open(pos.x, pos.y))
-		if is_open != opened:
-			continue
-		if opened and not bool(_city_map.chest_has_loot(pos.x, pos.y)):
-			continue
+	var pos := _tile_pos + dir
+	if (
+		pos.x < 0 or pos.y < 0
+		or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT
+	):
+		return false
+	var tid := int(_city_map.effective_tile_at(pos.x, pos.y))
+	if kind == "chest" and _TileRules.is_chest(tid):
+		return true
+	if kind == "locked_door" and _TileRules.is_locked_door(tid):
+		return true
+	if kind == "door" and _TileRules.is_door(tid):
 		return true
 	return false
 
 
-func _command_menu_has_adjacent_combat_chest(opened: bool) -> bool:
+func _command_menu_has_adjacent_city_tile(kind: String) -> bool:
+	for dir in _command_menu_cardinal_dirs():
+		if _command_menu_city_tile_in_dir(dir, kind):
+			return true
+	return false
+
+
+func _command_menu_city_chest_in_dir(dir: Vector2i, opened: bool) -> bool:
+	if not _is_in_city() or _city_map == null:
+		return false
+	var pos := _tile_pos + dir
+	if (
+		pos.x < 0 or pos.y < 0
+		or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT
+	):
+		return false
+	## A person visually/physically owns the cell; do not expose the
+	## chest underneath until that NPC moves away.
+	if _city_map.person_index_at(pos.x, pos.y) >= 0:
+		return false
+	var tid := int(_city_map.effective_tile_at(pos.x, pos.y))
+	if not _TileRules.is_chest(tid):
+		return false
+	var is_open := bool(_city_map.is_chest_open(pos.x, pos.y))
+	if is_open != opened:
+		return false
+	if opened and not bool(_city_map.chest_has_loot(pos.x, pos.y)):
+		return false
+	return true
+
+
+func _command_menu_has_adjacent_city_chest(opened: bool) -> bool:
+	for dir in _command_menu_cardinal_dirs():
+		if _command_menu_city_chest_in_dir(dir, opened):
+			return true
+	return false
+
+
+func _command_menu_combat_chest_in_dir(dir: Vector2i, opened: bool) -> bool:
 	## Victory aftermath / arena — chests around the focused party unit.
 	if _map == null or not _map.is_in_combat():
 		return false
 	var from := _map.get_combat_focus_pos()
 	if from.x < 0:
 		return false
+	var pos := from + dir
+	if (
+		pos.x < 0 or pos.y < 0
+		or pos.x >= _CombatMapData.WIDTH or pos.y >= _CombatMapData.HEIGHT
+	):
+		return false
+	if not _map.has_combat_chest_at(pos):
+		return false
+	var is_open := bool(_map.combat_chest_is_open(pos))
+	if is_open != opened:
+		return false
+	if opened and not bool(_map.combat_chest_has_loot(pos)):
+		return false
+	return true
+
+
+func _command_menu_has_adjacent_combat_chest(opened: bool) -> bool:
 	for dir in _command_menu_cardinal_dirs():
-		var pos := from + dir
-		if (
-			pos.x < 0 or pos.y < 0
-			or pos.x >= _CombatMapData.WIDTH or pos.y >= _CombatMapData.HEIGHT
-		):
-			continue
-		if not _map.has_combat_chest_at(pos):
-			continue
-		var is_open := bool(_map.combat_chest_is_open(pos))
-		if is_open != opened:
-			continue
-		if opened and not bool(_map.combat_chest_has_loot(pos)):
-			continue
-		return true
+		if _command_menu_combat_chest_in_dir(dir, opened):
+			return true
 	return false
+
+
+func _command_menu_combat_door_in_dir(dir: Vector2i) -> bool:
+	if _map == null or not _map.is_in_combat():
+		return false
+	var from := _map.get_combat_focus_pos()
+	if from.x < 0:
+		return false
+	var pos := from + dir
+	if (
+		pos.x < 0 or pos.y < 0
+		or pos.x >= _CombatMapData.WIDTH or pos.y >= _CombatMapData.HEIGHT
+	):
+		return false
+	var tid := _map.combat_tile_at(pos)
+	return _TileRules.is_door(tid)
+
+
+func _directed_cmd_has_target_in_dir(cmd: int, dir: Vector2i) -> bool:
+	## Same adjacent rules as the command-menu defaults, per cardinal.
+	match cmd:
+		U4Commands.Id.ATTACK:
+			if _combat_active:
+				return false
+			if _is_in_city():
+				return _command_menu_city_person_in_dir(dir, false)
+			return _command_menu_world_enemy_in_dir(dir)
+		U4Commands.Id.GET_CHEST:
+			if _is_in_combat():
+				return _command_menu_combat_chest_in_dir(dir, true)
+			return _command_menu_city_chest_in_dir(dir, true)
+		U4Commands.Id.JIMMY:
+			return _command_menu_city_tile_in_dir(dir, "locked_door")
+		U4Commands.Id.OPEN:
+			if _is_in_combat():
+				return (
+					_command_menu_combat_chest_in_dir(dir, false)
+					or _command_menu_combat_door_in_dir(dir)
+				)
+			return (
+				_command_menu_city_tile_in_dir(dir, "door")
+				or _command_menu_city_chest_in_dir(dir, false)
+			)
+		U4Commands.Id.TALK:
+			return _command_menu_city_person_in_dir(dir, true)
+		_:
+			return false
+
+
+func _sole_adjacent_dir_for_cmd(cmd: int) -> Vector2i:
+	## Skip Dir? when exactly one NESW neighbor is a valid target.
+	var found := Vector2i.ZERO
+	var count := 0
+	for dir in _command_menu_cardinal_dirs():
+		if not _directed_cmd_has_target_in_dir(cmd, dir):
+			continue
+		count += 1
+		found = dir
+		if count > 1:
+			return Vector2i.ZERO
+	if count == 1:
+		return found
+	return Vector2i.ZERO
+
+
+func _begin_pending_dir_command(cmd: int, name: String) -> void:
+	_pending_cmd = cmd
+	_pending_cmd_name = name
+	var sole := _sole_adjacent_dir_for_cmd(cmd)
+	if sole != Vector2i.ZERO:
+		_finish_directed_command(sole)
+		return
+	_layout_prompt_row()
 
 
 func _command_menu_on_city_portal(action: int) -> bool:
@@ -5407,7 +5506,7 @@ func _handle_command(cmd: int) -> void:
 		_layout_prompt_row()
 		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
-		## xu4: print "Attack: " then "Dir?" on the *same* line and wait.
+		## One adjacent target → act immediately. Else "Attack: Dir?" and wait.
 		_clear_pending_order()
 		_close_ztats(false)
 		_close_ready(false)
@@ -5417,9 +5516,7 @@ func _handle_command(cmd: int) -> void:
 		_close_camp(false)
 		_cancel_chest_open(false)
 		_close_save(false)
-		_pending_cmd = cmd
-		_pending_cmd_name = name
-		_layout_prompt_row()
+		_begin_pending_dir_command(cmd, name)
 		return
 	_clear_pending_dir()
 	_clear_pending_order()
@@ -13191,9 +13288,7 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 		match cmd:
 			U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
 				## Loot chests left on the arena (no turn cost after Victory!).
-				_pending_cmd = cmd
-				_pending_cmd_name = U4Commands.label(cmd, lang)
-				_layout_prompt_row()
+				_begin_pending_dir_command(cmd, U4Commands.label(cmd, lang))
 			U4Commands.Id.ZTATS:
 				_do_ztats()
 			U4Commands.Id.CAST:
@@ -13219,9 +13314,7 @@ func _handle_combat_victory_command(cmd: int) -> void:
 	var lang := GameState.lang_short()
 	match cmd:
 		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
-			_pending_cmd = cmd
-			_pending_cmd_name = U4Commands.label(cmd, lang)
-			_layout_prompt_row()
+			_begin_pending_dir_command(cmd, U4Commands.label(cmd, lang))
 		U4Commands.Id.ZTATS:
 			_do_ztats()
 		U4Commands.Id.CAST:
@@ -13310,10 +13403,8 @@ func _handle_combat_command(cmd: int) -> void:
 		U4Commands.Id.ATTACK:
 			_combat_begin_aim()
 		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
-			## Dir? prompts (Open is remake-allowed; Get matches classic).
-			_pending_cmd = cmd
-			_pending_cmd_name = name
-			_layout_prompt_row()
+			## Dir? only when two or more adjacent chests/doors; one auto-picks.
+			_begin_pending_dir_command(cmd, name)
 		U4Commands.Id.READY:
 			_do_ready()
 		U4Commands.Id.ZTATS:
