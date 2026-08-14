@@ -14,6 +14,7 @@ const _SHELL_KO := {
 	"Your Interest:": "관심사:",
 	"That I cannot\nhelp thee with.": "그것은 내가\n도울 수 없습니다.",
 	"That I cannot help thee with.": "그것은 내가 도울 수 없습니다.",
+	"I know not of that!": "그건 잘 모르겠어요.",
 	"How much?": "얼마를?",
 	"Yes or no!": "예 또는 아니!",
 	"Thou hast not that much gold!": "그만한 금은 없구나!",
@@ -356,6 +357,10 @@ static func _translate_line(en: String) -> String:
 	if n.ends_with(GUARD):
 		var p3 := n.substr(0, n.length() - GUARD.length())
 		return "%s 말하길: 정신 차려라, 이 바보야!" % str(_lines.get(_norm(p3), p3))
+	const NO_GOLD_CHILD := " says: I need no gold! Keep it!"
+	if n.ends_with(NO_GOLD_CHILD):
+		var p4c := n.substr(0, n.length() - NO_GOLD_CHILD.length())
+		return "%s 말하길: 금은 필요 없어요. 그냥 가져요!" % str(_lines.get(_norm(p4c), p4c))
 	const NO_GOLD := " says: I do not need thy gold.  Keep it!"
 	if n.ends_with(NO_GOLD):
 		var p4 := n.substr(0, n.length() - NO_GOLD.length())
@@ -366,6 +371,10 @@ static func _translate_line(en: String) -> String:
 		return "%s 말하길: 오, 고맙소! 그 친절을 결코 잊지 않겠소!" % str(
 			_lines.get(_norm(p5), p5)
 		)
+	const NO_JOIN_CHILD := " says: I cannot go with thee."
+	if n.ends_with(NO_JOIN_CHILD):
+		var p6c := n.substr(0, n.length() - NO_JOIN_CHILD.length())
+		return "%s 말하길: 같이 갈 수 없어요." % str(_lines.get(_norm(p6c), p6c))
 	const NO_JOIN := " says: I cannot join thee."
 	if n.ends_with(NO_JOIN):
 		var p6 := n.substr(0, n.length() - NO_JOIN.length())

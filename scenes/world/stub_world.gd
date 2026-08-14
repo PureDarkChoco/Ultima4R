@@ -11983,7 +11983,10 @@ func _talk_process_keyword(input: String) -> void:
 		_push_talk_script("Hi Banjo Bob!\nYour secret\nnumber is\n4F4A4E0A")
 		_talk_prompt_interest()
 		return
-	_push_talk_script("That I cannot\nhelp thee with.")
+	if _talk_person_is_child():
+		_push_talk_script("I know not of that!")
+	else:
+		_push_talk_script("That I cannot\nhelp thee with.")
 	_talk_prompt_interest()
 
 
@@ -12307,6 +12310,12 @@ func _talk_answer_yn(yes: bool) -> void:
 	_talk_prompt_interest()
 
 
+func _talk_person_is_child() -> bool:
+	if _city_map == null or _talk_person_i < 0 or _talk_person_i >= _city_map.persons.size():
+		return false
+	return _TalkTlk.is_child_tile(int(_city_map.persons[_talk_person_i].z))
+
+
 func _talk_start_give() -> void:
 	var e := _talk_entry
 	if e == null:
@@ -12326,7 +12335,10 @@ func _talk_start_give() -> void:
 		_GameInput.reset_stick_navigation()
 		_layout_prompt_row()
 		return
-	_push_talk_script("%s says: I do not need thy gold.  Keep it!" % str(e.pronoun))
+	if _talk_person_is_child():
+		_push_talk_script("%s says: I need no gold! Keep it!" % str(e.pronoun))
+	else:
+		_push_talk_script("%s says: I do not need thy gold.  Keep it!" % str(e.pronoun))
 	_talk_prompt_interest()
 
 
@@ -12378,7 +12390,10 @@ func _talk_do_join() -> void:
 					"Thou art not experienced enough for me to join thee."
 				)
 	else:
-		_push_talk_script("%s says: I cannot join thee." % str(e.pronoun))
+		if _talk_person_is_child():
+			_push_talk_script("%s says: I cannot go with thee." % str(e.pronoun))
+		else:
+			_push_talk_script("%s says: I cannot join thee." % str(e.pronoun))
 	_talk_prompt_interest()
 
 
