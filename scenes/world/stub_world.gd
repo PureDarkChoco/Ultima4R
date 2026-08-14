@@ -12387,6 +12387,14 @@ func _talk_answer_yn(yes: bool) -> void:
 	if not yes and npc_key == "gravnor":
 		if GameState.journal_try_capture("jhelom", "Gravnor", "STON_NO"):
 			journal_changed = true
+	## Luke (Jhelom): No after Light — Skara Brae is the city of Spirituality.
+	if (
+		not yes
+		and npc_key == "luke"
+		and str(e.topic1).strip_edges().to_upper() == "LIGH"
+	):
+		if GameState.journal_try_capture("skara", "Luke", "LIGH_NO"):
+			journal_changed = true
 	## Druid (Yew): No after Shrine points to Talfourd and the justice rune.
 	if (
 		not yes
@@ -15070,6 +15078,10 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("jhelom.hrothgar.aesop-mantra"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:aesop-mantra"):
+			refresh = true
+	## Luke (Jhelom): Yew is the city of Justice — file under Yew.
+	if place == "jhelom" and npc_key == "luke" and topic == "YEW":
+		if GameState.journal_try_capture("yew", "Luke", "YEW"):
 			refresh = true
 	## Yew: Silent's Job/Beh chant completes Pinrod's mantra tip.
 	## Catalog key is JOB; Beh.* replies also reveal the same mantra.

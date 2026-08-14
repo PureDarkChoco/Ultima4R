@@ -523,6 +523,19 @@
       "en_us": "Red stone: in the dungeon of {destard}."
     },
     {
+      "id": "yew.luke.justice",
+      "place": "yew",
+      "npc": "Luke",
+      "topic": "YEW",
+      "goal": "",
+      "speaker_en": "Luke",
+      "speaker_ko": "루크",
+      "en": "Virtue: Justice",
+      "ko": "미덕: 정의",
+      "en_u4": "Virtue: Justice",
+      "en_us": "Virtue: Justice"
+    },
+    {
       "id": "yew.druid.talfourd-rune",
       "place": "yew",
       "npc": "Druid",
@@ -627,6 +640,19 @@
       "goal": "mantra:honor",
       "en": "Honor mantra: SUMM.",
       "ko": "명예의 만트라: SUMM."
+    },
+    {
+      "id": "skara.luke.spirituality",
+      "place": "skara",
+      "npc": "Luke",
+      "topic": "LIGH_NO",
+      "goal": "",
+      "speaker_en": "Luke",
+      "speaker_ko": "루크",
+      "en": "Virtue: Spirituality",
+      "ko": "미덕: 영성",
+      "en_u4": "Virtue: Spirituality",
+      "en_us": "Virtue: Spirituality"
     },
     {
       "id": "skara.granted.ankh-rune",
