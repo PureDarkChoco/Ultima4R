@@ -377,6 +377,9 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g.begins_with("stone:"):
 		var flag := _stone_flag_from_token(g.substr(6))
 		return flag != 0 and gs.has_stone(flag)
+	if g == "key:courage":
+		## Courage altar stones used → third part of the key.
+		return gs.has_item_flag(gs.ITEM_KEY_C)
 	## mantra:* is only completed by shrine success (not inventory).
 	return false
 

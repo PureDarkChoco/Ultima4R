@@ -497,7 +497,7 @@
       "topic": "MANT",
       "chain": "jhelom.valor-mantra",
       "chain_order": 20,
-      "goal": "mantra:valor",
+      "goal": "",
       "en": "Valor mantra: RA.",
       "ko": "용기의 만트라: RA."
     },
@@ -521,6 +521,45 @@
       "ko": "붉은 돌: {destard}의 던전에 있다.",
       "en_u4": "Red stone: in the dungeon of {destard}.",
       "en_us": "Red stone: in the dungeon of {destard}."
+    },
+    {
+      "id": "jhelom.x.red-stone-altar",
+      "place": "jhelom",
+      "npc": "X",
+      "topic": "RED_NO",
+      "goal": "",
+      "speaker_en": "X",
+      "speaker_ko": "엑스",
+      "en": "Red stone: needed in an altar room for the third part of a key.",
+      "ko": "빨강 돌: 제단 방에서 열쇠 세 번째 조각에 필요하다.",
+      "en_u4": "Red stone: needed in an altar room for the third part of a key.",
+      "en_us": "Red stone: needed in an altar room for the third part of a key."
+    },
+    {
+      "id": "jhelom.bengrod.altar-links",
+      "place": "jhelom",
+      "npc": "Bengrod",
+      "topic": "DUNG_YES",
+      "chain": "jhelom.destard-altar",
+      "chain_order": 10,
+      "goal": "",
+      "en": "{destard} altar: connects with {covetous}, {shame}, and {hythloth}.",
+      "ko": "{destard} 제단: {covetous}의 던전·{shame}의 던전·{hythloth} 던전과 연결된다.",
+      "en_u4": "{destard} altar: connects with {covetous}, {shame}, and {hythloth}.",
+      "en_us": "{destard} altar: connects with {covetous}, {shame}, and {hythloth}."
+    },
+    {
+      "id": "jhelom.bengrod.connecting-stones",
+      "place": "jhelom",
+      "npc": "Bengrod",
+      "topic": "ROOM",
+      "chain": "jhelom.destard-altar",
+      "chain_order": 20,
+      "goal": "key:courage",
+      "en": "{destard} altar: use stones from the connecting dungeons.",
+      "ko": "{destard} 제단: 연결된 던전에서 찾은 돌을 써라.",
+      "en_u4": "{destard} altar: use stones from the connecting dungeons.",
+      "en_us": "{destard} altar: use stones from the connecting dungeons."
     },
     {
       "id": "yew.luke.justice",

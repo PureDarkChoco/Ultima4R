@@ -12387,6 +12387,18 @@ func _talk_answer_yn(yes: bool) -> void:
 	if not yes and npc_key == "gravnor":
 		if GameState.journal_try_capture("jhelom", "Gravnor", "STON_NO"):
 			journal_changed = true
+	## X (Jhelom): No after Red — red stone is used in an altar room for the key.
+	if (
+		not yes
+		and npc_key == "x"
+		and str(e.topic2).strip_edges().to_upper() == "RED"
+	):
+		if GameState.journal_try_capture("jhelom", "X", "RED_NO"):
+			journal_changed = true
+	## Bengrod (Jhelom): Yes after Destard names the three connecting dungeons.
+	if yes and npc_key == "bengrod":
+		if GameState.journal_try_capture("jhelom", "Bengrod", "DUNG_YES"):
+			journal_changed = true
 	## Luke (Jhelom): No after Light — Skara Brae is the city of Spirituality.
 	if (
 		not yes
