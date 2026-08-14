@@ -143,6 +143,8 @@ static func _append_catalog_capture(
 		return _upgrade_catalog_capture(gs, cat, place, npc, id)
 	if has_entry_id(gs, id):
 		return false
+	if _catalog_skip_if_recorded(gs, cat):
+		return false
 	var goal := str(cat.get("goal", "")).strip_edges()
 	var complete_on_goal := str(cat.get("complete_on_goal", "")).strip_edges()
 	var done := (
@@ -289,6 +291,18 @@ static func _insert_in_chain_order(rows: Array, entry: Dictionary) -> void:
 	rows.append(entry)
 
 
+static func _catalog_skip_if_recorded(gs: Node, cat: Dictionary) -> bool:
+	## Same fact from another speaker — do not add a second identical row.
+	var raw: Variant = cat.get("skip_if_recorded", "")
+	if typeof(raw) == TYPE_ARRAY:
+		for sid in raw:
+			if has_entry_id(gs, str(sid)):
+				return true
+		return false
+	var sid := str(raw).strip_edges()
+	return not sid.is_empty() and has_entry_id(gs, sid)
+
+
 static func _catalog_completion_recorded(gs: Node, cat: Dictionary) -> bool:
 	var raw: Variant = cat.get("complete_if_recorded", "")
 	if typeof(raw) == TYPE_ARRAY:
@@ -403,6 +417,9 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "companions:7":
 		## Avatar + 7 companions.
 		return gs.party_size() >= 8
+	if g == "join:jaana":
+		## Recruited Jaana. Same-class refusal is marked at the join attempt.
+		return gs.is_person_joined("Jaana")
 	## talk:first-note / combat:first / mantra:* complete only when the event fires.
 	return false
 

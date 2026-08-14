@@ -809,6 +809,8 @@ func add_party_member(klass: int) -> bool:
 	mark_armor_known(armor_of_class(klass))
 	if party_order.size() >= 8:
 		journal_mark_goal("companions:7")
+	if companion_class_by_name("Jaana") == klass:
+		journal_mark_goal("join:jaana")
 	return true
 
 

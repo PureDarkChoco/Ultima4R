@@ -4205,6 +4205,13 @@ func _maybe_offer_yew_chain_keyword() -> void:
 			"직업" if korean else "Job",
 			"직업" if korean else "job"
 		)
+	elif (
+		npc == "jaana"
+		and GameState.journal_has_id("yew.frida.jaana-join")
+		and not GameState.is_person_joined("Jaana")
+	):
+		## Frida: "Jaana may join thee!" — Join after her name is spoken.
+		_offer_talk_join_keyword()
 
 
 func _maybe_offer_trinsic_chain_keyword() -> void:
@@ -4798,7 +4805,7 @@ func _talk_answer_unlocks_join(e, yes: bool) -> bool:
 	if yes and str(e.yes).to_lower().contains("join"):
 		return true
 	match str(e.name).to_lower():
-		"jaana", "dupre":
+		"dupre":
 			return yes
 		"katrina":
 			return not yes
@@ -12718,6 +12725,18 @@ func _talk_do_join() -> void:
 			_push_talk_script("%s says: I cannot go with thee." % str(e.pronoun))
 		else:
 			_push_talk_script("%s says: I cannot join thee." % str(e.pronoun))
+		## Same class as the Avatar: the refusal finishes Frida's Jaana tip.
+		var avatar_cls := (
+			GameState.player_class
+			if GameState.player_class >= 0
+			else GameState.party_leader_class()
+		)
+		if (
+			name.strip_edges().to_lower() == "jaana"
+			and GameState.companion_class_by_name(name) == avatar_cls
+			and GameState.journal_mark_goal("join:jaana")
+		):
+			_refresh_journal_panel()
 	_talk_prompt_interest()
 
 

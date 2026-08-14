@@ -237,7 +237,9 @@ static func highlight_extras(
 			seen[k] = true
 			out.append(str(w))
 	if is_korean():
-		var builtins: Array[String] = ["직업", "건강", "이름", "모습", "주기", "합류", "관심사"]
+		## Only Join is learned from speech. 이름/직업/모습 tint false hits
+		## (정의의 이름으로, …).
+		var builtins: Array[String] = ["합류"]
 		for w in builtins:
 			var k2: String = w.to_lower()
 			if not seen.has(k2):

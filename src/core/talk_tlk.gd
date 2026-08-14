@@ -283,8 +283,9 @@ class Entry:
 				_add_kw(out, seen, "fortunes")
 			elif tl == "palm":
 				_add_kw(out, seen, "palms")
-		## Omit "bye" — farewell is a system line, not an in-dialogue topic hint.
-		for t: String in ["job", "heal", "health", "name", "look", "give", "join"]:
+		## Join can be learned from speech. Look/Name/Job/Health/Give are
+		## already white menu builtins — tinting them hits idioms ("in the name of").
+		for t: String in ["join"]:
 			_add_kw(out, seen, t)
 		for extra in _TalkLocale.highlight_extras(topic1, topic2, name, city_id):
 			_add_kw(out, seen, str(extra))
