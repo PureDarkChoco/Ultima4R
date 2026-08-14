@@ -116,7 +116,7 @@ func refresh() -> void:
 	var groups := _Journal.grouped_for_ui(gs)
 	var lang := "en_us"
 	if gs != null:
-		lang = str(gs.lang_short()) if gs.has_method("lang_short") else str(gs.language)
+		lang = str(gs.language)
 	var has_any := not groups.is_empty()
 	_empty.visible = not has_any
 	_scroll.visible = has_any

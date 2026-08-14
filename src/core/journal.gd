@@ -474,28 +474,28 @@ static func _rows_with_chains_grouped(rows: Array) -> Array:
 
 static func entry_text(row: Dictionary, lang: String) -> String:
 	## Catalog wording is authoritative so corrected clues also update old saves.
-	## Upgraded rows use en_upgraded / ko_upgraded when present.
+	## Upgraded rows use *_upgraded keys when present.
 	var cat := find_catalog_by_id(str(row.get("id", "")))
 	var upgraded := bool(row.get("upgraded", false))
+	var keys: Array[String] = []
 	if lang == "ko":
 		if upgraded:
-			var ku := str(cat.get("ko_upgraded", "")).strip_edges()
-			if ku.is_empty():
-				ku = str(row.get("ko", "")).strip_edges()
-			if not ku.is_empty():
-				return ku
-		var ko := str(cat.get("ko", row.get("ko", ""))).strip_edges()
-		if not ko.is_empty():
-			return ko
-	if upgraded:
-		var eu := str(cat.get("en_upgraded", "")).strip_edges()
-		if eu.is_empty():
-			eu = str(row.get("en", "")).strip_edges()
-		if not eu.is_empty():
-			return eu
-	var en := str(cat.get("en", row.get("en", ""))).strip_edges()
-	if not en.is_empty():
-		return en
+			keys.append("ko_upgraded")
+		keys.append("ko")
+	elif lang == "en_u4":
+		if upgraded:
+			keys.append_array(["en_u4_upgraded", "en_upgraded"])
+		keys.append_array(["en_u4", "en"])
+	else:
+		if upgraded:
+			keys.append_array(["en_us_upgraded", "en_upgraded"])
+		keys.append_array(["en_us", "en"])
+	for k in keys:
+		var s := str(cat.get(k, "")).strip_edges()
+		if s.is_empty():
+			s = str(row.get(k, "")).strip_edges()
+		if not s.is_empty():
+			return s
 	return str(cat.get("ko", row.get("ko", "")))
 
 

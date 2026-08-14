@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row).",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail.",
   "entries": [
     {
       "id": "lcb.manual.zorin",
@@ -9,8 +9,10 @@
       "goal": "ask:zorin",
       "speaker_en": "The Way of the Avatar",
       "speaker_ko": "아바타의 길",
-      "en": "A conversation with one Zorin may also prove fruitful whilst in this castle.",
-      "ko": "이 성에서 조린이라는 이와의 대화 또한 유익하리라."
+      "en": "Meet Zorin in this castle.",
+      "ko": "이 성에서 조린 만나기",
+      "en_u4": "Seek Zorin in this castle.",
+      "en_us": "Meet Zorin in this castle."
     },
     {
       "id": "lcb.zorin.antos-book",
@@ -21,8 +23,10 @@
       "chain_order": 10,
       "goal": "ask:antos-book",
       "complete_if_recorded": "lycaeum.father-antos.book",
-      "en": "At the Lycaeum, ask Father Antos of the book.",
-      "ko": "라이시엄의 안토스 신부에게 책을 물으라."
+      "en": "Ask Father Antos about the book at the Lycaeum.",
+      "ko": "라이시엄의 안토스 신부에게 책에 대해 묻기",
+      "en_u4": "Ask Father Antos of the book at the Lycaeum.",
+      "en_us": "Ask Father Antos about the book at the Lycaeum."
     },
     {
       "id": "lcb.zorin.antos-candle",
@@ -33,8 +37,10 @@
       "chain_order": 10,
       "goal": "ask:antos-candle",
       "complete_if_recorded": "empath.brother-antos.candle",
-      "en": "At Empath Abbey, ask Brother Antos of the candle.",
-      "ko": "공감 대수도원의 안토스 형제에게 촛대를 물으라."
+      "en": "Ask Brother Antos about the candle at Empath Abbey.",
+      "ko": "공감 대수도원의 안토스 형제에게 촛대에 대해 묻기",
+      "en_u4": "Ask Brother Antos of the candle at Empath Abbey.",
+      "en_us": "Ask Brother Antos about the candle at Empath Abbey."
     },
     {
       "id": "lcb.zorin.antos-bell",
@@ -45,8 +51,10 @@
       "chain_order": 10,
       "goal": "ask:antos-bell",
       "complete_if_recorded": "serpent.sister-antos.bell",
-      "en": "At Serpent's Hold, ask Sister Antos of the bell.",
-      "ko": "뱀성의 안토스 수녀에게 종을 물으라."
+      "en": "Ask Sister Antos about the bell at Serpent's Hold.",
+      "ko": "뱀성의 안토스 수녀에게 종에 대해 묻기",
+      "en_u4": "Ask Sister Antos of the bell at Serpent's Hold.",
+      "en_us": "Ask Sister Antos about the bell at Serpent's Hold."
     },
     {
       "id": "lycaeum.father-antos.book",
@@ -56,8 +64,10 @@
       "chain": "lycaeum.antos-book",
       "chain_order": 10,
       "goal": "",
-      "en": "Book of Truth: seek it where other books lie.",
-      "ko": "진리의 책: 다른 책들이 있는 곳에서 찾으라."
+      "en": "Search where other books are.",
+      "ko": "다른 책들이 있는 곳에서 찾기",
+      "en_u4": "Search where other books lie.",
+      "en_us": "Search where other books are."
     },
     {
       "id": "empath.brother-antos.candle",
@@ -90,8 +100,10 @@
       "chain_order": 10,
       "goal": "ask:zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
-      "en": "Ask Zircon in Minoc about the mystic arms.",
-      "ko": "미녹의 지르콘에게 신비 무기에 대해 물어보라."
+      "en": "Ask Zircon about the weapons in Minoc.",
+      "ko": "미녹의 지르콘에게 무기에 대해 묻기",
+      "en_u4": "Ask Zircon of the mystic arms in Minoc.",
+      "en_us": "Ask Zircon about the weapons in Minoc."
     },
     {
       "id": "minoc.zircon.mystic-arms",
@@ -101,8 +113,10 @@
       "chain": "minoc.zircon-mystics",
       "chain_order": 10,
       "goal": "",
-      "en": "Mystic arms: given to Sir Simon and Lady Tessa.",
-      "ko": "신비 무기: 사이먼 경과 테사 부인에게 건네졌다."
+      "en": "Meet Sir Simon and Lady Tessa.",
+      "ko": "사이먼 경과 테사 부인 만나기",
+      "en_u4": "Seek Sir Simon and Lady Tessa.",
+      "en_us": "Meet Sir Simon and Lady Tessa."
     },
     {
       "id": "minoc.shentis.sacrifice",
@@ -127,7 +141,9 @@
       ],
       "complete_on_goal": "rune:sacrifice",
       "en": "Ask Azure about the rune.",
-      "ko": "애저에게 룬에 대해 물어보라."
+      "ko": "애저에게 룬에 대해 묻기",
+      "en_u4": "Ask Azure of the rune.",
+      "en_us": "Ask Azure about the rune."
     },
     {
       "id": "minoc.azure.mischief-rune",
@@ -140,7 +156,9 @@
       "complete_if_recorded": "minoc.mischief.forge-rune",
       "complete_on_goal": "rune:sacrifice",
       "en": "Ask Mischief about the rune of Sacrifice.",
-      "ko": "미시프에게 희생의 룬을 물어보라."
+      "ko": "미시프에게 희생의 룬에 대해 묻기",
+      "en_u4": "Ask Mischief of the rune of Sacrifice.",
+      "en_us": "Ask Mischief about the rune of Sacrifice."
     },
     {
       "id": "minoc.mischief.forge-rune",
@@ -150,8 +168,10 @@
       "chain": "minoc.sacrifice-rune",
       "chain_order": 20,
       "goal": "rune:sacrifice",
-      "en": "Sacrifice rune: within the fires of the forge.",
-      "ko": "희생의 룬: 대장간 불꽃 속에 있다."
+      "en": "Search in the fires of the forge.",
+      "ko": "대장간 불꽃 속에서 찾기",
+      "en_u4": "Search within the fires of the forge.",
+      "en_us": "Search in the fires of the forge."
     },
     {
       "id": "minoc.mischief.return-with-rune",
@@ -165,8 +185,10 @@
         "minoc.mischief.alkerion-stone",
         "minoc.alkerion.sacrifice-stone"
       ],
-      "en": "Return to Mischief with the rune of Sacrifice.",
-      "ko": "희생의 룬을 가지고 미시프와 다시 대화하라."
+      "en": "Meet Mischief with the rune of Sacrifice.",
+      "ko": "희생의 룬을 가지고 미시프 만나기",
+      "en_u4": "Seek Mischief with the rune of Sacrifice.",
+      "en_us": "Meet Mischief with the rune of Sacrifice."
     },
     {
       "id": "minoc.mischief.alkerion-stone",
@@ -179,7 +201,9 @@
       "complete_if_recorded": "minoc.alkerion.sacrifice-stone",
       "complete_on_goal": "stone:orange",
       "en": "Ask Alkerion about the stone of Sacrifice.",
-      "ko": "알케리온에게 희생의 돌에 대해 물어보라."
+      "ko": "알케리온에게 희생의 돌에 대해 묻기",
+      "en_u4": "Ask Alkerion of the stone of Sacrifice.",
+      "en_us": "Ask Alkerion about the stone of Sacrifice."
     },
     {
       "id": "minoc.alkerion.sacrifice-stone",
@@ -202,8 +226,10 @@
       "goal": "ask:damon-mantra",
       "complete_if_recorded": "minoc.damon.bard-song",
       "complete_on_goal": "mantra:sacrifice",
-      "en": "Find the hidden shepherd and ask about the mantra.",
-      "ko": "숨은 양치기에게 만트라를 물어보라."
+      "en": "Ask the hidden shepherd about the mantra.",
+      "ko": "숨은 양치기에게 만트라에 대해 묻기",
+      "en_u4": "Ask the hidden shepherd of the mantra.",
+      "en_us": "Ask the hidden shepherd about the mantra."
     },
     {
       "id": "minoc.damon.bard-song",
@@ -215,8 +241,10 @@
       "goal": "ask:singsong-verse",
       "complete_if_recorded": "minoc.singsong.sacrifice-mantra",
       "complete_on_goal": "mantra:sacrifice",
-      "en": "Ask the bard about the verse; the key to the mantra lies in it.",
-      "ko": "음유시인에게 가사를 물어보라. 그 안에 만트라의 열쇠가 있다."
+      "en": "Ask the bard about the verse.",
+      "ko": "음유시인에게 가사에 대해 묻기",
+      "en_u4": "Ask the bard of the verse.",
+      "en_us": "Ask the bard about the verse."
     },
     {
       "id": "minoc.singsong.sacrifice-mantra",
@@ -240,7 +268,9 @@
       "complete_if_recorded": "britain.pepper.compassion-rune",
       "complete_on_goal": "rune:compassion",
       "en": "Ask Pepper about the rune.",
-      "ko": "페퍼에게 룬에 대해 물어보라."
+      "ko": "페퍼에게 룬에 대해 묻기",
+      "en_u4": "Ask Pepper of the rune.",
+      "en_us": "Ask Pepper about the rune."
     },
     {
       "id": "britain.pepper.compassion-rune",
@@ -250,8 +280,10 @@
       "chain": "britain.compassion-rune",
       "chain_order": 20,
       "goal": "rune:compassion",
-      "en": "Compassion rune: at the end of a hall somewhere in this towne.",
-      "ko": "연민의 룬: 이 마을 어디 복도 끝에 있다."
+      "en": "Search at the end of a hall in this town.",
+      "ko": "이 마을 복도 끝에서 찾기",
+      "en_u4": "Search at the end of a hall in this towne.",
+      "en_us": "Search at the end of a hall in this town."
     },
     {
       "id": "britain.child.cricket-mantra",
@@ -264,7 +296,9 @@
       "complete_if_recorded": "britain.cricket.compassion-mantra",
       "complete_on_goal": "mantra:compassion",
       "en": "Ask Cricket about the mantra of Compassion.",
-      "ko": "크리켓에게 연민의 만트라를 물어보라."
+      "ko": "크리켓에게 연민의 만트라에 대해 묻기",
+      "en_u4": "Ask Cricket of the mantra of Compassion.",
+      "en_us": "Ask Cricket about the mantra of Compassion."
     },
     {
       "id": "britain.cricket.compassion-mantra",
@@ -286,8 +320,10 @@
       "chain_order": 10,
       "goal": "ask:julio-compassion",
       "complete_if_recorded": "britain.julio.compassion",
-      "en": "Seek Julio and ask him of compassion.",
-      "ko": "훌리오를 찾아 연민에 대해 물어보라."
+      "en": "Ask Julio about compassion.",
+      "ko": "훌리오에게 연민에 대해 묻기",
+      "en_u4": "Ask Julio of compassion.",
+      "en_us": "Ask Julio about compassion."
     },
     {
       "id": "britain.julio.compassion",
@@ -311,7 +347,9 @@
       "complete_if_recorded": "moonglow.william.honesty-rune",
       "complete_on_goal": "rune:honesty",
       "en": "Ask William about the rune.",
-      "ko": "윌리엄에게 룬에 대해 물어보라."
+      "ko": "윌리엄에게 룬에 대해 묻기",
+      "en_u4": "Ask William of the rune.",
+      "en_us": "Ask William about the rune."
     },
     {
       "id": "moonglow.william.honesty-rune",
@@ -321,8 +359,10 @@
       "chain": "moonglow.honesty-rune",
       "chain_order": 20,
       "goal": "rune:honesty",
-      "en": "Honesty rune: search by Mariah's gold.",
-      "ko": "정직의 룬: 머라이어 옆에 있는 골드에서 찾으라."
+      "en": "Search by Mariah's gold.",
+      "ko": "머라이어 옆에 있는 골드에서 찾기",
+      "en_u4": "Search by Mariah's gold.",
+      "en_us": "Search by Mariah's gold."
     },
     {
       "id": "moonglow.cromwell.honesty-mantra",
@@ -339,10 +379,14 @@
       "npc": "Tyrone",
       "topic": "STON",
       "goal": "stone:blue",
-      "en": "Honesty stone: found on an altar in the dungeon of Deceit.",
-      "ko": "정직의 돌: 기만의 던전 제단 위에 있다.",
-      "en_upgraded": "Honesty stone: found on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
-      "ko_upgraded": "정직의 돌: 기만의 던전 제단 위에 있다. 던전 제단실과 심연에서 쓰인다."
+      "en": "Search on an altar in the dungeon of Deceit.",
+      "ko": "기만의 던전 제단에서 찾기",
+      "en_upgraded": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
+      "ko_upgraded": "기만의 던전 제단에서 찾기. 던전 제단실과 심연에서 쓰인다.",
+      "en_u4": "Search on an altar in the dungeon of Deceit.",
+      "en_us": "Search on an altar in the dungeon of Deceit.",
+      "en_u4_upgraded": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
+      "en_us_upgraded": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss."
     },
     {
       "id": "moonglow.tyrone.honesty-stone",
@@ -351,8 +395,10 @@
       "topic": "USE",
       "upgrade": true,
       "goal": "stone:blue",
-      "en": "Honesty stone: found on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
-      "ko": "정직의 돌: 기만의 던전 제단 위에 있다. 던전 제단실과 심연에서 쓰인다."
+      "en": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
+      "ko": "기만의 던전 제단에서 찾기. 던전 제단실과 심연에서 쓰인다.",
+      "en_u4": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
+      "en_us": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss."
     },
     {
       "id": "moonglow.shazom.nigel-recall",
@@ -361,8 +407,10 @@
       "topic": "NIGE_YES",
       "goal": "ask:nigel-recall",
       "complete_if_recorded": "lycaeum.nigel.resurrection",
-      "en": "Seek Nigel at the Lycaeum; he can teach the recall spell.",
-      "ko": "라이시엄의 나이절을 찾으라. 기억 소환 주문을 가르칠 것이다."
+      "en": "Meet Nigel at the Lycaeum.",
+      "ko": "라이시엄에서 나이절 만나기",
+      "en_u4": "Seek Nigel at the Lycaeum.",
+      "en_us": "Meet Nigel at the Lycaeum."
     },
     {
       "id": "moonglow.shazom.nigel-recall",
@@ -371,8 +419,10 @@
       "topic": "NIGE_NO",
       "goal": "ask:nigel-recall",
       "complete_if_recorded": "lycaeum.nigel.resurrection",
-      "en": "Seek Nigel at the Lycaeum; he can teach the recall spell.",
-      "ko": "라이시엄의 나이절을 찾으라. 기억 소환 주문을 가르칠 것이다."
+      "en": "Meet Nigel at the Lycaeum.",
+      "ko": "라이시엄에서 나이절 만나기",
+      "en_u4": "Seek Nigel at the Lycaeum.",
+      "en_us": "Meet Nigel at the Lycaeum."
     },
     {
       "id": "jhelom.robert.nostro-rune",
@@ -385,7 +435,9 @@
       "complete_if_recorded": "jhelom.nostro.valor-rune",
       "complete_on_goal": "rune:valor",
       "en": "Ask Nostro about the rune.",
-      "ko": "노스트로에게 룬에 대해 물어보라."
+      "ko": "노스트로에게 룬에 대해 묻기",
+      "en_u4": "Ask Nostro of the rune.",
+      "en_us": "Ask Nostro about the rune."
     },
     {
       "id": "jhelom.nostro.valor-rune",
@@ -395,8 +447,10 @@
       "chain": "jhelom.valor-rune",
       "chain_order": 20,
       "goal": "rune:valor",
-      "en": "Valor rune: buried in a tower.",
-      "ko": "용기의 룬: 탑에 묻혀 있다."
+      "en": "Search in a tower.",
+      "ko": "탑에서 찾기",
+      "en_u4": "Search in a tower.",
+      "en_us": "Search in a tower."
     },
     {
       "id": "jhelom.hrothgar.aesop-mantra",
@@ -409,7 +463,9 @@
       "complete_if_recorded": "jhelom.aesop.valor-mantra",
       "complete_on_goal": "mantra:valor",
       "en": "Ask Aesop about the mantra of Valor.",
-      "ko": "이솝에게 용기의 만트라를 물어보라."
+      "ko": "이솝에게 용기의 만트라에 대해 묻기",
+      "en_u4": "Ask Aesop of the mantra of Valor.",
+      "en_us": "Ask Aesop about the mantra of Valor."
     },
     {
       "id": "jhelom.aesop.valor-mantra",
@@ -428,7 +484,9 @@
       "npc": "Senora",
       "topic": "CRIM_YES",
       "en": "Ask the barkeep about the sextant.",
-      "ko": "술집 주인에게 육분의에 대해 물어보라."
+      "ko": "술집 주인에게 육분의에 대해 묻기",
+      "en_u4": "Ask the barkeep of the sextant.",
+      "en_us": "Ask the barkeep about the sextant."
     },
     {
       "id": "yew.druid.talfourd-rune",
@@ -441,7 +499,9 @@
       "complete_if_recorded": "yew.talfourd.justice-rune",
       "complete_on_goal": "rune:justice",
       "en": "Ask Talfourd about the rune.",
-      "ko": "탈푸르드에게 룬에 대해 물어보라."
+      "ko": "탈푸르드에게 룬에 대해 묻기",
+      "en_u4": "Ask Talfourd of the rune.",
+      "en_us": "Ask Talfourd about the rune."
     },
     {
       "id": "yew.talfourd.justice-rune",
@@ -451,8 +511,10 @@
       "chain": "yew.justice-rune",
       "chain_order": 20,
       "goal": "rune:justice",
-      "en": "Justice rune: search well in a jail cell with the felon.",
-      "ko": "정의의 룬: 감옥 감방에서 중죄인과 함께 잘 찾으라."
+      "en": "Search well in a jail cell with the felon.",
+      "ko": "중죄인이 있는 감옥 감방에서 찾기",
+      "en_u4": "Search well in a jail cell with the felon.",
+      "en_us": "Search well in a jail cell with the felon."
     },
     {
       "id": "yew.pinrod.druids-mantra",
@@ -465,7 +527,9 @@
       "complete_if_recorded": "yew.silent.justice-mantra",
       "complete_on_goal": "mantra:justice",
       "en": "Ask the chanting druids about the mantra of Justice.",
-      "ko": "염원하는 드루이드에게 정의의 만트라를 물어보라."
+      "ko": "염원하는 드루이드에게 정의의 만트라에 대해 묻기",
+      "en_u4": "Ask the chanting druids of the mantra of Justice.",
+      "en_us": "Ask the chanting druids about the mantra of Justice."
     },
     {
       "id": "yew.silent.justice-mantra",
@@ -489,7 +553,9 @@
       "complete_if_recorded": "trinsic.winthrop.terrin-rune",
       "complete_on_goal": "rune:honor",
       "en": "Ask Winthrop about the rune.",
-      "ko": "윈스롭에게 룬에 대해 물어보라."
+      "ko": "윈스롭에게 룬에 대해 묻기",
+      "en_u4": "Ask Winthrop of the rune.",
+      "en_us": "Ask Winthrop about the rune."
     },
     {
       "id": "trinsic.winthrop.terrin-rune",
@@ -502,7 +568,9 @@
       "complete_if_recorded": "trinsic.terrin.honor-rune",
       "complete_on_goal": "rune:honor",
       "en": "Ask Terrin about the rune.",
-      "ko": "테린에게 룬에 대해 물어보라."
+      "ko": "테린에게 룬에 대해 묻기",
+      "en_u4": "Ask Terrin of the rune.",
+      "en_us": "Ask Terrin about the rune."
     },
     {
       "id": "trinsic.terrin.honor-rune",
@@ -512,8 +580,10 @@
       "chain": "trinsic.honor-rune",
       "chain_order": 30,
       "goal": "rune:honor",
-      "en": "Honor rune: buried in the southwest corner of towne.",
-      "ko": "명예의 룬: 마을 남서쪽 모서리에 묻혀 있다."
+      "en": "Search in the southwest corner of town.",
+      "ko": "마을 남서쪽 모서리에서 찾기",
+      "en_u4": "Search in the southwest corner of towne.",
+      "en_us": "Search in the southwest corner of town."
     },
     {
       "id": "trinsic.kline.honor-mantra",
@@ -535,7 +605,9 @@
       "complete_if_recorded": "skara.ankh.spirituality-rune",
       "complete_on_goal": "rune:spirituality",
       "en": "Ask the Ankh of Spirituality about the rune.",
-      "ko": "영성의 앙크에게 룬을 물어보라."
+      "ko": "영성의 앙크에게 룬에 대해 묻기",
+      "en_u4": "Ask the Ankh of Spirituality of the rune.",
+      "en_us": "Ask the Ankh of Spirituality about the rune."
     },
     {
       "id": "skara.ankh.spirituality-rune",
@@ -547,8 +619,10 @@
       "goal": "rune:spirituality",
       "speaker_en": "the Ankh of Spirituality",
       "speaker_ko": "영성의 앙크",
-      "en": "Spirituality rune: in the treasure chamber of Britannia.",
-      "ko": "영성의 룬: 브리타니아 보물 창고에 있다."
+      "en": "Search in the treasure chamber of Britannia.",
+      "ko": "브리타니아 보물 창고에서 찾기",
+      "en_u4": "Search in the treasure chamber of Britannia.",
+      "en_us": "Search in the treasure chamber of Britannia."
     },
     {
       "id": "skara.granted.ambule-mantra",
@@ -561,7 +635,9 @@
       "complete_if_recorded": "skara.ambule.barren-mantra",
       "complete_on_goal": "mantra:spirituality",
       "en": "Ask Ambule about the mantra.",
-      "ko": "앰뷸에게 만트라를 물어보라."
+      "ko": "앰뷸에게 만트라에 대해 묻기",
+      "en_u4": "Ask Ambule of the mantra.",
+      "en_us": "Ask Ambule about the mantra."
     },
     {
       "id": "skara.ambule.barren-mantra",
@@ -574,7 +650,9 @@
       "complete_if_recorded": "skara.barren.spirituality-mantra",
       "complete_on_goal": "mantra:spirituality",
       "en": "Ask Barren about the mantra.",
-      "ko": "바렌에게 만트라를 물어보라."
+      "ko": "바렌에게 만트라에 대해 묻기",
+      "en_u4": "Ask Barren of the mantra.",
+      "en_us": "Ask Barren about the mantra."
     },
     {
       "id": "skara.barren.spirituality-mantra",
@@ -598,7 +676,9 @@
       "complete_if_recorded": "magincia.heywood.faultless-mantra",
       "complete_on_goal": "mantra:humility",
       "en": "Ask Heywood about the mantra.",
-      "ko": "헤이우드에게 만트라를 물어보라."
+      "ko": "헤이우드에게 만트라에 대해 묻기",
+      "en_u4": "Ask Heywood of the mantra.",
+      "en_us": "Ask Heywood about the mantra."
     },
     {
       "id": "magincia.heywood.faultless-mantra",
@@ -611,7 +691,9 @@
       "complete_if_recorded": "magincia.faultless.humility-mantra",
       "complete_on_goal": "mantra:humility",
       "en": "Ask Faultless about the mantra.",
-      "ko": "폴트리스에게 만트라를 물어보라."
+      "ko": "폴트리스에게 만트라에 대해 묻기",
+      "en_u4": "Ask Faultless of the mantra.",
+      "en_us": "Ask Faultless about the mantra."
     },
     {
       "id": "magincia.faultless.humility-mantra",
@@ -634,7 +716,9 @@
       "goal": "ask:wierdrum-shrine",
       "complete_if_recorded": "magincia.wierdrum.humility-shrine",
       "en": "Ask Wierdrum about the shrine of Humility.",
-      "ko": "위어드럼에게 겸손의 사원을 물어보라."
+      "ko": "위어드럼에게 겸손의 사원에 대해 묻기",
+      "en_u4": "Ask Wierdrum of the shrine of Humility.",
+      "en_us": "Ask Wierdrum about the shrine of Humility."
     },
     {
       "id": "magincia.wierdrum.humility-shrine",
@@ -663,7 +747,9 @@
       "goal": "ask:demitry-horn",
       "complete_if_recorded": "magincia.demitry.suzanna-horn",
       "en": "Ask Demitry about the horn.",
-      "ko": "데미트리에게 은 뿔을 물어보라."
+      "ko": "데미트리에게 은 뿔에 대해 묻기",
+      "en_u4": "Ask Demitry of the horn.",
+      "en_us": "Ask Demitry about the horn."
     },
     {
       "id": "magincia.demitry.suzanna-horn",
@@ -675,7 +761,9 @@
       "goal": "ask:suzanna-horn",
       "complete_if_recorded": "empath.suzanna.malchor-horn",
       "en": "Ask the lady in waiting at Empath Abbey about the horn.",
-      "ko": "공감 대수도원의 시녀에게 은 뿔을 물어보라."
+      "ko": "공감 대수도원의 시녀에게 은 뿔에 대해 묻기",
+      "en_u4": "Ask the lady in waiting at Empath Abbey of the horn.",
+      "en_us": "Ask the lady in waiting at Empath Abbey about the horn."
     },
     {
       "id": "magincia.ruskin.nate-rune",
@@ -684,7 +772,9 @@
       "topic": "RUNE",
       "goal": "ask:nate-rune",
       "en": "Ask Nate about the rune.",
-      "ko": "네이트에게 룬을 물어보라."
+      "ko": "네이트에게 룬에 대해 묻기",
+      "en_u4": "Ask Nate of the rune.",
+      "en_us": "Ask Nate about the rune."
     },
     {
       "id": "magincia.splot.nate-rune",
@@ -693,7 +783,9 @@
       "topic": "HUMB_YES",
       "goal": "ask:nate-rune",
       "en": "Ask Nate about the rune and stone.",
-      "ko": "네이트에게 룬과 돌을 물어보라."
+      "ko": "네이트에게 룬과 돌에 대해 묻기",
+      "en_u4": "Ask Nate of the rune and stone.",
+      "en_us": "Ask Nate about the rune and stone."
     },
     {
       "id": "magincia.nate.barren-rune",
@@ -705,8 +797,10 @@
       "goal": "ask:barren-rune",
       "complete_if_recorded": "paws.barren.humility-rune",
       "complete_on_goal": "rune:humility",
-      "en": "Ask Barren in Paws about the rune.",
-      "ko": "포우의 바렌에게 룬을 물어보라."
+      "en": "Ask Barren about the rune in Paws.",
+      "ko": "포우의 바렌에게 룬에 대해 묻기",
+      "en_u4": "Ask Barren of the rune in Paws.",
+      "en_us": "Ask Barren about the rune in Paws."
     },
     {
       "id": "paws.barren.humility-rune",
@@ -716,8 +810,10 @@
       "chain": "paws.humility-rune",
       "chain_order": 10,
       "goal": "rune:humility",
-      "en": "Humility rune: search the hills in the south-east corner of town.",
-      "ko": "겸손의 룬: 마을 남동쪽 언덕을 찾으라."
+      "en": "Search the hills in the southeast corner of town.",
+      "ko": "마을 남동쪽 언덕에서 찾기",
+      "en_u4": "Search the hills in the south-east corner of town.",
+      "en_us": "Search the hills in the southeast corner of town."
     },
     {
       "id": "paws.wheatpin.humility-rune",
@@ -727,24 +823,30 @@
       "chain": "paws.humility-rune",
       "chain_order": 20,
       "goal": "rune:humility",
-      "en": "Humility rune: around there in the nook of the mountains.",
-      "ko": "겸손의 룬: 산자락 구석 저쪽에 있다."
+      "en": "Search in the nook of the mountains.",
+      "ko": "산자락 구석에서 찾기",
+      "en_u4": "Search in the nook of the mountains.",
+      "en_us": "Search in the nook of the mountains."
     },
     {
       "id": "paws.simon.mystic-armour",
       "place": "paws",
       "npc": "Sir Simon",
       "topic": "MYST_YES",
-      "en": "Mystic armour: in the center of the oak grove.",
-      "ko": "신비 갑옷: 참나무 숲 한복판에 있다."
+      "en": "Search in the center of the oak grove.",
+      "ko": "참나무 숲 한복판에서 찾기",
+      "en_u4": "Search in the center of the oak grove.",
+      "en_us": "Search in the center of the oak grove."
     },
     {
       "id": "paws.tessa.mystic-weapons",
       "place": "paws",
       "npc": "Lady Tessa",
       "topic": "MYST_YES",
-      "en": "Mystic weapons: in the training room of Serpent castle.",
-      "ko": "신비 무기: 뱀성 훈련장에 있다."
+      "en": "Search in the training room of Serpent's Hold.",
+      "ko": "뱀성 훈련장에서 찾기",
+      "en_u4": "Search in the training room of Serpent castle.",
+      "en_us": "Search in the training room of Serpent's Hold."
     },
     {
       "id": "vesper.gem.humility-mantra",
@@ -793,7 +895,9 @@
       "npc": "Presto",
       "topic": "NIGH",
       "en": "Ask the barkeep at The Axe-n-Ale in Vesper about nightshade.",
-      "ko": "베스퍼 ‘도끼와 에일’ 술집 주인에게 나이트셰이드를 물어보라."
+      "ko": "베스퍼 ‘도끼와 에일’ 술집 주인에게 나이트셰이드에 대해 묻기",
+      "en_u4": "Ask the barkeep at The Axe-n-Ale in Vesper of nightshade.",
+      "en_us": "Ask the barkeep at The Axe-n-Ale in Vesper about nightshade."
     },
     {
       "id": "cove.allen.abyss-ship",
@@ -821,7 +925,9 @@
       "goal": "ask:blissful-abyss",
       "complete_if_recorded": "cove.blissful.abyss-entry",
       "en": "Ask Blissful about the abyss.",
-      "ko": "블리스풀에게 심연에 대해 물어보라."
+      "ko": "블리스풀에게 심연에 대해 묻기",
+      "en_u4": "Ask Blissful of the abyss.",
+      "en_us": "Ask Blissful about the abyss."
     },
     {
       "id": "cove.blissful.abyss-entry",
@@ -844,7 +950,9 @@
       "goal": "ask:ankh-chamber",
       "complete_if_recorded": "cove.ankh.codex-chamber",
       "en": "Ask the ankh about the Codex chamber.",
-      "ko": "앙크에게 코덱스 방을 물어보라."
+      "ko": "앙크에게 코덱스 방에 대해 묻기",
+      "en_u4": "Ask the ankh of the Codex chamber.",
+      "en_us": "Ask the ankh about the Codex chamber."
     },
     {
       "id": "cove.ankh.codex-chamber",
@@ -880,8 +988,10 @@
       "chain": "cove.black-stone",
       "chain_order": 20,
       "goal": "stone:black",
-      "en": "Black stone: stand where the gate of both moons dark shall appear; search when the moons go dark.",
-      "ko": "검은 돌: 두 달이 모두 어두운 문이 뜰 곳에 서서, 달이 어두울 때 찾으라."
+      "en": "Search where the dark-moon gate appears, when both moons are dark.",
+      "ko": "달이 어두울 때, 두 달이 어두운 문이 뜰 곳에서 찾기",
+      "en_u4": "Search where the gate of both moons dark shall appear, when the moons go dark.",
+      "en_us": "Search where the dark-moon gate appears, when both moons are dark."
     },
     {
       "id": "cove.mentorian.gate-spell",
@@ -928,8 +1038,10 @@
       "place": "lcb",
       "npc": "a reaper",
       "topic": "THIN",
-      "en": "Deadly artifact: knowledge of it is found at Buccaneer's Den.",
-      "ko": "치명적인 유물: 지식은 해적 소굴에 있다."
+      "en": "Ask about the deadly artifact at Buccaneer's Den.",
+      "ko": "해적 소굴에서 치명적인 유물에 대해 묻기",
+      "en_u4": "Ask of the deadly artifact at Buccaneer's Den.",
+      "en_us": "Ask about the deadly artifact at Buccaneer's Den."
     },
     {
       "id": "britain.sebastian.den-skull",
@@ -937,7 +1049,9 @@
       "npc": "Sebastian",
       "topic": "MOND_YES",
       "en": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den about the skull.",
-      "ko": "해적 소굴 캡틴 블랙 주점의 캡틴에게 해골을 물어보라."
+      "ko": "해적 소굴 캡틴 블랙 주점의 캡틴에게 해골에 대해 묻기",
+      "en_u4": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den of the skull.",
+      "en_us": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den about the skull."
     },
     {
       "id": "den.ragnar.skull-warning",
@@ -962,8 +1076,10 @@
       "place": "den",
       "npc": "Sniflet",
       "topic": "SOME_YES",
-      "en": "Lighter-than-air device: near dungeon Hythloth.",
-      "ko": "공기보다 가벼운 장치: 히슬로스 던전 근처에 있다."
+      "en": "Search near dungeon Hythloth.",
+      "ko": "히슬로스 던전 근처에서 찾기",
+      "en_u4": "Search near dungeon Hythloth.",
+      "en_us": "Search near dungeon Hythloth."
     },
     {
       "id": "den.seanna.sleep-spell",
@@ -999,7 +1115,9 @@
       "goal": "ask:malchor-horn",
       "complete_if_recorded": "empath.malchor.silver-horn",
       "en": "Ask Malchor about the silver horn.",
-      "ko": "말코어에게 은 뿔을 물어보라."
+      "ko": "말코어에게 은 뿔에 대해 묻기",
+      "en_u4": "Ask Malchor of the silver horn.",
+      "en_us": "Ask Malchor about the silver horn."
     },
     {
       "id": "empath.malchor.silver-horn",
@@ -1009,8 +1127,10 @@
       "chain": "empath.silver-horn",
       "chain_order": 20,
       "goal": "",
-      "en": "Silver horn: buried on a small isle off the tip of Spiritwood.",
-      "ko": "은 뿔: 스피릿우드 끝 작은 섬에 묻혀 있다."
+      "en": "Search on a small isle off the tip of Spiritwood.",
+      "ko": "스피릿우드 끝 작은 섬에서 찾기",
+      "en_u4": "Search on a small isle off the tip of Spiritwood.",
+      "en_us": "Search on a small isle off the tip of Spiritwood."
     },
     {
       "id": "empath.life.derek-candle",
@@ -1024,7 +1144,9 @@
       "speaker_en": "Life",
       "speaker_ko": "생명",
       "en": "Ask the bard beyond the secret passage about the candle.",
-      "ko": "비밀 통로 너머 음유시인에게 촛대를 물어보라."
+      "ko": "비밀 통로 너머 음유시인에게 촛대에 대해 묻기",
+      "en_u4": "Ask the bard beyond the secret passage of the candle.",
+      "en_us": "Ask the bard beyond the secret passage about the candle."
     },
     {
       "id": "empath.derek.lock-lake-candle",
@@ -1034,8 +1156,10 @@
       "chain": "empath.candle-location",
       "chain_order": 20,
       "goal": "",
-      "en": "Candle of Love: in a secret place hidden off Lock Lake.",
-      "ko": "사랑의 촛대: 로크 호수 밖 은밀한 곳에 있다."
+      "en": "Search in a secret place hidden off Lock Lake.",
+      "ko": "로크 호수 밖 은밀한 곳에서 찾기",
+      "en_u4": "Search in a secret place hidden off Lock Lake.",
+      "en_us": "Search in a secret place hidden off Lock Lake."
     },
     {
       "id": "empath.pass-guard.three-part-key",
@@ -1084,8 +1208,10 @@
       "place": "lycaeum",
       "npc": "Lord Terence",
       "topic": "TRUT",
-      "en": "Book of Truth: look under 't'.",
-      "ko": "진리의 책: ‘t’ 아래를 보라."
+      "en": "Search under 't'.",
+      "ko": "‘t’ 아래에서 찾기",
+      "en_u4": "Search under 't'.",
+      "en_us": "Search under 't'."
     },
     {
       "id": "lycaeum.scatu.zircon-mystics",
@@ -1094,8 +1220,10 @@
       "topic": "ARMO_YES",
       "goal": "ask:zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
-      "en": "When eight parts Avatar, ask Zircon in Minoc about the mystics.",
-      "ko": "아바타 여덟 부분이 되면 미녹의 지르콘에게 신비를 물어보라."
+      "en": "When you are eight parts Avatar, ask Zircon about the mystics in Minoc.",
+      "ko": "아바타 여덟 부분이 되면 미녹의 지르콘에게 신비에 대해 묻기",
+      "en_u4": "When eight parts Avatar, ask Zircon of the mystics in Minoc.",
+      "en_us": "When you are eight parts Avatar, ask Zircon about the mystics in Minoc."
     },
     {
       "id": "lycaeum.tymus.altar-stones",
@@ -1150,8 +1278,10 @@
       "place": "lycaeum",
       "npc": "Palamar",
       "topic": "TELE",
-      "en": "Telescope: search by the end for a knob; set the dial to see.",
-      "ko": "망원경: 끝 쪽 손잡이를 찾아 다이얼을 맞추라."
+      "en": "Search the end of the telescope for a knob.",
+      "ko": "망원경 끝에서 찾기",
+      "en_u4": "Search by the end of the telescope for a knob.",
+      "en_us": "Search the end of the telescope for a knob."
     },
     {
       "id": "lycaeum.estro.yew-judge",
@@ -1159,7 +1289,9 @@
       "npc": "Estro",
       "topic": "JUST_NO",
       "en": "Ask the judge in Yew.",
-      "ko": "유의 판사에게 물어보라."
+      "ko": "유의 판사에게 묻기",
+      "en_u4": "Ask the judge in Yew.",
+      "en_us": "Ask the judge in Yew."
     },
     {
       "id": "serpent.sentri.word-cor",
@@ -1186,8 +1318,10 @@
       "chain_order": 10,
       "goal": "ask:garam-bell",
       "complete_if_recorded": "serpent.garam.bell-location",
-      "en": "Ask the fighter Garam where the bell of courage lies.",
-      "ko": "전사 가람에게 용기 종 위치를 물어보라."
+      "en": "Ask the fighter Garam about the bell of courage.",
+      "ko": "전사 가람에게 종에 대해 묻기",
+      "en_u4": "Ask the fighter Garam of the bell of courage.",
+      "en_us": "Ask the fighter Garam about the bell of courage."
     },
     {
       "id": "serpent.garam.bell-location",
@@ -1197,8 +1331,10 @@
       "chain": "serpent.bell-location",
       "chain_order": 20,
       "goal": "",
-      "en": "Bell of Courage: at the bottom of a deep well at sea, lat-N'A\" long-L'A\".",
-      "ko": "용기의 종: 바다 깊은 샘 밑, 위도 N'A\" 경도 L'A\"."
+      "en": "Search the bottom of a deep well at sea, lat-N'A\" long-L'A\".",
+      "ko": "위도 N'A\" 경도 L'A\" 바다 깊은 샘 밑에서 찾기",
+      "en_u4": "Search the bottom of a deep well at sea, lat-N'A\" long-L'A\".",
+      "en_us": "Search the bottom of a deep well at sea, lat-N'A\" long-L'A\"."
     },
     {
       "id": "serpent.noxum.lassorn-wheel",
@@ -1210,7 +1346,9 @@
       "goal": "ask:lassorn-wheel",
       "complete_if_recorded": "serpent.lassorn.wheel-wreck",
       "en": "Ask a survivor where to search the sunken ships.",
-      "ko": "가라앉은 배는 생존자에게 어디를 찾을지 물어보라."
+      "ko": "생존자에게 가라앉은 배에 대해 묻기",
+      "en_u4": "Ask a survivor where to search the sunken ships.",
+      "en_us": "Ask a survivor where to search the sunken ships."
     },
     {
       "id": "serpent.noxum.magic-wheel",
@@ -1228,8 +1366,10 @@
       "chain": "serpent.magic-wheel",
       "chain_order": 20,
       "goal": "",
-      "en": "H.M.S. Cape: sank in the deep waters of the bay in the Cape of Heroes.",
-      "ko": "케이프 호: 영웅의 곶 만 깊은 물에 가라앉았다."
+      "en": "Search the deep waters of the bay in the Cape of Heroes.",
+      "ko": "영웅의 곶 만 깊은 물에서 찾기",
+      "en_u4": "Search the deep waters of the bay in the Cape of Heroes.",
+      "en_us": "Search the deep waters of the bay in the Cape of Heroes."
     },
     {
       "id": "serpent.ranger.shrya-rooms",
@@ -1243,7 +1383,9 @@
       "speaker_en": "a ranger",
       "speaker_ko": "레인저",
       "en": "Ask the training master about the altar rooms.",
-      "ko": "훈련 교관에게 제단 방을 물어보라."
+      "ko": "훈련 교관에게 제단 방에 대해 묻기",
+      "en_u4": "Ask the training master of the altar rooms.",
+      "en_us": "Ask the training master about the altar rooms."
     },
     {
       "id": "serpent.shyra.courage-stones",
@@ -1268,7 +1410,9 @@
       "speaker_en": "a treasure guard",
       "speaker_ko": "보물 경비",
       "en": "Ask Durham about the dungeons.",
-      "ko": "더럼에게 던전을 물어보라."
+      "ko": "더럼에게 던전에 대해 묻기",
+      "en_u4": "Ask Durham of the dungeons.",
+      "en_us": "Ask Durham about the dungeons."
     },
     {
       "id": "serpent.durham.courage-key",
