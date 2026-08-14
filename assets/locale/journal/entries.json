@@ -512,6 +512,17 @@
       "en_us": "Ask the barkeep about the sextant."
     },
     {
+      "id": "jhelom.gravnor.red-stone",
+      "place": "jhelom",
+      "npc": "Gravnor",
+      "topic": "STON_NO",
+      "goal": "stone:red",
+      "en": "Red stone: in the dungeon of {destard}.",
+      "ko": "붉은 돌: {destard}의 던전에 있다.",
+      "en_u4": "Red stone: in the dungeon of {destard}.",
+      "en_us": "Red stone: in the dungeon of {destard}."
+    },
+    {
       "id": "yew.druid.talfourd-rune",
       "place": "yew",
       "npc": "Druid",

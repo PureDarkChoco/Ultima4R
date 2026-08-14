@@ -12280,6 +12280,10 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes and npc_key == "senora":
 		if GameState.journal_try_capture("jhelom", "Senora", "CRIM_YES"):
 			journal_changed = true
+	## Gravnor (Jhelom): No after "Dost thou have it?" names Destard and the red stone.
+	if not yes and npc_key == "gravnor":
+		if GameState.journal_try_capture("jhelom", "Gravnor", "STON_NO"):
+			journal_changed = true
 	## Druid (Yew): No after Shrine points to Talfourd and the justice rune.
 	if (
 		not yes
