@@ -4540,6 +4540,17 @@ func _maybe_offer_keep_chain_keyword() -> void:
 			"던전" if korean else "Dungeon",
 			"던전" if korean else "dungeon"
 		)
+	elif (
+		place == "serpent"
+		and npc == "roderick"
+		and GameState.journal_has_id("britain.thevel.roderick-orbs")
+	):
+		var orb_key := _talk_keyword_stable_key("오브" if korean else "orbs")
+		_offer_talk_keyword_item(
+			orb_key,
+			"오브" if korean else "Orbs",
+			"오브" if korean else "orbs"
+		)
 
 
 func _talk_answer_unlocks_join(e, yes: bool) -> bool:
@@ -11177,6 +11188,14 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"던전" if GameState.lang_short() == "ko" else "dungeon"
 				)
+			elif (
+				_talk_city_id() == "serpent"
+				and str(entry.name).strip_edges().to_lower() == "roderick"
+				and GameState.journal_has_id("britain.thevel.roderick-orbs")
+			):
+				default_key = _talk_keyword_stable_key(
+					"오브" if GameState.lang_short() == "ko" else "orbs"
+				)
 		for i in _talk_keyword_menu_items.size():
 			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
 				_talk_keyword_menu_cursor = i
@@ -12074,6 +12093,10 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Sprite (Britain): Yes points to Pepper and the compassion rune.
 	if yes and npc_key == "sprite":
 		if GameState.journal_try_capture("britain", "Sprite", "HELP_YES"):
+			journal_changed = true
+	## Thevel (Britain): No after the one-handed beggar points to Serpent's Hold.
+	if not yes and npc_key == "thevel":
+		if GameState.journal_try_capture("britain", "Thevel", "ORBS_NO"):
 			journal_changed = true
 	## Shazom (Moonglow): Yes/No after Nigel points to the Lycaeum teacher.
 	if npc_key == "shazom":
@@ -14590,6 +14613,11 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("britain.shapero.julio-compassion"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:julio-compassion"):
+			refresh = true
+	if place == "serpent" and npc_key == "roderick" and topic == "ORBS":
+		if GameState.journal_mark_id("britain.thevel.roderick-orbs"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:roderick-orbs"):
 			refresh = true
 	## Moonglow: William completes Christen's tip.
 	if place == "moonglow" and npc_key == "william" and topic == "RUNE":

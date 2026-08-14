@@ -348,6 +348,18 @@
       "en_us": "Yellow stone: in the dungeon of {despise}."
     },
     {
+      "id": "britain.thevel.roderick-orbs",
+      "place": "britain",
+      "npc": "Thevel",
+      "topic": "ORBS_NO",
+      "goal": "ask:roderick-orbs",
+      "complete_if_recorded": "serpent.roderick.blue-orbs",
+      "en": "Meet the one-handed beggar at {serpent}.",
+      "ko": "{serpent}에서 한 손 거지 만나기",
+      "en_u4": "Seek the one-handed beggar at {serpent}.",
+      "en_us": "Meet the one-handed beggar at {serpent}."
+    },
+    {
       "id": "moonglow.christen.william-rune",
       "place": "moonglow",
       "npc": "Christen",
