@@ -386,6 +386,9 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		var goal := str(d.get("goal", ""))
 		var met := not goal.is_empty() and goal_already_met(gs, goal)
 		var cat := find_catalog_by_id(str(d.get("id", "")))
+		## Catalog now treats this as knowledge (complete on record).
+		if not cat.is_empty() and str(cat.get("goal", "")).strip_edges().is_empty():
+			met = true
 		var complete_on_goal := str(cat.get("complete_on_goal", "")).strip_edges()
 		if not complete_on_goal.is_empty() and goal_already_met(gs, complete_on_goal):
 			met = true
@@ -420,7 +423,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "join:jaana":
 		## Recruited Jaana. Same-class refusal is marked at the join attempt.
 		return gs.is_person_joined("Jaana")
-	## talk:first-note / combat:first / mantra:* complete only when the event fires.
+	## talk:first-note / combat:first complete only when the event fires.
+	## mantra:* is a shrine fallback for ask-tips (complete_on_goal), not a pending knowledge goal.
 	return false
 
 
