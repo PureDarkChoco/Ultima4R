@@ -415,13 +415,14 @@ func _apply_fullscreen_surface() -> void:
 
 
 ## Design size 1280×720 → fit into the actual window (letterbox with KEEP).
+## canvas_items draws at the window/Retina pixel size so fonts stay sharp;
+## viewport stretch would rasterize 720p then upscale (blurry text).
 func _apply_content_scale() -> void:
 	var win := _root_window()
 	if win == null:
 		return
-	## Prefer VIEWPORT: renders at design size then upscales — more reliable on macOS.
 	win.content_scale_size = Vector2i(DEFAULT_W, DEFAULT_H)
-	win.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT
+	win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	win.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_FRACTIONAL
 
