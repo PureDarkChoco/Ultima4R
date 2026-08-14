@@ -12432,6 +12432,14 @@ func _talk_answer_yn(yes: bool) -> void:
 	):
 		if GameState.journal_try_capture_talk("yew", "Druid", "SHRI_NO"):
 			journal_changed = true
+	## Druid (Yew): Yes after the rune — learn the mantra and seek Wrong's green stone.
+	if (
+		yes
+		and npc_key == "druid"
+		and str(e.topic2).strip_edges().to_upper() == "SHRI"
+	):
+		if GameState.journal_try_capture_talk("yew", "Druid", "SHRI_YES"):
+			journal_changed = true
 	## Talfourd (Yew): No after Rune reveals the jail-cell search.
 	if (
 		not yes

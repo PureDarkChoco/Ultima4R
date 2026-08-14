@@ -637,7 +637,7 @@
       "speaker_en": "Frida",
       "speaker_ko": "프리다",
       "en": "Jaana may join thee.",
-      "ko": "자나가 합류할 수 있다.",
+      "ko": "자나가 모험에 합류할 수 있다.",
       "en_u4": "Jaana may join thee.",
       "en_us": "Jaana may join thee."
     },
@@ -655,6 +655,19 @@
       "ko": "탈푸르드에게 룬에 대해 묻기",
       "en_u4": "Ask Talfourd of the rune.",
       "en_us": "Ask Talfourd about the rune."
+    },
+    {
+      "id": "yew.druid.green-stone",
+      "place": "yew",
+      "npc": "Druid",
+      "topic": "SHRI_YES",
+      "goal": "stone:green",
+      "speaker_en": "Druid",
+      "speaker_ko": "드루이드",
+      "en": "Learn the mantra, and seek the green stone in {wrong}.",
+      "ko": "만트라를 배우고 {wrong}의 던전에서 녹색 돌을 찾아라.",
+      "en_u4": "Learn the mantra, and seek the green stone in {wrong}.",
+      "en_us": "Learn the mantra, and seek the green stone in {wrong}."
     },
     {
       "id": "yew.talfourd.justice-rune",
