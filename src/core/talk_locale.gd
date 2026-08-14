@@ -17,7 +17,7 @@ const _SHELL_KO := {
 	"I know not of that!": "그건 잘 모르겠어요.",
 	"How much?": "얼마를?",
 	"Yes or no!": "예 또는 아니!",
-	"Thou hast not that much gold!": "그만한 금은 없구나!",
+	"Thou hast not that much gold!": "그만한 골드는 없구나!",
 	"I am honored to join thee!": "함께하게 되어 영광이오!",
 	"Thou art not experienced enough for me to join thee.": "아직 경험이 부족해 함께할 수 없소.",
 	"Bye.": "안녕.",
@@ -360,11 +360,11 @@ static func _translate_line(en: String) -> String:
 	const NO_GOLD_CHILD := " says: I need no gold! Keep it!"
 	if n.ends_with(NO_GOLD_CHILD):
 		var p4c := n.substr(0, n.length() - NO_GOLD_CHILD.length())
-		return "%s 말하길: 금은 필요 없어요. 그냥 가져요!" % str(_lines.get(_norm(p4c), p4c))
+		return "%s 말하길: 골드는 필요 없어요. 그냥 가져요!" % str(_lines.get(_norm(p4c), p4c))
 	const NO_GOLD := " says: I do not need thy gold.  Keep it!"
 	if n.ends_with(NO_GOLD):
 		var p4 := n.substr(0, n.length() - NO_GOLD.length())
-		return "%s 말하길: 금은 필요 없소. 간직하시오!" % str(_lines.get(_norm(p4), p4))
+		return "%s 말하길: 골드는 필요 없소. 간직하시오!" % str(_lines.get(_norm(p4), p4))
 	const THANKS_GOLD := " says: Oh Thank thee! I shall never forget thy kindness!"
 	if n.ends_with(THANKS_GOLD):
 		var p5 := n.substr(0, n.length() - THANKS_GOLD.length())

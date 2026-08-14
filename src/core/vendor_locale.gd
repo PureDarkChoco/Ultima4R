@@ -216,7 +216,7 @@ const LINES := {
 	"Take it? (Y/N)": "가져가겠소? (Y/N)",
 	"Too bad.": "아쉽군.",
 	"I fear you have not the funds, perhaps something else.":
-		"자금이 부족한 듯하오. 다른 것은 어떠시오?",
+		"골드가 부족한 듯하오. 다른 것은 어떠시오?",
 	"%s says: A fine choice!": "%s 말하길: 훌륭한 선택이오!",
 	"Anything\nelse? (Y/N)": "더\n필요하시오? (Y/N)",
 	"You sell:": "팔 것:",
@@ -241,7 +241,7 @@ const LINES := {
 	"We've got:": "우리는 이런 것이 있소:",
 	"What'll it be?": "무엇을 하겠어요?",
 	"You don't have enough gold. Maybe something cheaper?":
-		"금이 부족하오. 더 싼 것은 어떠시오?",
+		"골드가 부족하오. 더 싼 것은 어떠시오?",
 	"%s says: Good choice!": "%s 말하길: 좋은 선택이오!",
 	"Come on, you\ndon't own any.": "이보게,\n가진 게 없소.",
 	"Harumph. What else would ": "흥. 다른 것은?",
@@ -271,11 +271,11 @@ const LINES := {
 	"Won't pay, eh.\nYa scum, be gone\nfore ey call the\nguards!":
 		"안 낸다 이거지.\n이 쓰레기 같으니, 경비 부르기\n전에 썩 꺼져!",
 	"It seems that you have not the gold. Good Day!":
-		"금이 없어 보이는군. 좋은 날 되시게!",
+		"골드가 없어 보이는군. 좋은 날 되시게!",
 	"What'd ya like to know friend?": "뭘 알고 싶은가, 친구?",
 	"'fraid I can't help ya there friend!": "미안하지만 그건 도와줄 수 없네, 친구!",
 	"That subject is a bit foggy, perhaps more gold will refresh my memory. You\ngive:":
-		"그 얘기는 좀 흐릿하군. 금이 더 있으면 기억이 살아날지도. 자네가\n내는 액수:",
+		"그 얘기는 좀 흐릿하군. 골드가 더 있으면 기억이 살아날지도. 자네가\n내는 액수:",
 	"Ye don't have that mate!": "그 돈은 없구먼!",
 	"Sorry, I could\nnot help ya mate!": "미안하지만\n도와줄 수 없네!",
 	"See ya mate!": "잘 가게!",
@@ -290,7 +290,7 @@ const LINES := {
 		"좋습니다. %s는 %dgp입니다. 몇 개\n원하십니까?",
 	"Very good, that will be %dgp.  You pay:":
 		"좋습니다. %dgp입니다.  내실 액수:",
-	"It seems you have not the gold! ": "금이 부족해 보이는군요! ",
+	"It seems you have not the gold! ": "골드가 부족해 보이는군요! ",
 	"Very good. ": "좋습니다. ",
 	"I see, then ": "그렇군요, 그럼 ",
 	"%s says:\nPerhaps another time then....\nand slowly turns away.":
@@ -306,7 +306,7 @@ const LINES := {
 	"Thou art not dead fool!": "죽지 않았소, 바보!",
 	"%s will cost thee %dgp.": "%s는 %dgp요.",
 	"I see by thy purse that thou hast not enough gold. I cannot aid thee.":
-		"주머니를 보니 금이 부족하오. 도울 수 없소.",
+		"주머니를 보니 골드가 부족하오. 도울 수 없소.",
 	"Wilt thou\npay? (Y/N)": "지불하겠소? (Y/N)",
 	"%s asks: Do you need more help? (Y/N)": "%s가 묻소: 더 도움이 필요하시오? (Y/N)",
 	"Art thou willing to give 100pts of thy blood to aid others? (Y/N)":
@@ -355,7 +355,7 @@ const LINES := {
 	"Magical Keys, 1 use each, a fair price at 60gp for 6.":
 		"마법 열쇠, 각 1회용. 6개에 60gp, 공평한 값이지.",
 	"So...Ya want a Sextant...Well I gots one which I might part with fer 900 gold!":
-		"그래서… 육분의를 원하나… 내가 하나 갖고 있지. 900금이면 팔 수도 있지!",
+		"그래서… 육분의를 원하나… 내가 하나 갖고 있지. 900골드면 팔 수도 있지!",
 	"Will ya buy? (Y/N)": "사겠나? (Y/N)",
 	"Hmmm...Grmbl...": "흠… 으르릉…",
 	"What? Can't pay! Buzz off swine!": "뭐? 못 내? 꺼져, 돼지 같으니!",
@@ -369,7 +369,7 @@ const LINES := {
 	"For only %dg.p.\nThou can have the best! Wilt thou buy? (Y/N)":
 		"단 %dg.p.에\n최고를 가져갈 수 있소! 사겠소? (Y/N)",
 	"It seems thou hast not gold enough to pay!":
-		"지불할 금이 부족한 듯하오!",
+		"지불할 골드가 부족한 듯하오!",
 	"Here, a better breed thou shalt not find ever!":
 		"여기 있소. 이보다 나은 혈통은 영원히 찾지 못할 것이오!",
 }
