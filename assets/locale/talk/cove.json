@@ -21,14 +21,14 @@
         "name": "알렌",
         "pronoun": "그",
         "look": "작은 소년이다.",
-        "job": "심연 들어가는\n법을 아오!",
+        "job": "{abyss} 들어가는\n법을 아오!",
         "health": "괜찮아요.",
-        "response1": "심연은 배로만\n접근할 수 있어요!",
+        "response1": "{abyss}은 배로만\n접근할 수 있어요!",
         "response2": "배는 마법으로\n보강한 선체가\n있어야 해요!",
         "question": "그런 배가\n있소?",
-        "yes": "심연은 블리스풀에게\n물어보시오.",
-        "no": "심연은 블리스풀에게\n물어보시오.",
-        "topic1": "심연",
+        "yes": "{abyss}은 블리스풀에게\n물어보시오.",
+        "no": "{abyss}은 블리스풀에게\n물어보시오.",
+        "topic1": "{abyss}",
         "topic1_aliases": [
           "abyss",
           "abys"
@@ -56,7 +56,7 @@
         "name": "프론티스",
         "pronoun": "그",
         "look": "작은 드루이드다.",
-        "job": "지혜의 숨은 도시\n코브에 오신 것을\n환영하오.",
+        "job": "지혜의 숨은 도시\n{cove}에 오신 것을\n환영하오.",
         "health": "건강하오.",
         "response1": "여기엔 지혜와\n평화가 많소.",
         "response2": "우리 사원에서\n평화를 찾으시오.",
@@ -95,7 +95,7 @@
         "job": "나는 은둔자요.",
         "health": "건강하오.",
         "response1": "세상과 떨어져\n살소.",
-        "response2": "스카라 브레 여관의\n유령 아이작만이\n말할 수 있소.",
+        "response2": "{skara} 여관의\n유령 아이작만이\n말할 수 있소.",
         "question": "그를 봤소?",
         "yes": "물어보시오!",
         "no": "그가 나타날 때까지\n여관에 머무시오!",
@@ -349,7 +349,7 @@
           "codex",
           "code"
         ],
-        "topic2": "심연",
+        "topic2": "{abyss}",
         "topic2_aliases": [
           "abyss",
           "abys"

@@ -140,10 +140,9 @@ static func format_location(loc: Variant) -> String:
 static func _place_display_name(place_id: String) -> String:
 	if place_id.is_empty():
 		return "?"
-	var key := "place_%s" % place_id
-	var labeled := Locale.t(key)
+	var labeled := Locale.place(place_id)
 	## Locale.t returns the key itself when missing — fall back to title case id.
-	if labeled == key or labeled.is_empty():
+	if labeled.is_empty() or labeled == "place_%s" % place_id:
 		return place_id.capitalize()
 	return labeled
 

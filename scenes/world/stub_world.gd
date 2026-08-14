@@ -4424,13 +4424,14 @@ func _maybe_offer_den_prompt_keywords() -> void:
 			"해골" if korean else "skull"
 		)
 	elif npc.contains("scirlock"):
+		var hyth_name := Locale.place("hythloth")
 		var hyth_key := _talk_keyword_stable_key(
-			"히슬로스" if korean else "hythloth"
+			hyth_name if korean else "hythloth"
 		)
 		_offer_talk_keyword_item(
 			hyth_key,
-			"히슬로스" if korean else "Hythloth",
-			"히슬로스" if korean else "hythloth"
+			hyth_name,
+			hyth_name if korean else "hythloth"
 		)
 
 
@@ -8279,9 +8280,8 @@ func _localized_portal_name(portal: Dictionary) -> String:
 	var place_id := _WorldPortals.place_id_for_portal(portal)
 	var name_s := str(portal.get("name", "?"))
 	if not place_id.is_empty():
-		var key := "place_%s" % place_id
-		var labeled := Locale.t(key)
-		if labeled != key and not labeled.is_empty():
+		var labeled := Locale.place(place_id)
+		if not labeled.is_empty() and labeled != "place_%s" % place_id:
 			name_s = labeled
 	return name_s
 

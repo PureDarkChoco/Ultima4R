@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record; mantra:<virtue>|rune:<virtue>|stone:<color> = pending until action. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "lcb.manual.zorin",
@@ -23,10 +23,10 @@
       "chain_order": 10,
       "goal": "ask:antos-book",
       "complete_if_recorded": "lycaeum.father-antos.book",
-      "en": "Ask Father Antos about the book at the Lycaeum.",
-      "ko": "라이시엄의 안토스 신부에게 책에 대해 묻기",
-      "en_u4": "Ask Father Antos of the book at the Lycaeum.",
-      "en_us": "Ask Father Antos about the book at the Lycaeum."
+      "en": "Ask Father Antos about the book at the {lycaeum}.",
+      "ko": "{lycaeum}의 안토스 신부에게 책에 대해 묻기",
+      "en_u4": "Ask Father Antos of the book at the {lycaeum}.",
+      "en_us": "Ask Father Antos about the book at the {lycaeum}."
     },
     {
       "id": "lcb.zorin.antos-candle",
@@ -37,10 +37,10 @@
       "chain_order": 10,
       "goal": "ask:antos-candle",
       "complete_if_recorded": "empath.brother-antos.candle",
-      "en": "Ask Brother Antos about the candle at Empath Abbey.",
-      "ko": "공감 대수도원의 안토스 형제에게 촛대에 대해 묻기",
-      "en_u4": "Ask Brother Antos of the candle at Empath Abbey.",
-      "en_us": "Ask Brother Antos about the candle at Empath Abbey."
+      "en": "Ask Brother Antos about the candle at {empath}.",
+      "ko": "{empath}의 안토스 형제에게 촛대에 대해 묻기",
+      "en_u4": "Ask Brother Antos of the candle at {empath}.",
+      "en_us": "Ask Brother Antos about the candle at {empath}."
     },
     {
       "id": "lcb.zorin.antos-bell",
@@ -51,10 +51,10 @@
       "chain_order": 10,
       "goal": "ask:antos-bell",
       "complete_if_recorded": "serpent.sister-antos.bell",
-      "en": "Ask Sister Antos about the bell at Serpent's Hold.",
-      "ko": "뱀성의 안토스 수녀에게 종에 대해 묻기",
-      "en_u4": "Ask Sister Antos of the bell at Serpent's Hold.",
-      "en_us": "Ask Sister Antos about the bell at Serpent's Hold."
+      "en": "Ask Sister Antos about the bell at {serpent}.",
+      "ko": "{serpent}의 안토스 수녀에게 종에 대해 묻기",
+      "en_u4": "Ask Sister Antos of the bell at {serpent}.",
+      "en_us": "Ask Sister Antos about the bell at {serpent}."
     },
     {
       "id": "lycaeum.father-antos.book",
@@ -77,8 +77,8 @@
       "chain": "empath.antos-candle",
       "chain_order": 10,
       "goal": "",
-      "en": "Candle of Love: needed to enter the Abyss.",
-      "ko": "사랑의 촛대: 심연에 들어가려면 필요하다."
+      "en": "Candle of Love: needed to enter {abyss}.",
+      "ko": "사랑의 촛대: {abyss}에 들어가려면 필요하다."
     },
     {
       "id": "serpent.sister-antos.bell",
@@ -88,8 +88,8 @@
       "chain": "serpent.antos-bell",
       "chain_order": 10,
       "goal": "",
-      "en": "Bell of Courage: needed to enter the Abyss.",
-      "ko": "용기의 종: 심연에 들어가려면 필요하다."
+      "en": "Bell of Courage: needed to enter {abyss}.",
+      "ko": "용기의 종: {abyss}에 들어가려면 필요하다."
     },
     {
       "id": "lcb.seesha.zircon-mystics",
@@ -100,10 +100,10 @@
       "chain_order": 10,
       "goal": "ask:zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
-      "en": "Ask Zircon about the weapons in Minoc.",
-      "ko": "미녹의 지르콘에게 무기에 대해 묻기",
-      "en_u4": "Ask Zircon of the mystic arms in Minoc.",
-      "en_us": "Ask Zircon about the weapons in Minoc."
+      "en": "Ask Zircon about the weapons in {minoc}.",
+      "ko": "{minoc}의 지르콘에게 무기에 대해 묻기",
+      "en_u4": "Ask Zircon of the mystic arms in {minoc}.",
+      "en_us": "Ask Zircon about the weapons in {minoc}."
     },
     {
       "id": "minoc.zircon.mystic-arms",
@@ -379,14 +379,14 @@
       "npc": "Tyrone",
       "topic": "STON",
       "goal": "stone:blue",
-      "en": "Search on an altar in the dungeon of Deceit.",
-      "ko": "기만의 던전 제단에서 찾기",
-      "en_upgraded": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
-      "ko_upgraded": "기만의 던전 제단에서 찾기. 던전 제단실과 심연에서 쓰인다.",
-      "en_u4": "Search on an altar in the dungeon of Deceit.",
-      "en_us": "Search on an altar in the dungeon of Deceit.",
-      "en_u4_upgraded": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
-      "en_us_upgraded": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss."
+      "en": "Search on an altar in the dungeon of {deceit}.",
+      "ko": "{deceit}의 던전 제단에서 찾기",
+      "en_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
+      "ko_upgraded": "{deceit}의 던전 제단에서 찾기. 던전 제단실과 {abyss}에서 쓰인다.",
+      "en_u4": "Search on an altar in the dungeon of {deceit}.",
+      "en_us": "Search on an altar in the dungeon of {deceit}.",
+      "en_u4_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
+      "en_us_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}."
     },
     {
       "id": "moonglow.tyrone.honesty-stone",
@@ -395,10 +395,10 @@
       "topic": "USE",
       "upgrade": true,
       "goal": "stone:blue",
-      "en": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
-      "ko": "기만의 던전 제단에서 찾기. 던전 제단실과 심연에서 쓰인다.",
-      "en_u4": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss.",
-      "en_us": "Search on an altar in the dungeon of Deceit; used in dungeon altar rooms and the Abyss."
+      "en": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
+      "ko": "{deceit}의 던전 제단에서 찾기. 던전 제단실과 {abyss}에서 쓰인다.",
+      "en_u4": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
+      "en_us": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}."
     },
     {
       "id": "moonglow.shazom.nigel-recall",
@@ -407,10 +407,10 @@
       "topic": "NIGE_YES",
       "goal": "ask:nigel-recall",
       "complete_if_recorded": "lycaeum.nigel.resurrection",
-      "en": "Meet Nigel at the Lycaeum.",
-      "ko": "라이시엄에서 나이절 만나기",
-      "en_u4": "Seek Nigel at the Lycaeum.",
-      "en_us": "Meet Nigel at the Lycaeum."
+      "en": "Meet Nigel at the {lycaeum}.",
+      "ko": "{lycaeum}에서 나이절 만나기",
+      "en_u4": "Seek Nigel at the {lycaeum}.",
+      "en_us": "Meet Nigel at the {lycaeum}."
     },
     {
       "id": "moonglow.shazom.nigel-recall",
@@ -419,10 +419,10 @@
       "topic": "NIGE_NO",
       "goal": "ask:nigel-recall",
       "complete_if_recorded": "lycaeum.nigel.resurrection",
-      "en": "Meet Nigel at the Lycaeum.",
-      "ko": "라이시엄에서 나이절 만나기",
-      "en_u4": "Seek Nigel at the Lycaeum.",
-      "en_us": "Meet Nigel at the Lycaeum."
+      "en": "Meet Nigel at the {lycaeum}.",
+      "ko": "{lycaeum}에서 나이절 만나기",
+      "en_u4": "Seek Nigel at the {lycaeum}.",
+      "en_us": "Meet Nigel at the {lycaeum}."
     },
     {
       "id": "jhelom.robert.nostro-rune",
@@ -728,8 +728,8 @@
       "chain": "magincia.humility-shrine",
       "chain_order": 20,
       "goal": "",
-      "en": "Humility shrine: on the north bank in the isle of the Abyss.",
-      "ko": "겸손의 사원: 심연 섬 북쪽 강가에 있다."
+      "en": "Humility shrine: on the north bank in the isle of {abyss}.",
+      "ko": "겸손의 사원: {abyss} 섬 북쪽 강가에 있다."
     },
     {
       "id": "magincia.banter.silver-horn",
@@ -760,10 +760,10 @@
       "chain_order": 10,
       "goal": "ask:suzanna-horn",
       "complete_if_recorded": "empath.suzanna.malchor-horn",
-      "en": "Ask the lady in waiting at Empath Abbey about the horn.",
-      "ko": "공감 대수도원의 시녀에게 은 뿔에 대해 묻기",
-      "en_u4": "Ask the lady in waiting at Empath Abbey of the horn.",
-      "en_us": "Ask the lady in waiting at Empath Abbey about the horn."
+      "en": "Ask the lady in waiting at {empath} about the horn.",
+      "ko": "{empath}의 시녀에게 은 뿔에 대해 묻기",
+      "en_u4": "Ask the lady in waiting at {empath} of the horn.",
+      "en_us": "Ask the lady in waiting at {empath} about the horn."
     },
     {
       "id": "magincia.ruskin.nate-rune",
@@ -797,10 +797,10 @@
       "goal": "ask:barren-rune",
       "complete_if_recorded": "paws.barren.humility-rune",
       "complete_on_goal": "rune:humility",
-      "en": "Ask Barren about the rune in Paws.",
-      "ko": "포우의 바렌에게 룬에 대해 묻기",
-      "en_u4": "Ask Barren of the rune in Paws.",
-      "en_us": "Ask Barren about the rune in Paws."
+      "en": "Ask Barren about the rune in {paws}.",
+      "ko": "{paws}의 바렌에게 룬에 대해 묻기",
+      "en_u4": "Ask Barren of the rune in {paws}.",
+      "en_us": "Ask Barren about the rune in {paws}."
     },
     {
       "id": "paws.barren.humility-rune",
@@ -843,10 +843,10 @@
       "place": "paws",
       "npc": "Lady Tessa",
       "topic": "MYST_YES",
-      "en": "Search in the training room of Serpent's Hold.",
-      "ko": "뱀성 훈련장에서 찾기",
-      "en_u4": "Search in the training room of Serpent castle.",
-      "en_us": "Search in the training room of Serpent's Hold."
+      "en": "Search in the training room of {serpent}.",
+      "ko": "{serpent} 훈련장에서 찾기",
+      "en_u4": "Search in the training room of {serpent}.",
+      "en_us": "Search in the training room of {serpent}."
     },
     {
       "id": "vesper.gem.humility-mantra",
@@ -862,16 +862,16 @@
       "place": "vesper",
       "npc": "Simple",
       "topic": "HUMI",
-      "en": "Humility shrine: on the north bank of the isle of the Abyss, guarded by daemons.",
-      "ko": "겸손의 사원: 심연 섬 북쪽 강가에 있으며 악마 무리가 지킨다."
+      "en": "Humility shrine: on the north bank of the isle of {abyss}, guarded by daemons.",
+      "ko": "겸손의 사원: {abyss} 섬 북쪽 강가에 있으며 악마 무리가 지킨다."
     },
     {
       "id": "vesper.simple.abyss-isle",
       "place": "vesper",
       "npc": "Simple",
       "topic": "HUMI_NO",
-      "en": "Isle of the Abyss: southeast of Britannia.",
-      "ko": "심연 섬: 브리타니아 남동쪽."
+      "en": "Isle of {abyss}: southeast of Britannia.",
+      "ko": "{abyss} 섬: 브리타니아 남동쪽."
     },
     {
       "id": "vesper.joseph.humility-shrine",
@@ -894,26 +894,26 @@
       "place": "skara",
       "npc": "Presto",
       "topic": "NIGH",
-      "en": "Ask the barkeep at The Axe-n-Ale in Vesper about nightshade.",
-      "ko": "베스퍼 ‘도끼와 에일’ 술집 주인에게 나이트셰이드에 대해 묻기",
-      "en_u4": "Ask the barkeep at The Axe-n-Ale in Vesper of nightshade.",
-      "en_us": "Ask the barkeep at The Axe-n-Ale in Vesper about nightshade."
+      "en": "Ask the barkeep at The Axe-n-Ale in {vesper} about nightshade.",
+      "ko": "{vesper} ‘도끼와 에일’ 술집 주인에게 나이트셰이드에 대해 묻기",
+      "en_u4": "Ask the barkeep at The Axe-n-Ale in {vesper} of nightshade.",
+      "en_us": "Ask the barkeep at The Axe-n-Ale in {vesper} about nightshade."
     },
     {
       "id": "cove.allen.abyss-ship",
       "place": "cove",
       "npc": "Allen",
       "topic": "ABYS",
-      "en": "Abyss: approach only by ship.",
-      "ko": "심연: 배로만 접근할 수 있다."
+      "en": "{abyss}: approach only by ship.",
+      "ko": "{abyss}: 배로만 접근할 수 있다."
     },
     {
       "id": "cove.allen.ship-hull",
       "place": "cove",
       "npc": "Allen",
       "topic": "SHIP",
-      "en": "Abyss ship: needs a magically strengthened hull.",
-      "ko": "심연의 배: 마법으로 보강한 선체가 필요하다."
+      "en": "{abyss} ship: needs a magically strengthened hull.",
+      "ko": "{abyss}의 배: 마법으로 보강한 선체가 필요하다."
     },
     {
       "id": "cove.allen.blissful-abyss",
@@ -925,7 +925,7 @@
       "goal": "ask:blissful-abyss",
       "complete_if_recorded": "cove.blissful.abyss-entry",
       "en": "Ask Blissful about the abyss.",
-      "ko": "블리스풀에게 심연에 대해 묻기",
+      "ko": "블리스풀에게 {abyss}에 대해 묻기",
       "en_u4": "Ask Blissful of the abyss.",
       "en_us": "Ask Blissful about the abyss."
     },
@@ -937,8 +937,8 @@
       "chain": "cove.abyss-entry",
       "chain_order": 20,
       "goal": "",
-      "en": "Abyss entrance: meditate at the shrines of Honesty, Compassion and Valor for 3 cycles.",
-      "ko": "심연 입장: 정직·연민·용기 사원에서 세 주기 명상하라."
+      "en": "{abyss} entrance: meditate at the shrines of Honesty, Compassion and Valor for 3 cycles.",
+      "ko": "{abyss} 입장: 정직·연민·용기 사원에서 세 주기 명상하라."
     },
     {
       "id": "cove.blissful.ankh-chamber",
@@ -1038,20 +1038,20 @@
       "place": "lcb",
       "npc": "a reaper",
       "topic": "THIN",
-      "en": "Ask about the deadly artifact at Buccaneer's Den.",
-      "ko": "해적 소굴에서 치명적인 유물에 대해 묻기",
-      "en_u4": "Ask of the deadly artifact at Buccaneer's Den.",
-      "en_us": "Ask about the deadly artifact at Buccaneer's Den."
+      "en": "Ask about the deadly artifact at {den}.",
+      "ko": "{den}에서 치명적인 유물에 대해 묻기",
+      "en_u4": "Ask of the deadly artifact at {den}.",
+      "en_us": "Ask about the deadly artifact at {den}."
     },
     {
       "id": "britain.sebastian.den-skull",
       "place": "britain",
       "npc": "Sebastian",
       "topic": "MOND_YES",
-      "en": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den about the skull.",
-      "ko": "해적 소굴 캡틴 블랙 주점의 캡틴에게 해골에 대해 묻기",
-      "en_u4": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den of the skull.",
-      "en_us": "Ask the Cap'n at Captain Black Tavern in Buccaneer's Den about the skull."
+      "en": "Ask the Cap'n at Captain Black Tavern in {den} about the skull.",
+      "ko": "{den} 캡틴 블랙 주점의 캡틴에게 해골에 대해 묻기",
+      "en_u4": "Ask the Cap'n at Captain Black Tavern in {den} of the skull.",
+      "en_us": "Ask the Cap'n at Captain Black Tavern in {den} about the skull."
     },
     {
       "id": "den.ragnar.skull-warning",
@@ -1068,18 +1068,18 @@
       "topic": "HYTH",
       "speaker_en": "Jeremy James Scirlock",
       "speaker_ko": "제레미 제임스 스킬록",
-      "en": "Hythloth: reached only by a secret entrance in the great castle.",
-      "ko": "히슬로스: 큰 성의 비밀 입구로만 갈 수 있다."
+      "en": "{hythloth}: reached only by a secret entrance in the great castle.",
+      "ko": "{hythloth}: 큰 성의 비밀 입구로만 갈 수 있다."
     },
     {
       "id": "den.sniflet.balloon",
       "place": "den",
       "npc": "Sniflet",
       "topic": "SOME_YES",
-      "en": "Search near dungeon Hythloth.",
-      "ko": "히슬로스 던전 근처에서 찾기",
-      "en_u4": "Search near dungeon Hythloth.",
-      "en_us": "Search near dungeon Hythloth."
+      "en": "Search near dungeon {hythloth}.",
+      "ko": "{hythloth} 던전 근처에서 찾기",
+      "en_u4": "Search near dungeon {hythloth}.",
+      "en_us": "Search near dungeon {hythloth}."
     },
     {
       "id": "den.seanna.sleep-spell",
@@ -1220,10 +1220,10 @@
       "topic": "ARMO_YES",
       "goal": "ask:zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
-      "en": "When you are eight parts Avatar, ask Zircon about the mystics in Minoc.",
-      "ko": "아바타 여덟 부분이 되면 미녹의 지르콘에게 신비에 대해 묻기",
-      "en_u4": "When eight parts Avatar, ask Zircon of the mystics in Minoc.",
-      "en_us": "When you are eight parts Avatar, ask Zircon about the mystics in Minoc."
+      "en": "When you are eight parts Avatar, ask Zircon about the mystics in {minoc}.",
+      "ko": "아바타 여덟 부분이 되면 {minoc}의 지르콘에게 신비에 대해 묻기",
+      "en_u4": "When eight parts Avatar, ask Zircon of the mystics in {minoc}.",
+      "en_us": "When you are eight parts Avatar, ask Zircon about the mystics in {minoc}."
     },
     {
       "id": "lycaeum.tymus.altar-stones",
@@ -1288,10 +1288,10 @@
       "place": "lycaeum",
       "npc": "Estro",
       "topic": "JUST_NO",
-      "en": "Ask the judge in Yew.",
-      "ko": "유의 판사에게 묻기",
-      "en_u4": "Ask the judge in Yew.",
-      "en_us": "Ask the judge in Yew."
+      "en": "Ask the judge in {yew}.",
+      "ko": "{yew}의 판사에게 묻기",
+      "en_u4": "Ask the judge in {yew}.",
+      "en_us": "Ask the judge in {yew}."
     },
     {
       "id": "serpent.sentri.word-cor",
@@ -1306,8 +1306,8 @@
       "place": "serpent",
       "npc": "Sentri",
       "topic": "WORD_NO",
-      "en": "Cities of courage: Jhelom, Minoc, Trinsic, and Skara Brae.",
-      "ko": "용기의 도시: 예울롬·미녹·트린식·스카라 브레."
+      "en": "Cities of courage: {jhelom}, {minoc}, {trinsic}, and {skara}.",
+      "ko": "용기의 도시: {jhelom}·{minoc}·{trinsic}·{skara}."
     },
     {
       "id": "serpent.sister-antos.garam-bell",
@@ -1431,7 +1431,7 @@
       "npc": "Roark",
       "topic": "ABYS",
       "en": "Great Stygian Abyss: holds the Codex of Ultimate Wisdom.",
-      "ko": "대 스티기안 심연: 궁극 지혜의 코덱스가 있다."
+      "ko": "대 스티기안 {abyss}: 궁극 지혜의 코덱스가 있다."
     },
     {
       "id": "serpent.roderick.blue-orbs",

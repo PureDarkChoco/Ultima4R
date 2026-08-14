@@ -44,19 +44,19 @@ const TEXT_EN: Array[String] = [
 	"He says: My name is Lord British, Sovereign of all Britannia!",
 	"Thou see the King with the Royal Sceptre.",
 	"He says: I rule all Britannia, and shall do my best to help thee!",
-	"He says: Many truths can be learned at the Lycaeum. It lies on the northwestern shore of Verity Isle!",
-	"He says: Look for the meaning of Love at Empath Abbey. The Abbey sits on the western edge of the Deep Forest!",
-	"He says: Serpent's Castle on the Isle of Deeds is where Courage should be sought!",
-	"He says: The fair towne of Moonglow on Verity Isle is where the virtue of Honesty thrives!",
-	"He says: The bards in the towne of Britain are well versed in the virtue of Compassion!",
-	"He says: Many valiant fighters come from Jhelom in the Valarian Isles!",
-	"He says: In the city of Yew, in the Deep Forest, Justice is served!",
-	"He says: Minoc, towne of self-sacrifice, lies on the eastern shores of Lost Hope Bay!",
-	"He says: The Paladins who strive for Honor are oft seen in Trinsic, north of the Cape of Heroes!",
-	"He says: In Skara Brae the Spiritual path is taught. Find it on an isle near Spiritwood!",
+	"He says: Many truths can be learned at the {lycaeum}. It lies on the northwestern shore of Verity Isle!",
+	"He says: Look for the meaning of Love at {empath}. The Abbey sits on the western edge of the Deep Forest!",
+	"He says: {serpent} on the Isle of Deeds is where Courage should be sought!",
+	"He says: The fair towne of {moonglow} on Verity Isle is where the virtue of Honesty thrives!",
+	"He says: The bards in the towne of {britain} are well versed in the virtue of Compassion!",
+	"He says: Many valiant fighters come from {jhelom} in the Valarian Isles!",
+	"He says: In the city of {yew}, in the Deep Forest, Justice is served!",
+	"He says: {minoc}, towne of self-sacrifice, lies on the eastern shores of Lost Hope Bay!",
+	"He says: The Paladins who strive for Honor are oft seen in {trinsic}, north of the Cape of Heroes!",
+	"He says: In {skara} the Spiritual path is taught. Find it on an isle near Spiritwood!",
 	(
-		"He says: Humility is the foundation of Virtue! The ruins of proud Magincia are a testimony "
-		+ "unto the Virtue of Humility! Find the Ruins of Magincia far off the shores of Britannia, "
+		"He says: Humility is the foundation of Virtue! The ruins of proud {magincia} are a testimony "
+		+ "unto the Virtue of Humility! Find the Ruins of {magincia} far off the shores of Britannia, "
 		+ "on a small isle in the vast Ocean!"
 	),
 	(
@@ -72,7 +72,7 @@ const TEXT_EN: Array[String] = [
 	(
 		"Lord British says: The Quest of the Avatar is to know and become the embodiment of the "
 		+ "Eight Virtues of Goodness! It is known that all who take on this Quest must prove "
-		+ "themselves by conquering the Abyss and Viewing the Codex of Ultimate Wisdom!"
+		+ "themselves by conquering {abyss} and Viewing the Codex of Ultimate Wisdom!"
 	),
 	(
 		"He says: Even though the Great Evil Lords have been routed evil yet remains in Britannia. "
@@ -86,7 +86,7 @@ const TEXT_EN: Array[String] = [
 	),
 	(
 		"He says: The Great Stygian Abyss is the darkest pocket of evil remaining in Britannia! "
-		+ "It is said that in the deepest recesses of the Abyss is the Chamber of the Codex! "
+		+ "It is said that in the deepest recesses of {abyss} is the Chamber of the Codex! "
 		+ "It is also said that only one of highest Virtue may enter this Chamber, one such as an Avatar!!!"
 	),
 	"He says: Mondain is dead!",
@@ -102,19 +102,19 @@ const TEXT_KO: Array[String] = [
 	"그가 말하길: 내 이름은 로드 브리티시, 온 브리타니아의 주권자요!",
 	"왕홀을 든 왕을 본다.",
 	"그가 말하길: 나는 온 브리타니아를 다스리며, 그대를 돕기 위해 최선을 다하리!",
-	"그가 말하길: 많은 진리를 라이시엄에서 배울 수 있소. 베리티 섬 북서쪽 해안에 있소!",
-	"그가 말하길: 사랑의 뜻을 공감 대수도원에서 찾으시오. 수도원은 깊은 숲 서쪽 끝에 있소!",
-	"그가 말하길: 업적의 섬에 있는 뱀성에서 용기를 구해야 하오!",
-	"그가 말하길: 베리티 섬의 고운 마을 문글로우에서 정직의 미덕이 번성하오!",
-	"그가 말하길: 브리튼 마을의 음유시인들은 연민의 미덕에 정통하오!",
-	"그가 말하길: 많은 용맹한 전사들이 발라리안 제도의 젤롬에서 오오!",
-	"그가 말하길: 깊은 숲의 도시 유에서 정의가 행해지오!",
-	"그가 말하길: 자기희생의 마을 미녹은 잃어버린 희망 만 동쪽 해안에 있소!",
-	"그가 말하길: 명예를 기리는 성기사들은 영웅의 곶 북쪽 트린식에서 자주 보이오!",
-	"그가 말하길: 스카라 브레에서는 영성의 길을 가르치오. 영혼의 숲 근처 섬에서 찾으시오!",
+	"그가 말하길: 많은 진리를 {lycaeum}에서 배울 수 있소. 베리티 섬 북서쪽 해안에 있소!",
+	"그가 말하길: 사랑의 뜻을 {empath}에서 찾으시오. 수도원은 깊은 숲 서쪽 끝에 있소!",
+	"그가 말하길: 업적의 섬에 있는 {serpent}에서 용기를 구해야 하오!",
+	"그가 말하길: 베리티 섬의 고운 마을 {moonglow}에서 정직의 미덕이 번성하오!",
+	"그가 말하길: {britain} 마을의 음유시인들은 연민의 미덕에 정통하오!",
+	"그가 말하길: 많은 용맹한 전사들이 발라리안 제도의 {jhelom}에서 오오!",
+	"그가 말하길: 깊은 숲의 도시 {yew}에서 정의가 행해지오!",
+	"그가 말하길: 자기희생의 마을 {minoc}은 잃어버린 희망 만 동쪽 해안에 있소!",
+	"그가 말하길: 명예를 기리는 성기사들은 영웅의 곶 북쪽 {trinsic}에서 자주 보이오!",
+	"그가 말하길: {skara}에서는 영성의 길을 가르치오. 영혼의 숲 근처 섬에서 찾으시오!",
 	(
-		"그가 말하길: 겸손은 미덕의 기초요! 자만의 마진시아 폐허는 겸손의 미덕에 대한 "
-		+ "증언이오! 마진시아 폐허는 브리타니아 해안에서 멀리, 광대한 대양의 "
+		"그가 말하길: 겸손은 미덕의 기초요! 자만의 {magincia} 폐허는 겸손의 미덕에 대한 "
+		+ "증언이오! {magincia} 폐허는 브리타니아 해안에서 멀리, 광대한 대양의 "
 		+ "작은 섬에 있소!"
 	),
 	(
@@ -129,7 +129,7 @@ const TEXT_KO: Array[String] = [
 	),
 	(
 		"로드 브리티시 말하길: 아바타의 퀘스트는 선함의 여덟 미덕을 알고 그 구현이 되는 "
-		+ "것이오! 이 퀘스트에 나선 모든 이는 심연을 정복하고 궁극의 지혜의 "
+		+ "것이오! 이 퀘스트에 나선 모든 이는 {abyss}을 정복하고 궁극의 지혜의 "
 		+ "코덱스를 봄으로써 자신을 증명해야 함이 알려져 있소!"
 	),
 	(
@@ -143,8 +143,8 @@ const TEXT_KO: Array[String] = [
 		+ "그대가 알려지리!"
 	),
 	(
-		"그가 말하길: 위대한 스티지안 심연은 브리타니아에 남은 가장 어두운 악의 소굴이오! "
-		+ "심연 가장 깊은 곳에 코덱스의 방이 있다고 전해지오! 가장 높은 미덕을 지닌 이, "
+		"그가 말하길: 위대한 스티지안 {abyss}은 브리타니아에 남은 가장 어두운 악의 소굴이오! "
+		+ "{abyss} 가장 깊은 곳에 코덱스의 방이 있다고 전해지오! 가장 높은 미덕을 지닌 이, "
 		+ "곧 아바타 같은 이만이 그 방에 들 수 있다고도 하오!!!"
 	),
 	"그가 말하길: 몬데인은 죽었소!",
@@ -166,7 +166,8 @@ static func is_korean() -> bool:
 
 
 static func _t(en: String, ko: String) -> String:
-	return ko if is_korean() else en
+	var s := ko if is_korean() else en
+	return Locale.fill_places(s)
 
 
 static func leader_name() -> String:
@@ -392,12 +393,12 @@ static func help_text() -> String:
 		body_en = (
 			"Go ye now into the depths of the dungeons. Therein recover the 8 colored stones from "
 			+ "the altar pedestals in the halls of the dungeons.\n\n"
-			+ "Find the uses of these stones for they can help thee in the Abyss!"
+			+ "Find the uses of these stones for they can help thee in {abyss}!"
 		)
 		body_ko = (
 			"이제 던전 깊숙이 들어가시오. 거기서 던전 회랑의 제단 받침대에서 "
 			+ "여덟 색 돌을 회수하시오.\n\n"
-			+ "그 돌들의 쓰임을 찾으시오—심연에서 도움되리!"
+			+ "그 돌들의 쓰임을 찾으시오—{abyss}에서 도움되리!"
 		)
 	elif not full_avatar:
 		body_en = (
@@ -419,7 +420,7 @@ static func help_text() -> String:
 		)
 		body_ko = (
 			"종·책·초를 찾으시오!  이 세 가지로 위대한 스티지안 "
-			+ "심연에 들 수 있소!"
+			+ "{abyss}에 들 수 있소!"
 		)
 	elif (
 		not GameState.has_item_flag(GameState.ITEM_KEY_C)
@@ -427,12 +428,12 @@ static func help_text() -> String:
 		or not GameState.has_item_flag(GameState.ITEM_KEY_T)
 	):
 		body_en = (
-			"Before thou dost enter the Abyss thou shalt need the Key of Three Parts, and the "
+			"Before thou dost enter {abyss} thou shalt need the Key of Three Parts, and the "
 			+ "Word of Passage.\n\n"
 			+ "Then might thou enter the Chamber of the Codex of Ultimate Wisdom!"
 		)
 		body_ko = (
-			"심연에 들기 전에 세 조각의 열쇠와 통행의 말이 "
+			"{abyss}에 들기 전에 세 조각의 열쇠와 통행의 말이 "
 			+ "필요하오.\n\n"
 			+ "그래야 궁극의 지혜의 코덱스의 방에 들 수 있으리!"
 		)
@@ -445,14 +446,14 @@ static func help_text() -> String:
 			+ "The hearts and souls of all Britannia go with thee now. Take care, my friend."
 		)
 		body_ko = (
-			"이제 어두운 심연으로의 마지막 여정을 떠날 준비가 된 듯하오! "
+			"이제 어두운 {abyss}으로의 마지막 여정을 떠날 준비가 된 듯하오! "
 			+ "반드시 여덟의 일행과 함께 가시오!\n\n"
 			+ "행운을 빌며, 이 가장 위험한 시도에서 선의 힘이 그대를 지켜 주기를!\n\n"
 			+ "온 브리타니아의 마음과 영혼이 이제 그대와 함께하오. 조심하시오, 친구여."
 		)
 	if is_korean():
-		return "그가 말하길: " + body_ko
-	return "He says: " + body_en
+		return Locale.fill_places("그가 말하길: " + body_ko)
+	return Locale.fill_places("He says: " + body_en)
 
 
 static func match_keyword(typed: String) -> int:
@@ -504,7 +505,7 @@ static func reply_text(typed: String) -> String:
 	var table: Array[String] = TEXT_KO if is_korean() else TEXT_EN
 	if idx < 0 or idx >= table.size():
 		return default_reply()
-	return table[idx]
+	return Locale.fill_places(table[idx])
 
 
 static func highlight_keywords() -> Array[String]:

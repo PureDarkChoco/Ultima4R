@@ -153,10 +153,20 @@ static func ensure_city(city_id: String) -> void:
 			_ingest_npc(item as Dictionary)
 
 
+static func _fill_places(text: String) -> String:
+	if text.is_empty() or text.find("{") < 0:
+		return text
+	if Engine.get_main_loop() != null:
+		var loc = Engine.get_main_loop().root.get_node_or_null("/root/Locale")
+		if loc != null and loc.has_method("fill_places"):
+			return str(loc.fill_places(text))
+	return text
+
+
 static func line(en: String) -> String:
 	if en.is_empty() or not is_korean():
 		return en
-	return _translate_line(en)
+	return _fill_places(_translate_line(en))
 
 
 static func match_topic_alias(topic: String, input: String) -> bool:
@@ -272,7 +282,7 @@ static func _ingest_npc(npc: Dictionary) -> void:
 		"response1", "response2", "question", "yes", "no",
 	]:
 		var en_s := _unescape(str(npc.get(field, "")))
-		var ko_s := _unescape(str(ko_d.get(field, "")))
+		var ko_s := _fill_places(_unescape(str(ko_d.get(field, ""))))
 		if en_s.is_empty() or ko_s.is_empty():
 			continue
 		_lines[_norm(en_s)] = ko_s
@@ -284,10 +294,10 @@ static func _ingest_npc(npc: Dictionary) -> void:
 		var akey: String = ti + "_aliases"
 		if ko_d.has(akey) and typeof(ko_d[akey]) == TYPE_ARRAY:
 			for a in ko_d[akey]:
-				als.append(str(a).strip_edges().to_lower())
+				als.append(_fill_places(str(a).strip_edges()).to_lower())
 		## Primary KO topic label always matches (aliases stay Latin / extras only).
 		if ko_d.has(ti) and not str(ko_d[ti]).is_empty():
-			als.append(str(ko_d[ti]).strip_edges().to_lower())
+			als.append(_fill_places(str(ko_d[ti]).strip_edges()).to_lower())
 		_merge_alias(stem, als)
 		var hls: Array = []
 		for a in als:

@@ -864,6 +864,7 @@ const _T := {
 		"en_us": "No notes yet.",
 		"ko": "아직 기록이 없다.",
 	},
+	## Official names. Prose uses {lcb} / {britain} / … via fill_places(); land "Britannia" is not a token.
 	"place_lcb": {
 		"en_u4": "Britannia Castle",
 		"en_us": "Britannia Castle",
@@ -2193,6 +2194,36 @@ const _T := {
 		"ko": "맨드레이크 뿌리",
 	},
 }
+
+## Official settlement / dungeon ids for `{paws}` tokens in journal, talk, and LB copy.
+## Display via fill_places() so a rename in place_* updates every language at once.
+const PLACE_IDS: Array[String] = [
+	"lcb", "britain", "yew", "paws", "trinsic", "moonglow", "jhelom",
+	"minoc", "skara", "magincia", "den", "vesper", "cove",
+	"lycaeum", "empath", "serpent",
+	"shame", "wrong", "deceit", "despise", "destard", "covetous",
+	"hythloth", "abyss",
+]
+
+
+func place(place_id: String) -> String:
+	var id := place_id.strip_edges().to_lower()
+	if id.is_empty():
+		return ""
+	return t("place_%s" % id)
+
+
+func fill_places(text: String) -> String:
+	## Replace `{skara}` with the current-language official name. Particles stay
+	## outside the token: `{paws}의 바렌`. `{abyss}` is already "the Abyss" in English.
+	if text.is_empty() or text.find("{") < 0:
+		return text
+	var out := text
+	for id in PLACE_IDS:
+		var token := "{%s}" % id
+		if out.find(token) >= 0:
+			out = out.replace(token, place(id))
+	return out
 
 
 func t(key: String, args: Array = []) -> String:

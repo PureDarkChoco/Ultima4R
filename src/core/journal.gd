@@ -495,8 +495,8 @@ static func entry_text(row: Dictionary, lang: String) -> String:
 		if s.is_empty():
 			s = str(row.get(k, "")).strip_edges()
 		if not s.is_empty():
-			return s
-	return str(cat.get("ko", row.get("ko", "")))
+			return Locale.fill_places(s)
+	return Locale.fill_places(str(cat.get("ko", row.get("ko", ""))))
 
 
 static func entry_speaker(row: Dictionary, lang: String) -> String:

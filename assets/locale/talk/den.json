@@ -271,7 +271,7 @@
         "job": "봉사하겠소!",
         "health": "아주 좋소!",
         "response1": "정보는\n어떻소?",
-        "response2": "히슬로스 던전은\n큰 성의 비밀\n입구로만 갈 수 있소.",
+        "response2": "{hythloth} 던전은\n큰 성의 비밀\n입구로만 갈 수 있소.",
         "question": "특별한 던전을\n찾소?",
         "yes": "어느 것이오?",
         "no": "도울 수\n없소.",
@@ -280,7 +280,7 @@
           "service",
           "serv"
         ],
-        "topic2": "히슬로스",
+        "topic2": "{hythloth}",
         "topic2_aliases": [
           "hythloth",
           "hyth"
@@ -550,7 +550,7 @@
         "response1": "남들이 탐내는\n것을 아오!",
         "response2": "나… 나…",
         "question": "선한 힘만을 돕도록\n쓰겠다고\n약속하오?",
-        "yes": "훔쳐 간 공기보다\n가벼운 장치는\n히슬로스 던전 근처에!",
+        "yes": "훔쳐 간 공기보다\n가벼운 장치는\n{hythloth} 던전 근처에!",
         "no": "오, 안 돼.",
         "topic1": "은신",
         "topic1_aliases": [

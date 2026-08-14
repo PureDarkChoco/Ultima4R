@@ -152,7 +152,7 @@ func refresh() -> void:
 
 func _make_place_header(place_id: String) -> Control:
 	var lab := Label.new()
-	lab.text = Locale.t("place_%s" % place_id)
+	lab.text = Locale.place(place_id)
 	lab.add_theme_font_size_override("font_size", PLACE_SIZE)
 	lab.add_theme_color_override("font_color", COL_PLACE)
 	UiTheme.apply_font(lab, true)
