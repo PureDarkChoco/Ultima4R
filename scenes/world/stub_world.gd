@@ -2956,6 +2956,12 @@ func _is_cancel_event(event: InputEvent) -> bool:
 	return _GameInput.is_cancel(event)
 
 
+func _talk_blocks_cancel_bye() -> bool:
+	## Wait-any-key between an NPC line and the next spoken line (not Y/N).
+	## Only A continues; B and Esc must not farewell.
+	return _talk_stage == 2
+
+
 func _clear_pending_dir(allow_move: bool = true) -> void:
 	if _pending_cmd == U4Commands.Id.TALK:
 		_talk_gamepad_requested = false
@@ -4938,6 +4944,8 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 		return
 	## Conversation owns Esc: farewell (Bye), never open the options menu.
 	if _talk_stage != 0:
+		if _talk_blocks_cancel_bye():
+			return
 		_end_talk(true)
 		return
 	if _mix_stage != 0:
@@ -5195,7 +5203,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				if _talk_stage == 10 and _shop != null:
 					_shop.on_escape()
 					_flush_shop_output()
-				else:
+				elif not _talk_blocks_cancel_bye():
 					_end_talk(true)
 				get_viewport().set_input_as_handled()
 			return
@@ -5203,7 +5211,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _talk_stage == 10 and _shop != null:
 				_shop.on_escape()
 				_flush_shop_output()
-			else:
+			elif not _talk_blocks_cancel_bye():
 				_end_talk(true)
 			get_viewport().set_input_as_handled()
 			return
@@ -11760,11 +11768,13 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return _handle_shop_sell_pick_input(k)
 		return false
 	## Esc always farewell — never open the options menu while talking,
-	## including Yes/No and gold prompts.
+	## including Yes/No and gold prompts. Wait-any-key (next NPC line) is excepted.
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		if _talk_stage == 10 and _shop != null:
 			_shop.on_escape()
 			_flush_shop_output()
+			return true
+		if _talk_blocks_cancel_bye():
 			return true
 		_end_talk(true)
 		return true
