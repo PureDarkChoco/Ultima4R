@@ -214,7 +214,7 @@ var _mix_stage := 0
 var _mix_gamepad_requested := false
 var _mix_pad_full_list := false
 ## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster),
-## 4 = Dir, 5 = Energy type? (E), 6 = free-aim (F Fireball / I Iceball).
+## 4 = Dir, 5 = Energy type? (E), 6 = free-aim (F / I / M).
 var _cast_stage := 0
 var _cast_caster_slot := -1
 var _cast_spell_id := -1
@@ -9009,10 +9009,12 @@ func _apply_cast_magic_attack(spell_id: int, from: Vector2i, target: Vector2i, c
 
 
 func _spell_missile_tile(spell_id: int) -> int:
-	## xu4 spellMagicAttack tile: Fireball hitFlash, Iceball magicFlash.
+	## xu4 spellMagicAttack tile: F hitFlash, I magicFlash, M missFlash.
 	match spell_id:
 		Spells.ICEBALL:
 			return MapView.TILE_MAGIC_FLASH
+		Spells.MAGIC_MISSILE:
+			return MapView.TILE_MISS_FLASH
 		_:
 			return MapView.TILE_HIT_FLASH
 
@@ -9243,6 +9245,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.FIREBALL
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.ICEBALL
+		or spell_id == Spells.MAGIC_MISSILE
 		or spell_id == Spells.RESURRECT
 	)
 

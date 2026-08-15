@@ -27,7 +27,7 @@ const PARAM_PLAYER := 1
 const PARAM_DIR := 2
 const PARAM_TYPEDIR := 3
 const PARAM_PHASE := 4
-## Remake: combat free-aim instead of xu4 PARAM_DIR (Fireball / Iceball).
+## Remake: combat free-aim instead of xu4 PARAM_DIR (Fireball / Iceball / Magic Missile).
 const PARAM_AIM := 5
 
 ## xu4 spells[].paramType
@@ -44,7 +44,7 @@ const PARAM_TYPE: Array[int] = [
 	PARAM_NONE, ## J Jinx
 	PARAM_DIR, ## K Kill
 	PARAM_NONE, ## L Light
-	PARAM_DIR, ## M Magic Missile
+	PARAM_AIM, ## M Magic Missile (remake free-aim; xu4 was PARAM_DIR)
 	PARAM_NONE, ## N Negate
 	PARAM_NONE, ## O Open
 	PARAM_NONE, ## P Protection
