@@ -658,6 +658,7 @@ static func sync_known(gs: Node) -> void:
 		if cat.is_empty():
 			continue
 		_apply_know(gs, cat.get("know", ""))
+	_link_virtue_sets(gs)
 
 
 static func known_virtue_mask(gs: Node) -> int:
@@ -691,18 +692,43 @@ static func _apply_know(gs: Node, raw: Variant) -> void:
 	_apply_know_token(gs, str(raw))
 
 
+static func mark_known_virtue(gs: Node, virtue: int) -> void:
+	if gs == null or virtue < 0 or virtue > 7:
+		return
+	gs.journal_known_virtues = int(gs.journal_known_virtues) | (1 << virtue)
+
+
+static func mark_known_mantra(gs: Node, virtue: int) -> void:
+	if gs == null or virtue < 0 or virtue > 7:
+		return
+	gs.journal_known_mantras = int(gs.journal_known_mantras) | (1 << virtue)
+	mark_known_virtue(gs, virtue)
+
+
+static func mark_known_rune(gs: Node, virtue: int) -> void:
+	## Inventory already shows the rune; the matching virtue is learned with it.
+	mark_known_virtue(gs, virtue)
+
+
+static func _link_virtue_sets(gs: Node) -> void:
+	## A learned mantra or owned rune also reveals its virtue.
+	if gs == null:
+		return
+	gs.journal_known_virtues = (
+		int(gs.journal_known_virtues)
+		| int(gs.journal_known_mantras)
+		| int(gs.runes)
+	)
+
+
 static func _apply_know_token(gs: Node, raw: String) -> void:
 	if gs == null:
 		return
 	var k := raw.strip_edges().to_lower()
 	if k.begins_with("virtue:"):
-		var v := _virtue_from_token(k.substr(7))
-		if v >= 0:
-			gs.journal_known_virtues = int(gs.journal_known_virtues) | (1 << v)
+		mark_known_virtue(gs, _virtue_from_token(k.substr(7)))
 	elif k.begins_with("mantra:"):
-		var v := _virtue_from_token(k.substr(7))
-		if v >= 0:
-			gs.journal_known_mantras = int(gs.journal_known_mantras) | (1 << v)
+		mark_known_mantra(gs, _virtue_from_token(k.substr(7)))
 	elif k.begins_with("dungeon:"):
 		var d := _dungeon_from_token(k.substr(8))
 		if d >= 0:

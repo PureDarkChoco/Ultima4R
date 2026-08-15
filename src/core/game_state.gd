@@ -2985,13 +2985,14 @@ func journal_mark_id(id: String) -> bool:
 func journal_mark_mantra(virtue: int) -> bool:
 	if virtue < 0 or virtue > 7:
 		return false
-	journal_known_mantras |= 1 << virtue
+	_Journal.mark_known_mantra(self, virtue)
 	return journal_mark_goal("mantra:%s" % Virtues.NAMES_EN[virtue].to_lower())
 
 
 func _journal_mark_rune_flag(flag: int) -> void:
 	for v in 8:
 		if flag == (1 << v):
+			_Journal.mark_known_rune(self, v)
 			journal_mark_goal("rune:%s" % Virtues.NAMES_EN[v].to_lower())
 			return
 
