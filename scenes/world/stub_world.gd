@@ -1720,6 +1720,8 @@ func _prompt_row_text() -> String:
 	if _cast_stage == 3:
 		return Locale.t("cast_player")
 	if _cast_stage == 4:
+		if _cast_spell_id == Spells.WINDS:
+			return Locale.t("cast_from_dir")
 		return Locale.t("cast_dir")
 	if _cast_stage == 5:
 		return Locale.t("cast_energy_type")
@@ -2319,7 +2321,7 @@ func _layout_side_panels(animate: bool) -> void:
 
 
 func _sync_aura_hud_pos() -> void:
-	## Pin J/N/P/Q to the 11-tile battlefield's left edge (left panel seam when open).
+	## Pin J/N/P/Q/W to the 11-tile battlefield's left edge (left panel seam when open).
 	if _top_bar == null or _map_pane == null:
 		return
 	if not _top_bar.has_method("set_aura_field_global_x"):
@@ -9202,6 +9204,8 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 			ok = _apply_cast_energy_field(dir)
 		Spells.OPEN:
 			ok = _apply_cast_open(dir)
+		Spells.WINDS:
+			ok = _apply_cast_winds(dir)
 		_:
 			ok = false
 	if not ok:
@@ -9421,6 +9425,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.PROTECTION
 		or spell_id == Spells.QUICKNESS
 		or spell_id == Spells.RESURRECT
+		or spell_id == Spells.WINDS
 	)
 
 
@@ -9645,6 +9650,11 @@ func _apply_cast_open_city(dir: Vector2i) -> bool:
 	AudioSfx.play_door()
 	_push_message(Locale.t("cmd_opened"), false)
 	return true
+
+
+func _apply_cast_winds(dir: Vector2i) -> bool:
+	## DOS SPL_Winds — "From Dir:" sets WindDir. Remake locks it for 10 seconds.
+	return GameState.set_wind_from_dir(dir)
 
 
 func _finish_cast_player_spell(target_slot: int) -> void:

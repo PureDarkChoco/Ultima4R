@@ -1921,6 +1921,11 @@ const _T := {
 		"en_us": "Dir: ",
 		"ko": "방향: ",
 	},
+	"cast_from_dir": {
+		"en_u4": "From Dir: ",
+		"en_us": "From Dir: ",
+		"ko": "불어오는 쪽: ",
+	},
 	"cast_aim": {
 		"en_u4": "Aim: ",
 		"en_us": "Aim: ",

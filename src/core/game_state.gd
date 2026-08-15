@@ -117,7 +117,7 @@ const TILE_CORPSE := 56
 
 ## Party-wide timed effects. Jinx / Protection / Quickness stack (one of each);
 ## a caster may sustain only one of those three. Negate clears those three and
-## blocks magic for its duration. Horn is independent.
+## blocks magic for its duration. Horn / Winds are independent.
 ## Not saved.
 enum AuraType {
 	NONE = 0,
@@ -126,6 +126,7 @@ enum AuraType {
 	NEGATE = 3,
 	PROTECTION = 4,
 	QUICKNESS = 5,
+	WINDS = 6,
 }
 ## type → remaining turns
 var _aura_duration: Dictionary = {}
@@ -135,7 +136,11 @@ var _aura_caster: Dictionary = {}
 var _aura_grace: Dictionary = {}
 ## xu4 spellJinx / spellNegate / spellProtection / spellQuickness / useHorn.
 const AURA_SPELL_TURNS := 10
+## Remake: hold Winds for two–three 4s wind checks (real time, not party turns).
+const WIND_SPELL_SEC := 10.0
 const SPELL_AURA_TYPES: Array[int] = [AuraType.JINX, AuraType.PROTECTION, AuraType.QUICKNESS]
+## Remaining Winds lock in seconds. Not saved. Ticked by the 4 Hz world clock.
+var _wind_spell_left := 0.0
 
 ## xu4 savegame.h Item / Stone / Rune enums.
 const ITEM_SKULL := 0x01
@@ -326,6 +331,7 @@ func reset_party() -> void:
 	wind_dir = 0
 	wind_counter = 0
 	wind_lock = false
+	_wind_spell_left = 0.0
 	## xu4 finishInitiateGame defaults (also used as clean slate).
 	food = 30000
 	moves = 0
@@ -2319,6 +2325,29 @@ func is_aura_quickness() -> bool:
 	return is_aura(AuraType.QUICKNESS)
 
 
+func is_aura_winds() -> bool:
+	## Real-time lock from set_wind_from_dir — not a party-turn aura.
+	return _wind_spell_left > 0.0
+
+
+func set_wind_from_dir(from: Vector2i) -> bool:
+	## DOS "From Dir:" — store FROM. Cardinals only (xu4 WindDir).
+	var idx := -1
+	if from == DIR_N:
+		idx = 0
+	elif from == DIR_E:
+		idx = 2
+	elif from == DIR_S:
+		idx = 4
+	elif from == DIR_W:
+		idx = 6
+	if idx < 0:
+		return false
+	wind_dir = idx
+	_wind_spell_left = WIND_SPELL_SEC
+	return true
+
+
 func creature_hits_party_member(klass: int) -> bool:
 	## DOS C_9BE5: Protection 50% force-miss, else armor vs rand(256).
 	if is_aura_protection() and (randi() % 2) != 0:
@@ -2327,7 +2356,7 @@ func creature_hits_party_member(klass: int) -> bool:
 
 
 func spell_aura_hud_text() -> String:
-	## Sky-bar chips: "J" / "N" / "J  P  Q". Letter only — no remaining turns.
+	## Sky-bar chips: "J" / "N" / "W" / "J  P  Q". Letter only — no remaining turns.
 	var parts: PackedStringArray = []
 	if is_aura(AuraType.JINX):
 		parts.append("J")
@@ -2337,6 +2366,8 @@ func spell_aura_hud_text() -> String:
 		parts.append("P")
 	if is_aura(AuraType.QUICKNESS):
 		parts.append("Q")
+	if is_aura_winds():
+		parts.append("W")
 	return "  ".join(parts)
 
 
@@ -2740,12 +2771,17 @@ func tick_world_clock(on_world_map: bool = true) -> bool:
 	## xu4 GameController::timerFired + updateMoons (one 0.25s game cycle).
 	## Returns true when HUD moons/wind should refresh.
 	var changed := false
+	var winds_was := is_aura_winds()
+	if _wind_spell_left > 0.0:
+		_wind_spell_left = maxf(0.0, _wind_spell_left - WORLD_TICK_SEC)
+	if winds_was and not is_aura_winds():
+		changed = true
 	var old_wind := wind_dir
 	wind_counter += 1
 	if wind_counter >= PHASE_TICKS:
 		wind_counter = 0
 		## xu4: 25% chance to re-roll wind direction (may land on the same heading).
-		if not wind_lock and (randi() % 4) == 1:
+		if not wind_lock and not is_aura_winds() and (randi() % 4) == 1:
 			wind_dir = posmod(randi(), 8)
 	if wind_dir != old_wind:
 		changed = true
