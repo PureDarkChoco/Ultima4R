@@ -213,10 +213,12 @@ var _mix_stage := 0
 ## Mix opened from gamepad command menu → full A–Z list (no Mix New + letter).
 var _mix_gamepad_requested := false
 var _mix_pad_full_list := false
-## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster), 4 = Dir.
+## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster),
+## 4 = Dir, 5 = Energy type? (E).
 var _cast_stage := 0
 var _cast_caster_slot := -1
 var _cast_spell_id := -1
+var _cast_field_tid := -1
 var _cast_cursor := 0
 ## Use (U): 0 = idle, 1 = pick item from list.
 var _use_stage := 0
@@ -1719,6 +1721,8 @@ func _prompt_row_text() -> String:
 		return Locale.t("cast_player")
 	if _cast_stage == 4:
 		return Locale.t("cast_dir")
+	if _cast_stage == 5:
+		return Locale.t("cast_energy_type")
 	if _use_stage == 1:
 		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
@@ -1905,7 +1909,7 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	_enter_btn_row.custom_minimum_size = Vector2.ZERO
 	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
 	var min_w := 48.0 if keys.length() >= 3 else 58.0
-	if keys == "abc" or keys == "fa":
+	if keys == "abc" or keys == "fa" or keys == "plfs":
 		min_w = 72.0
 	_enter_prompt_choice = clampi(_enter_prompt_choice, 0, maxi(keys.length() - 1, 0))
 	for i in _choice_btns.size():
@@ -1964,6 +1968,8 @@ func _talk_gamepad_yes_no_active() -> bool:
 
 
 func _prompt_choice_keys() -> String:
+	if _cast_stage == 5:
+		return "plfs"
 	if _combat_exit_prompt:
 		return "yn"
 	if _enter_prompt_stage == 1:
@@ -1993,6 +1999,16 @@ func _prompt_choice_label(key: String) -> String:
 				return Locale.t("shop_tavern_food")
 			"a":
 				return Locale.t("shop_tavern_ale")
+	if _cast_stage == 5:
+		match key:
+			"p":
+				return Locale.t("cast_field_poison")
+			"l":
+				return Locale.t("cast_field_lightning")
+			"f":
+				return Locale.t("cast_field_fire")
+			"s":
+				return Locale.t("cast_field_sleep")
 	match key:
 		"y":
 			return Locale.t("cmd_yes")
@@ -2016,6 +2032,9 @@ func _resolve_prompt_choice_index(index: int) -> void:
 	_choice_resolved_frame = frame
 	index = clampi(index, 0, keys.length() - 1)
 	var ch := keys.substr(index, 1)
+	if _cast_stage == 5:
+		_accept_cast_energy_type(ch)
+		return
 	if _combat_exit_prompt:
 		_resolve_combat_exit_prompt(ch == "y")
 		return
@@ -2548,7 +2567,11 @@ func _process(delta: float) -> void:
 	if _combat_active:
 		_move_cd = maxf(0.0, _move_cd - delta)
 		_hold_arm = maxf(0.0, _hold_arm - delta)
-		if _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1:
+		if _cast_stage == 4:
+			_tick_cast_dir()
+		elif _cast_stage == 5:
+			_tick_dialogue_choice_nav()
+		elif _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
@@ -8516,6 +8539,7 @@ func _do_cast() -> void:
 	_close_use(false)
 	_push_message(Locale.t("cast_title"), false)
 	_cast_spell_id = -1
+	_cast_field_tid = -1
 	_cast_cursor = 0
 	if _combat_active:
 		if _map == null or not _map.is_in_combat():
@@ -8597,9 +8621,12 @@ func _sync_cast_selection() -> void:
 
 
 func _handle_cast_input(event: InputEvent) -> bool:
-	if not event.is_pressed():
-		return false
 	if event.is_echo():
+		return false
+	## Stick release must reach Dir? so the latch can clear (same as Attack Dir?).
+	if _cast_stage == 4 and event is InputEventJoypadMotion:
+		return _handle_cast_dir_input(event)
+	if not event.is_pressed():
 		return false
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -8618,6 +8645,8 @@ func _handle_cast_input(event: InputEvent) -> bool:
 		return _handle_cast_caster_input(event)
 	if _cast_stage == 4:
 		return _handle_cast_dir_input(event)
+	if _cast_stage == 5:
+		return _handle_cast_energy_type_input(event)
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_cursor()
 		return true
@@ -8758,6 +8787,9 @@ func _try_cast_spell(spell_id: int) -> void:
 		_close_cast(false, true)
 		return
 	_cast_spell_id = spell_id
+	if Spells.param_type(spell_id) == Spells.PARAM_TYPEDIR:
+		_begin_cast_energy_type()
+		return
 	if Spells.param_type(spell_id) == Spells.PARAM_DIR:
 		_begin_cast_dir()
 		return
@@ -8780,6 +8812,48 @@ func _begin_cast_who() -> void:
 	_layout_prompt_row()
 
 
+func _begin_cast_energy_type() -> void:
+	## xu4 PARAM_TYPEDIR — Energy type? P/L/F/S, then Dir. Cancel spends no mix/MP.
+	if _cast_panel:
+		_cast_panel.close_panel()
+	_cast_stage = 5
+	_cast_field_tid = -1
+	_enter_prompt_choice = 0
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_layout_prompt_row()
+
+
+func _handle_cast_energy_type_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		var keys := _prompt_choice_keys()
+		if not keys.is_empty():
+			_accept_cast_energy_type(keys.substr(_enter_prompt_choice, 1))
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		var keys2 := _prompt_choice_keys()
+		if not keys2.is_empty():
+			_accept_cast_energy_type(keys2.substr(_enter_prompt_choice, 1))
+		return true
+	if event is InputEventKey:
+		var ch := _key_latin_command_char(event as InputEventKey)
+		if ch in ["p", "l", "f", "s"]:
+			_accept_cast_energy_type(ch)
+			return true
+	return true
+
+
+func _accept_cast_energy_type(key: String) -> void:
+	var tid := _TileRules.energy_field_tile(key)
+	if tid < 0:
+		return
+	_cast_field_tid = tid
+	_push_message(Locale.t("cast_named", [_prompt_choice_label(key.to_lower())]), false)
+	_begin_cast_dir()
+
+
 func _begin_cast_dir() -> void:
 	## xu4 PARAM_DIR — "Dir: " then NESW (Blink / Dispel). Cancel spends no mix/MP.
 	if _cast_panel:
@@ -8793,10 +8867,24 @@ func _begin_cast_dir() -> void:
 
 
 func _handle_cast_dir_input(event: InputEvent) -> bool:
-	## Direction is polled in _tick_cast_dir (same as Attack Dir?).
-	if event is InputEventKey and _is_direction_key(event as InputEventKey):
+	## Event path (combat has no world-move poll). Stick latch clears on release.
+	if event is InputEventJoypadMotion:
+		if _GameInput.is_dpad_held():
+			_GameInput.stick_clear_if_released(event)
+			return true
+		var stick_dir := _GameInput.stick_direction_step(event)
+		if stick_dir != Vector2i.ZERO and (stick_dir.x == 0 or stick_dir.y == 0):
+			_finish_cast_dir_spell(stick_dir)
+			_block_dir_until_keyup = true
+			_reset_hold_state()
 		return true
-	if _GameInput.dir_from_event(event) != Vector2i.ZERO:
+	var dir := _GameInput.dir_from_event(event)
+	if dir.x != 0 and dir.y != 0:
+		dir = Vector2i.ZERO
+	if dir != Vector2i.ZERO:
+		_finish_cast_dir_spell(dir)
+		_block_dir_until_keyup = true
+		_reset_hold_state()
 		return true
 	return true
 
@@ -8846,6 +8934,8 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 			ok = _apply_cast_blink(dir)
 		Spells.DISPEL:
 			ok = _apply_cast_dispel(dir)
+		Spells.ENERGY_FIELD:
+			ok = _apply_cast_energy_field(dir)
 		_:
 			ok = false
 	if not ok:
@@ -8887,6 +8977,22 @@ func _apply_cast_blink(dir: Vector2i) -> bool:
 	_sync_creatures_to_map()
 	_maybe_offer_enter_prompt()
 	return true
+
+
+func _apply_cast_energy_field(dir: Vector2i) -> bool:
+	## xu4 spellEField — one adjacent walkable tile. Creature on the cell stays visible.
+	if dir == Vector2i.ZERO or _cast_field_tid < 0:
+		return false
+	if _combat_active and _map != null and _map.is_in_combat():
+		var from := _map.get_combat_focus_pos()
+		if from.x < 0:
+			return false
+		var dest := from + dir
+		var dest_tid := _map.combat_tile_at(dest)
+		if dest_tid < 0 or not _TileRules.is_walkable(dest_tid):
+			return false
+		return _map.set_combat_tile(dest, _cast_field_tid)
+	return false
 
 
 func _apply_cast_dispel(dir: Vector2i) -> bool:
@@ -8982,6 +9088,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.BLINK
 		or spell_id == Spells.CURE
 		or spell_id == Spells.DISPEL
+		or spell_id == Spells.ENERGY_FIELD
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.RESURRECT
 	)
@@ -9086,6 +9193,7 @@ func _close_cast(show_none: bool, spend_turn: bool) -> void:
 	_cast_stage = 0
 	_cast_caster_slot = -1
 	_cast_spell_id = -1
+	_cast_field_tid = -1
 	_cast_cursor = 0
 	if _cast_panel:
 		_cast_panel.close_panel()
@@ -11053,6 +11161,7 @@ func _close_ui_for_death() -> void:
 	_cast_stage = 0
 	_cast_caster_slot = -1
 	_cast_spell_id = -1
+	_cast_field_tid = -1
 	_cast_cursor = 0
 	if _cast_panel:
 		_cast_panel.close_panel()
@@ -11195,7 +11304,11 @@ func _apply_ground_tile_effect() -> int:
 		return GameState.apply_tile_effect(_TileRules.effect_of(ctid))
 	if _world == null:
 		return 0
-	var tid := _world.tile_at(_tile_pos.x, _tile_pos.y)
+	var tid := _effective_world_tid(_tile_pos)
+	if _map != null:
+		var ov := _map.overlay_at(_tile_pos)
+		if ov >= 0:
+			tid = ov
 	return GameState.apply_tile_effect(_TileRules.effect_of(tid))
 
 
@@ -14831,6 +14944,8 @@ func _combat_try_move(dir: Vector2i) -> void:
 	match result:
 		MapView.COMBAT_MOVE_OK:
 			_push_message(_direction_label(dir, true), false)
+			if _apply_combat_field_under_focus():
+				after_flee = true
 		MapView.COMBAT_MOVE_SLOWED:
 			_push_message(Locale.t("cmd_slow_progress"), false)
 		MapView.COMBAT_MOVE_FLED:
@@ -14869,6 +14984,73 @@ func _combat_try_move(dir: Vector2i) -> void:
 		return
 	## xu4: move (incl. blocked/slowed/flee) ends the active member's turn.
 	_combat_finish_member_turn(after_flee)
+
+
+func _apply_combat_field_under_focus() -> bool:
+	## True if the mover died and was removed (treat like flee for the turn clock).
+	if _map == null or not _map.is_in_combat():
+		return false
+	return _apply_combat_field_to_party(
+		_map.get_combat_focus_pos(),
+		_map.get_combat_focus_party_slot(),
+		_map.get_combat_focus()
+	)
+
+
+func _apply_combat_field_to_party(pos: Vector2i, party_slot: int, party_i: int) -> bool:
+	## Walking onto a field: always apply to that member (xu4 single-player effect).
+	if _map == null or party_slot < 0:
+		return false
+	var tid := _map.combat_tile_at(pos)
+	var effect := _TileRules.effect_of(tid)
+	if effect == _TileRules.Effect.NONE:
+		return false
+	var mask := GameState.apply_effect(effect, party_slot)
+	if mask == 0:
+		return false
+	match effect:
+		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
+			_push_message(Locale.t("cmd_poisoned"), false)
+		_TileRules.Effect.SLEEP:
+			_push_message(Locale.t("cmd_combat_sleep"), false)
+	if _roster and _roster.has_method("flash_players"):
+		_roster.flash_players(mask)
+	if _compact_roster and _compact_roster.has_method("flash_players"):
+		_compact_roster.flash_players(mask)
+	_refresh_party()
+	var klass := GameState.party_member_at(party_slot)
+	var died := klass >= 0 and GameState.status_of_class(klass) == PartyRoster.Status.DEAD
+	if died:
+		_push_message(Locale.t("cmd_killed", [GameState.party_member_display_name(party_slot)]), false)
+		if party_i >= 0:
+			_map.remove_combat_party_at(party_i)
+	_sync_combat_focus_roster()
+	return died
+
+
+func _apply_combat_field_to_foe(pos: Vector2i, foe_i: int) -> void:
+	if _map == null or foe_i < 0:
+		return
+	var tid := _map.combat_tile_at(pos)
+	var effect := _TileRules.effect_of(tid)
+	if effect == _TileRules.Effect.NONE:
+		return
+	match effect:
+		_TileRules.Effect.FIRE, _TileRules.Effect.LAVA:
+			_combat_note_field_foe_hit(_map.damage_combat_foe(foe_i, 16 + (randi() % 32)))
+		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
+			if not _map.is_combat_foe_poisoned(foe_i):
+				_map.set_combat_foe_poisoned(foe_i, true)
+		_TileRules.Effect.SLEEP:
+			_map.set_combat_foe_asleep(foe_i, true)
+
+
+func _combat_note_field_foe_hit(hit: Dictionary) -> void:
+	if not bool(hit.get("killed", false)):
+		return
+	var foe_tile := int(hit.get("tile", 0))
+	_push_message(Locale.t("cmd_killed", [_WorldCreaturesScript.display_name(foe_tile)]), false)
+	_refresh_foe_roster()
 
 
 func _combat_apply_healthy_fled_karma(fled: Dictionary) -> void:
@@ -15010,6 +15192,9 @@ func _combat_run_foe_phase() -> void:
 		await get_tree().create_timer(COMBAT_TURN_GAP * 0.55).timeout
 		if not _combat_active or _map == null:
 			return
+		if not _combat_prepare_foe_turn(i):
+			_refresh_foe_roster()
+			continue
 		var plan: Dictionary = _map.act_combat_creature_at(i)
 		await _combat_resolve_foe_act(plan)
 		_refresh_foe_roster()
@@ -15040,6 +15225,22 @@ func _combat_maybe_end_after_foes() -> bool:
 	return false
 
 
+func _combat_prepare_foe_turn(foe_i: int) -> bool:
+	## Wake / poison tick. False = skip this foe (still asleep or just died).
+	if _map == null or foe_i < 0:
+		return false
+	if _map.is_combat_foe_asleep(foe_i):
+		if (randi() % 2) != 0:
+			return false
+		_map.set_combat_foe_asleep(foe_i, false)
+	if _map.is_combat_foe_poisoned(foe_i):
+		var hit: Dictionary = _map.damage_combat_foe(foe_i, GameState.POISON_DAMAGE)
+		if bool(hit.get("killed", false)):
+			_combat_note_field_foe_hit(hit)
+			return false
+	return int(_map.get_combat_foe_at(foe_i).get("hp", 0)) > 0
+
+
 func _combat_resolve_foe_act(plan: Dictionary) -> void:
 	## Animate / apply results from MapView.act_combat_creature_at.
 	if _map == null or plan.is_empty():
@@ -15054,6 +15255,11 @@ func _combat_resolve_foe_act(plan: Dictionary) -> void:
 			await _combat_resolve_foe_cast_sleep()
 		"fled":
 			_combat_resolve_foe_fled(plan)
+		"advance", "flee":
+			_apply_combat_field_to_foe(
+				plan.get("to", Vector2i.ZERO),
+				int(plan.get("index", -1))
+			)
 		_:
 			pass
 

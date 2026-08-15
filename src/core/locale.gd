@@ -1921,6 +1921,31 @@ const _T := {
 		"en_us": "Dir: ",
 		"ko": "방향: ",
 	},
+	"cast_energy_type": {
+		"en_u4": "Energy type? ",
+		"en_us": "Energy type? ",
+		"ko": "에너지 종류? ",
+	},
+	"cast_field_poison": {
+		"en_u4": "Poison",
+		"en_us": "Poison",
+		"ko": "독",
+	},
+	"cast_field_lightning": {
+		"en_u4": "Lightning",
+		"en_us": "Lightning",
+		"ko": "번개",
+	},
+	"cast_field_fire": {
+		"en_u4": "Fire",
+		"en_us": "Fire",
+		"ko": "불",
+	},
+	"cast_field_sleep": {
+		"en_u4": "Sleep",
+		"en_us": "Sleep",
+		"ko": "수면",
+	},
 	"cast_not_yet": {
 		"en_u4": "Not yet implemented.",
 		"en_us": "Not yet implemented.",

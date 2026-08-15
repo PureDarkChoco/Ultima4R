@@ -131,7 +131,8 @@ static func _fill_named() -> void:
 	_set_range(73, 1, WALK_ALL, WALK_ALL, F_CREATURE_BLOCK)
 	## altar — default walkable; campfire solid
 	_blocked(75, 1)
-	## lava — walkable (damage later)
+	## lava — walkable; same 16–47 fire as a fire field
+	_set_effect(76, 1, Effect.LAVA)
 	## people 80–95
 	_blocked(80, 16, F_CREATURE_BLOCK)
 	## signs / spacers / brick wall 96–127
@@ -160,6 +161,26 @@ static func dir_mask(dir: Vector2i) -> int:
 static func can_dispel(tile_id: int) -> bool:
 	## xu4 Tile::canDispel — poison / energy / fire / sleep fields (68–71).
 	return tile_id >= 68 and tile_id <= 71
+
+
+static func is_walkable(tile_id: int) -> bool:
+	## xu4 Tile::isWalkable — walk-on dirs are set.
+	return walk_on(tile_id) != 0
+
+
+static func energy_field_tile(kind: String) -> int:
+	## Classic Energy type? P/L/F/S → poison / lightning / fire / sleep.
+	match kind.strip_edges().to_lower():
+		"p", "poison":
+			return 68
+		"l", "lightning", "energy":
+			return 69
+		"f", "fire":
+			return 70
+		"s", "sleep":
+			return 71
+		_:
+			return -1
 
 
 static func walk_on(tile_id: int) -> int:

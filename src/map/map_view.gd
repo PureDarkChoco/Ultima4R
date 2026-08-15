@@ -1053,12 +1053,15 @@ func get_combat_party_unit(index: int) -> Dictionary:
 
 func remove_combat_party_at(index: int) -> Dictionary:
 	## Remove a fallen / fled party unit. Returns the removed dict.
+	## Focus unit: same index accounting as OOB flee (next member, or round over).
 	if index < 0 or index >= _combat_party.size():
 		return {}
 	var removed: Dictionary = _combat_party[index]
+	var was_focus := _combat_focus == index
 	_combat_party.remove_at(index)
-	if _combat_focus == index:
-		_combat_focus = mini(index, _combat_party.size() - 1)
+	if was_focus:
+		if _combat_focus >= _combat_party.size():
+			_combat_focus = _combat_party.size()
 	elif _combat_focus > index:
 		_combat_focus -= 1
 	if _combat_map != null:
@@ -1084,6 +1087,36 @@ func get_combat_foe_at(index: int) -> Dictionary:
 	if index < 0 or index >= _combat_foes.size():
 		return {}
 	return (_combat_foes[index] as Dictionary).duplicate(true)
+
+
+func set_combat_foe_asleep(index: int, asleep: bool) -> void:
+	if index < 0 or index >= _combat_foes.size():
+		return
+	var f: Dictionary = _combat_foes[index]
+	f["asleep"] = asleep
+	_combat_foes[index] = f
+	if _combat_map != null:
+		_rebuild()
+
+
+func is_combat_foe_asleep(index: int) -> bool:
+	if index < 0 or index >= _combat_foes.size():
+		return false
+	return bool(_combat_foes[index].get("asleep", false))
+
+
+func set_combat_foe_poisoned(index: int, poisoned: bool) -> void:
+	if index < 0 or index >= _combat_foes.size():
+		return
+	var f: Dictionary = _combat_foes[index]
+	f["poisoned"] = poisoned
+	_combat_foes[index] = f
+
+
+func is_combat_foe_poisoned(index: int) -> bool:
+	if index < 0 or index >= _combat_foes.size():
+		return false
+	return bool(_combat_foes[index].get("poisoned", false))
 
 
 func damage_combat_foe(index: int, damage: int) -> Dictionary:
@@ -3717,9 +3750,16 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 		var sy := origin_y + pos.y
 		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 			continue
-		## Same multi-frame cycle as wilderness (ettin skips 208, etc.).
-		var tid: int = _WorldCreaturesScript.resolve_paint_tile(base_tid, _tile_anim_frame)
-		var img := _slice_keyed_tile(tid)
+		## xu4 sleeping creatures use the corpse / lying-down tile.
+		var img: Image = null
+		if bool(u.get("asleep", false)):
+			if _corpse_slice == null:
+				_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
+			img = _corpse_slice
+		else:
+			## Same multi-frame cycle as wilderness (ettin skips 208, etc.).
+			var tid: int = _WorldCreaturesScript.resolve_paint_tile(base_tid, _tile_anim_frame)
+			img = _slice_keyed_tile(tid)
 		if img == null or img.is_empty():
 			continue
 		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
