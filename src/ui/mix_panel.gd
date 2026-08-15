@@ -284,8 +284,8 @@ func _build_stock_bar() -> void:
 		_stock_qtys.append(qty)
 
 
-func open_list(show_all_spells: bool = false) -> void:
-	## Fresh open / return to list — always start at the top row.
+func open_list(show_all_spells: bool = false, focus_spell_id: int = -1) -> void:
+	## Fresh open / return to list. focus_spell_id keeps that row selected and in view.
 	## show_all_spells: gamepad path lists A–Z (unknown dimmed) without Mix New.
 	_scroll_gen += 1
 	_mode = Mode.LIST
@@ -294,12 +294,20 @@ func open_list(show_all_spells: bool = false) -> void:
 	_show_all_spells = show_all_spells
 	_rebuild_list_mode()
 	_refresh_stock_bar()
-	_cursor = 0
+	var idx := 0
+	if focus_spell_id >= 0:
+		var found := index_of_spell(focus_spell_id)
+		if found >= 0:
+			idx = found
+	_cursor = idx
 	_sync_cursor()
-	_restore_scroll(0)
-	var gen := _scroll_gen
-	call_deferred("_restore_scroll_gen", gen, 0)
 	visible = true
+	var gen := _scroll_gen
+	if idx <= 0:
+		_restore_scroll(0)
+		call_deferred("_restore_scroll_gen", gen, 0)
+	else:
+		call_deferred("_ensure_cursor_visible_gen", gen)
 
 
 func open_reagents(spell_id: int) -> void:
@@ -390,8 +398,11 @@ func set_cursor(index: int) -> void:
 		return
 	_cursor = index
 	_sync_cursor()
-	_ensure_cursor_visible()
 	_refresh_stock_bar()
+	## Cancel a pending open_list scroll-to-top, then align after layout.
+	_scroll_gen += 1
+	var gen := _scroll_gen
+	call_deferred("_ensure_cursor_visible_gen", gen)
 
 
 func index_of_spell(spell_id: int) -> int:
@@ -428,6 +439,12 @@ func _restore_scroll_gen(gen: int, y: int) -> void:
 	if gen != _scroll_gen:
 		return
 	_restore_scroll(y)
+
+
+func _ensure_cursor_visible_gen(gen: int) -> void:
+	if gen != _scroll_gen:
+		return
+	_ensure_cursor_visible()
 
 
 func toggle_reagent_at_cursor() -> bool:

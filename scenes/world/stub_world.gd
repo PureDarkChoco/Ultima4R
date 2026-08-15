@@ -8079,10 +8079,7 @@ func _return_to_list_and_remix(spell_id: int) -> void:
 	## Make new + already-known letter → jump back to list and auto-mix.
 	_mix_stage = 1
 	if _mix_panel:
-		_mix_panel.open_list(_mix_pad_full_list)
-		var idx: int = int(_mix_panel.index_of_spell(spell_id))
-		if idx >= 0:
-			_mix_panel.set_cursor(idx)
+		_mix_panel.open_list(_mix_pad_full_list, spell_id)
 	_layout_prompt_row()
 	_try_remix_spell(spell_id)
 
@@ -8185,28 +8182,36 @@ func _cursor_to_first_unknown_mix() -> void:
 
 func _mix_spell_shortcut(spell_id: int) -> void:
 	if GameState.is_spell_known(spell_id):
-		if _mix_panel:
-			var idx: int = int(_mix_panel.index_of_spell(spell_id))
-			if idx >= 0:
-				_mix_panel.set_cursor(idx)
 		_try_remix_spell(spell_id)
 	else:
 		_begin_new_mix(spell_id)
 
 
+func _focus_mix_spell(spell_id: int) -> void:
+	if _mix_panel == null:
+		return
+	var idx: int = int(_mix_panel.index_of_spell(spell_id))
+	if idx >= 0:
+		_mix_panel.set_cursor(idx)
+
+
 func _try_remix_spell(spell_id: int) -> void:
 	if GameState.mixture_qty(spell_id) >= Spells.MIXTURE_MAX:
 		_push_message(Locale.t("mix_full"), false)
+		_focus_mix_spell(spell_id)
 		return
 	if not GameState.can_remix_spell(spell_id):
 		_push_message(Locale.t("mix_need_reag"), false)
+		_focus_mix_spell(spell_id)
 		return
 	if not GameState.remix_spell(spell_id):
 		_push_message(Locale.t("mix_need_reag"), false)
+		_focus_mix_spell(spell_id)
 		return
 	_push_message(Locale.t("mix_success", [Locale.spell_name(spell_id)]), false)
 	if _mix_panel:
 		_mix_panel.refresh_list_quantities()
+	_focus_mix_spell(spell_id)
 	_layout_prompt_row()
 
 
@@ -8235,10 +8240,7 @@ func _confirm_new_mix() -> void:
 		_mix_panel.close_panel()
 		_push_message(Locale.t("mix_success", [Locale.spell_name(spell_id)]), false)
 		_mix_stage = 1
-		_mix_panel.open_list(_mix_pad_full_list)
-		var idx: int = int(_mix_panel.index_of_spell(spell_id))
-		if idx >= 0:
-			_mix_panel.set_cursor(idx)
+		_mix_panel.open_list(_mix_pad_full_list, spell_id)
 		_layout_prompt_row()
 		return
 	## Failure — reagents stay spent; leave Mix.
