@@ -3577,6 +3577,17 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 	if _is_cancel_event(event):
 		_close_command_menu()
 		return true
+	## X / Space: dismiss the palette and Pass (same shortcut as when idle).
+	if _GameInput.is_pass(event) or (
+		event is InputEventKey and _is_space_key(event as InputEventKey)
+	):
+		_close_command_menu()
+		if _combat_active:
+			if not _combat_victory_aftermath:
+				_handle_combat_command(U4Commands.Id.PASS)
+		elif not _is_party_asleep_locked():
+			_handle_command(U4Commands.Id.PASS)
+		return true
 	if event is InputEventKey:
 		var keyed_cmd := U4Commands.from_event(event as InputEventKey)
 		var keyed_index := _command_menu_items.find(keyed_cmd)
