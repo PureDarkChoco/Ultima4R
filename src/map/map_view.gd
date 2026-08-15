@@ -301,6 +301,11 @@ var _loot_icon_cache: Dictionary = {} ## path → scaled Image
 var _shake_left := 0.0
 var _shake_dur := 0.0
 var _shake_amp := 0.0
+## Tremor: irregular horizontal bursts with still gaps (not a sine).
+var _shake_quake := false
+var _quake_ox := 0
+var _quake_jolt_cd := 0.0
+var _quake_bursts: Array = [] ## [{start, end}, ...] elapsed seconds
 ## Hole-up camp: 11×11 combat map centered in the wide explore view.
 var _camp_map # CombatMapData — preloaded script instance
 var _camp_bg: PackedByteArray = PackedByteArray() ## view_w×view_h backdrop (margins)
@@ -2550,20 +2555,78 @@ func _cannon_unwrap_delta(from_tile: Vector2i, to_tile: Vector2i) -> Vector2i:
 
 func shake_ship(duration: float = 0.28, amplitude: float = 2.0) -> void:
 	## Brief jolt when Yell-cruise runs aground — subtle ship nudge.
+	_shake_quake = false
+	_quake_ox = 0
+	_quake_bursts.clear()
 	_shake_dur = maxf(duration, 0.05)
 	_shake_left = _shake_dur
 	_shake_amp = maxf(amplitude, 0.5)
 	_rebuild()
 
 
+func shake_quake(amplitude: float = 16.0) -> float:
+	## 2–3 irregular left/right jolts, half-tile max, short still gaps between.
+	_shake_quake = true
+	_shake_amp = clampf(amplitude, 4.0, float(TILE_SRC) * 0.5)
+	_quake_ox = 0
+	_quake_jolt_cd = 0.0
+	_quake_bursts.clear()
+	var n := 2 + (randi() % 2)
+	var gap := 0.14 + randf() * 0.10
+	var t := 0.0
+	for i in n:
+		var blen := 0.26 + randf() * 0.22
+		_quake_bursts.append({ "start": t, "end": t + blen })
+		t += blen
+		if i < n - 1:
+			t += gap
+	_shake_dur = t
+	_shake_left = t
+	_rebuild()
+	return t
+
+
+func _quake_in_burst() -> bool:
+	if _quake_bursts.is_empty() or _shake_dur <= 0.0:
+		return false
+	var elapsed := _shake_dur - _shake_left
+	for b in _quake_bursts:
+		if elapsed >= float(b.start) and elapsed < float(b.end):
+			return true
+	return false
+
+
+func _tick_quake_jolt(delta: float) -> void:
+	if not _quake_in_burst():
+		_quake_ox = 0
+		_quake_jolt_cd = 0.0
+		return
+	_quake_jolt_cd -= delta
+	if _quake_jolt_cd > 0.0:
+		return
+	_quake_jolt_cd = 0.04 + randf() * 0.07
+	var span := maxi(1, int(round(_shake_amp)))
+	var mag := randi() % (span + 1)
+	var dir := -1 if (randi() % 2) == 0 else 1
+	if _quake_ox != 0 and (randi() % 3) != 0:
+		dir = -1 if _quake_ox > 0 else 1
+	_quake_ox = dir * mag
+
+
 func _shake_offset() -> Vector2i:
 	if _shake_left <= 0.0:
 		return Vector2i.ZERO
+	if _shake_quake:
+		return Vector2i(_quake_ox, 0)
 	var fall := clampf(_shake_left / _shake_dur, 0.0, 1.0)
 	## Soft decaying nudge — mostly horizontal, 1–2 px feel.
 	var ox := int(round(sin(_shake_left * 38.0) * _shake_amp * fall))
 	var oy := int(round(cos(_shake_left * 29.0) * _shake_amp * 0.25 * fall))
 	return Vector2i(ox, oy)
+
+
+func _tile_px(sx: int, sy: int) -> Vector2i:
+	return Vector2i(sx * TILE_SRC, sy * TILE_SRC) + _shake_offset()
 
 
 func _draw() -> void:
@@ -2714,6 +2777,11 @@ func _process(delta: float) -> void:
 	var shake_changed := false
 	if _shake_left > 0.0:
 		_shake_left = maxf(0.0, _shake_left - delta)
+		if _shake_quake:
+			_tick_quake_jolt(delta)
+		if _shake_left <= 0.0:
+			_quake_ox = 0
+			_shake_quake = false
 		shake_changed = true
 
 	var flash_changed := false
@@ -3726,7 +3794,7 @@ func _rebuild_combat() -> void:
 				var bi := dy * view_w + dx
 				if bi >= 0 and bi < _camp_bg.size():
 					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
-			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+			var dst := _tile_px(dx, dy)
 			## View-space coords so left/right beach margins get shore freckles too.
 			_blit_terrain_to(_buf, tid, dst, dx, dy)
 
@@ -3762,7 +3830,7 @@ func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
 		var sy := origin_y + pos.y
 		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 			continue
-		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		var dst := _tile_px(sx, sy)
 		var is_open := bool(d.get("open", false))
 		## Terrain already drawn under — blend keyed chest so grass shows through.
 		_U4TileBankScript.blend_to(_buf, TILE_CHEST, dst, 1 if is_open else 0)
@@ -3822,7 +3890,7 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 				img = _slice_keyed_tile(even)
 		if img == null or img.is_empty():
 			continue
-		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		var dst := _tile_px(sx, sy)
 		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
 
 
@@ -3848,7 +3916,7 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 			img = _slice_keyed_tile(tid)
 		if img == null or img.is_empty():
 			continue
-		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		var dst := _tile_px(sx, sy)
 		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
 		if bool(u.get("show_hp", false)):
 			_paint_creature_hp_bar(
@@ -3877,8 +3945,9 @@ func _paint_combat_focus(origin_x: int, origin_y: int) -> void:
 	var sy := origin_y + pos.y
 	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 		return
-	var px := sx * TILE_SRC
-	var py := sy * TILE_SRC
+	var dst := _tile_px(sx, sy)
+	var px := dst.x
+	var py := dst.y
 	var e := COMBAT_FOCUS_EDGE
 	var white := Color(1, 1, 1, 1)
 	## left / top / right / bottom
@@ -3905,7 +3974,7 @@ func _paint_combat_aim_cursor(origin_x: int, origin_y: int) -> void:
 	var sy := origin_y + _combat_aim_pos.y
 	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 		return
-	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+	var dst := _tile_px(sx, sy)
 	if _combat_aim_cursor != null and not _combat_aim_cursor.is_empty():
 		_buf.blend_rect(
 			_combat_aim_cursor,
@@ -3943,7 +4012,7 @@ func _paint_combat_tile_flashes(origin_x: int, origin_y: int) -> void:
 		var slice := _overlay_slice(tid)
 		if slice == null:
 			continue
-		var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+		var dst := _tile_px(sx, sy)
 		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
 
 
@@ -3984,8 +4053,9 @@ func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
 	var slice := _overlay_slice(miss_tid)
 	if slice == null:
 		return
-	var px2 := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC)))
-	var py2 := int(round((float(origin_y) + cy - 0.5) * float(TILE_SRC)))
+	var shake := _shake_offset()
+	var px2 := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC))) + shake.x
+	var py2 := int(round((float(origin_y) + cy - 0.5) * float(TILE_SRC))) + shake.y
 	if px2 <= -TILE_SRC or py2 <= -TILE_SRC:
 		return
 	if px2 >= view_w * TILE_SRC or py2 >= view_h * TILE_SRC:
@@ -3998,8 +4068,9 @@ func _paint_projectile_image(
 ) -> void:
 	var iw := img.get_width()
 	var ih := img.get_height()
-	var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - float(iw) * 0.5))
-	var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - float(ih) * 0.5))
+	var shake := _shake_offset()
+	var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - float(iw) * 0.5)) + shake.x
+	var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - float(ih) * 0.5)) + shake.y
 	if px <= -iw or py <= -ih:
 		return
 	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:

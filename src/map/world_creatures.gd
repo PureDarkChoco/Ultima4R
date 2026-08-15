@@ -664,6 +664,18 @@ static func casts_sleep(tile_or_base: int) -> bool:
 	return bool(_CASTS_SLEEP.get(_base_tile(tile_or_base), false))
 
 
+static func resists_sleep(tile_or_base: int) -> bool:
+	## DOS C_636D undead + TIL_FC Balron. xu4 getResists() == EFFECT_SLEEP.
+	var base := _base_tile(tile_or_base)
+	return (
+		base == 156 ## Ghost
+		or base == 188 ## Phantom
+		or base == 196 ## Skeleton
+		or base == 228 ## Liche
+		or base == 252 ## Balron
+	)
+
+
 static func is_fleeing_hp(hp: int) -> bool:
 	## xu4 MSTAT_FLEEING — all creatures (not humanoid-only).
 	return hp > 0 and hp < FLEE_HP

@@ -172,6 +172,8 @@ var _combat_allow_sleep_wake := true
 ## Gap after each unit acts (xu4 screenWait≈42ms is snappy; keep readable).
 const COMBAT_TURN_GAP := 0.28
 const COMBAT_HIT_FLASH_SEC := 0.14
+const TREMOR_SHAKE_AMP := 16.0
+const TREMOR_HIT_FLASH_SEC := 0.42
 ## Victory ESC: cascade leave order 1→8 with a short beat between units.
 const COMBAT_VICTORY_EXIT_GAP := 0.2
 var _combat_saved_sides_open := false
@@ -9438,6 +9440,8 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.PROTECTION
 		or spell_id == Spells.QUICKNESS
 		or spell_id == Spells.RESURRECT
+		or spell_id == Spells.SLEEP
+		or spell_id == Spells.TREMOR
 		or spell_id == Spells.VIEW
 		or spell_id == Spells.WINDS
 	)
@@ -9472,6 +9476,32 @@ func _finish_cast_none_spell() -> void:
 			ok = _apply_cast_protection()
 		Spells.QUICKNESS:
 			ok = _apply_cast_quickness()
+		Spells.SLEEP:
+			_close_cast(false, false)
+			_combat_resolving = true
+			await _apply_cast_sleep()
+			if not _combat_active or _map == null or not _map.is_in_combat():
+				_combat_resolving = false
+				return
+			_refresh_foe_roster()
+			_combat_resolving = false
+			_combat_finish_member_turn()
+			return
+		Spells.TREMOR:
+			_close_cast(false, false)
+			_combat_resolving = true
+			await _apply_cast_tremor(caster)
+			if not _combat_active or _map == null or not _map.is_in_combat():
+				_combat_resolving = false
+				return
+			if _map.is_combat_won():
+				await _begin_combat_victory_aftermath()
+				_combat_resolving = false
+				return
+			_refresh_foe_roster()
+			_combat_resolving = false
+			_combat_finish_member_turn()
+			return
 		Spells.VIEW:
 			ok = _apply_cast_view()
 			if ok:
@@ -9524,6 +9554,61 @@ func _apply_cast_quickness() -> bool:
 	var caster := GameState.party_member_at(_cast_caster_slot)
 	GameState.set_aura(GameState.AuraType.QUICKNESS, GameState.AURA_SPELL_TURNS, caster)
 	return true
+
+
+func _apply_cast_sleep() -> void:
+	## xu4 spellSleep — each living foe: wisp flash, then HP roll unless sleep-immune.
+	if _map == null or not _map.is_in_combat():
+		return
+	for foe_i in _map.living_combat_foe_indices():
+		var f := _map.get_combat_foe_at(foe_i)
+		if f.is_empty():
+			continue
+		var at := Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+		var tid := int(f.get("tile", 0))
+		var hp := int(f.get("hp", 0))
+		await _map.await_flash_combat_tile(at, MapView.TILE_WISP, COMBAT_HIT_FLASH_SEC)
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			return
+		if _WorldCreaturesScript.resists_sleep(tid):
+			continue
+		if (randi() % 255) < hp:
+			continue
+		_map.set_combat_foe_asleep(foe_i, true)
+		await _map.await_flash_combat_tile(at, MapView.TILE_FIELD_SLEEP, COMBAT_HIT_FLASH_SEC)
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			return
+
+
+func _apply_cast_tremor(caster: int) -> void:
+	## xu4 spellTremor — HP > 192 immune; else 50% 255 dmg, 25% leave at 23, 25% miss.
+	if _map == null or not _map.is_in_combat():
+		return
+	## DOS shakefx — 2–3 irregular jolts with a still beat between, then hits.
+	var shake_sec := _map.shake_quake(TREMOR_SHAKE_AMP)
+	await get_tree().create_timer(shake_sec).timeout
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		return
+	for foe_i in _map.living_combat_foe_indices():
+		var f := _map.get_combat_foe_at(foe_i)
+		if f.is_empty():
+			continue
+		var hp := int(f.get("hp", 0))
+		if hp > 192:
+			continue
+		var at := Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+		if (randi() % 2) == 0:
+			await _combat_apply_foe_hit(
+				caster, foe_i, at, 0xFF, MapView.TILE_HIT_FLASH, TREMOR_HIT_FLASH_SEC
+			)
+		elif (randi() % 2) == 0 and hp > 23:
+			await _combat_apply_foe_hit(
+				caster, foe_i, at, hp - 23, MapView.TILE_HIT_FLASH, TREMOR_HIT_FLASH_SEC
+			)
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			return
+		if _map.is_combat_won():
+			return
 
 
 func _finish_cast_open_direct(dir: Vector2i) -> void:
@@ -15466,7 +15551,14 @@ func _combat_record_foe_damage(foe_i: int, klass: int, dealt: int) -> void:
 	_combat_foe_dmg[foe_i] = by
 
 
-func _combat_apply_foe_hit(klass: int, foe_i: int, at: Vector2i, dmg: int = -1, flash_tid: int = -1) -> void:
+func _combat_apply_foe_hit(
+	klass: int,
+	foe_i: int,
+	at: Vector2i,
+	dmg: int = -1,
+	flash_tid: int = -1,
+	flash_sec: float = -1.0
+) -> void:
 	if _map == null or foe_i < 0:
 		return
 	if dmg < 0:
@@ -15478,7 +15570,8 @@ func _combat_apply_foe_hit(klass: int, foe_i: int, at: Vector2i, dmg: int = -1, 
 	var dealt := int(result.get("dealt", 0))
 	_combat_record_foe_damage(foe_i, klass, dealt)
 	var flash := flash_tid if flash_tid >= 0 else MapView.TILE_HIT_FLASH
-	await _map.await_flash_combat_tile(at, flash, COMBAT_HIT_FLASH_SEC)
+	var flash_dur := COMBAT_HIT_FLASH_SEC if flash_sec < 0.0 else flash_sec
+	await _map.await_flash_combat_tile(at, flash, flash_dur)
 	if killed:
 		var nm := _WorldCreaturesScript.display_name(foe_tile)
 		_push_message(Locale.t("cmd_killed", [nm]), false)
