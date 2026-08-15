@@ -6663,18 +6663,11 @@ func _cycle_options_cursor_value(delta: int) -> void:
 	if _options_panel == null:
 		return
 	var item: int = int(_options_panel.cursor())
-	match item:
-		_OptionsPanel.Item.LANGUAGE:
-			_options_panel.cycle_language(delta)
-			_layout_prompt_row()
-		_OptionsPanel.Item.HANGUL_KEYBOARD:
-			_options_panel.cycle_current(delta)
-		_OptionsPanel.Item.RESOLUTION:
-			_options_panel.cycle_resolution(delta)
-		_OptionsPanel.Item.FULLSCREEN:
-			_options_panel.cycle_fullscreen(delta)
-		_:
-			pass
+	if item == _OptionsPanel.Item.LANGUAGE:
+		_options_panel.cycle_language(delta)
+		_layout_prompt_row()
+	else:
+		_options_panel.cycle_current(delta)
 
 
 func _cycle_options_language(delta: int) -> void:
@@ -6685,18 +6678,8 @@ func _cycle_options_language(delta: int) -> void:
 	_layout_prompt_row()
 
 
-func _confirm_options_item(index: int) -> void:
-	match index:
-		_OptionsPanel.Item.LANGUAGE:
-			_cycle_options_cursor_value(1)
-		_OptionsPanel.Item.HANGUL_KEYBOARD:
-			_cycle_options_cursor_value(1)
-		_OptionsPanel.Item.RESOLUTION:
-			_cycle_options_cursor_value(1)
-		_OptionsPanel.Item.FULLSCREEN:
-			_cycle_options_cursor_value(1)
-		_:
-			pass
+func _confirm_options_item(_index: int) -> void:
+	_cycle_options_cursor_value(1)
 
 
 func _esc_menu_letter_index(k: InputEventKey) -> int:

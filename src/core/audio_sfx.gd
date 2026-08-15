@@ -19,6 +19,8 @@ const FOOT_INDOOR_TILES := {
 }
 
 const _AudioMusic := preload("res://src/core/audio_music.gd")
+const SETTINGS_PATH := "user://settings.cfg"
+const SETTINGS_SECTION := "audio"
 
 var _streams: Dictionary = {} ## id → AudioStream
 var _pool: Array[AudioStreamPlayer] = []
@@ -38,6 +40,7 @@ func _ready() -> void:
 	music = _AudioMusic.new()
 	music.name = "Music"
 	add_child(music)
+	_load_settings()
 	_apply_volume()
 
 
@@ -66,8 +69,25 @@ func music_sync_world(ctx: Dictionary) -> void:
 		music.sync_world(ctx)
 
 
+func music_set_enabled(on: bool) -> void:
+	if music and music.has_method("set_enabled"):
+		music.set_enabled(on)
+
+
+func music_set_volume_percent(pct: int) -> void:
+	if music and music.has_method("set_volume_percent"):
+		music.set_volume_percent(pct)
+
+
+func music_volume_percent() -> int:
+	if music and music.has_method("volume_percent"):
+		return int(music.volume_percent())
+	return 60
+
+
 func set_enabled(on: bool) -> void:
 	_enabled = on
+	_save_settings()
 
 
 func is_enabled() -> bool:
@@ -146,3 +166,17 @@ func _apply_volume() -> void:
 	var db := linear_to_db(maxf(0.0001, _volume_linear))
 	for p in _pool:
 		p.volume_db = db
+
+
+func _load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) != OK:
+		return
+	_enabled = bool(cfg.get_value(SETTINGS_SECTION, "sfx", true))
+
+
+func _save_settings() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value(SETTINGS_SECTION, "sfx", _enabled)
+	cfg.save(SETTINGS_PATH)

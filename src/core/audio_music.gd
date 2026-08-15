@@ -35,7 +35,7 @@ var _current := ""
 var _pending := ""
 var _ready_done := false
 var _enabled := true
-var _volume_linear := 0.55
+var _volume_linear := 0.6
 
 
 func _ready() -> void:
@@ -110,12 +110,21 @@ func is_enabled() -> bool:
 
 
 func set_volume_linear(v: float) -> void:
-	_volume_linear = clampf(v, 0.0, 1.0)
+	_volume_linear = _snap_volume_step(v)
 	_apply_volume()
+	_save_settings()
 
 
 func volume_linear() -> float:
 	return _volume_linear
+
+
+func set_volume_percent(pct: int) -> void:
+	set_volume_linear(float(clampi(pct, 10, 100)) / 100.0)
+
+
+func volume_percent() -> int:
+	return clampi(int(round(_volume_linear * 10.0)) * 10, 10, 100)
 
 
 func sync_world(ctx: Dictionary) -> void:
@@ -162,7 +171,12 @@ func _load_settings() -> void:
 	if cfg.load(SETTINGS_PATH) != OK:
 		return
 	_enabled = bool(cfg.get_value(SETTINGS_SECTION, "music", true))
-	_volume_linear = clampf(float(cfg.get_value(SETTINGS_SECTION, "music_volume", _volume_linear)), 0.0, 1.0)
+	_volume_linear = _snap_volume_step(float(cfg.get_value(SETTINGS_SECTION, "music_volume", _volume_linear)))
+
+
+func _snap_volume_step(v: float) -> float:
+	var pct := clampi(int(round(clampf(v, 0.1, 1.0) * 10.0)) * 10, 10, 100)
+	return float(pct) / 100.0
 
 
 func _save_settings() -> void:

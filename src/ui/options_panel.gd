@@ -3,7 +3,7 @@ extends Control
 
 ## In-game Esc → Options submenu.
 ## Also embedded in the title map frame (main menu).
-## Items: language, Hangul keyboard, window resolution, fullscreen.
+## Items: language, Hangul keyboard, window resolution, fullscreen, SFX, music.
 ## Left/right (or Enter) cycles the selected item; Esc closes.
 
 enum Item {
@@ -11,16 +11,18 @@ enum Item {
 	HANGUL_KEYBOARD = 1,
 	RESOLUTION = 2,
 	FULLSCREEN = 3,
+	SFX = 4,
+	MUSIC = 5,
 }
 
-const ITEM_COUNT := 4
+const ITEM_COUNT := 6
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 const FONT_SIZE := 16
 const ROW_H := 30
-const PANEL_W := 400.0
+const PANEL_W := 440.0
 
 var _backdrop: ColorRect
 var _center: CenterContainer
@@ -153,8 +155,34 @@ func cycle_current(delta: int = 1) -> void:
 			cycle_resolution(delta)
 		Item.FULLSCREEN:
 			cycle_fullscreen(delta)
+		Item.SFX:
+			cycle_sfx(delta)
+		Item.MUSIC:
+			cycle_music(delta)
 		_:
 			pass
+
+
+func cycle_sfx(_delta: int = 1) -> void:
+	AudioSfx.set_enabled(not AudioSfx.is_enabled())
+	_refresh_labels()
+	_sync_cursor()
+
+
+func cycle_music(delta: int = 1) -> void:
+	var on := AudioSfx.music_enabled()
+	var pct := AudioSfx.music_volume_percent()
+	if not on:
+		if delta > 0:
+			AudioSfx.music_set_enabled(true)
+	else:
+		var next := pct + delta * 10
+		if next < 10:
+			AudioSfx.music_set_enabled(false)
+		else:
+			AudioSfx.music_set_volume_percent(mini(next, 100))
+	_refresh_labels()
+	_sync_cursor()
 
 
 func _build() -> void:
@@ -249,7 +277,7 @@ func _apply_presentation() -> void:
 		_panel.custom_minimum_size = Vector2(_embed_rect.size.x, 0)
 		_title.visible = true
 		_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var row_h := clampf(_embed_rect.size.y / 7.0, 24.0, 40.0)
+		var row_h := clampf(_embed_rect.size.y / float(ITEM_COUNT + 1), 22.0, 40.0)
 		var font_sz := clampi(int(row_h * 0.55), 14, 24)
 		_title.add_theme_font_size_override("font_size", font_sz + 2)
 		for i in ITEM_COUNT:
@@ -294,6 +322,10 @@ func _refresh_labels() -> void:
 			_row_labs[i].text = _resolution_row_text()
 		elif i == Item.FULLSCREEN:
 			_row_labs[i].text = _fullscreen_row_text()
+		elif i == Item.SFX:
+			_row_labs[i].text = _sfx_row_text()
+		elif i == Item.MUSIC:
+			_row_labs[i].text = _music_row_text()
 		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
 
 
@@ -315,6 +347,23 @@ func _fullscreen_row_text() -> String:
 		else Locale.t("esc_options_fullscreen_state_off")
 	)
 	return "%s: ◂ %s ▸" % [Locale.t("esc_options_fullscreen"), state]
+
+
+func _on_off_state(on: bool) -> String:
+	return Locale.t("esc_options_state_on" if on else "esc_options_state_off")
+
+
+func _sfx_row_text() -> String:
+	return "%s: ◂ %s ▸" % [Locale.t("esc_options_sfx"), _on_off_state(AudioSfx.is_enabled())]
+
+
+func _music_row_text() -> String:
+	var state := (
+		Locale.t("esc_options_music_volume", [AudioSfx.music_volume_percent()])
+		if AudioSfx.music_enabled()
+		else Locale.t("esc_options_state_off")
+	)
+	return "%s: ◂ %s ▸" % [Locale.t("esc_options_music"), state]
 
 
 func _sync_cursor() -> void:

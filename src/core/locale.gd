@@ -804,6 +804,31 @@ const _T := {
 		"en_us": "Fullscreen off",
 		"ko": "전체화면 꺼짐",
 	},
+	"esc_options_sfx": {
+		"en_u4": "Sound",
+		"en_us": "Sound Effects",
+		"ko": "효과음",
+	},
+	"esc_options_music": {
+		"en_u4": "Music",
+		"en_us": "Background Music",
+		"ko": "배경음악",
+	},
+	"esc_options_music_volume": {
+		"en_u4": "%d%%",
+		"en_us": "%d%%",
+		"ko": "%d%%",
+	},
+	"esc_options_state_on": {
+		"en_u4": "On",
+		"en_us": "On",
+		"ko": "켬",
+	},
+	"esc_options_state_off": {
+		"en_u4": "Off",
+		"en_us": "Off",
+		"ko": "끔",
+	},
 	"esc_menu_language_set": {
 		"en_u4": "Language: %s",
 		"en_us": "Language: %s",
