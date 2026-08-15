@@ -115,7 +115,9 @@ const CAMP_HEAL_INTERVAL := 100
 ## Sleeping corpse tile (shapes index — graphics.b tile_corpse).
 const TILE_CORPSE := 56
 
-## xu4 Aura — party-wide timed effect (spells / Silver Horn). Not saved.
+## Party-wide timed effects. Jinx / Protection / Quickness stack (one of each);
+## a caster may sustain only one of those three. Horn / Negate are independent.
+## Not saved.
 enum AuraType {
 	NONE = 0,
 	HORN = 1,
@@ -124,8 +126,15 @@ enum AuraType {
 	PROTECTION = 4,
 	QUICKNESS = 5,
 }
-var aura_type: int = AuraType.NONE
-var aura_duration: int = 0
+## type → remaining turns
+var _aura_duration: Dictionary = {}
+## type → class index who cast (Jinx / Protection / Quickness only)
+var _aura_caster: Dictionary = {}
+## Skip the next pass_aura_turn (cast/use already spent that party turn).
+var _aura_grace: Dictionary = {}
+## xu4 spellJinx / spellNegate / spellProtection / spellQuickness / useHorn.
+const AURA_SPELL_TURNS := 10
+const SPELL_AURA_TYPES: Array[int] = [AuraType.JINX, AuraType.PROTECTION, AuraType.QUICKNESS]
 
 ## xu4 savegame.h Item / Stone / Rune enums.
 const ITEM_SKULL := 0x01
@@ -2235,22 +2244,45 @@ func add_item_flag(flag: int) -> void:
 	items |= flag
 
 
-func set_aura(t: int, duration: int) -> void:
-	## xu4 Aura::set — replaces any current aura.
-	if duration <= 0 or t == AuraType.NONE:
-		aura_type = AuraType.NONE
-		aura_duration = 0
+func set_aura(t: int, duration: int, caster: int = -1) -> void:
+	## Horn / Negate stack beside spell auras. J/P/Q: one of each type; one per caster.
+	if t == AuraType.NONE:
+		clear_aura()
 		return
-	aura_type = t
-	aura_duration = duration
+	if duration <= 0:
+		_clear_aura_type(t)
+		return
+	if _is_spell_aura(t):
+		if caster >= 0:
+			_clear_caster_spell_auras(caster)
+		_aura_duration[t] = duration
+		_aura_caster[t] = caster
+		_aura_grace[t] = true
+		return
+	_aura_duration[t] = duration
+	_aura_caster.erase(t)
+	_aura_grace[t] = true
 
 
 func clear_aura() -> void:
-	set_aura(AuraType.NONE, 0)
+	_aura_duration.clear()
+	_aura_caster.clear()
+	_aura_grace.clear()
 
 
 func is_aura(t: int) -> bool:
-	return aura_type == t and aura_duration > 0
+	return int(_aura_duration.get(t, 0)) > 0
+
+
+func aura_duration_of(t: int) -> int:
+	return int(_aura_duration.get(t, 0))
+
+
+func aura_caster_of(t: int) -> int:
+	## Class index that cast this spell aura, or −1 (Horn / expired / unknown).
+	if not is_aura(t):
+		return -1
+	return int(_aura_caster.get(t, -1))
 
 
 func is_aura_horn() -> bool:
@@ -2258,14 +2290,68 @@ func is_aura_horn() -> bool:
 	return is_aura(AuraType.HORN)
 
 
+func is_aura_jinx() -> bool:
+	## Creatures may target any other creature (party or foe), not just the party.
+	return is_aura(AuraType.JINX)
+
+
+func is_aura_protection() -> bool:
+	return is_aura(AuraType.PROTECTION)
+
+
+func is_aura_quickness() -> bool:
+	return is_aura(AuraType.QUICKNESS)
+
+
+func creature_hits_party_member(klass: int) -> bool:
+	## DOS C_9BE5: Protection 50% force-miss, else armor vs rand(256).
+	if is_aura_protection() and (randi() % 2) != 0:
+		return false
+	return (randi() % 0x100) > party_member_defense(klass)
+
+
+func spell_aura_hud_text() -> String:
+	## Sky-bar chips: "J" / "J  P  Q". Letter only — no remaining turns.
+	var parts: PackedStringArray = []
+	if is_aura(AuraType.JINX):
+		parts.append("J")
+	if is_aura(AuraType.PROTECTION):
+		parts.append("P")
+	if is_aura(AuraType.QUICKNESS):
+		parts.append("Q")
+	return "  ".join(parts)
+
+
 func pass_aura_turn() -> void:
-	## xu4 Aura::passTurn — once per world turn / combat party round.
-	if aura_duration <= 0:
-		return
-	aura_duration -= 1
-	if aura_duration <= 0:
-		aura_type = AuraType.NONE
-		aura_duration = 0
+	## Once per world turn / combat party round — each active aura ticks independently.
+	## Auras applied this same turn keep their full duration (10 walks / 10 rounds).
+	var types: Array = _aura_duration.keys()
+	for t in types:
+		var kind := int(t)
+		if bool(_aura_grace.get(kind, false)):
+			_aura_grace.erase(kind)
+			continue
+		var d := int(_aura_duration[kind]) - 1
+		if d <= 0:
+			_clear_aura_type(kind)
+		else:
+			_aura_duration[kind] = d
+
+
+func _is_spell_aura(t: int) -> bool:
+	return t == AuraType.JINX or t == AuraType.PROTECTION or t == AuraType.QUICKNESS
+
+
+func _clear_aura_type(t: int) -> void:
+	_aura_duration.erase(t)
+	_aura_caster.erase(t)
+	_aura_grace.erase(t)
+
+
+func _clear_caster_spell_auras(caster: int) -> void:
+	for t in SPELL_AURA_TYPES:
+		if int(_aura_caster.get(t, -1)) == caster:
+			_clear_aura_type(t)
 
 
 func has_stone(flag: int) -> bool:

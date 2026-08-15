@@ -2315,6 +2315,18 @@ func _layout_side_panels(animate: bool) -> void:
 			_ztats_panel.move_to_front()
 	_layout_locate_hud()
 	_layout_ship_hull_hud()
+	_sync_aura_hud_pos()
+
+
+func _sync_aura_hud_pos() -> void:
+	## Pin J/P/Q to the 11-tile battlefield's left edge (left panel seam when open).
+	if _top_bar == null or _map_pane == null:
+		return
+	if not _top_bar.has_method("set_aura_field_global_x"):
+		return
+	var g := _side_geom()
+	var field_left := float(g.get("left_w", 0.0))
+	_top_bar.set_aura_field_global_x(_map_pane.global_position.x + field_left)
 
 
 func _tween_msg_height(h: float) -> void:
@@ -8845,6 +8857,9 @@ func _try_cast_spell(spell_id: int) -> void:
 			return
 		_begin_cast_phase()
 		return
+	if Spells.param_type(spell_id) == Spells.PARAM_NONE:
+		_finish_cast_none_spell()
+		return
 	if GameState.party_size() <= 1:
 		_finish_cast_player_spell(0)
 		return
@@ -9371,9 +9386,64 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.GATE
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.ICEBALL
+		or spell_id == Spells.JINX
 		or spell_id == Spells.MAGIC_MISSILE
+		or spell_id == Spells.PROTECTION
+		or spell_id == Spells.QUICKNESS
 		or spell_id == Spells.RESURRECT
 	)
+
+
+func _finish_cast_none_spell() -> void:
+	## xu4 spellCast + PARAM_NONE: spend mix, then MP, then effect.
+	var spell_id := _cast_spell_id
+	if not _is_cast_implemented(spell_id):
+		_close_cast(false, false)
+		return
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_close_cast(false, true)
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	var ok := false
+	match spell_id:
+		Spells.JINX:
+			ok = _apply_cast_jinx()
+		Spells.PROTECTION:
+			ok = _apply_cast_protection()
+		Spells.QUICKNESS:
+			ok = _apply_cast_quickness()
+		_:
+			ok = false
+	if not ok:
+		_push_message(Locale.t("cast_failed"), false)
+	_close_cast(false, true)
+
+
+func _apply_cast_jinx() -> bool:
+	## Jinx for 10 turns. Remembers caster; drops that caster's other J/P/Q.
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	GameState.set_aura(GameState.AuraType.JINX, GameState.AURA_SPELL_TURNS, caster)
+	return true
+
+
+func _apply_cast_protection() -> bool:
+	## DOS SPL_Protection — Aura::PROTECTION for 10 turns; caster owns this slot.
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	GameState.set_aura(GameState.AuraType.PROTECTION, GameState.AURA_SPELL_TURNS, caster)
+	return true
+
+
+func _apply_cast_quickness() -> bool:
+	## DOS SPL_Quickness — Aura::QUICKNESS for 10 turns; caster owns this slot.
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	GameState.set_aura(GameState.AuraType.QUICKNESS, GameState.AURA_SPELL_TURNS, caster)
+	return true
 
 
 func _finish_cast_player_spell(target_slot: int) -> void:
@@ -9632,7 +9702,7 @@ func _use_horn() -> void:
 	## xu4 useHorn — always succeeds: message + Aura::HORN for 10 turns.
 	## Only material effect elsewhere is blocking humility-shrine daemon ambush.
 	_push_message(Locale.t("cmd_use_horn"), false)
-	GameState.set_aura(GameState.AuraType.HORN, 10)
+	GameState.set_aura(GameState.AuraType.HORN, GameState.AURA_SPELL_TURNS)
 	await _finish_use_command()
 
 
@@ -15400,6 +15470,10 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		return
 	## Able unit / flee: move focus first. Sleeper auto-pass stays and rolls wake.
 	if was_able or after_flee:
+		## DOS C_5D14 / xu4 finishTurn — Quickness 50% same member acts again.
+		if _combat_try_quickness_extra_turn(after_flee):
+			_combat_resolving = false
+			return
 		var still_party := (
 			_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
 		)
@@ -15423,6 +15497,20 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		_combat_resolving = false
 		return
 	_combat_resolving = false
+
+
+func _combat_try_quickness_extra_turn(after_flee: bool) -> bool:
+	## True = keep current focus (do not advance / wrap). Flee never extra-acts.
+	if after_flee or _map == null or not GameState.is_aura_quickness():
+		return false
+	var klass := _map.get_combat_focus_klass()
+	if klass < 0 or GameState.is_member_disabled(klass):
+		return false
+	if (randi() % 2) != 0:
+		return false
+	_sync_combat_focus_roster()
+	_refresh_party()
+	return true
 
 
 func _combat_skip_to_able_focus() -> bool:
@@ -15567,10 +15655,14 @@ func _combat_resolve_foe_act(plan: Dictionary) -> void:
 
 func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 	var party_i := int(plan.get("party_i", -1))
+	var foe_i := int(plan.get("foe_i", -1))
 	var klass := int(plan.get("klass", -1))
 	var at: Vector2i = plan.get("to", Vector2i.ZERO)
 	var tid := int(plan.get("tile", 0))
 	var base_hp := int(plan.get("base_hp", 64))
+	if foe_i >= 0:
+		await _combat_resolve_jinx_foe_melee(foe_i, at, base_hp)
+		return
 	if party_i < 0 or klass < 0:
 		return
 	## Re-resolve in case the unit fled/died earlier this phase.
@@ -15579,8 +15671,7 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 		return
 	klass = int(unit.get("klass", klass))
 	at = Vector2i(int(unit.get("x", at.x)), int(unit.get("y", at.y)))
-	var defense := GameState.party_member_defense(klass)
-	var hits := _WorldCreaturesScript.creature_attack_hits(defense)
+	var hits := GameState.creature_hits_party_member(klass)
 	if hits:
 		var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
 		GameState.apply_member_damage(klass, dmg)
@@ -15610,12 +15701,16 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 	var from: Vector2i = plan.get("from", Vector2i.ZERO)
 	var to: Vector2i = plan.get("to", Vector2i.ZERO)
 	var party_i := int(plan.get("party_i", -1))
+	var foe_i := int(plan.get("foe_i", -1))
 	var klass := int(plan.get("klass", -1))
 	var base_hp := int(plan.get("base_hp", 64))
 	var effect := str(plan.get("effect", "damage"))
 	var miss_tid := int(plan.get("miss_tid", MapView.TILE_MISS_FLASH))
 	var hit_tid := int(plan.get("hit_tid", MapView.TILE_HIT_FLASH))
 	var leave_tid := int(plan.get("leave_tid", -1))
+	if foe_i >= 0:
+		await _combat_resolve_jinx_foe_ranged(plan)
+		return
 	if party_i < 0 or klass < 0:
 		return
 	var unit := _map.get_combat_party_unit(party_i)
@@ -15656,6 +15751,68 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 				_map.remove_combat_party_at(party_i)
 	_refresh_party()
 	_sync_combat_focus_roster()
+
+
+func _combat_resolve_jinx_foe_melee(foe_i: int, at: Vector2i, base_hp: int) -> void:
+	## xu4 jinx melee: attackHit vs Creature::getDefense (128). Kill is not byplayer — no XP.
+	if _map == null or foe_i < 0:
+		return
+	var target := _map.get_combat_foe_at(foe_i)
+	if target.is_empty() or int(target.get("hp", 0)) <= 0:
+		return
+	at = Vector2i(int(target.get("x", at.x)), int(target.get("y", at.y)))
+	var hits := _WorldCreaturesScript.creature_attack_hits(_WorldCreaturesScript.CREATURE_DEFENSE)
+	if hits:
+		var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
+		var result := _map.damage_combat_foe(foe_i, dmg)
+		await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+		if bool(result.get("killed", false)):
+			_combat_note_field_foe_hit(result)
+	else:
+		_push_message(Locale.t("cmd_missed"), false)
+	_refresh_foe_roster()
+
+
+func _combat_resolve_jinx_foe_ranged(plan: Dictionary) -> void:
+	## Same missile rules as party shots; status/damage land on another foe. No XP.
+	if _map == null:
+		return
+	var from: Vector2i = plan.get("from", Vector2i.ZERO)
+	var to: Vector2i = plan.get("to", Vector2i.ZERO)
+	var foe_i := int(plan.get("foe_i", -1))
+	var base_hp := int(plan.get("base_hp", 64))
+	var effect := str(plan.get("effect", "damage"))
+	var miss_tid := int(plan.get("miss_tid", MapView.TILE_MISS_FLASH))
+	var hit_tid := int(plan.get("hit_tid", MapView.TILE_HIT_FLASH))
+	var leave_tid := int(plan.get("leave_tid", -1))
+	var target := _map.get_combat_foe_at(foe_i)
+	if target.is_empty() or int(target.get("hp", 0)) <= 0:
+		return
+	to = Vector2i(int(target.get("x", to.x)), int(target.get("y", to.y)))
+	await _map.await_combat_projectile(from, to, -1, miss_tid)
+	if not _map.combat_shot_reaches(from, to):
+		if leave_tid >= 0:
+			var land := _map.combat_projectile_end(from, to)
+			_map.combat_leave_field(land, leave_tid)
+		return
+	await _map.await_flash_combat_tile(to, hit_tid, COMBAT_HIT_FLASH_SEC)
+	match effect:
+		"poison":
+			if not _map.is_combat_foe_poisoned(foe_i) and not _map.is_combat_foe_asleep(foe_i):
+				if (randi() % 2) == 0:
+					_map.set_combat_foe_poisoned(foe_i, true)
+					_push_message(Locale.t("cmd_poisoned"), false)
+		"sleep":
+			if not _map.is_combat_foe_asleep(foe_i):
+				if (randi() % 2) == 0:
+					_map.set_combat_foe_asleep(foe_i, true)
+					_push_message(Locale.t("cmd_combat_sleep"), false)
+		_:
+			var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
+			var result := _map.damage_combat_foe(foe_i, dmg)
+			if bool(result.get("killed", false)):
+				_combat_note_field_foe_hit(result)
+	_refresh_foe_roster()
 
 
 func _combat_resolve_foe_cast_sleep() -> void:

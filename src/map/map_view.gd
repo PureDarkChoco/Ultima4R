@@ -1562,6 +1562,7 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		"from": Vector2i.ZERO,
 		"to": Vector2i.ZERO,
 		"party_i": -1,
+		"foe_i": -1,
 		"klass": -1,
 		"tile": 0,
 		"base_hp": 0,
@@ -1584,14 +1585,15 @@ func act_combat_creature_at(index: int) -> Dictionary:
 	## Free-aim ranged: on row/col/exact-diagonal → always shoot if LOF.
 	## Off-axis free aim → 40% shoot, 60% advance (keeps melee party in play).
 	if _WorldCreaturesScript.is_ranged(tid):
-		var ranged := _combat_pick_ranged_target(from)
-		if ranged.party_i >= 0:
+		var ranged := _combat_pick_ranged_target(from, index)
+		if int(ranged.get("party_i", -1)) >= 0 or int(ranged.get("foe_i", -1)) >= 0:
 			var aligned := _combat_is_axis_or_diagonal(from, ranged.pos)
 			if aligned or (randi() % 100) < 40:
 				var shot := _WorldCreaturesScript.resolve_ranged_shot(tid)
 				out["action"] = "ranged"
 				out["to"] = ranged.pos
 				out["party_i"] = ranged.party_i
+				out["foe_i"] = int(ranged.get("foe_i", -1))
 				out["klass"] = ranged.klass
 				out["effect"] = str(shot.get("effect", "damage"))
 				out["miss_tid"] = int(shot.get("miss_tid", _WorldCreaturesScript.TILE_MISS_FLASH))
@@ -1605,18 +1607,19 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		return out
 	## Low HP — flee toward map edge (xu4 MSTAT_FLEEING, all species).
 	if _WorldCreaturesScript.is_fleeing_hp(hp):
-		var away := _nearest_combat_party(from)
-		if away.x < 0:
+		var away := _nearest_combat_opponent_info(from, index, false)
+		if int(away.get("dist", 1_000_000)) >= 1_000_000:
 			return out
-		return _combat_apply_flee_step(index, from, away, out)
+		return _combat_apply_flee_step(index, from, away.pos, out)
 	## Default: melee at Chebyshev 1 (8-adjacent, same as party), else advance.
-	var near := _nearest_combat_party_info(from, true)
-	if near.party_i < 0:
+	var near := _nearest_combat_opponent_info(from, index, true)
+	if int(near.get("party_i", -1)) < 0 and int(near.get("foe_i", -1)) < 0:
 		return out
 	if _WeaponIconsScript.chebyshev(from, near.pos) == 1:
 		out["action"] = "melee"
 		out["to"] = near.pos
 		out["party_i"] = near.party_i
+		out["foe_i"] = int(near.get("foe_i", -1))
 		out["klass"] = near.klass
 		return out
 	if _combat_apply_advance_step(index, from, near.pos):
@@ -1633,15 +1636,17 @@ func move_combat_creature_at(index: int) -> bool:
 	if int(foe.get("hp", 1)) <= 0:
 		return false
 	var from := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
-	var near := _nearest_combat_party_info(from, true)
-	if near.party_i < 0:
+	var near := _nearest_combat_opponent_info(from, index, true)
+	if int(near.get("party_i", -1)) < 0 and int(near.get("foe_i", -1)) < 0:
 		return false
 	return _combat_apply_advance_step(index, from, near.pos)
 
 
-func _combat_pick_ranged_target(from: Vector2i) -> Dictionary:
-	## Player-style free aim: any living party in range with clear LOF; prefer nearest.
-	var best := {"party_i": -1, "klass": -1, "pos": Vector2i(-1, -1), "dist": 1_000_000}
+func _combat_pick_ranged_target(from: Vector2i, skip_foe: int = -1) -> Dictionary:
+	## Player-style free aim: living party (and other foes under Jinx) with LOF.
+	var best := {
+		"party_i": -1, "foe_i": -1, "klass": -1, "pos": Vector2i(-1, -1), "dist": 1_000_000
+	}
 	for i in _combat_party.size():
 		var p: Dictionary = _combat_party[i]
 		var klass := int(p.get("klass", -1))
@@ -1660,7 +1665,27 @@ func _combat_pick_ranged_target(from: Vector2i) -> Dictionary:
 		if dist == int(best.dist) and (randi() % 2) == 0:
 			better = true
 		if better:
-			best = {"party_i": i, "klass": klass, "pos": pos, "dist": dist}
+			best = {"party_i": i, "foe_i": -1, "klass": klass, "pos": pos, "dist": dist}
+	if GameState.is_aura_jinx():
+		for i in _combat_foes.size():
+			if i == skip_foe:
+				continue
+			var f: Dictionary = _combat_foes[i]
+			if int(f.get("hp", 1)) <= 0:
+				continue
+			var pos := Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+			if pos == from:
+				continue
+			var dist := _WeaponIconsScript.aim_distance(from, pos)
+			if dist < 1 or dist > _WorldCreaturesScript.COMBAT_RANGED_RANGE:
+				continue
+			if not combat_shot_reaches(from, pos):
+				continue
+			var better_foe := dist < int(best.dist)
+			if dist == int(best.dist) and (randi() % 2) == 0:
+				better_foe = true
+			if better_foe:
+				best = {"party_i": -1, "foe_i": i, "klass": -1, "pos": pos, "dist": dist}
 	return best
 
 
@@ -2050,6 +2075,48 @@ func _combat_apply_flee_step(
 	_rebuild()
 	out["action"] = "flee"
 	return out
+
+
+func _nearest_combat_opponent_info(from: Vector2i, skip_foe: int, use_chebyshev: bool) -> Dictionary:
+	## xu4 Creature::nearestOpponent. Party is always valid; under Jinx, so are other foes.
+	var best := {
+		"party_i": -1, "foe_i": -1, "klass": -1, "pos": Vector2i(-1, -1), "dist": 1_000_000
+	}
+	for i in _combat_party.size():
+		var p: Dictionary = _combat_party[i]
+		var klass := int(p.get("klass", -1))
+		if klass >= 0 and GameState.is_class_dead(klass):
+			continue
+		var pos := Vector2i(int(p.get("x", 0)), int(p.get("y", 0)))
+		var d := (
+			_WeaponIconsScript.chebyshev(from, pos)
+			if use_chebyshev
+			else _combat_manhattan(from, pos)
+		)
+		var better := d < int(best.dist)
+		if d == int(best.dist) and (randi() % 2) == 0:
+			better = true
+		if better:
+			best = {"party_i": i, "foe_i": -1, "klass": klass, "pos": pos, "dist": d}
+	if GameState.is_aura_jinx():
+		for i in _combat_foes.size():
+			if i == skip_foe:
+				continue
+			var f: Dictionary = _combat_foes[i]
+			if int(f.get("hp", 1)) <= 0:
+				continue
+			var pos := Vector2i(int(f.get("x", 0)), int(f.get("y", 0)))
+			var d := (
+				_WeaponIconsScript.chebyshev(from, pos)
+				if use_chebyshev
+				else _combat_manhattan(from, pos)
+			)
+			var better_foe := d < int(best.dist)
+			if d == int(best.dist) and (randi() % 2) == 0:
+				better_foe = true
+			if better_foe:
+				best = {"party_i": -1, "foe_i": i, "klass": -1, "pos": pos, "dist": d}
+	return best
 
 
 func _nearest_combat_party_info(from: Vector2i, use_chebyshev: bool) -> Dictionary:

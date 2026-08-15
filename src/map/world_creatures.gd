@@ -579,6 +579,8 @@ const _CASTS_SLEEP := {176: true, 252: true} ## Reaper, Balron
 const FLEE_HP := 24
 ## Combat free-aim range (covers 11×11 .CON; player-style aim_distance).
 const COMBAT_RANGED_RANGE := 11
+## xu4 Creature::getDefense — all monsters use a flat 128 (~50% melee connect).
+const CREATURE_DEFENSE := 128
 
 
 static func is_ranged(tile_or_base: int) -> bool:
@@ -691,7 +693,7 @@ static func creature_attack_damage(base_hp: int) -> int:
 
 
 static func creature_attack_hits(defense: int) -> bool:
-	## xu4 attackHit — creature attackBonus 0 vs party armor defense.
+	## xu4 attackHit — creature attackBonus 0 vs party armor / creature defense.
 	return (randi() % 0x100) > defense
 
 

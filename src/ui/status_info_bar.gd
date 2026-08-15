@@ -51,6 +51,11 @@ var _keys_lab: Label
 var _torches_lab: Label
 var _gems_lab: Label
 var _last_drawn_wind: int = -1
+var _aura_lab: Label
+var _aura_host: Control
+var _last_aura_hud := ""
+## Global X of the battlefield's left edge (11-tile field). −1 = unset.
+var _aura_field_global_x := -1.0
 
 
 func _ready() -> void:
@@ -77,6 +82,7 @@ func _process(_delta: float) -> void:
 		wind_dir != GameState.wind_dir
 		or trammel_phase != GameState.trammel_phase
 		or felucca_phase != GameState.felucca_phase
+		or _last_aura_hud != GameState.spell_aura_hud_text()
 	):
 		refresh()
 
@@ -207,14 +213,20 @@ func _build() -> void:
 
 
 func _build_sky_centered() -> void:
+	_aura_host = Control.new()
+	_aura_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_aura_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_aura_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 0)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(_h_spacer())
 	row.add_child(_make_sky_cluster())
 	row.add_child(_h_spacer())
-	add_child(row)
+	_aura_host.add_child(row)
+	_aura_host.add_child(_make_aura_label())
+	add_child(_aura_host)
 
 
 func _build_inventory_centered() -> void:
@@ -237,6 +249,42 @@ func _build_full() -> void:
 	row.add_child(_h_spacer())
 	row.add_child(_make_inventory_cluster())
 	add_child(row)
+
+
+func _make_aura_label() -> Label:
+	## Overlay: "J" / "P" / "Q". World aligns X to the open battlefield's left edge.
+	_aura_lab = Label.new()
+	_aura_lab.add_theme_font_size_override("font_size", 11)
+	_aura_lab.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55, 1))
+	UiTheme.apply_font(_aura_lab)
+	_aura_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_aura_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_aura_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return _aura_lab
+
+
+func set_aura_field_global_x(global_x: float) -> void:
+	## Left edge of the 11-tile field (side-panel seam when those panels are open).
+	_aura_field_global_x = global_x
+	_place_aura_overlay()
+
+
+func _place_aura_overlay() -> void:
+	if _aura_lab == null:
+		return
+	_aura_lab.reset_size()
+	var sz := _aura_lab.get_minimum_size()
+	_aura_lab.size = sz
+	var local_x := 0.0
+	if _aura_field_global_x >= 0.0:
+		var parent_ctl := _aura_lab.get_parent() as Control
+		var origin := parent_ctl.global_position.x if parent_ctl != null else global_position.x
+		local_x = _aura_field_global_x - origin
+	var host_h := _aura_host.size.y if _aura_host != null else size.y
+	_aura_lab.position = Vector2(
+		maxf(local_x, 0.0),
+		floorf((host_h - sz.y) * 0.5)
+	)
 
 
 func _h_spacer() -> Control:
@@ -384,6 +432,11 @@ func refresh() -> void:
 		_torches_lab.text = "%d" % mini(torches, ITEM_MAX)
 	if _gems_lab:
 		_gems_lab.text = "%d" % mini(GameState.gems, ITEM_MAX)
+	_last_aura_hud = GameState.spell_aura_hud_text()
+	if _aura_lab != null:
+		_aura_lab.text = _last_aura_hud
+		_aura_lab.visible = not _last_aura_hud.is_empty()
+		_place_aura_overlay()
 
 
 func _coin_icon() -> Texture2D:
