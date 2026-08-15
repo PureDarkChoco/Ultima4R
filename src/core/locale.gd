@@ -156,6 +156,16 @@ const _T := {
 		"en_us": "© Copyright 1987 Lord British",
 		"ko": "© Copyright 1987 Lord British",
 	},
+	"menu_fan_notice": {
+		"en_u4": "A fan project 2026",
+		"en_us": "A fan project 2026",
+		"ko": "팬 프로젝트 2026",
+	},
+	"menu_version": {
+		"en_u4": "ver %s",
+		"en_us": "ver %s",
+		"ko": "ver %s",
+	},
 	"journey_stub": {
 		"en_u4": "No saved quest yet.",
 		"en_us": "No save file yet — start a new game.",

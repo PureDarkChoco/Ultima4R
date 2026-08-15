@@ -13,6 +13,7 @@ const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
 const ROWS := 25.0
+const APP_DISPLAY_VERSION := "0.5.0"
 
 @onready var _tagline: Label = %Tagline
 @onready var _options_head: Label = %OptionsHead
@@ -52,6 +53,8 @@ func _ready() -> void:
 	UiTheme.style_label(_tagline, 20, UiTheme.TEXT)
 	UiTheme.style_label(_options_head, 18, UiTheme.MUTED)
 	UiTheme.style_label(_copyright, 14, UiTheme.MUTED)
+	_copyright.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_copyright.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	UiTheme.style_label(_hint, 13, UiTheme.MUTED)
 
 	for b in [_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit]:
@@ -196,7 +199,7 @@ func _layout_u4() -> void:
 	_place(_btn_options, 11.0, 20.0, wide, line_h)
 	_place(_btn_licenses, 11.0, 21.0, wide, line_h)
 	_place(_btn_quit, 11.0, 22.0, wide, line_h)
-	_place(_copyright, 5.0, 23.0, wide, line_h)
+	_place(_copyright, 5.0, 23.0, wide, line_h * 2.0)
 	_options_head.visible = false
 	_hint.visible = false
 
@@ -285,8 +288,8 @@ func _layout_menu_in_frame() -> void:
 	_hint.visible = false
 
 	var n_menu := menu_nodes.size()
-	## Leave space under the last action so copyright can sit lower.
-	var menu_block_h := usable_h * 0.82
+	## Leave space under the last action so two-line copyright can sit lower.
+	var menu_block_h := usable_h * 0.76
 	var line_h := menu_block_h / float(n_menu)
 	var font_main := clampi(int(line_h * 0.62), 12, 28)
 	var font_muted := clampi(int(line_h * 0.50), 10, 20)
@@ -304,7 +307,7 @@ func _layout_menu_in_frame() -> void:
 		if node is Button:
 			(node as Button).alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	var copy_h := maxf(line_h * 0.85, font_muted + 4.0)
+	var copy_h := maxf(line_h * 1.55, float(font_muted) * 2.4 + 6.0)
 	_copyright.add_theme_font_size_override("font_size", font_muted)
 	_copyright.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_copyright.anchor_right = 0.0
@@ -314,6 +317,7 @@ func _layout_menu_in_frame() -> void:
 	_copyright.size = Vector2(usable_w, copy_h)
 	_copyright.custom_minimum_size = Vector2(usable_w, copy_h)
 	_copyright.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_copyright.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 
 ## Convert intro logic (640×400) pixel rect → MainMenu local coords.
@@ -501,7 +505,11 @@ func _refresh_text() -> void:
 	_btn_options.text = Locale.t("esc_options_title")
 	_btn_licenses.text = Locale.t("menu_licenses")
 	_btn_quit.text = Locale.t("menu_quit")
-	_copyright.text = Locale.t("menu_copyright")
+	_copyright.text = "%s  ·  %s\n%s" % [
+		Locale.t("menu_copyright"),
+		Locale.t("menu_version", [APP_DISPLAY_VERSION]),
+		Locale.t("menu_fan_notice"),
+	]
 	_hint.text = Locale.t("input_hint_menu") + " · R/J/I/O/A · ⌘F"
 	if _save_panel and _save_panel.is_open():
 		_save_panel.refresh()
