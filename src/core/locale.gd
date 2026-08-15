@@ -1861,6 +1861,51 @@ const _T := {
 		"en_us": "None Left!",
 		"ko": "남은 시약이 없다!",
 	},
+	"cast_title": {
+		"en_u4": "Cast Spell!",
+		"en_us": "Cast Spell!",
+		"ko": "마법 시전!",
+	},
+	"cast_spell": {
+		"en_u4": "Spell: ",
+		"en_us": "Spell: ",
+		"ko": "마법: ",
+	},
+	"cast_named": {
+		"en_u4": "%s!",
+		"en_us": "%s!",
+		"ko": "%s!",
+	},
+	"cast_none_mixed": {
+		"en_u4": "None Mixed!",
+		"en_us": "None Mixed!",
+		"ko": "조합한 마법이 없다!",
+	},
+	"cast_combat_only": {
+		"en_u4": "Combat only!",
+		"en_us": "Combat only!",
+		"ko": "전투에서만 된다!",
+	},
+	"cast_dungeon_only": {
+		"en_u4": "Dungeon only!",
+		"en_us": "Dungeon only!",
+		"ko": "던전에서만 된다!",
+	},
+	"cast_outdoors_only": {
+		"en_u4": "Outdoors only!",
+		"en_us": "Outdoors only!",
+		"ko": "야외에서만 된다!",
+	},
+	"cast_failed": {
+		"en_u4": "Failed!",
+		"en_us": "Failed!",
+		"ko": "실패했다!",
+	},
+	"cast_not_yet": {
+		"en_u4": "Not yet implemented.",
+		"en_us": "Not yet implemented.",
+		"ko": "아직 시전할 수 없다.",
+	},
 	"talk_learned_reagent_mix": {
 		"en_u4": "Thou hast learned a new reagent mixture.",
 		"en_us": "You have learned a new reagent mixture.",

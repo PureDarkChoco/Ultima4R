@@ -8,6 +8,7 @@ extends Control
 ## Preload so world scene parses even if global class cache is stale.
 const _TileRules := preload("res://src/map/tile_rules.gd")
 const _MixPanel := preload("res://src/ui/mix_panel.gd")
+const _CastPanel := preload("res://src/ui/cast_panel.gd")
 const _UsePanel := preload("res://src/ui/use_panel.gd")
 const _UseItems := preload("res://src/core/use_items.gd")
 const _CombatMapData := preload("res://src/map/combat_map_data.gd")
@@ -56,6 +57,7 @@ var _ztats_panel: ZtatsPanel
 var _ready_panel: ReadyPanel
 var _wear_panel: WearPanel
 var _mix_panel # MixPanel — preloaded script instance
+var _cast_panel # CastPanel — preloaded script instance
 var _use_panel # UsePanel — preloaded script instance
 var _locate_label: Label
 var _locate_on := false
@@ -210,6 +212,8 @@ var _mix_stage := 0
 ## Mix opened from gamepad command menu → full A–Z list (no Mix New + letter).
 var _mix_gamepad_requested := false
 var _mix_pad_full_list := false
+## Cast (C): 0 = idle, 1 = pick mixed spell (list or A–Z).
+var _cast_stage := 0
 ## Use (U): 0 = idle, 1 = pick item from list.
 var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
@@ -1703,6 +1707,8 @@ func _prompt_row_text() -> String:
 		return Locale.t("mix_title")
 	if _mix_stage == 3:
 		return Locale.t("mix_for_spell")
+	if _cast_stage == 1:
+		return Locale.t("cast_spell")
 	if _use_stage == 1:
 		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
@@ -2532,7 +2538,7 @@ func _process(delta: float) -> void:
 	if _combat_active:
 		_move_cd = maxf(0.0, _move_cd - delta)
 		_hold_arm = maxf(0.0, _hold_arm - delta)
-		if _ztats_stage == 1 or _ready_stage == 1 or _chest_open_stage == 1:
+		if _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _chest_open_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
@@ -2585,7 +2591,7 @@ func _process(delta: float) -> void:
 	if _journal_focus_active:
 		_tick_journal_browse_nav()
 		return
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
@@ -2600,7 +2606,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -2854,6 +2860,8 @@ func _tick_select_cursor() -> void:
 		_nudge_wear_cursor(step)
 	elif _mix_stage == 1 or _mix_stage == 2:
 		_nudge_mix_cursor(step)
+	elif _cast_stage == 1:
+		_nudge_cast_cursor(step)
 	elif _use_stage == 1:
 		_nudge_use_cursor(step)
 	elif _camp_stage == 3:
@@ -3420,7 +3428,7 @@ func _can_open_command_menu() -> bool:
 	if (
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
 		or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0
-		or _ready_stage != 0 or _wear_stage != 0 or _use_stage != 0
+		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
 		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
 		or _esc_menu_is_open() or _options_panel_is_open()
@@ -4976,6 +4984,9 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 	if _mix_stage != 0:
 		_close_mix(true)
 		return
+	if _cast_stage != 0:
+		_close_cast(true, not _combat_active)
+		return
 	if _save_stage != 0:
 		_cancel_save(true)
 		return
@@ -5107,6 +5118,7 @@ func _handle_panel_toggle() -> void:
 		or _ready_stage != 0
 		or _wear_stage != 0
 		or _mix_stage != 0
+		or _cast_stage != 0
 		or _use_stage != 0
 		or _shrine_session
 		or _shrine_stage != 0
@@ -5256,6 +5268,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.is_pressed():
 				get_viewport().set_input_as_handled()
 			return
+		if _cast_stage != 0:
+			if _handle_cast_input(event):
+				get_viewport().set_input_as_handled()
+			elif event.is_pressed():
+				get_viewport().set_input_as_handled()
+			return
 		if _use_stage != 0:
 			if _handle_use_input(event):
 				get_viewport().set_input_as_handled()
@@ -5342,6 +5360,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _mix_stage != 0:
 		if _handle_mix_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _cast_stage != 0:
+		if _handle_cast_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -5579,6 +5603,8 @@ func _handle_command(cmd: int) -> void:
 		_do_wear()
 	elif cmd == U4Commands.Id.MIX:
 		_do_mix()
+	elif cmd == U4Commands.Id.CAST:
+		_do_cast()
 	elif cmd == U4Commands.Id.USE:
 		_do_use()
 	elif cmd == U4Commands.Id.HOLE_UP:
@@ -5706,7 +5732,7 @@ func _can_open_city_warp() -> bool:
 	if (
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
 		or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0
-		or _ready_stage != 0 or _wear_stage != 0 or _use_stage != 0
+		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
 		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
 		or _esc_menu_is_open() or _options_panel_is_open()
@@ -7482,6 +7508,7 @@ func _do_ready() -> void:
 	_close_ztats(false)
 	_close_wear(false)
 	_close_use(false)
+	_close_cast(false, false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		if _combat_active and not _combat_resolving:
@@ -7791,6 +7818,7 @@ func _do_wear() -> void:
 	_close_ztats(false)
 	_close_ready(false)
 	_close_use(false)
+	_close_cast(false, false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		return
@@ -8030,6 +8058,7 @@ func _do_mix() -> void:
 	_close_ready(false)
 	_close_wear(false)
 	_close_use(false)
+	_close_cast(false, false)
 	_mix_pad_full_list = _mix_gamepad_requested
 	_mix_gamepad_requested = false
 	if not GameState.has_any_reagents():
@@ -8340,6 +8369,160 @@ func _close_mix(show_none: bool) -> void:
 	_finish_party_turn()
 
 
+func _ensure_cast_panel() -> void:
+	if _cast_panel != null:
+		return
+	var host := get_node_or_null("RootCol/MapPane/RightTopPane/RightTopMargin") as Control
+	if host == null:
+		return
+	_cast_panel = _CastPanel.new()
+	_cast_panel.name = "CastPanel"
+	_cast_panel.visible = false
+	_cast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(_cast_panel)
+
+
+func _do_cast() -> void:
+	## xu4 castSpell: "Cast Spell!" then A–Z. Remake also offers a mixed-spell list.
+	_clear_pending_order()
+	_close_ztats(false)
+	_close_ready(false)
+	_close_wear(false)
+	_close_mix(false)
+	_close_use(false)
+	_push_message(Locale.t("cast_title"), false)
+	_ensure_cast_panel()
+	_open_order_roster()
+	if _roster:
+		_roster.visible = false
+	if _ztats_panel:
+		_ztats_panel.close_panel()
+	_cast_stage = 1
+	_reset_hold_state()
+	if _cast_panel:
+		_cast_panel.open_list(true)
+	_layout_prompt_row()
+
+
+func _nudge_cast_cursor(step: int) -> void:
+	if _cast_panel == null:
+		return
+	_cast_panel.nudge_cursor(step)
+
+
+func _handle_cast_input(event: InputEvent) -> bool:
+	if not event.is_pressed():
+		return false
+	if event.is_echo():
+		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_close_cast(true, not _combat_active)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_close_cast(true, not _combat_active)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_cast_cursor()
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_cast_cursor()
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var spell := _spell_id_from_key(ke)
+		if spell >= 0:
+			_try_cast_spell(spell)
+			return true
+		if _is_direction_key(ke):
+			return true
+	return true
+
+
+func _accept_cast_cursor() -> void:
+	if _cast_panel == null:
+		return
+	var spell_id: int = int(_cast_panel.cursor_spell_id())
+	if spell_id < 0:
+		return
+	_try_cast_spell(spell_id)
+
+
+func _try_cast_spell(spell_id: int) -> void:
+	## xu4: print the name, then spellCheckPrerequisites / spellCast.
+	## This slice only handles mixture + wrong-context; real effects come later.
+	if spell_id < 0 or spell_id >= Spells.COUNT:
+		return
+	_push_message(Locale.t("cast_named", [Locale.spell_name(spell_id)]), false)
+	if GameState.mixture_qty(spell_id) <= 0:
+		_push_message(Locale.t("cast_none_mixed"), false)
+		_close_cast(false, true)
+		return
+	var loc_ctx := _spell_location_context()
+	if not Spells.context_ok(spell_id, loc_ctx):
+		## xu4 still spends the mixture, then prints the refined context error.
+		GameState.consume_mixture(spell_id)
+		_push_cast_context_error(Spells.context_error(spell_id))
+		_close_cast(false, true)
+		return
+	_push_message(Locale.t("cast_not_yet"), false)
+	_close_cast(false, false)
+
+
+func _push_cast_context_error(err: int) -> void:
+	match err:
+		Spells.CASTERR_COMBATONLY:
+			_push_message(Locale.t("cast_combat_only"), false)
+			_push_message(Locale.t("cast_failed"), false)
+		Spells.CASTERR_DUNGEONONLY:
+			_push_message(Locale.t("cast_dungeon_only"), false)
+			_push_message(Locale.t("cast_failed"), false)
+		Spells.CASTERR_WORLDMAPONLY:
+			_push_message(Locale.t("cast_outdoors_only"), false)
+			_push_message(Locale.t("cast_failed"), false)
+		_:
+			_push_message(Locale.t("cmd_not_here"), false)
+
+
+func _spell_location_context() -> int:
+	## xu4 Location::context for the current map.
+	if _combat_active:
+		return Spells.CTX_COMBAT
+	if _shrine_session or _shrine_stage != 0:
+		return Spells.CTX_SHRINE
+	if _is_in_city():
+		return Spells.CTX_CITY
+	return Spells.CTX_WORLDMAP
+
+
+func _close_cast(show_none: bool, spend_turn: bool) -> void:
+	var was := _cast_stage
+	if was == 0:
+		if _cast_panel:
+			_cast_panel.close_panel()
+		return
+	_cast_stage = 0
+	if _cast_panel:
+		_cast_panel.close_panel()
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_layout_prompt_row()
+	if show_none:
+		_push_message(Locale.t("cmd_none"), false)
+	if not spend_turn:
+		return
+	if _combat_active:
+		if not _combat_resolving and not _combat_victory_aftermath:
+			_combat_finish_member_turn()
+	else:
+		_finish_party_turn()
+
+
 func _ensure_use_panel() -> void:
 	if _use_panel != null:
 		return
@@ -8360,6 +8543,7 @@ func _do_use() -> void:
 	_close_ready(false)
 	_close_wear(false)
 	_close_mix(false)
+	_close_cast(false, false)
 	if not _UseItems.has_any():
 		_push_message(Locale.t("cmd_use_none"), false)
 		if _combat_active and not _combat_resolving:
@@ -10284,6 +10468,9 @@ func _close_ui_for_death() -> void:
 	_mix_stage = 0
 	if _mix_panel:
 		_mix_panel.close_panel()
+	_cast_stage = 0
+	if _cast_panel:
+		_cast_panel.close_panel()
 	_use_stage = 0
 	if _use_panel:
 		_use_panel.close_panel()
@@ -10440,7 +10627,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -13265,6 +13452,7 @@ func _tick_combat_victory_move() -> void:
 		or _pending_cmd != U4Commands.Id.NONE
 		or _ztats_stage != 0
 		or _ready_stage != 0
+		or _cast_stage != 0
 		or _use_stage != 0
 		or _chest_open_stage != 0
 		or _combat_exit_prompt
@@ -13414,11 +13602,7 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 			U4Commands.Id.ZTATS:
 				_do_ztats()
 			U4Commands.Id.CAST:
-				## Cast UI not ported yet — same stub as explore/combat turn.
-				_push_message(Locale.t("cmd_stub", [
-					U4Commands.letter_for(cmd),
-					U4Commands.label(cmd, lang),
-				]), false)
+				_do_cast()
 			U4Commands.Id.READY:
 				_do_ready()
 			U4Commands.Id.USE:
@@ -13440,11 +13624,7 @@ func _handle_combat_victory_command(cmd: int) -> void:
 		U4Commands.Id.ZTATS:
 			_do_ztats()
 		U4Commands.Id.CAST:
-			## Cast UI not ported yet — same stub as explore/combat turn / keyboard C.
-			_push_message(Locale.t("cmd_stub", [
-				U4Commands.letter_for(cmd),
-				U4Commands.label(cmd, lang),
-			]), false)
+			_do_cast()
 		U4Commands.Id.READY:
 			_do_ready()
 		U4Commands.Id.USE:
@@ -13532,9 +13712,7 @@ func _handle_combat_command(cmd: int) -> void:
 		U4Commands.Id.ZTATS:
 			_do_ztats()
 		U4Commands.Id.CAST:
-			## Cast not fully ported yet — consume the turn like a valid command start.
-			_push_message(Locale.t("cmd_stub", [letter, name]), false)
-			_combat_finish_member_turn()
+			_do_cast()
 		U4Commands.Id.USE:
 			_do_use()
 		U4Commands.Id.PASS:
@@ -14911,7 +15089,7 @@ func _can_open_journal_focus() -> bool:
 	if (
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
 		or _camp_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0
-		or _ready_stage != 0 or _wear_stage != 0 or _use_stage != 0
+		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
 		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
 		or _esc_menu_is_open() or _options_panel_is_open()

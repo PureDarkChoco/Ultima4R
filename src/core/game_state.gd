@@ -508,6 +508,22 @@ func mixture_qty(spell_id: int) -> int:
 	return int(mixtures[spell_id])
 
 
+func consume_mixture(spell_id: int) -> bool:
+	## xu4 spellCast — spend one mixture even when the cast later fails.
+	var qty := mixture_qty(spell_id)
+	if qty <= 0:
+		return false
+	mixtures[spell_id] = qty - 1
+	return true
+
+
+func has_any_mixtures() -> bool:
+	for q in mixtures:
+		if int(q) > 0:
+			return true
+	return false
+
+
 func reagent_qty(reag_id: int) -> int:
 	if reag_id < 0 or reag_id >= reagents.size():
 		return 0

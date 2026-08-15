@@ -71,6 +71,55 @@ const NAMES_KO: Array[String] = [
 	"신속", "부활", "수면", "지진", "언데드", "투시", "바람", "탈출", "상승", "하강",
 ]
 
+## xu4 LocationContext bits (location.h).
+const CTX_WORLDMAP := 0x0001
+const CTX_COMBAT := 0x0002
+const CTX_CITY := 0x0004
+const CTX_DUNGEON := 0x0008
+const CTX_ALTAR_ROOM := 0x0010
+const CTX_SHRINE := 0x0020
+const CTX_ANY := 0xffff
+const CTX_NON_COMBAT := CTX_ANY & ~CTX_COMBAT
+
+## xu4 spells[].context
+const CONTEXT: Array[int] = [
+	CTX_ANY, ## A Awaken
+	CTX_WORLDMAP, ## B Blink
+	CTX_ANY, ## C Cure
+	CTX_ANY, ## D Dispell
+	CTX_COMBAT | CTX_DUNGEON, ## E Energy Field
+	CTX_COMBAT, ## F Fireball
+	CTX_WORLDMAP, ## G Gate
+	CTX_ANY, ## H Heal
+	CTX_COMBAT, ## I Iceball
+	CTX_ANY, ## J Jinx
+	CTX_COMBAT, ## K Kill
+	CTX_DUNGEON, ## L Light
+	CTX_COMBAT, ## M Magic Missile
+	CTX_ANY, ## N Negate
+	CTX_ANY, ## O Open
+	CTX_ANY, ## P Protection
+	CTX_ANY, ## Q Quickness
+	CTX_NON_COMBAT, ## R Resurrect
+	CTX_COMBAT, ## S Sleep
+	CTX_COMBAT, ## T Tremor
+	CTX_COMBAT, ## U Undead
+	CTX_NON_COMBAT, ## V View
+	CTX_WORLDMAP, ## W Winds
+	CTX_DUNGEON, ## X X-it
+	CTX_DUNGEON, ## Y Y-up
+	CTX_DUNGEON, ## Z Z-down
+]
+
+const CASTERR_NOERROR := 0
+const CASTERR_NOMIX := 1
+const CASTERR_MPTOOLOW := 2
+const CASTERR_FAILED := 3
+const CASTERR_WRONGCONTEXT := 4
+const CASTERR_COMBATONLY := 5
+const CASTERR_DUNGEONONLY := 6
+const CASTERR_WORLDMAPONLY := 7
+
 ## Offensive damage (xu4 spellMagicAttack). -1 = none. Equal min/max = fixed.
 ## Magic Missile: classic 16–64 (xu4 call args were swapped).
 const DAMAGE_MIN: Array[int] = [
@@ -113,6 +162,30 @@ static func damage_text(spell_id: int) -> String:
 	if lo == hi:
 		return str(lo)
 	return "%d-%d" % [lo, hi]
+
+
+static func context_of(spell_id: int) -> int:
+	if spell_id < 0 or spell_id >= COUNT:
+		return 0
+	return CONTEXT[spell_id]
+
+
+static func context_ok(spell_id: int, loc_ctx: int) -> bool:
+	## xu4 spellCheckPrerequisites — (location.context & spell.context) != 0
+	return (loc_ctx & context_of(spell_id)) != 0
+
+
+static func context_error(spell_id: int) -> int:
+	## xu4 spellGetErrorMessage — refine WRONGCONTEXT by the spell's own mask.
+	match context_of(spell_id):
+		CTX_COMBAT:
+			return CASTERR_COMBATONLY
+		CTX_DUNGEON:
+			return CASTERR_DUNGEONONLY
+		CTX_WORLDMAP:
+			return CASTERR_WORLDMAPONLY
+		_:
+			return CASTERR_WRONGCONTEXT
 
 
 static func recipe_mask(spell_id: int) -> int:
