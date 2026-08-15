@@ -1125,6 +1125,21 @@ func is_combat_foe_poisoned(index: int) -> bool:
 	return bool(_combat_foes[index].get("poisoned", false))
 
 
+func set_combat_foe_turned(index: int, turned: bool) -> void:
+	## Remake Undead: flee-as-if-low-HP until combat ends. No HP change, no HUD.
+	if index < 0 or index >= _combat_foes.size():
+		return
+	var f: Dictionary = _combat_foes[index]
+	f["turned"] = turned
+	_combat_foes[index] = f
+
+
+func is_combat_foe_turned(index: int) -> bool:
+	if index < 0 or index >= _combat_foes.size():
+		return false
+	return bool(_combat_foes[index].get("turned", false))
+
+
 func damage_combat_foe(index: int, damage: int) -> Dictionary:
 	## Apply damage. Returns { hit, killed, hp, max_hp, tile, xp, dealt, chest }.
 	var out := {
@@ -1621,7 +1636,8 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		out["action"] = "cast_sleep"
 		return out
 	## Low HP — flee toward map edge (xu4 MSTAT_FLEEING, all species).
-	if _WorldCreaturesScript.is_fleeing_hp(hp):
+	## Remake Undead: turned undead flee the same way without an HP drop.
+	if _WorldCreaturesScript.is_fleeing_hp(hp) or is_combat_foe_turned(index):
 		var away := _nearest_combat_opponent_info(from, index, false)
 		if int(away.get("dist", 1_000_000)) >= 1_000_000:
 			return out

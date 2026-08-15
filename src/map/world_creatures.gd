@@ -664,6 +664,12 @@ static func casts_sleep(tile_or_base: int) -> bool:
 	return bool(_CASTS_SLEEP.get(_base_tile(tile_or_base), false))
 
 
+static func is_undead(tile_or_base: int) -> bool:
+	## DOS C_636D / xu4 MATTR_UNDEAD — ghost, phantom, skeleton, liche.
+	var base := _base_tile(tile_or_base)
+	return base == 156 or base == 188 or base == 196 or base == 228
+
+
 static func resists_sleep(tile_or_base: int) -> bool:
 	## DOS C_636D undead + TIL_FC Balron. xu4 getResists() == EFFECT_SLEEP.
 	var base := _base_tile(tile_or_base)

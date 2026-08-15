@@ -25,6 +25,7 @@ const QUICKNESS := 16 ## Q
 const RESURRECT := 17 ## R
 const SLEEP := 18 ## S
 const TREMOR := 19 ## T
+const UNDEAD := 20 ## U
 const VIEW := 21 ## V
 const WINDS := 22 ## W
 
@@ -59,7 +60,7 @@ const PARAM_TYPE: Array[int] = [
 	PARAM_PLAYER, ## R Resurrect
 	PARAM_NONE, ## S Sleep
 	PARAM_NONE, ## T Tremor
-	PARAM_DIR, ## U Undead
+	PARAM_NONE, ## U Undead (xu4 PARAM_NONE; remake: turn-undead flag)
 	PARAM_NONE, ## V View
 	PARAM_DIR, ## W Winds
 	PARAM_NONE, ## X X-it

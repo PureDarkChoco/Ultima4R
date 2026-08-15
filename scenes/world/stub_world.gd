@@ -9442,6 +9442,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.RESURRECT
 		or spell_id == Spells.SLEEP
 		or spell_id == Spells.TREMOR
+		or spell_id == Spells.UNDEAD
 		or spell_id == Spells.VIEW
 		or spell_id == Spells.WINDS
 	)
@@ -9502,6 +9503,8 @@ func _finish_cast_none_spell() -> void:
 			_combat_resolving = false
 			_combat_finish_member_turn()
 			return
+		Spells.UNDEAD:
+			ok = _apply_cast_undead()
 		Spells.VIEW:
 			ok = _apply_cast_view()
 			if ok:
@@ -9609,6 +9612,20 @@ func _apply_cast_tremor(caster: int) -> void:
 			return
 		if _map.is_combat_won():
 			return
+
+
+func _apply_cast_undead() -> bool:
+	## Remake: turn living undead until combat ends. They flee; HP and HUD stay put.
+	if _map == null or not _map.is_in_combat():
+		return false
+	for foe_i in _map.living_combat_foe_indices():
+		var f := _map.get_combat_foe_at(foe_i)
+		if f.is_empty():
+			continue
+		if not _WorldCreaturesScript.is_undead(int(f.get("tile", 0))):
+			continue
+		_map.set_combat_foe_turned(foe_i, true)
+	return true
 
 
 func _finish_cast_open_direct(dir: Vector2i) -> void:
