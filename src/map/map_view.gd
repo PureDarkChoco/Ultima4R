@@ -1590,19 +1590,28 @@ func act_combat_creature_at(index: int) -> Dictionary:
 			var aligned := _combat_is_axis_or_diagonal(from, ranged.pos)
 			if aligned or (randi() % 100) < 40:
 				var shot := _WorldCreaturesScript.resolve_ranged_shot(tid)
-				out["action"] = "ranged"
-				out["to"] = ranged.pos
-				out["party_i"] = ranged.party_i
-				out["foe_i"] = int(ranged.get("foe_i", -1))
-				out["klass"] = ranged.klass
-				out["effect"] = str(shot.get("effect", "damage"))
-				out["miss_tid"] = int(shot.get("miss_tid", _WorldCreaturesScript.TILE_MISS_FLASH))
-				out["hit_tid"] = int(shot.get("hit_tid", _WorldCreaturesScript.TILE_HIT_FLASH))
-				out["leave_tid"] = int(shot.get("leave_tid", -1))
-				return out
+				## DOS: magic-sphere bolts (TIL_4E) are skipped while Negate lasts.
+				var magic_bolt := (
+					int(shot.get("miss_tid", -1)) == _WorldCreaturesScript.TILE_MAGIC_FLASH
+				)
+				if not (GameState.is_aura_negate() and magic_bolt):
+					out["action"] = "ranged"
+					out["to"] = ranged.pos
+					out["party_i"] = ranged.party_i
+					out["foe_i"] = int(ranged.get("foe_i", -1))
+					out["klass"] = ranged.klass
+					out["effect"] = str(shot.get("effect", "damage"))
+					out["miss_tid"] = int(shot.get("miss_tid", _WorldCreaturesScript.TILE_MISS_FLASH))
+					out["hit_tid"] = int(shot.get("hit_tid", _WorldCreaturesScript.TILE_HIT_FLASH))
+					out["leave_tid"] = int(shot.get("leave_tid", -1))
+					return out
 			## 60% off-axis: skip the shot and fall through to advance.
-	## 1/4: cast sleep (Reaper / Balron) when not ranging.
-	if _WorldCreaturesScript.casts_sleep(tid) and (randi() % 4) == 0:
+	## 1/4: cast sleep (Reaper / Balron) when not ranging. Negate blocks this.
+	if (
+		_WorldCreaturesScript.casts_sleep(tid)
+		and not GameState.is_aura_negate()
+		and (randi() % 4) == 0
+	):
 		out["action"] = "cast_sleep"
 		return out
 	## Low HP — flee toward map edge (xu4 MSTAT_FLEEING, all species).

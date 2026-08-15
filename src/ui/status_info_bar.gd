@@ -252,7 +252,7 @@ func _build_full() -> void:
 
 
 func _make_aura_label() -> Label:
-	## Overlay: "J" / "P" / "Q". World aligns X to the open battlefield's left edge.
+	## Overlay: "J" / "N" / "P" / "Q". World aligns X to the open battlefield's left edge.
 	_aura_lab = Label.new()
 	_aura_lab.add_theme_font_size_override("font_size", 11)
 	_aura_lab.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55, 1))

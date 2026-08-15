@@ -116,7 +116,8 @@ const CAMP_HEAL_INTERVAL := 100
 const TILE_CORPSE := 56
 
 ## Party-wide timed effects. Jinx / Protection / Quickness stack (one of each);
-## a caster may sustain only one of those three. Horn / Negate are independent.
+## a caster may sustain only one of those three. Negate clears those three and
+## blocks magic for its duration. Horn is independent.
 ## Not saved.
 enum AuraType {
 	NONE = 0,
@@ -2245,14 +2246,24 @@ func add_item_flag(flag: int) -> void:
 
 
 func set_aura(t: int, duration: int, caster: int = -1) -> void:
-	## Horn / Negate stack beside spell auras. J/P/Q: one of each type; one per caster.
+	## Horn stacks beside spell auras. J/P/Q: one of each type; one per caster.
+	## Negate drops J/P/Q and then lasts on its own (Horn stays).
 	if t == AuraType.NONE:
 		clear_aura()
 		return
 	if duration <= 0:
 		_clear_aura_type(t)
 		return
+	if t == AuraType.NEGATE:
+		for spell_t in SPELL_AURA_TYPES:
+			_clear_aura_type(spell_t)
+		_aura_duration[t] = duration
+		_aura_caster.erase(t)
+		_aura_grace[t] = true
+		return
 	if _is_spell_aura(t):
+		if is_aura_negate():
+			return
 		if caster >= 0:
 			_clear_caster_spell_auras(caster)
 		_aura_duration[t] = duration
@@ -2290,6 +2301,11 @@ func is_aura_horn() -> bool:
 	return is_aura(AuraType.HORN)
 
 
+func is_aura_negate() -> bool:
+	## DOS spell_sta == 'N' — no new spells; no magic-sphere shots / sleep casts.
+	return is_aura(AuraType.NEGATE)
+
+
 func is_aura_jinx() -> bool:
 	## Creatures may target any other creature (party or foe), not just the party.
 	return is_aura(AuraType.JINX)
@@ -2311,10 +2327,12 @@ func creature_hits_party_member(klass: int) -> bool:
 
 
 func spell_aura_hud_text() -> String:
-	## Sky-bar chips: "J" / "J  P  Q". Letter only — no remaining turns.
+	## Sky-bar chips: "J" / "N" / "J  P  Q". Letter only — no remaining turns.
 	var parts: PackedStringArray = []
 	if is_aura(AuraType.JINX):
 		parts.append("J")
+	if is_aura(AuraType.NEGATE):
+		parts.append("N")
 	if is_aura(AuraType.PROTECTION):
 		parts.append("P")
 	if is_aura(AuraType.QUICKNESS):

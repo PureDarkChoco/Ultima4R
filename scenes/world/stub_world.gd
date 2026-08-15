@@ -2319,7 +2319,7 @@ func _layout_side_panels(animate: bool) -> void:
 
 
 func _sync_aura_hud_pos() -> void:
-	## Pin J/P/Q to the 11-tile battlefield's left edge (left panel seam when open).
+	## Pin J/N/P/Q to the 11-tile battlefield's left edge (left panel seam when open).
 	if _top_bar == null or _map_pane == null:
 		return
 	if not _top_bar.has_method("set_aura_field_global_x"):
@@ -9059,6 +9059,10 @@ func _finish_cast_aim_spell() -> void:
 		_close_cast(false, true)
 		return
 	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _cast_blocked_by_negate():
+		_clear_cast_aim_cursor()
+		_close_cast(false, true)
+		return
 	_clear_cast_aim_cursor()
 	_close_cast(false, false)
 	_combat_resolving = true
@@ -9172,6 +9176,9 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 		_close_cast(false, true)
 		return
 	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _cast_blocked_by_negate():
+		_close_cast(false, true)
+		return
 	var ok := false
 	match spell_id:
 		Spells.BLINK:
@@ -9211,6 +9218,9 @@ func _finish_cast_phase_spell(phase: int) -> void:
 		_close_cast(false, true)
 		return
 	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _cast_blocked_by_negate():
+		_close_cast(false, true)
+		return
 	if _enter_btn_row != null:
 		_enter_btn_row.visible = false
 	await _apply_cast_gate(phase)
@@ -9388,6 +9398,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.ICEBALL
 		or spell_id == Spells.JINX
 		or spell_id == Spells.MAGIC_MISSILE
+		or spell_id == Spells.NEGATE
 		or spell_id == Spells.PROTECTION
 		or spell_id == Spells.QUICKNESS
 		or spell_id == Spells.RESURRECT
@@ -9410,10 +9421,15 @@ func _finish_cast_none_spell() -> void:
 		_close_cast(false, true)
 		return
 	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _cast_blocked_by_negate():
+		_close_cast(false, true)
+		return
 	var ok := false
 	match spell_id:
 		Spells.JINX:
 			ok = _apply_cast_jinx()
+		Spells.NEGATE:
+			ok = _apply_cast_negate()
 		Spells.PROTECTION:
 			ok = _apply_cast_protection()
 		Spells.QUICKNESS:
@@ -9429,6 +9445,20 @@ func _apply_cast_jinx() -> bool:
 	## Jinx for 10 turns. Remembers caster; drops that caster's other J/P/Q.
 	var caster := GameState.party_member_at(_cast_caster_slot)
 	GameState.set_aura(GameState.AuraType.JINX, GameState.AURA_SPELL_TURNS, caster)
+	return true
+
+
+func _apply_cast_negate() -> bool:
+	## DOS SPL_Negate — spell_sta = 'N' for 10 turns; drops J/P/Q.
+	GameState.set_aura(GameState.AuraType.NEGATE, GameState.AURA_SPELL_TURNS)
+	return true
+
+
+func _cast_blocked_by_negate() -> bool:
+	## DOS C_63B4 — after MP spend, Negate makes the effect fail.
+	if not GameState.is_aura_negate():
+		return false
+	_push_message(Locale.t("cast_failed"), false)
 	return true
 
 
@@ -9467,6 +9497,9 @@ func _finish_cast_player_spell(target_slot: int) -> void:
 		_close_cast(false, true)
 		return
 	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _cast_blocked_by_negate():
+		_close_cast(false, true)
+		return
 	var target := GameState.party_member_at(target_slot)
 	if _apply_cast_player_spell(spell_id, target):
 		_refresh_party()
