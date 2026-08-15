@@ -45,7 +45,7 @@ const COMPANION_NAMES := [
 ]
 ## Korean display names (talk locale / party roster when language is ko).
 const COMPANION_NAMES_KO := [
-	"머라이어", "아이올로", "제프리", "자나",
+	"머라이어", "이올로", "제프리", "자나",
 	"줄리아", "듀프리", "샤미노", "카트리나",
 ]
 
