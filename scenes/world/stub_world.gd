@@ -11409,12 +11409,16 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	## Chest Open waits on "Who opens?" — turn finishes after the pick.
 	if _chest_open_stage != 0:
 		return
-	## Victory aftermath: free map — directed Open/Get must not start turn coroutines.
+	## Victory aftermath: no foe clock; party-mode Open/Get still pass focus.
 	if _combat_active and _combat_victory_aftermath:
+		if result.is_empty() or result == Locale.t("cmd_opened"):
+			_victory_advance_party_focus()
 		return
 	## Combat arena: directed action spends the current member (not party clock).
+	## Call without await so the turn coroutine is not nested under this input
+	## handler (same as Pass / Ready / Cast).
 	if _combat_active:
-		await _combat_finish_member_turn()
+		_combat_finish_member_turn()
 		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	await _finish_party_turn()
@@ -15476,12 +15480,14 @@ func _do_open(dir: Vector2i) -> String:
 				opener_klass = GameState.party_member_at(slot)
 			_push_message(Locale.t("cmd_opened"), false)
 			_resolve_chest_trap(slot, opener_klass)
+			_finish_action_turn()
 			return ""
 		if _TileRules.is_locked_door(ctid):
 			return Locale.t("cmd_cant")
 		if _TileRules.is_door(ctid):
 			if _map.open_combat_door(ctarget):
 				AudioSfx.play_door()
+				_finish_action_turn()
 				return Locale.t("cmd_opened")
 			return Locale.t("cmd_nothing_to_open")
 		return Locale.t("cmd_nothing_to_open")
@@ -15702,6 +15708,7 @@ func _do_get_chest(dir: Vector2i) -> String:
 		var msg := GameState.apply_chest_loot_entry(entry)
 		_refresh_inventory_bars()
 		_push_message(msg, false)
+		_finish_action_turn()
 		return ""
 	if not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return Locale.t("cmd_not_here")
