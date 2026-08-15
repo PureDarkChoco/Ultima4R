@@ -3639,6 +3639,24 @@ func _sync_talk_keyword_menu_scroll() -> void:
 	)
 
 
+func _talk_can_toggle_pad_select_ui() -> bool:
+	## NPC / LB / Hawkwind keyword or Y/N. Not shop, not "press any key".
+	return _talk_stage in [1, 3, 11, 12, 13]
+
+
+func _toggle_talk_pad_select_ui() -> bool:
+	if not _talk_can_toggle_pad_select_ui():
+		return false
+	if _talk_keyword_menu_active:
+		_end_talk_keyword_menu()
+		_layout_prompt_row()
+		return true
+	_talk_gamepad_requested = true
+	_begin_talk_keyword_menu_if_requested()
+	_layout_prompt_row()
+	return true
+
+
 func _begin_talk_keyword_menu_if_requested() -> void:
 	if not _talk_gamepad_requested:
 		return
@@ -5035,6 +5053,9 @@ func _input(event: InputEvent) -> void:
 	if _death_busy:
 		get_viewport().set_input_as_handled()
 		return
+	if _try_toggle_pad_select_ui(event):
+		get_viewport().set_input_as_handled()
+		return
 	if (
 		_command_menu_open
 		and event is InputEventKey
@@ -5600,6 +5621,26 @@ func _ensure_peer_overlay() -> void:
 	_peer_overlay = PeerGemOverlay.new()
 	_peer_overlay.name = "PeerGemOverlay"
 	_map_pane.add_child(_peer_overlay)
+
+
+func _is_option_alt_key(event: InputEvent) -> bool:
+	## Option (macOS) / Alt — summon the gamepad select UI during talk or Mix.
+	if not (event is InputEventKey):
+		return false
+	var k := event as InputEventKey
+	if not k.pressed or k.echo:
+		return false
+	return k.keycode == KEY_ALT or k.physical_keycode == KEY_ALT
+
+
+func _try_toggle_pad_select_ui(event: InputEvent) -> bool:
+	if not _is_option_alt_key(event):
+		return false
+	if _talk_stage != 0:
+		return _toggle_talk_pad_select_ui()
+	if _mix_stage != 0:
+		return _toggle_mix_pad_select_ui()
+	return false
 
 
 func _is_mod_chord_key(event: InputEventKey) -> bool:
@@ -8016,11 +8057,30 @@ func _nudge_mix_cursor(step: int) -> void:
 	_mix_panel.nudge_cursor(step)
 
 
+func _toggle_mix_pad_select_ui() -> bool:
+	## List / letter-wait only. Reagent pick stays on the current spell.
+	if _mix_stage != 1 and _mix_stage != 3:
+		return false
+	var spell_id := -1
+	if _mix_panel:
+		var row_id: int = int(_mix_panel.cursor_list_id())
+		if row_id >= 0:
+			spell_id = row_id
+	_mix_pad_full_list = not _mix_pad_full_list
+	_mix_stage = 1
+	if _mix_panel:
+		_mix_panel.open_list(_mix_pad_full_list, spell_id)
+	_layout_prompt_row()
+	return true
+
+
 func _handle_mix_input(event: InputEvent) -> bool:
 	if not event.is_pressed():
 		return false
 	if event.is_echo():
 		return false
+	if _try_toggle_pad_select_ui(event):
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
