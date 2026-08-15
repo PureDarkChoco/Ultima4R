@@ -70,6 +70,14 @@ static func topic_aliases(en_name: String) -> PackedStringArray:
 	return out
 
 
+static func topic_label(en_name: String) -> String:
+	if is_korean() and TOPIC_ALIAS.has(en_name):
+		var aliases: Variant = TOPIC_ALIAS[en_name]
+		if typeof(aliases) == TYPE_ARRAY and not aliases.is_empty():
+			return str(aliases[0])
+	return en_name
+
+
 static func rumor(en: String) -> String:
 	if not is_korean():
 		return en

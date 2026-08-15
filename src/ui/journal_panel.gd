@@ -314,6 +314,8 @@ func refresh(journal_visible: bool = false) -> void:
 	_header_nodes.clear()
 	_nav_ids.clear()
 	var gs = _game_state()
+	if gs != null:
+		_Journal.mark_goals_for_inventory(gs)
 	var groups := _Journal.grouped_for_ui(gs)
 	var lang := "en_us"
 	if gs != null:

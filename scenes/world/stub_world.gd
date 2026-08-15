@@ -27,6 +27,7 @@ const _TalkTlk := preload("res://src/core/talk_tlk.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
 const _VendorShop := preload("res://src/core/vendor_shop.gd")
+const _VendorLocale := preload("res://src/core/vendor_locale.gd")
 const _CombatMaps := preload("res://src/map/combat_maps.gd")
 const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
 const _ShrinePortals := preload("res://src/map/shrine_portals.gd")
@@ -3671,8 +3672,14 @@ func _sync_talk_keyword_menu_scroll() -> void:
 
 
 func _talk_can_toggle_pad_select_ui() -> bool:
-	## NPC / LB / Hawkwind keyword or Y/N. Not shop, not "press any key".
-	return _talk_stage in [1, 3, 11, 12, 13]
+	## NPC / LB / Hawkwind keyword or Y/N. Tavern tip topics after an ale.
+	if _talk_stage in [1, 3, 11, 12, 13]:
+		return true
+	return (
+		_talk_stage == 10
+		and _shop != null
+		and bool(_shop.is_tavern_topic_prompt())
+	)
 
 
 func _toggle_talk_pad_select_ui() -> bool:
@@ -3680,6 +3687,10 @@ func _toggle_talk_pad_select_ui() -> bool:
 		return false
 	if _talk_keyword_menu_active:
 		_end_talk_keyword_menu()
+		_layout_prompt_row()
+		return true
+	if _talk_stage == 10 and _shop != null and bool(_shop.is_tavern_topic_prompt()):
+		_sync_tavern_topic_keyword_menu()
 		_layout_prompt_row()
 		return true
 	_talk_gamepad_requested = true
@@ -3850,7 +3861,76 @@ func _end_talk_keyword_menu() -> void:
 
 
 func _talk_keyword_menu_can_select() -> bool:
-	return _talk_keyword_menu_active and _talk_stage in [1, 11, 12]
+	if not _talk_keyword_menu_active:
+		return false
+	if _talk_stage in [1, 11, 12]:
+		return true
+	return (
+		_talk_stage == 10
+		and _shop != null
+		and bool(_shop.is_tavern_topic_prompt())
+	)
+
+
+func _tavern_topic_unlocked(en_name: String) -> bool:
+	var want := en_name.strip_edges().to_lower()
+	if want.is_empty():
+		return false
+	if want == "sextant":
+		if GameState.journal_has_id("jhelom.senora.sextant"):
+			return true
+	for alias in _tavern_topic_aliases(en_name):
+		if GameState.talk_has_heard_word(str(alias)):
+			return true
+	return false
+
+
+func _tavern_topic_aliases(en_name: String) -> PackedStringArray:
+	return _VendorLocale.topic_aliases(en_name)
+
+
+func _tavern_topic_keyword_items() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if _shop == null:
+		return out
+	for raw in _shop.tavern_topics():
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var name := str((raw as Dictionary).get("name", "")).strip_edges()
+		if name.is_empty() or not _tavern_topic_unlocked(name):
+			continue
+		var label := _VendorLocale.topic_label(name)
+		out.append({
+			"key": name,
+			"label": label.capitalize() if GameState.lang_short() != "ko" else label,
+			"input": label,
+			"revealed": true,
+		})
+	return out
+
+
+func _sync_tavern_topic_keyword_menu() -> void:
+	if _shop == null or not bool(_shop.is_tavern_topic_prompt()):
+		if _talk_keyword_menu_active and _talk_stage == 10:
+			_end_talk_keyword_menu()
+		return
+	var items := _tavern_topic_keyword_items()
+	if items.is_empty():
+		if _talk_keyword_menu_active:
+			_end_talk_keyword_menu()
+		return
+	_talk_keyword_menu_active = true
+	_talk_keyword_menu_items = items
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
+	_talk_keyword_menu_seen.clear()
+	for item in items:
+		_remember_talk_keyword_menu_word(str(item.get("key", "")))
+		_remember_talk_keyword_menu_word(str(item.get("input", "")))
+	_sync_talk_keyword_menu_scroll()
+	_talk_keyword_menu_await_neutral = true
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
 
 
 func _sync_talk_keyword_menu_visibility() -> void:
@@ -4197,15 +4277,31 @@ func _maybe_offer_moonglow_chain_keyword() -> void:
 	)
 
 
+func _talk_keyword_menu_focus_key(want: String) -> void:
+	if want.is_empty() or _talk_keyword_menu_items.is_empty():
+		return
+	for i in _talk_keyword_menu_items.size():
+		var key := str(_talk_keyword_menu_items[i].get("key", ""))
+		if key == want or _talk_stored_key_matches(want, key):
+			_talk_keyword_menu_cursor = i
+			_sync_talk_keyword_menu_scroll()
+			return
+
+
 func _maybe_offer_jhelom_chain_keyword() -> void:
 	## Jhelom name-directed tips: Nostro (rune) / Aesop (mantra).
 	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "jhelom":
 		return
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
 	var korean := GameState.lang_short() == "ko"
 	if (
 		npc == "nostro"
-		and GameState.journal_has_id("jhelom.robert.nostro-rune")
+		and (
+			GameState.journal_has_id("jhelom.robert.nostro-rune")
+			or GameState.journal_has_id("jhelom.nostro.valor-rune")
+		)
 	):
 		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
 		_offer_talk_keyword_item(
@@ -4632,8 +4728,7 @@ func _maybe_offer_paws_chain_keyword() -> void:
 
 
 func _offer_named_npc_journal_keywords() -> void:
-	## Directed journal clues become selectable only after this NPC's name
-	## has actually been spoken in the current conversation.
+	## Directed journal clues unlock after this NPC gives their name.
 	_maybe_offer_azure_rune_keyword()
 	_maybe_offer_mischief_rune_keyword()
 	_maybe_offer_alkerion_stone_keyword()
@@ -11364,6 +11459,8 @@ func _flush_shop_output() -> void:
 		return
 	_talk_buffer = ""
 	_sync_shop_item_menu()
+	_sync_tavern_topic_keyword_menu()
+	_refresh_journal_panel()
 	if int(_shop.mode) == _VendorShop.Mode.NUMBER:
 		_talk_buffer = "0"
 		_GameInput.reset_stick_navigation()
@@ -11679,6 +11776,7 @@ func _end_shop() -> void:
 	_shop_item_menu_line_indices.clear()
 	_shop_item_line_by_key.clear()
 	_shop_item_menu_cursor = 0
+	_end_talk_keyword_menu()
 	_shop = null
 	_talk_stage = 0
 	_talk_buffer = ""
@@ -11699,6 +11797,7 @@ func _end_shop() -> void:
 		if _map != null:
 			_map.set_transport_tile(_transport_tile)
 	_clear_shop_character_inv()
+	_refresh_journal_panel()
 	_close_talk_message_panel()
 	_layout_prompt_row()
 	_refresh_inventory_bars()
@@ -11925,7 +12024,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	## Otherwise leave Name selected so the player can ask who they are.
 	if _talk_keyword_menu_active:
 		var default_key := "job" if introduced_name else "name"
-		## Only a named NPC may expose journal-directed topic shortcuts.
+		## Journal shortcuts after this NPC has given their name.
 		if introduced_name:
 			if (
 				str(entry.name).strip_edges().to_lower() == "azure"
@@ -12214,10 +12313,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 				default_key = _talk_keyword_stable_key(
 					"오브" if GameState.lang_short() == "ko" else "orbs"
 				)
-		for i in _talk_keyword_menu_items.size():
-			if str(_talk_keyword_menu_items[i].get("key", "")) == default_key:
-				_talk_keyword_menu_cursor = i
-				break
+		_talk_keyword_menu_focus_key(default_key)
 		_layout_command_menu_layer()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
@@ -13139,6 +13235,8 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes and npc_key == "senora":
 		if GameState.journal_try_capture_talk("jhelom", "Senora", "CRIM_YES"):
 			journal_changed = true
+		GameState.talk_remember_heard_word("sextant")
+		GameState.talk_remember_heard_word("육분의")
 	## Gravnor (Jhelom): No after "Dost thou have it?" names Destard and the red stone.
 	if not yes and npc_key == "gravnor":
 		if GameState.journal_try_capture_talk("jhelom", "Gravnor", "STON_NO"):

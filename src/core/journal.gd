@@ -305,6 +305,13 @@ static func _catalog_skip_if_recorded(gs: Node, cat: Dictionary) -> bool:
 	return not sid.is_empty() and has_entry_id(gs, sid)
 
 
+static func _catalog_has_complete_if_recorded(cat: Dictionary) -> bool:
+	var raw: Variant = cat.get("complete_if_recorded", "")
+	if typeof(raw) == TYPE_ARRAY:
+		return not raw.is_empty()
+	return not str(raw).strip_edges().is_empty()
+
+
 static func _catalog_completion_recorded(gs: Node, cat: Dictionary) -> bool:
 	var raw: Variant = cat.get("complete_if_recorded", "")
 	if typeof(raw) == TYPE_ARRAY:
@@ -383,8 +390,6 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		if typeof(row) != TYPE_DICTIONARY:
 			continue
 		var d: Dictionary = row
-		if bool(d.get("done", false)):
-			continue
 		var goal := str(d.get("goal", ""))
 		var met := not goal.is_empty() and goal_already_met(gs, goal)
 		var cat := find_catalog_by_id(str(d.get("id", "")))
@@ -396,13 +401,63 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 			met = true
 		if _catalog_completion_recorded(gs, cat):
 			met = true
-		if not met:
+		if met:
+			if not bool(d.get("done", false)):
+				d["done"] = true
+				rows[i] = d
+				changed = true
 			continue
-		d["done"] = true
-		rows[i] = d
-		changed = true
+		if _reconcile_pending_action_goal(gs, d, cat):
+			rows[i] = d
+			changed = true
 	if changed:
 		gs.journal_entries = rows
+	return changed
+
+
+static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dictionary) -> bool:
+	## Search / ask tips must stay pending until the action. Old complete-on-record
+	## rows (empty stored goal) are migrated to the catalog goal.
+	if cat.is_empty():
+		return false
+	var catalog_goal := str(cat.get("goal", "")).strip_edges()
+	var complete_on_goal := str(cat.get("complete_on_goal", "")).strip_edges()
+	var old_goal := str(row.get("goal", "")).strip_edges()
+	var changed := false
+	if old_goal != catalog_goal:
+		row["goal"] = catalog_goal
+		changed = true
+	var inventory_done := (
+		(not catalog_goal.is_empty() and goal_already_met(gs, catalog_goal))
+		or (not complete_on_goal.is_empty() and goal_already_met(gs, complete_on_goal))
+		or _catalog_completion_recorded(gs, cat)
+	)
+	if (
+		catalog_goal.begins_with("rune:")
+		or catalog_goal.begins_with("stone:")
+	):
+		if bool(row.get("done", false)) != inventory_done:
+			row["done"] = inventory_done
+			return true
+		return changed
+	if catalog_goal.begins_with("ask:"):
+		if inventory_done and not bool(row.get("done", false)):
+			row["done"] = true
+			return true
+		## Heard-as-complete (no stored goal) → pending until the ask / item.
+		if old_goal.is_empty() and bool(row.get("done", false)) and not inventory_done:
+			row["done"] = false
+			return true
+		## Follow-up talk is the real ask. After dropping a rune/item
+		## complete_on_goal, reopen until that conversation is recorded.
+		if (
+			bool(row.get("done", false))
+			and not inventory_done
+			and complete_on_goal.is_empty()
+			and _catalog_has_complete_if_recorded(cat)
+		):
+			row["done"] = false
+			return true
 	return changed
 
 
@@ -425,6 +480,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "join:jaana":
 		## Recruited Jaana. Same-class refusal is marked at the join attempt.
 		return gs.is_person_joined("Jaana")
+	if g == "item:sextant" or g == "sextant":
+		return bool(gs.has_sextant)
 	## talk:first-note / combat:first complete only when the event fires.
 	## mantra:* is a shrine fallback for ask-tips (complete_on_goal), not a pending knowledge goal.
 	return false

@@ -499,7 +499,6 @@
       "chain_order": 10,
       "goal": "ask:nostro-rune",
       "complete_if_recorded": "jhelom.nostro.valor-rune",
-      "complete_on_goal": "rune:valor",
       "en": "Ask Nostro about the rune.",
       "ko": "노스트로에게 룬에 대해 묻기",
       "en_u4": "Ask Nostro of the rune.",
@@ -513,10 +512,10 @@
       "chain": "jhelom.valor-rune",
       "chain_order": 20,
       "goal": "rune:valor",
-      "en": "Search in a tower.",
-      "ko": "탑에서 찾기",
-      "en_u4": "Search in a tower.",
-      "en_us": "Search in a tower."
+      "en": "Search for the rune in a tower.",
+      "ko": "탑에서 룬 찾기",
+      "en_u4": "Search for the rune in a tower.",
+      "en_us": "Search for the rune in a tower."
     },
     {
       "id": "jhelom.hrothgar.aesop-mantra",
@@ -550,6 +549,8 @@
       "place": "jhelom",
       "npc": "Senora",
       "topic": "CRIM_YES",
+      "goal": "ask:barkeep-sextant",
+      "complete_on_goal": "item:sextant",
       "en": "Ask the barkeep about the sextant.",
       "ko": "술집 주인에게 육분의에 대해 묻기",
       "en_u4": "Ask the barkeep of the sextant.",

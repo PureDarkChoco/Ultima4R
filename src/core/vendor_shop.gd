@@ -276,6 +276,14 @@ func is_sell_letter_pick() -> bool:
 	return _phase == "w_sell_key" or _phase == "a_sell_key"
 
 
+func is_tavern_topic_prompt() -> bool:
+	return mode == Mode.TEXT and _phase == "t_topic"
+
+
+func tavern_topics() -> Array:
+	return _topics.duplicate()
+
+
 func item_list_entries() -> Array[Dictionary]:
 	## Buy catalogs that may be navigated with ↑↓ and accepted with Enter / A.
 	var entries: Array[Dictionary] = []
@@ -1198,6 +1206,9 @@ func _t_topic(raw: String) -> void:
 	_topic_key = str(hit["name"])
 	_topic_need = int(hit["need"])
 	_price = _topic_need
+	if _topic_key == "sextant":
+		GameState.journal_mark_id("jhelom.senora.sextant")
+		GameState.journal_mark_goal("ask:barkeep-sextant")
 	_t_foggy()
 
 
@@ -1670,6 +1681,7 @@ func _on_g_buy(c0: String) -> void:
 			GameState.keys = mini(99, GameState.keys + _quant)
 		"sextant":
 			GameState.has_sextant = true
+			GameState.journal_mark_goal("item:sextant")
 	_say(_L("%s says: See\nmore? (Y/N)") % _owner)
 	_want_choice("yn", "g_more")
 
