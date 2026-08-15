@@ -2446,6 +2446,15 @@ func moongate_tile_at(tile: Vector2i) -> int:
 	return _moongate_tid
 
 
+func peer_moongate() -> Vector3i:
+	## Visible moongate as (x, y, tid). z = -1 if none or fully sunk.
+	if _moongate_tid < 0:
+		return Vector3i(0, 0, -1)
+	if _moongate_height_px <= 0 and _moongate_height_px_target <= 0:
+		return Vector3i(0, 0, -1)
+	return Vector3i(_moongate_pos.x, _moongate_pos.y, _moongate_tid)
+
+
 func play_spell_flash(duration: float = SPELL_FLASH_SEC) -> void:
 	## xu4 mapArea.highlight — brief invert/white flash (non-blocking).
 	_spell_flash_dur = maxf(duration, 0.05)

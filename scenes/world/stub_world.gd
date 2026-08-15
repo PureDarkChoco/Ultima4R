@@ -6366,7 +6366,7 @@ func _open_peer_view() -> bool:
 			_format_u4_sextant(_tile_pos.x),
 			_format_u4_sextant(_tile_pos.y),
 		]
-	_peer_overlay.open_peer(_world, _tile_pos, tile_sz, loc)
+	_peer_overlay.open_peer(_world, _tile_pos, tile_sz, loc, _map)
 	return true
 
 

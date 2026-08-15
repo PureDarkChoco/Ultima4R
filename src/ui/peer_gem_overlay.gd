@@ -19,6 +19,10 @@ const AVATAR_GEM_TILE := 31
 const CLASS_TILE_EVEN := [32, 34, 36, 38, 40, 42, 44, 46]
 ## Gem sheet only has 0–127; ghosts etc. still need a visible person chip.
 const TILE_CITIZEN := 82
+const TILE_SHIP_WEST := 16
+const TILE_PIRATE := 128
+const WORLD_W := 256
+const WORLD_H := 256
 const INNER_PAD := 6
 const BORDER_W := 2
 ## Dim the explore map under the popup so the gem draws the eye.
@@ -56,12 +60,13 @@ func open_peer(
 	world, ## WorldMapData
 	center: Vector2i,
 	tile_size: Vector2,
-	loc_text: String = ""
+	loc_text: String = "",
+	map_view = null ## MapView — overlays, moongate, creatures
 ) -> void:
 	if world == null or not world.loaded:
 		return
 	_ensure_buffers()
-	_blit_gem_map(world, center)
+	_blit_gem_map(world, center, map_view)
 	_layout_panel(tile_size)
 	_set_loc_text(loc_text)
 	_open = true
@@ -180,7 +185,7 @@ func _party_gem_tile() -> int:
 	return AVATAR_GEM_TILE
 
 
-func _blit_gem_map(world: WorldMapData, center: Vector2i) -> void:
+func _blit_gem_map(world: WorldMapData, center: Vector2i, map_view = null) -> void:
 	if _buf == null or _gem_sheet == null or _gem_sheet.is_empty():
 		return
 	_buf.fill(Color(0, 0, 0, 1))
@@ -191,10 +196,19 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i) -> void:
 		for gx in GEM_VIEW_W:
 			var wx := center.x + gx - half_x
 			var wy := center.y + gy - half_y
-			var tid := world.tile_at(wx, wy)
-			if gx == half_x and gy == half_y:
-				tid = _party_gem_tile()
-			_blit_gem_cell(gx, gy, tid)
+			_blit_gem_cell(gx, gy, world.tile_at(wx, wy))
+	if map_view != null:
+		if map_view.has_method("get_overlays"):
+			for item in map_view.get_overlays():
+				_blit_world_object(Vector2i(int(item.x), int(item.y)), int(item.z), center)
+		if map_view.has_method("peer_moongate"):
+			var gate: Vector3i = map_view.peer_moongate()
+			if gate.z >= 0:
+				_blit_world_object(Vector2i(gate.x, gate.y), gate.z, center)
+		if map_view.has_method("get_creatures"):
+			for c in map_view.get_creatures():
+				_blit_world_object(Vector2i(int(c.x), int(c.y)), int(c.tid), center)
+	_blit_gem_cell(half_x, half_y, _party_gem_tile())
 	_tex.update(_buf)
 
 
@@ -226,6 +240,50 @@ func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 	if party_pos.x >= 0 and party_pos.x < city_w and party_pos.y >= 0 and party_pos.y < city_h:
 		_blit_gem_actor(origin_x + party_pos.x, origin_y + party_pos.y, _party_gem_tile())
 	_tex.update(_buf)
+
+
+func _wrap_delta(from: Vector2i, to: Vector2i) -> Vector2i:
+	var dx := to.x - from.x
+	var dy := to.y - from.y
+	if dx > WORLD_W / 2:
+		dx -= WORLD_W
+	elif dx < -WORLD_W / 2:
+		dx += WORLD_W
+	if dy > WORLD_H / 2:
+		dy -= WORLD_H
+	elif dy < -WORLD_H / 2:
+		dy += WORLD_H
+	return Vector2i(dx, dy)
+
+
+func _blit_world_object(pos: Vector2i, tile_id: int, center: Vector2i) -> void:
+	var d := _wrap_delta(center, pos)
+	var gx := d.x + GEM_VIEW_W / 2
+	var gy := d.y + GEM_VIEW_H / 2
+	if gx < 0 or gy < 0 or gx >= GEM_VIEW_W or gy >= GEM_VIEW_H:
+		return
+	_blit_gem_object(gx, gy, tile_id)
+
+
+func _blit_gem_object(gx: int, gy: int, tile_id: int) -> void:
+	## Wilderness objects: gem chips when possible; else downscale the shape.
+	if tile_id < 0:
+		return
+	if tile_id >= TILE_PIRATE and tile_id < TILE_PIRATE + 4:
+		_blit_gem_cell(gx, gy, TILE_SHIP_WEST + (tile_id - TILE_PIRATE))
+		return
+	if tile_id < 128:
+		_blit_gem_cell(gx, gy, tile_id)
+		return
+	if not U4TileBank.ensure_loaded():
+		_blit_gem_cell(gx, gy, TILE_CITIZEN)
+		return
+	var img := U4TileBank.keyed_copy(tile_id)
+	if img == null:
+		_blit_gem_cell(gx, gy, TILE_CITIZEN)
+		return
+	img.resize(GEM_CELL, GEM_CELL, Image.INTERPOLATE_NEAREST)
+	_buf.blend_rect(img, Rect2i(0, 0, GEM_CELL, GEM_CELL), Vector2i(gx * GEM_CELL, gy * GEM_CELL))
 
 
 func _blit_gem_actor(gx: int, gy: int, tile_id: int) -> void:
