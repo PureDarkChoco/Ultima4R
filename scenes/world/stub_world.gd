@@ -8623,7 +8623,8 @@ func _open_cast_spell_list() -> void:
 	_cast_stage = 1
 	_reset_hold_state()
 	if _cast_panel:
-		_cast_panel.open_list(true)
+		var caster := GameState.party_member_at(_cast_caster_slot)
+		_cast_panel.open_list(true, -1, caster)
 	_layout_prompt_row()
 
 

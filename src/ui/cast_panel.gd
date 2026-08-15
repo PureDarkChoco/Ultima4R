@@ -9,6 +9,7 @@ const COL_DIM := Color(0.45, 0.45, 0.48, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
+const COL_MP_SHORT := Color(0.92, 0.28, 0.28, 1)
 
 const FONT_SIZE := 13
 const INV_ROW_H := 25
@@ -16,6 +17,7 @@ const INV_LIST_SEP := 3
 const INV_PAD_H := 10
 const INV_PAD_V := 6
 const PAD_TOP := 14
+const INV_MANA_W := 36
 const INV_QTY_W := 28
 const INV_QTY_TRAIL := 8
 const INV_ICON := 20
@@ -23,6 +25,9 @@ const INV_ICON := 20
 
 var _root: VBoxContainer
 var _title: Label
+var _header_name: Label
+var _header_mana: Label
+var _header_qty: Label
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _spell_ids: Array[int] = []
@@ -32,6 +37,7 @@ var _cursor := 0
 var _scroll_gen := 0
 var _show_all := false
 var _last_spell_id := -1
+var _caster_mp := -1
 
 
 func _ready() -> void:
@@ -65,6 +71,35 @@ func _ready() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_wrap.add_child(_title)
 
+	var header_wrap := MarginContainer.new()
+	header_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
+	header_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
+	header_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(header_wrap)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 6)
+	header.alignment = BoxContainer.ALIGNMENT_CENTER
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_wrap.add_child(header)
+
+	var header_icon := Control.new()
+	header_icon.custom_minimum_size = Vector2(INV_ICON, 1)
+	header_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(header_icon)
+
+	_header_name = _make_header_label(true)
+	header.add_child(_header_name)
+	_header_mana = _make_header_label(false, INV_MANA_W)
+	header.add_child(_header_mana)
+	_header_qty = _make_header_label(false, INV_QTY_W)
+	header.add_child(_header_qty)
+	var header_trail := Control.new()
+	header_trail.custom_minimum_size = Vector2(INV_QTY_TRAIL, 1)
+	header_trail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(header_trail)
+
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -87,10 +122,14 @@ func _ready() -> void:
 	list_margin.add_child(_list)
 
 
-func open_list(show_all: bool = false, focus_spell_id: int = -1) -> void:
+func open_list(
+	show_all: bool = false, focus_spell_id: int = -1, caster_klass: int = -1
+) -> void:
 	_scroll_gen += 1
 	_show_all = show_all
+	_caster_mp = GameState.mp_of_class(caster_klass) if caster_klass >= 0 else -1
 	_title.text = Locale.t("cast_title")
+	_refresh_header()
 	_rebuild_list()
 	var want := focus_spell_id if focus_spell_id >= 0 else _last_spell_id
 	_cursor = _first_usable_index()
@@ -187,6 +226,30 @@ func _rebuild_list() -> void:
 		_add_spell_row(sid, Locale.spell_name(sid), str(mini(qty, 99)), qty > 0, ko)
 
 
+func _make_header_label(expand: bool, width: float = 0.0) -> Label:
+	var lab := Label.new()
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL if expand else Control.SIZE_SHRINK_CENTER
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if expand else HORIZONTAL_ALIGNMENT_RIGHT
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if width > 0.0:
+		lab.custom_minimum_size = Vector2(width, 0)
+	lab.add_theme_font_size_override("font_size", FONT_SIZE - 1)
+	lab.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(lab)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return lab
+
+
+func _refresh_header() -> void:
+	if _header_name:
+		_header_name.text = Locale.t("ztats_col_name")
+	if _header_mana:
+		_header_mana.text = Locale.t("ztats_col_mana")
+	if _header_qty:
+		_header_qty.text = Locale.t("ztats_col_qty")
+
+
 func _add_spell_row(
 	spell_id: int, name: String, qty_text: String, mixed: bool, ko: bool
 ) -> void:
@@ -228,6 +291,11 @@ func _add_spell_row(
 		_add_name_colored_initial(row, name, index_col, body_col)
 	else:
 		_add_name(row, name, body_col)
+	var cost := Spells.mp_cost(spell_id)
+	var mana_col := body_col
+	if mixed and _caster_mp >= 0 and _caster_mp < cost:
+		mana_col = COL_MP_SHORT
+	_add_num(row, str(cost), INV_MANA_W, mana_col)
 	_add_qty(row, qty_text, body_col)
 
 	_list.add_child(wrap)
@@ -307,18 +375,22 @@ func _apply_index_style(lab: Label, col: Color) -> void:
 	lab.label_settings = settings
 
 
+func _add_num(row: HBoxContainer, text: String, width: float, col: Color) -> void:
+	var lab := Label.new()
+	lab.text = text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lab.custom_minimum_size = Vector2(width, 0)
+	lab.add_theme_font_size_override("font_size", FONT_SIZE)
+	lab.add_theme_color_override("font_color", col)
+	UiTheme.apply_font(lab)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(lab)
+
+
 func _add_qty(row: HBoxContainer, qty_text: String, col: Color) -> void:
-	var qty_lab := Label.new()
-	qty_lab.text = qty_text
-	qty_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	qty_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	qty_lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	qty_lab.custom_minimum_size = Vector2(INV_QTY_W, 0)
-	qty_lab.add_theme_font_size_override("font_size", FONT_SIZE)
-	qty_lab.add_theme_color_override("font_color", col)
-	UiTheme.apply_font(qty_lab)
-	qty_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(qty_lab)
+	_add_num(row, qty_text, INV_QTY_W, col)
 
 	var trail := Control.new()
 	trail.custom_minimum_size = Vector2(INV_QTY_TRAIL, 1)
