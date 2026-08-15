@@ -1619,6 +1619,24 @@ func spell_cure_member(klass: int) -> bool:
 	return true
 
 
+func spell_heal_member(klass: int) -> bool:
+	## xu4 spellHeal — always succeeds. HT_HEAL no-ops if dead or already max HP.
+	## Amount: 75 + (0..255 % 25) = 75–99, then clamp to max.
+	if klass < 0 or klass >= member_hp.size():
+		return true
+	if is_class_dead(klass):
+		return true
+	var hp := hp_of_class(klass)
+	var mx := max_hp_of_class(klass)
+	if hp >= mx:
+		return true
+	hp += 75 + ((randi() % 0x100) % 0x19)
+	if hp > mx:
+		hp = mx
+	member_hp[klass] = hp
+	return true
+
+
 func spell_resurrect_member(klass: int) -> bool:
 	## xu4 HT_RESURRECT — dead only; HP left as-is (often 0).
 	if klass < 0 or klass >= member_status.size():

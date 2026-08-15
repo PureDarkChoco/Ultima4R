@@ -8659,6 +8659,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 	return (
 		spell_id == Spells.AWAKEN
 		or spell_id == Spells.CURE
+		or spell_id == Spells.HEAL
 		or spell_id == Spells.RESURRECT
 	)
 
@@ -8700,6 +8701,8 @@ func _apply_cast_player_spell(spell_id: int, target: int) -> bool:
 			return GameState.wake_member(target)
 		Spells.CURE:
 			return GameState.spell_cure_member(target)
+		Spells.HEAL:
+			return GameState.spell_heal_member(target)
 		Spells.RESURRECT:
 			return GameState.spell_resurrect_member(target)
 		_:
