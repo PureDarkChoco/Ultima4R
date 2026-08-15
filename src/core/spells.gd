@@ -24,6 +24,7 @@ const PROTECTION := 15 ## P
 const QUICKNESS := 16 ## Q
 const RESURRECT := 17 ## R
 const SLEEP := 18 ## S
+const VIEW := 21 ## V
 const WINDS := 22 ## W
 
 ## xu4 Spell::ParamType

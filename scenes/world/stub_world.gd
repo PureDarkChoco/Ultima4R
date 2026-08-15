@@ -2591,8 +2591,9 @@ func _on_order_roster_closed() -> void:
 
 func _process(delta: float) -> void:
 	_tick_cursor(delta)
-	## xu4 GameController::timerFired — real-time clock even while menus/peer open.
-	_tick_world_clock(delta)
+	## xu4 timerFired still runs during menus; remake freezes the clock on gem view.
+	if _peer_overlay == null or not _peer_overlay.is_open():
+		_tick_world_clock(delta)
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
 		return
 	## Combat arena: no world cruise / auto-pass.
@@ -3375,7 +3376,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 				)
 			)
 		U4Commands.Id.PEER:
-			return outdoors and GameState.gems > 0
+			return noncombat and GameState.gems > 0
 		U4Commands.Id.TALK:
 			return noncombat and _command_menu_has_adjacent_city_person(true)
 		U4Commands.Id.VOLUME:
@@ -6343,11 +6344,22 @@ func _do_peer() -> void:
 	GameState.gems -= 1
 	_refresh_inventory_bars()
 	_push_message(Locale.t("cmd_peer_gem"), false)
+	if not _open_peer_view():
+		_finish_party_turn()
+
+
+func _open_peer_view() -> bool:
+	## xu4 spellView → peer(false). Same overlay as P; city uses the town gem.
 	_ensure_peer_overlay()
 	if _peer_overlay == null or _map == null:
-		_finish_party_turn()
-		return
+		return false
 	var tile_sz := _map.displayed_tile_size()
+	if _is_in_city() and _city_map != null and _city_map.loaded:
+		var fname := str(_city_map.source_path).get_file()
+		var portal := _WorldPortals.portal_for_fname(fname)
+		var loc := str(portal.get("name", fname.get_basename()))
+		_peer_overlay.open_peer_city(_city_map, tile_sz, loc, _tile_pos)
+		return true
 	var loc := ""
 	if GameState.has_sextant:
 		loc = "%s %s" % [
@@ -6355,6 +6367,7 @@ func _do_peer() -> void:
 			_format_u4_sextant(_tile_pos.y),
 		]
 	_peer_overlay.open_peer(_world, _tile_pos, tile_sz, loc)
+	return true
 
 
 func _close_peer_overlay() -> void:
@@ -9425,6 +9438,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.PROTECTION
 		or spell_id == Spells.QUICKNESS
 		or spell_id == Spells.RESURRECT
+		or spell_id == Spells.VIEW
 		or spell_id == Spells.WINDS
 	)
 
@@ -9458,6 +9472,13 @@ func _finish_cast_none_spell() -> void:
 			ok = _apply_cast_protection()
 		Spells.QUICKNESS:
 			ok = _apply_cast_quickness()
+		Spells.VIEW:
+			ok = _apply_cast_view()
+			if ok:
+				_refresh_party()
+				_refresh_inventory_bars()
+				_close_cast(false, false)
+				return
 		_:
 			ok = false
 	if not ok:
@@ -9491,6 +9512,11 @@ func _apply_cast_protection() -> bool:
 	var caster := GameState.party_member_at(_cast_caster_slot)
 	GameState.set_aura(GameState.AuraType.PROTECTION, GameState.AURA_SPELL_TURNS, caster)
 	return true
+
+
+func _apply_cast_view() -> bool:
+	## xu4 spellView → peer(false): same gem map as P, no gem spent.
+	return _open_peer_view()
 
 
 func _apply_cast_quickness() -> bool:

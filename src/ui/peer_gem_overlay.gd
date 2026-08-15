@@ -11,11 +11,14 @@ const GEM_PATH := "res://assets/tiles/u4graphics/gem.png"
 const GEM_VIEW_H := 33
 ## ~GEM_VIEW_H × 16/9, forced odd (59/33 ≈ 16:9).
 const GEM_VIEW_W := 59
-const GEM_ASPECT := 16.0 / 9.0
+## Explore tiles are slightly tall (MapView.TILE_ASPECT 9:10).
+const TILE_ASPECT := 9.0 / 10.0
 const GEM_CELL := 8
 ## Fallback avatar gem id (party #1 class tile preferred when < 128).
 const AVATAR_GEM_TILE := 31
 const CLASS_TILE_EVEN := [32, 34, 36, 38, 40, 42, 44, 46]
+## Gem sheet only has 0–127; ghosts etc. still need a visible person chip.
+const TILE_CITIZEN := 82
 const INNER_PAD := 6
 const BORDER_W := 2
 ## Dim the explore map under the popup so the gem draws the eye.
@@ -50,7 +53,7 @@ func is_open() -> bool:
 
 
 func open_peer(
-	world: WorldMapData,
+	world, ## WorldMapData
 	center: Vector2i,
 	tile_size: Vector2,
 	loc_text: String = ""
@@ -69,13 +72,14 @@ func open_peer(
 func open_peer_city(
 	city, ## CityMapData
 	tile_size: Vector2,
-	loc_text: String = ""
+	loc_text: String = "",
+	party_pos: Vector2i = Vector2i(-1, -1)
 ) -> void:
-	## xu4 gamePeerCity — full 32×32 city gem (no party marker).
+	## Town gem: terrain + residents. Party chip when `party_pos` is set.
 	if city == null or not city.loaded:
 		return
 	_ensure_buffers()
-	_blit_gem_city(city)
+	_blit_gem_city(city, party_pos)
 	_layout_panel(tile_size)
 	_set_loc_text(loc_text)
 	_open = true
@@ -194,7 +198,7 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i) -> void:
 	_tex.update(_buf)
 
 
-func _blit_gem_city(city) -> void:
+func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 	## Center the 32×32 .ULT in the wider gem viewport; void outside is black.
 	if _buf == null or _gem_sheet == null or _gem_sheet.is_empty():
 		return
@@ -203,11 +207,34 @@ func _blit_gem_city(city) -> void:
 	var city_h := 32
 	var origin_x := int((GEM_VIEW_W - city_w) / 2)
 	var origin_y := int((GEM_VIEW_H - city_h) / 2)
+	var live: bool = party_pos.x >= 0 and bool(city.has_method("effective_tile_at"))
 	for cy in city_h:
 		for cx in city_w:
-			var tid := int(city.tile_at(cx, cy))
+			var tid: int
+			if live:
+				tid = int(city.effective_tile_at(cx, cy))
+			else:
+				tid = int(city.tile_at(cx, cy))
 			_blit_gem_cell(origin_x + cx, origin_y + cy, tid)
+	if city.get("persons") != null:
+		for p in city.persons:
+			var px := int(p.x)
+			var py := int(p.y)
+			if px < 0 or py < 0 or px >= city_w or py >= city_h:
+				continue
+			_blit_gem_actor(origin_x + px, origin_y + py, int(p.z))
+	if party_pos.x >= 0 and party_pos.x < city_w and party_pos.y >= 0 and party_pos.y < city_h:
+		_blit_gem_actor(origin_x + party_pos.x, origin_y + party_pos.y, _party_gem_tile())
 	_tex.update(_buf)
+
+
+func _blit_gem_actor(gx: int, gy: int, tile_id: int) -> void:
+	var tid := tile_id
+	if tid >= 128:
+		tid = TILE_CITIZEN
+	if tid < 0:
+		return
+	_blit_gem_cell(gx, gy, tid)
 
 
 func _blit_gem_cell(gx: int, gy: int, tile_id: int) -> void:
@@ -245,16 +272,16 @@ func _layout_loc_label() -> void:
 	_loc_plate.size = Vector2(tw, th)
 	_loc_label.position = Vector2(LOC_PAD_X, LOC_PAD_Y)
 	_loc_label.size = Vector2(tw - float(LOC_PAD_X * 2), th - float(LOC_PAD_Y * 2))
-	## Bottom-center *inside* the gem panel (over the map, inset from the edge).
+	## Bottom-center; drop by half the label height so the name sits off the map.
 	_loc_plate.position = Vector2(
 		floorf((panel_sz.x - tw) * 0.5),
-		floorf(panel_sz.y - float(BORDER_W) - INNER_PAD - th - 2.0)
+		floorf(panel_sz.y - float(BORDER_W) - INNER_PAD - th * 0.5 - 2.0)
 	)
 	_loc_plate.z_index = 1
 
 
 func _layout_panel(tile_size: Vector2) -> void:
-	## Height from explore pane (one tile margin); width follows 16:9.
+	## Fit in the explore pane (one tile margin). Cell aspect matches play tiles.
 	var pane := size
 	if pane.x < 8.0 or pane.y < 8.0:
 		var p := get_parent() as Control
@@ -262,13 +289,17 @@ func _layout_panel(tile_size: Vector2) -> void:
 			pane = p.size
 	var th := maxf(tile_size.y, 8.0)
 	var tw := maxf(tile_size.x, 8.0)
+	var cell_aspect := TILE_ASPECT
+	if tile_size.x > 0.0 and tile_size.y > 0.0:
+		cell_aspect = tile_size.x / tile_size.y
+	var map_aspect := (float(GEM_VIEW_W) / float(GEM_VIEW_H)) * cell_aspect
 	var max_h := maxf(pane.y - th * 2.0, 64.0)
 	var max_w := maxf(pane.x - tw * 2.0, 64.0)
 	var panel_h := max_h
-	var panel_w := panel_h * GEM_ASPECT
+	var panel_w := panel_h * map_aspect
 	if panel_w > max_w:
 		panel_w = max_w
-		panel_h = panel_w / GEM_ASPECT
+		panel_h = panel_w / map_aspect
 	_panel.size = Vector2(panel_w, panel_h)
 	_panel.position = Vector2(
 		floorf((pane.x - panel_w) * 0.5),
