@@ -1223,6 +1223,8 @@ func _t_foggy() -> void:
 				rumor = _VL.rumor(str(t["rumor"])).replace("%", _owner)
 				break
 		_say(rumor)
+		if _topic_key == "sextant" and _locale == "Jhelom":
+			GameState.journal_try_capture("jhelom", "Celestial", "SEXTANT")
 		_t_something_else()
 		return
 	_say(_L("That subject is a bit foggy, perhaps more gold will refresh my memory. You\ngive:"))
