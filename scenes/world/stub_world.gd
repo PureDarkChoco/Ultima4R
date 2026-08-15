@@ -8846,7 +8846,7 @@ func _dispel_city_tile(pos: Vector2i) -> bool:
 		return false
 	if pos.x < 0 or pos.y < 0 or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT:
 		return false
-	var cleared := _city_map.remove_dispel_annotation_at(pos.x, pos.y)
+	var cleared: bool = bool(_city_map.remove_dispel_annotation_at(pos.x, pos.y))
 	if _TileRules.can_dispel(int(_city_map.tile_at(pos.x, pos.y))):
 		_city_map.set_tile(pos.x, pos.y, MapView.TILE_BRICK_FLOOR)
 		cleared = true
