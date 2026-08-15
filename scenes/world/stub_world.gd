@@ -212,8 +212,11 @@ var _mix_stage := 0
 ## Mix opened from gamepad command menu → full A–Z list (no Mix New + letter).
 var _mix_gamepad_requested := false
 var _mix_pad_full_list := false
-## Cast (C): 0 = idle, 1 = pick mixed spell (list or A–Z).
+## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster).
 var _cast_stage := 0
+var _cast_caster_slot := -1
+var _cast_spell_id := -1
+var _cast_cursor := 0
 ## Use (U): 0 = idle, 1 = pick item from list.
 var _use_stage := 0
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
@@ -1709,6 +1712,10 @@ func _prompt_row_text() -> String:
 		return Locale.t("mix_for_spell")
 	if _cast_stage == 1:
 		return Locale.t("cast_spell")
+	if _cast_stage == 2:
+		return Locale.t("cast_who")
+	if _cast_stage == 3:
+		return Locale.t("cast_player")
 	if _use_stage == 1:
 		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
@@ -2538,7 +2545,7 @@ func _process(delta: float) -> void:
 	if _combat_active:
 		_move_cd = maxf(0.0, _move_cd - delta)
 		_hold_arm = maxf(0.0, _hold_arm - delta)
-		if _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _chest_open_stage == 1:
+		if _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
@@ -2591,7 +2598,7 @@ func _process(delta: float) -> void:
 	if _journal_focus_active:
 		_tick_journal_browse_nav()
 		return
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
@@ -2862,6 +2869,10 @@ func _tick_select_cursor() -> void:
 		_nudge_mix_cursor(step)
 	elif _cast_stage == 1:
 		_nudge_cast_cursor(step)
+	elif _cast_stage == 2:
+		_nudge_cast_party_cursor(step, false)
+	elif _cast_stage == 3:
+		_nudge_cast_party_cursor(step, true)
 	elif _use_stage == 1:
 		_nudge_use_cursor(step)
 	elif _camp_stage == 3:
@@ -8383,7 +8394,7 @@ func _ensure_cast_panel() -> void:
 
 
 func _do_cast() -> void:
-	## xu4 castSpell: "Cast Spell!" then A–Z. Remake also offers a mixed-spell list.
+	## xu4 castSpell: Cast Spell! → Player (explore) / focus (combat) → Spell.
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_ready(false)
@@ -8391,6 +8402,48 @@ func _do_cast() -> void:
 	_close_mix(false)
 	_close_use(false)
 	_push_message(Locale.t("cast_title"), false)
+	_cast_spell_id = -1
+	_cast_cursor = 0
+	if _combat_active:
+		if _map == null or not _map.is_in_combat():
+			_push_message(Locale.t("cmd_none"), false)
+			return
+		var slot := _map.get_combat_focus_party_slot()
+		if slot < 0 or slot >= GameState.party_size():
+			_push_message(Locale.t("cmd_none"), false)
+			if not _combat_resolving and not _combat_victory_aftermath:
+				_combat_finish_member_turn()
+			return
+		var klass := GameState.party_member_at(slot)
+		if klass < 0 or GameState.is_member_disabled(klass):
+			_push_message(Locale.t("cmd_cant"), false)
+			if not _combat_resolving and not _combat_victory_aftermath:
+				_combat_finish_member_turn()
+			return
+		_cast_caster_slot = slot
+		_open_cast_spell_list()
+		return
+	if GameState.party_size() <= 1:
+		var solo := GameState.party_member_at(0)
+		if solo < 0 or GameState.is_member_disabled(solo):
+			_push_message(Locale.t("cmd_set_active_disabled"), false)
+			_finish_party_turn()
+			return
+		_cast_caster_slot = 0
+		_open_cast_spell_list()
+		return
+	_cast_caster_slot = -1
+	_cast_cursor = _first_living_party_slot()
+	_cast_stage = 3
+	_open_order_roster()
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_sync_cast_selection()
+	_layout_prompt_row()
+
+
+func _open_cast_spell_list() -> void:
 	_ensure_cast_panel()
 	_open_order_roster()
 	if _roster:
@@ -8410,6 +8463,26 @@ func _nudge_cast_cursor(step: int) -> void:
 	_cast_panel.nudge_cursor(step)
 
 
+func _nudge_cast_party_cursor(step: int, able_only: bool) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	if not able_only:
+		_cast_cursor = posmod(_cast_cursor + step, n)
+		_sync_cast_selection()
+		return
+	var slot := _cast_cursor
+	for _i in n:
+		slot = posmod(slot + step, n)
+		if _camp_guard_slot_eligible(slot):
+			_cast_cursor = slot
+			_sync_cast_selection()
+			return
+
+
+func _sync_cast_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_cast_cursor, -1)
+
+
 func _handle_cast_input(event: InputEvent) -> bool:
 	if not event.is_pressed():
 		return false
@@ -8426,6 +8499,10 @@ func _handle_cast_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_close_cast(true, not _combat_active)
 		return true
+	if _cast_stage == 2:
+		return _handle_cast_who_input(event)
+	if _cast_stage == 3:
+		return _handle_cast_caster_input(event)
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_cursor()
 		return true
@@ -8443,6 +8520,77 @@ func _handle_cast_input(event: InputEvent) -> bool:
 	return true
 
 
+func _handle_cast_caster_input(event: InputEvent) -> bool:
+	## xu4 gameGetPlayer(false, true) — able casters only.
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_cast_caster_slot(_cast_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_cast_caster_slot(_cast_cursor)
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var pick := _player_slot_from_key(ke)
+		if pick >= 0:
+			_cast_cursor = pick
+			_sync_cast_selection()
+			_accept_cast_caster_slot(pick)
+			return true
+		if _is_digit_key(ke):
+			_push_message(Locale.t("cmd_who"), false)
+			_layout_prompt_row()
+			return true
+	return true
+
+
+func _handle_cast_who_input(event: InputEvent) -> bool:
+	## xu4 gameGetPlayer(true, false) — sleeping / dead targets allowed.
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_cast_who_slot(_cast_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_cast_who_slot(_cast_cursor)
+		return true
+	if event is InputEventKey:
+		var ke := event as InputEventKey
+		var pick := _player_slot_from_key(ke)
+		if pick >= 0:
+			_cast_cursor = pick
+			_sync_cast_selection()
+			_accept_cast_who_slot(pick)
+			return true
+		if _is_digit_key(ke):
+			_push_message(Locale.t("cmd_who"), false)
+			_layout_prompt_row()
+			return true
+	return true
+
+
+func _accept_cast_caster_slot(slot: int) -> void:
+	var n := GameState.party_size()
+	if slot < 0 or slot >= n:
+		_close_cast(true, true)
+		return
+	var klass := GameState.party_member_at(slot)
+	if klass < 0 or GameState.is_member_disabled(klass):
+		_push_message(Locale.t("cmd_set_active_disabled"), false)
+		_close_cast(false, true)
+		return
+	_push_message(GameState.party_member_display_name(slot), false)
+	_cast_caster_slot = slot
+	_clear_order_selection()
+	_open_cast_spell_list()
+
+
+func _accept_cast_who_slot(slot: int) -> void:
+	var n := GameState.party_size()
+	if slot < 0 or slot >= n:
+		_push_message(Locale.t("cmd_who"), false)
+		_layout_prompt_row()
+		return
+	_finish_cast_player_spell(slot)
+
+
 func _accept_cast_cursor() -> void:
 	if _cast_panel == null:
 		return
@@ -8453,24 +8601,128 @@ func _accept_cast_cursor() -> void:
 
 
 func _try_cast_spell(spell_id: int) -> void:
-	## xu4: print the name, then spellCheckPrerequisites / spellCast.
-	## This slice only handles mixture + wrong-context; real effects come later.
+	## xu4: print the name, then spellCheckPrerequisites. Who only if prereqs pass.
 	if spell_id < 0 or spell_id >= Spells.COUNT:
 		return
 	_push_message(Locale.t("cast_named", [Locale.spell_name(spell_id)]), false)
-	if GameState.mixture_qty(spell_id) <= 0:
-		_push_message(Locale.t("cast_none_mixed"), false)
+	var caster_slot := _cast_caster_slot
+	if caster_slot < 0:
+		caster_slot = _resolve_cast_caster_slot()
+		_cast_caster_slot = caster_slot
+	var caster := GameState.party_member_at(caster_slot)
+	if caster < 0:
+		_push_message(Locale.t("cmd_none"), false)
 		_close_cast(false, true)
 		return
 	var loc_ctx := _spell_location_context()
-	if not Spells.context_ok(spell_id, loc_ctx):
-		## xu4 still spends the mixture, then prints the refined context error.
-		GameState.consume_mixture(spell_id)
-		_push_cast_context_error(Spells.context_error(spell_id))
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	if not _is_cast_implemented(spell_id):
+		if err == Spells.CASTERR_NOMIX:
+			_push_message(Locale.t("cast_none_mixed"), false)
+			_close_cast(false, true)
+			return
+		if err == Spells.CASTERR_WRONGCONTEXT:
+			GameState.consume_mixture(spell_id)
+			_push_cast_context_error(Spells.context_error(spell_id))
+			_close_cast(false, true)
+			return
+		_push_message(Locale.t("cast_not_yet"), false)
+		_close_cast(false, false)
+		return
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			GameState.consume_mixture(spell_id)
+		_push_cast_spell_error(spell_id, err)
 		_close_cast(false, true)
 		return
-	_push_message(Locale.t("cast_not_yet"), false)
-	_close_cast(false, false)
+	_cast_spell_id = spell_id
+	if GameState.party_size() <= 1:
+		_finish_cast_player_spell(0)
+		return
+	_begin_cast_who()
+
+
+func _begin_cast_who() -> void:
+	if _cast_panel:
+		_cast_panel.close_panel()
+	_cast_stage = 2
+	_cast_cursor = 0
+	_reset_hold_state()
+	_open_order_roster()
+	if _roster:
+		_roster.visible = true
+	_sync_cast_selection()
+	_layout_prompt_row()
+
+
+func _is_cast_implemented(spell_id: int) -> bool:
+	return (
+		spell_id == Spells.AWAKEN
+		or spell_id == Spells.CURE
+		or spell_id == Spells.RESURRECT
+	)
+
+
+func _finish_cast_player_spell(target_slot: int) -> void:
+	## xu4 spellCast + PARAM_PLAYER: spend mix, then MP, then effect or Failed!
+	var n := GameState.party_size()
+	if target_slot < 0 or target_slot >= n:
+		_close_cast(true, not _combat_active)
+		return
+	_push_message(GameState.party_member_display_name(target_slot), false)
+	var spell_id := _cast_spell_id
+	if not _is_cast_implemented(spell_id):
+		_close_cast(false, false)
+		return
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_close_cast(false, true)
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	var target := GameState.party_member_at(target_slot)
+	if _apply_cast_player_spell(spell_id, target):
+		_refresh_party()
+		if _combat_active and _map != null and _map.is_in_combat():
+			_map.refresh_combat_view()
+	else:
+		_push_message(Locale.t("cast_failed"), false)
+	_close_cast(false, true)
+
+
+func _apply_cast_player_spell(spell_id: int, target: int) -> bool:
+	match spell_id:
+		Spells.AWAKEN:
+			return GameState.wake_member(target)
+		Spells.CURE:
+			return GameState.spell_cure_member(target)
+		Spells.RESURRECT:
+			return GameState.spell_resurrect_member(target)
+		_:
+			return false
+
+
+func _resolve_cast_caster_slot() -> int:
+	if _combat_active and _map != null and _map.is_in_combat():
+		return _map.get_combat_focus_party_slot()
+	return _first_living_party_slot()
+
+
+func _push_cast_spell_error(spell_id: int, err: int) -> void:
+	if err == Spells.CASTERR_WRONGCONTEXT:
+		_push_cast_context_error(Spells.context_error(spell_id))
+		return
+	match err:
+		Spells.CASTERR_NOMIX:
+			_push_message(Locale.t("cast_none_mixed"), false)
+		Spells.CASTERR_MPTOOLOW:
+			_push_message(Locale.t("cast_mp_too_low"), false)
+		_:
+			_push_message(Locale.t("cast_failed"), false)
 
 
 func _push_cast_context_error(err: int) -> void:
@@ -8506,8 +8758,12 @@ func _close_cast(show_none: bool, spend_turn: bool) -> void:
 			_cast_panel.close_panel()
 		return
 	_cast_stage = 0
+	_cast_caster_slot = -1
+	_cast_spell_id = -1
+	_cast_cursor = 0
 	if _cast_panel:
 		_cast_panel.close_panel()
+	_clear_order_selection()
 	if _roster:
 		_roster.visible = true
 	_close_order_roster()
@@ -10469,6 +10725,9 @@ func _close_ui_for_death() -> void:
 	if _mix_panel:
 		_mix_panel.close_panel()
 	_cast_stage = 0
+	_cast_caster_slot = -1
+	_cast_spell_id = -1
+	_cast_cursor = 0
 	if _cast_panel:
 		_cast_panel.close_panel()
 	_use_stage = 0

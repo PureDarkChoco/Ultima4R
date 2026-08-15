@@ -7,11 +7,50 @@ const COUNT := 26
 const REAGENT_COUNT := 8
 const MIXTURE_MAX := 99
 ## Spell letter indices (0 = A … 25 = Z).
+const AWAKEN := 0 ## A
+const CURE := 2 ## C
 const GATE := 6 ## G
 const MAGIC_MISSILE := 12 ## M
 const QUICKNESS := 16 ## Q
 const RESURRECT := 17 ## R
 const SLEEP := 18 ## S
+
+## xu4 Spell::ParamType
+const PARAM_NONE := 0
+const PARAM_PLAYER := 1
+const PARAM_DIR := 2
+const PARAM_TYPEDIR := 3
+const PARAM_PHASE := 4
+
+## xu4 spells[].paramType
+const PARAM_TYPE: Array[int] = [
+	PARAM_PLAYER, ## A Awaken
+	PARAM_DIR, ## B Blink
+	PARAM_PLAYER, ## C Cure
+	PARAM_DIR, ## D Dispell
+	PARAM_TYPEDIR, ## E Energy Field
+	PARAM_DIR, ## F Fireball
+	PARAM_PHASE, ## G Gate
+	PARAM_PLAYER, ## H Heal
+	PARAM_DIR, ## I Iceball
+	PARAM_NONE, ## J Jinx
+	PARAM_DIR, ## K Kill
+	PARAM_NONE, ## L Light
+	PARAM_DIR, ## M Magic Missile
+	PARAM_NONE, ## N Negate
+	PARAM_NONE, ## O Open
+	PARAM_NONE, ## P Protection
+	PARAM_NONE, ## Q Quickness
+	PARAM_PLAYER, ## R Resurrect
+	PARAM_NONE, ## S Sleep
+	PARAM_NONE, ## T Tremor
+	PARAM_DIR, ## U Undead
+	PARAM_NONE, ## V View
+	PARAM_DIR, ## W Winds
+	PARAM_NONE, ## X X-it
+	PARAM_NONE, ## Y Y-up
+	PARAM_NONE, ## Z Z-down
+]
 
 ## xu4 Reagent bit masks (spell.cpp).
 const ASH := 1 << 0
@@ -173,6 +212,12 @@ static func context_of(spell_id: int) -> int:
 static func context_ok(spell_id: int, loc_ctx: int) -> bool:
 	## xu4 spellCheckPrerequisites — (location.context & spell.context) != 0
 	return (loc_ctx & context_of(spell_id)) != 0
+
+
+static func param_type(spell_id: int) -> int:
+	if spell_id < 0 or spell_id >= COUNT:
+		return PARAM_NONE
+	return PARAM_TYPE[spell_id]
 
 
 static func context_error(spell_id: int) -> int:

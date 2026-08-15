@@ -1901,6 +1901,21 @@ const _T := {
 		"en_us": "Failed!",
 		"ko": "실패했다!",
 	},
+	"cast_mp_too_low": {
+		"en_u4": "Not Enough MP!",
+		"en_us": "Not Enough MP!",
+		"ko": "마나가 부족하다!",
+	},
+	"cast_player": {
+		"en_u4": "Player: ",
+		"en_us": "Player: ",
+		"ko": "시전자: ",
+	},
+	"cast_who": {
+		"en_u4": "Who: ",
+		"en_us": "Who: ",
+		"ko": "누구: ",
+	},
 	"cast_not_yet": {
 		"en_u4": "Not yet implemented.",
 		"en_us": "Not yet implemented.",

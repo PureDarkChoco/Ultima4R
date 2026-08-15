@@ -517,6 +517,31 @@ func consume_mixture(spell_id: int) -> bool:
 	return true
 
 
+func spell_prereq_error(spell_id: int, caster_klass: int, loc_ctx: int) -> int:
+	## xu4 spellCheckPrerequisites — mix, location, then MP. Transport skipped (any).
+	if mixture_qty(spell_id) <= 0:
+		return Spells.CASTERR_NOMIX
+	if not Spells.context_ok(spell_id, loc_ctx):
+		return Spells.CASTERR_WRONGCONTEXT
+	if mp_of_class(caster_klass) < Spells.mp_cost(spell_id):
+		return Spells.CASTERR_MPTOOLOW
+	return Spells.CASTERR_NOERROR
+
+
+func adjust_mp(klass: int, delta: int) -> int:
+	## xu4 PartyMember::adjustMp — clamp 0..max MP.
+	if klass < 0 or klass >= member_mp.size():
+		return 0
+	var mx := max_mp_of_class(klass)
+	var next: int = int(member_mp[klass]) + delta
+	if next < 0:
+		next = 0
+	if next > mx:
+		next = mx
+	member_mp[klass] = next
+	return next
+
+
 func has_any_mixtures() -> bool:
 	for q in mixtures:
 		if int(q) > 0:
@@ -1579,6 +1604,29 @@ func wake_member(klass: int) -> bool:
 		member_status[klass] = PartyRoster.Status.POISONED
 	else:
 		member_status[klass] = PartyRoster.Status.OK
+	return true
+
+
+func spell_cure_member(klass: int) -> bool:
+	## xu4 HT_CURE — only if getStatus() == POISONED (sleep/dead fail).
+	if klass < 0 or klass >= member_status.size():
+		return false
+	if status_of_class(klass) != PartyRoster.Status.POISONED:
+		return false
+	_set_poisoned(klass, false)
+	if member_status[klass] == PartyRoster.Status.POISONED:
+		member_status[klass] = PartyRoster.Status.OK
+	return true
+
+
+func spell_resurrect_member(klass: int) -> bool:
+	## xu4 HT_RESURRECT — dead only; HP left as-is (often 0).
+	if klass < 0 or klass >= member_status.size():
+		return false
+	if not is_class_dead(klass):
+		return false
+	member_status[klass] = PartyRoster.Status.OK
+	_set_poisoned(klass, false)
 	return true
 
 
