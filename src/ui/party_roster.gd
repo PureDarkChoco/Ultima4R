@@ -113,6 +113,7 @@ const COL_TRACK := Color(0.22, 0.22, 0.22, 1)
 const COL_HP_OK := Color(0.82, 0.22, 0.2, 1)
 const COL_MP_OK := Color(0.3, 0.55, 0.95, 1)
 const COL_EXP := Color(0.86, 0.70, 0.16, 1)
+const COL_EXP_READY := Color(0.28, 0.80, 0.34, 1)
 const COL_POISON := Color(0.35, 0.78, 0.28, 1)
 const COL_SLEEP := Color(0.72, 0.4, 0.95, 1)
 const COL_DEAD := Color(0.55, 0.52, 0.48, 1)
@@ -688,6 +689,7 @@ static func member_ztats(slot: int) -> Dictionary:
 		"max_hp": GameState.max_hp_of_class(mid),
 		"exp": GameState.xp_of_class(mid),
 		"exp_next": GameState.xp_next_of_class(mid),
+		"exp_ready": GameState.can_advance_level(mid),
 		"weapon": Locale.weapon_name(wid),
 		"armor": Locale.armor_name(aid),
 		"weapon_id": wid,
@@ -929,7 +931,14 @@ func refresh() -> void:
 			_set_bar_empty(_mp_fill[i], _mp_lab[i])
 		else:
 			_set_bar(_mp_fill[i], _mp_lab[i], mp, mmp, &"mp")
-		_set_bar(_exp_fill[i], _exp_lab[i], GameState.xp_of_class(mid), GameState.xp_next_of_class(mid), &"exp")
+		_set_bar(
+			_exp_fill[i],
+			_exp_lab[i],
+			GameState.xp_of_class(mid),
+			GameState.xp_next_of_class(mid),
+			&"exp",
+			GameState.can_advance_level(mid)
+		)
 
 	_apply_compact_visuals()
 	_distribute_rows()
@@ -1033,20 +1042,22 @@ func _status_tint_pulse(tint_color: Color) -> Color:
 	return Color(1, 1, 1, 1).lerp(tint_color, tint)
 
 
-func _fill_color(_ratio: float, kind: StringName) -> Color:
+func _fill_color(_ratio: float, kind: StringName, ready: bool = false) -> Color:
 	if kind == &"exp":
-		return COL_EXP
+		return COL_EXP_READY if ready else COL_EXP
 	if kind == &"hp":
 		return COL_HP_OK
 	# MP: always blue — no warn/crit recolor.
 	return COL_MP_OK
 
 
-func _set_bar(fill: ColorRect, lab: Label, cur: int, mx: int, kind: StringName) -> void:
+func _set_bar(
+	fill: ColorRect, lab: Label, cur: int, mx: int, kind: StringName, ready: bool = false
+) -> void:
 	lab.text = "%d / %d" % [cur, mx]
 	var ratio := 0.0 if mx <= 0 else clampf(float(cur) / float(mx), 0.0, 1.0)
 	fill.set_meta("ratio", ratio)
-	fill.color = _fill_color(ratio, kind)
+	fill.color = _fill_color(ratio, kind, ready)
 
 
 func _set_bar_empty(fill: ColorRect, lab: Label) -> void:

@@ -1545,6 +1545,11 @@ func level_of_class(klass: int) -> int:
 	return maxi(1, int(max_hp_of_class(klass) / 100))
 
 
+func can_advance_level(klass: int) -> bool:
+	## Enough XP to gain a level at Lord British (real level lags max for XP).
+	return level_of_class(klass) < max_level_for_xp(xp_of_class(klass))
+
+
 func xp_of_class(klass: int) -> int:
 	if klass < 0 or klass >= member_xp.size():
 		return 0
@@ -2080,7 +2085,8 @@ func lord_british_check_levels() -> Array[String]:
 
 
 func advance_level_for_class(klass: int) -> int:
-	## xu4 PartyMember::advanceLevel — jump real level to max for current XP.
+	## Jump real level to max for current XP. Remake: +1..8 STR/DEX/INT
+	## once per level gained (xu4 applied the bonus only once). Cap 50.
 	## Returns new level, or 0 if no advance.
 	if klass < 0 or klass >= member_max_hp.size():
 		return 0
@@ -2092,13 +2098,15 @@ func advance_level_for_class(klass: int) -> int:
 	_set_poisoned(klass, false)
 	member_max_hp[klass] = max_lv * 100
 	member_hp[klass] = int(member_max_hp[klass])
-	## +1..8 each stat, cap 50 (xu4).
-	if klass < member_str.size():
-		member_str[klass] = mini(50, int(member_str[klass]) + (randi() % 8) + 1)
-	if klass < member_dex.size():
-		member_dex[klass] = mini(50, int(member_dex[klass]) + (randi() % 8) + 1)
+	var steps := max_lv - real_lv
+	for _i in steps:
+		if klass < member_str.size():
+			member_str[klass] = mini(50, int(member_str[klass]) + (randi() % 8) + 1)
+		if klass < member_dex.size():
+			member_dex[klass] = mini(50, int(member_dex[klass]) + (randi() % 8) + 1)
+		if klass < member_int.size():
+			member_int[klass] = mini(50, int(member_int[klass]) + (randi() % 8) + 1)
 	if klass < member_int.size():
-		member_int[klass] = mini(50, int(member_int[klass]) + (randi() % 8) + 1)
 		## MP pool may rise with INT for caster classes.
 		var mmax := max_mp_for_stats(klass, int(member_int[klass]))
 		if klass < member_mp.size() and int(member_mp[klass]) > mmax:

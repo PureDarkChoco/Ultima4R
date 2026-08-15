@@ -31,6 +31,7 @@ const COL_TRACK := Color(0.22, 0.22, 0.22, 1)
 const COL_HP := Color(0.82, 0.22, 0.2, 1)
 const COL_MP := Color(0.3, 0.55, 0.95, 1)
 const COL_EXP := Color(0.86, 0.70, 0.16, 1)
+const COL_EXP_READY := Color(0.28, 0.80, 0.34, 1)
 ## Match PartyRoster status colors.
 const COL_POISON := Color(0.35, 0.78, 0.28, 1)
 const COL_SLEEP := Color(0.72, 0.4, 0.95, 1)
@@ -1126,7 +1127,8 @@ func _refresh() -> void:
 	)
 	_set_bar(
 		_exp_fill, _exp_lab,
-		int(data.get("exp", 0)), int(data.get("exp_next", 0)), COL_EXP
+		int(data.get("exp", 0)), int(data.get("exp_next", 0)),
+		COL_EXP_READY if bool(data.get("exp_ready", false)) else COL_EXP
 	)
 	var weapon_id := int(data.get("weapon_id", -1))
 	var armor_id := int(data.get("armor_id", -1))
