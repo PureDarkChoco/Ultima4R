@@ -82,6 +82,7 @@ const TILE_WISP := 220 ## xu4 wisp flash (Dispel / Cure / Awaken)
 const TILE_MISS_FLASH := 77 ## xu4 missFlash / red projectile
 const TILE_MAGIC_FLASH := 78 ## xu4 magicFlash (intro mage bolt / wand)
 const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
+const TILE_WHIRLPOOL := 140 ## xu4 Kill missile (`spellMagicAttack("whirlpool")`)
 ## Seconds per tile of cannon travel (matches prior per-tile miss flash).
 const CANNON_SEC_PER_TILE := 0.10
 ## Magic bow / magic axe fly 1.5× faster than the default missile.
@@ -161,6 +162,8 @@ const MAGIC_AXE_MISSILE_PATH := "res://assets/ui/weapons/magic_axe.png"
 const MAGIC_AXE_MISSILE_DRAW := 12
 ## Spin while flying (radians per tile of travel).
 const MAGIC_AXE_SPIN_PER_TILE := TAU * 1.25
+## Kill whirlpool — slow spin so the spiral stays readable in flight.
+const WHIRLPOOL_SPIN_PER_TILE := TAU * 0.45
 ## Bow / crossbow arrow (pixel stick; tip up; bow-string browns).
 const ARROW_MISSILE_PATH := "res://assets/ui/weapons/arrow_missile.png"
 ## Magic bow arrow — same shape, blue from magic_bow / magic_sword.
@@ -244,6 +247,7 @@ var _dagger_rot_cache: Dictionary = {}
 var _arrow_rot_cache: Dictionary = {}
 var _magic_arrow_rot_cache: Dictionary = {}
 var _magic_axe_rot_cache: Dictionary = {}
+var _whirlpool_rot_cache: Dictionary = {}
 
 ## Active Trammel moongate annotation (world map only).
 var _moongate_pos := Vector2i(-1, -1)
@@ -1405,6 +1409,17 @@ func await_combat_projectile(
 			fly_tid = TILE_MAGIC_FLASH
 		else:
 			fly_tid = TILE_MISS_FLASH
+	var spin_per_tile := MAGIC_AXE_SPIN_PER_TILE
+	var spin_base: Image = _magic_axe_missile_img if spinning else null
+	var spin_cache: Dictionary = _magic_axe_rot_cache if spinning else {}
+	if not spinning and fly_tid == TILE_WHIRLPOOL:
+		var whirl := _overlay_slice(TILE_WHIRLPOOL)
+		if whirl != null and not whirl.is_empty():
+			spinning = true
+			spin_base = whirl
+			spin_cache = _whirlpool_rot_cache
+			spin_per_tile = WHIRLPOOL_SPIN_PER_TILE
+			custom_img = _spin_missile_frame(whirl, 0.0, _whirlpool_rot_cache)
 	var trail_on := weapon_id == _WeaponIconsScript.Id.MAGIC_BOW and custom_img != null
 	var returning := weapon_id == _WeaponIconsScript.Id.MAGIC_AXE
 	_combat_proj = {
@@ -1417,8 +1432,9 @@ func await_combat_projectile(
 		"trail_on": trail_on,
 		"trail_last": start if trail_on else Vector2.ZERO,
 		"spin": spinning,
-		"spin_base": _magic_axe_missile_img if spinning else null,
-		"spin_cache": _magic_axe_rot_cache if spinning else {},
+		"spin_base": spin_base,
+		"spin_cache": spin_cache,
+		"spin_per_tile": spin_per_tile,
 		"spin_traveled": 0.0,
 		"spin_last": start,
 		"return_pending": false,
@@ -1472,7 +1488,9 @@ func _set_combat_proj_pos(pos: Vector2) -> void:
 		var base: Image = _combat_proj.get("spin_base", null) as Image
 		var cache: Dictionary = _combat_proj.get("spin_cache", {}) as Dictionary
 		_combat_proj["img"] = _spin_missile_frame(
-			base, traveled * MAGIC_AXE_SPIN_PER_TILE, cache
+			base,
+			traveled * float(_combat_proj.get("spin_per_tile", MAGIC_AXE_SPIN_PER_TILE)),
+			cache
 		)
 	if bool(_combat_proj.get("trail_on", false)):
 		var last: Vector2 = _combat_proj.get("trail_last", pos) as Vector2

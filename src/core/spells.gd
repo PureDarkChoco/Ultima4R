@@ -17,6 +17,7 @@ const GATE := 6 ## G
 const HEAL := 7 ## H
 const ICEBALL := 8 ## I
 const JINX := 9 ## J
+const KILL := 10 ## K
 const MAGIC_MISSILE := 12 ## M
 const NEGATE := 13 ## N
 const OPEN := 14 ## O
@@ -35,7 +36,7 @@ const PARAM_PLAYER := 1
 const PARAM_DIR := 2
 const PARAM_TYPEDIR := 3
 const PARAM_PHASE := 4
-## Remake: combat free-aim instead of xu4 PARAM_DIR (Fireball / Iceball / Magic Missile).
+## Remake: combat free-aim instead of xu4 PARAM_DIR (Fireball / Iceball / Kill / Magic Missile).
 const PARAM_AIM := 5
 
 ## xu4 spells[].paramType
@@ -50,7 +51,7 @@ const PARAM_TYPE: Array[int] = [
 	PARAM_PLAYER, ## H Heal
 	PARAM_AIM, ## I Iceball (remake free-aim; xu4 was PARAM_DIR)
 	PARAM_NONE, ## J Jinx
-	PARAM_DIR, ## K Kill
+	PARAM_AIM, ## K Kill (remake free-aim; xu4 was PARAM_DIR)
 	PARAM_NONE, ## L Light
 	PARAM_AIM, ## M Magic Missile (remake free-aim; xu4 was PARAM_DIR)
 	PARAM_NONE, ## N Negate

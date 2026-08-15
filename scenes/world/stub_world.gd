@@ -9134,10 +9134,12 @@ func _apply_cast_magic_attack(spell_id: int, from: Vector2i, target: Vector2i, c
 
 
 func _spell_missile_tile(spell_id: int) -> int:
-	## xu4 spellMagicAttack tile: F hitFlash, I magicFlash, M missFlash.
+	## xu4 spellMagicAttack tile: F hitFlash, I magicFlash, K whirlpool, M missFlash.
 	match spell_id:
 		Spells.ICEBALL:
 			return MapView.TILE_MAGIC_FLASH
+		Spells.KILL:
+			return MapView.TILE_WHIRLPOOL
 		Spells.MAGIC_MISSILE:
 			return MapView.TILE_MISS_FLASH
 		_:
@@ -9434,6 +9436,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.ICEBALL
 		or spell_id == Spells.JINX
+		or spell_id == Spells.KILL
 		or spell_id == Spells.MAGIC_MISSILE
 		or spell_id == Spells.NEGATE
 		or spell_id == Spells.OPEN
