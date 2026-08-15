@@ -8857,6 +8857,9 @@ func _try_cast_spell(spell_id: int) -> void:
 			return
 		_begin_cast_phase()
 		return
+	if spell_id == Spells.OPEN:
+		_begin_cast_open()
+		return
 	if Spells.param_type(spell_id) == Spells.PARAM_NONE:
 		_finish_cast_none_spell()
 		return
@@ -8966,6 +8969,16 @@ func _accept_cast_phase(key: String) -> void:
 func _gate_transport_ok() -> bool:
 	## xu4 TRANSPORT_FOOT_OR_HORSE — ship / balloon → Failed!
 	return _transport == Transport.FOOT or _transport == Transport.HORSE
+
+
+func _begin_cast_open() -> void:
+	## xu4 spellOpen → getChest(-2). Remake: adjacent chest / locked door.
+	## One neighbor: no Dir. Several: same Dir: prompt as Blink.
+	var dirs := _spell_open_dirs()
+	if dirs.size() > 1:
+		_begin_cast_dir()
+		return
+	_finish_cast_open_direct(dirs[0] if dirs.size() == 1 else Vector2i.ZERO)
 
 
 func _begin_cast_dir() -> void:
@@ -9187,10 +9200,15 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 			ok = _apply_cast_dispel(dir)
 		Spells.ENERGY_FIELD:
 			ok = _apply_cast_energy_field(dir)
+		Spells.OPEN:
+			ok = _apply_cast_open(dir)
 		_:
 			ok = false
 	if not ok:
-		_push_message(Locale.t("cast_failed"), false)
+		if spell_id == Spells.OPEN:
+			_push_message(Locale.t("cmd_nothing_to_open"), false)
+		else:
+			_push_message(Locale.t("cast_failed"), false)
 	_close_cast(false, true)
 
 
@@ -9399,6 +9417,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.JINX
 		or spell_id == Spells.MAGIC_MISSILE
 		or spell_id == Spells.NEGATE
+		or spell_id == Spells.OPEN
 		or spell_id == Spells.PROTECTION
 		or spell_id == Spells.QUICKNESS
 		or spell_id == Spells.RESURRECT
@@ -9473,6 +9492,158 @@ func _apply_cast_quickness() -> bool:
 	## DOS SPL_Quickness — Aura::QUICKNESS for 10 turns; caster owns this slot.
 	var caster := GameState.party_member_at(_cast_caster_slot)
 	GameState.set_aura(GameState.AuraType.QUICKNESS, GameState.AURA_SPELL_TURNS, caster)
+	return true
+
+
+func _finish_cast_open_direct(dir: Vector2i) -> void:
+	## Sole/none neighbor — spend mix/MP then open. No Dir: line.
+	var spell_id := _cast_spell_id
+	if spell_id != Spells.OPEN or not _is_cast_implemented(spell_id):
+		_close_cast(false, false)
+		return
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_close_cast(false, true)
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _cast_blocked_by_negate():
+		_close_cast(false, true)
+		return
+	if not _apply_cast_open(dir):
+		_push_message(Locale.t("cmd_nothing_to_open"), false)
+	_close_cast(false, true)
+
+
+func _spell_open_dirs() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for dir in _command_menu_cardinal_dirs():
+		if _spell_open_has_target(dir):
+			out.append(dir)
+	return out
+
+
+func _spell_open_has_target(dir: Vector2i) -> bool:
+	## Closed chest or locked door on the adjacent cardinal tile.
+	if _is_in_combat() and _map != null and _map.is_in_combat():
+		var from := _map.get_combat_focus_pos()
+		if from.x < 0:
+			return false
+		var pos := from + dir
+		if (
+			pos.x < 0 or pos.y < 0
+			or pos.x >= _CombatMapData.WIDTH
+			or pos.y >= _CombatMapData.HEIGHT
+		):
+			return false
+		if _map.has_combat_chest_at(pos) and not _map.combat_chest_is_open(pos):
+			return true
+		return _TileRules.is_locked_door(_map.combat_tile_at(pos))
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return false
+	var target := _tile_pos + dir
+	if (
+		target.x < 0 or target.y < 0
+		or target.x >= _CityMapData.WIDTH
+		or target.y >= _CityMapData.HEIGHT
+	):
+		return false
+	var tid := int(_city_map.effective_tile_at(target.x, target.y))
+	if _TileRules.is_locked_door(tid):
+		return true
+	if not _TileRules.is_chest(tid):
+		return false
+	if _city_map.person_index_at(target.x, target.y) >= 0:
+		return false
+	return not _city_map.is_chest_open(target.x, target.y)
+
+
+func _apply_cast_open(dir: Vector2i) -> bool:
+	## xu4 getChest(-2) trap immunity. Remake: open one lid / locked door.
+	## Gold and KA_STOLE_CHEST stay on Get. Stacked combat chests: top only.
+	if _is_balloon_flying():
+		_push_message(Locale.t("cmd_drift_only"), false)
+		return true
+	if dir == Vector2i.ZERO:
+		return false
+	if _is_in_combat() and _map != null and _map.is_in_combat():
+		return _apply_cast_open_combat(dir)
+	if _is_in_city() and _city_map != null and _city_map.loaded:
+		return _apply_cast_open_city(dir)
+	return false
+
+
+func _apply_cast_open_combat(dir: Vector2i) -> bool:
+	var from := _map.get_combat_focus_pos()
+	if from.x < 0:
+		return false
+	var target := from + dir
+	if (
+		target.x < 0 or target.y < 0
+		or target.x >= _CombatMapData.WIDTH
+		or target.y >= _CombatMapData.HEIGHT
+	):
+		return false
+	if _map.has_combat_chest_at(target):
+		if _map.combat_chest_is_open(target):
+			return false
+		if not _map.open_combat_chest_at(target):
+			return false
+		_push_message(Locale.t("cmd_opened"), false)
+		return true
+	if not _TileRules.is_locked_door(_map.combat_tile_at(target)):
+		return false
+	if not _map.open_combat_door(target):
+		return false
+	AudioSfx.play_door()
+	_push_message(Locale.t("cmd_opened"), false)
+	return true
+
+
+func _apply_cast_open_city(dir: Vector2i) -> bool:
+	const TILE_DOOR := 59
+	const TILE_BRICK_FLOOR := 62
+	const DOOR_OPEN_TTL := 4
+	var target := _tile_pos + dir
+	if (
+		target.x < 0 or target.y < 0
+		or target.x >= _CityMapData.WIDTH
+		or target.y >= _CityMapData.HEIGHT
+	):
+		return false
+	var tid := int(_city_map.effective_tile_at(target.x, target.y))
+	if _TileRules.is_chest(tid):
+		if _city_map.person_index_at(target.x, target.y) >= 0:
+			return false
+		if _city_map.is_chest_empty(target.x, target.y):
+			_push_message(Locale.t("cmd_chest_empty"), false)
+			return true
+		if _city_map.is_chest_open(target.x, target.y):
+			return false
+		var already_looted := _is_remembered_empty_chest(target.x, target.y)
+		_city_map.open_chest_at(target.x, target.y, not already_looted)
+		if already_looted:
+			_mark_city_chest_emptied(target.x, target.y)
+		if _map != null and _map.has_method("begin_chest_loot_reveal"):
+			_map.begin_chest_loot_reveal()
+		elif _map != null and _map.has_method("refresh"):
+			_map.refresh()
+		_push_message(Locale.t("cmd_opened"), false)
+		if already_looted:
+			_push_message(Locale.t("cmd_chest_empty"), false)
+		return true
+	if not _TileRules.is_locked_door(tid):
+		return false
+	_city_map.add_annotation(target.x, target.y, TILE_DOOR, -1)
+	_city_map.add_annotation(target.x, target.y, TILE_BRICK_FLOOR, DOOR_OPEN_TTL)
+	if _map != null and _map.has_method("refresh"):
+		_map.refresh()
+	AudioSfx.play_door()
+	_push_message(Locale.t("cmd_opened"), false)
 	return true
 
 

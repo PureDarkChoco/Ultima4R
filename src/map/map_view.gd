@@ -513,7 +513,8 @@ func open_combat_door(pos: Vector2i) -> bool:
 	## Replace a door tile with brick floor for the rest of combat.
 	if _combat_map == null:
 		return false
-	if not _TileRulesCamp.is_door(int(_combat_map.tile_at(pos.x, pos.y))):
+	var tid := int(_combat_map.tile_at(pos.x, pos.y))
+	if not (_TileRulesCamp.is_door(tid) or _TileRulesCamp.is_locked_door(tid)):
 		return false
 	_combat_map.set_tile(pos.x, pos.y, 62) ## brick floor
 	_rebuild()

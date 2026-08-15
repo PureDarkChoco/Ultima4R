@@ -19,6 +19,7 @@ const ICEBALL := 8 ## I
 const JINX := 9 ## J
 const MAGIC_MISSILE := 12 ## M
 const NEGATE := 13 ## N
+const OPEN := 14 ## O
 const PROTECTION := 15 ## P
 const QUICKNESS := 16 ## Q
 const RESURRECT := 17 ## R
