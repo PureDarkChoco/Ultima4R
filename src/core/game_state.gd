@@ -1570,6 +1570,21 @@ func _max_mp_for_class(klass: int) -> int:
 	return max_mp_of_class(klass)
 
 
+func regenerate_mp() -> bool:
+	## xu4 Party::endTurn MP tick — +1 if not disabled and below max.
+	## Combat and explore both use this; food / poison stay explore-only.
+	var changed := false
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_member_disabled(mid):
+			continue
+		var mx := max_mp_of_class(mid)
+		if mx > 0 and mid < member_mp.size() and int(member_mp[mid]) < mx:
+			member_mp[mid] = int(member_mp[mid]) + 1
+			changed = true
+	return changed
+
+
 func is_member_disabled(klass: int) -> bool:
 	## xu4 Creature::isDisabled — sleeping or dead (poisoned can still act/regen).
 	var st := status_of_class(klass)
@@ -2548,8 +2563,9 @@ func living_party_count() -> int:
 func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dictionary:
 	## xu4 Party::endTurn.
 	## - World/dungeon: moves++ then food / sleep wake / poison / starve / MP / hull.
-	## - Combat (xu4): still moves++, but no food/status. Ultima4R skips moves in combat
-	##   so camp heal / virtue timers only advance outside battle.
+	## - Combat (xu4): still moves++, but no food/status. MP still ticks on wrap.
+	##   Ultima4R skips moves in combat so camp heal / virtue timers stay outdoors;
+	##   combat MP regen is GameState.regenerate_mp() at the party-round wrap.
 	if not in_combat:
 		moves += 1
 
@@ -2590,12 +2606,8 @@ func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dicti
 					damaged_mask |= 1 << i
 					poisoned_mask |= 1 << i
 					vitals_changed = true
-		## xu4: MP +1 each turn if not disabled and below max (same turn as wake).
-		if not is_member_disabled(mid):
-			var mx := max_mp_of_class(mid)
-			if mx > 0 and mid < member_mp.size() and int(member_mp[mid]) < mx:
-				member_mp[mid] = int(member_mp[mid]) + 1
-				vitals_changed = true
+	if regenerate_mp():
+		vitals_changed = true
 
 	## Starving after per-member status (xu4 emits STARVING after the loop).
 	if food == 0:

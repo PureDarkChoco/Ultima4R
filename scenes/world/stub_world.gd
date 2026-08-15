@@ -14887,6 +14887,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		_refresh_party()
 		_combat_resolving = false
 		return
+	_combat_apply_round_end_turn()
 	await _combat_run_foe_phase()
 	if not _combat_active or _map == null or not _map.is_in_combat():
 		_combat_resolving = false
@@ -15231,6 +15232,13 @@ func _combat_apply_healthy_fled_karma(fled: Dictionary) -> void:
 	GameState.adjust_karma_healthy_fled_evil()
 
 
+func _combat_apply_round_end_turn() -> void:
+	## xu4 wrap Party::endTurn MP tick + aura.passTurn. No food / moves / poison.
+	if GameState.regenerate_mp():
+		_refresh_party()
+	GameState.pass_aura_turn()
+
+
 func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	## xu4 finishTurn — pace, next party member; after last, foes act one-by-one.
 	## Fleeing the last member → isLost → endCombat (Battle is lost + karma).
@@ -15268,7 +15276,7 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		)
 		if not still_party:
 			## Party round done — creatures (xu4 wrap → endTurn / aura / moveCreatures).
-			GameState.pass_aura_turn()
+			_combat_apply_round_end_turn()
 			await get_tree().create_timer(0.05).timeout
 			await _combat_run_foe_phase()
 			if not _combat_active or _map == null or not _map.is_in_combat():
@@ -15325,6 +15333,7 @@ func _combat_skip_to_able_focus() -> bool:
 		## Sleeping / dead — advance focus with no turn-gap delay.
 		if not _map.advance_combat_focus():
 			## Full pass of sleepers: xu4 ~50ms then creatures act.
+			_combat_apply_round_end_turn()
 			await get_tree().create_timer(0.05).timeout
 			await _combat_run_foe_phase()
 			if not _combat_active or _map == null or not _map.is_in_combat():
