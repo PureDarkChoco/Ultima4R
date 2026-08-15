@@ -2980,6 +2980,13 @@ func _is_cancel_event(event: InputEvent) -> bool:
 	return _GameInput.is_cancel(event)
 
 
+func _is_command_menu_pad_event(event: InputEvent) -> bool:
+	## Gamepad B opens the A–Z palette. Keyboard uses Option/Alt, never Esc.
+	if event is InputEventKey:
+		return false
+	return _is_cancel_event(event)
+
+
 func _talk_blocks_cancel_bye() -> bool:
 	## Wait-any-key between an NPC line and the next spoken line (not Y/N).
 	## Only A continues; B and Esc must not farewell.
@@ -5318,7 +5325,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.is_pressed() or event is InputEventJoypadMotion:
 				get_viewport().set_input_as_handled()
 			return
-		if _is_cancel_event(event) and _can_open_command_menu():
+		if _is_command_menu_pad_event(event) and _can_open_command_menu():
 			_open_command_menu()
 			get_viewport().set_input_as_handled()
 			return
@@ -5666,7 +5673,7 @@ func _ensure_peer_overlay() -> void:
 
 
 func _is_option_alt_key(event: InputEvent) -> bool:
-	## Option (macOS) / Alt — summon the gamepad select UI during talk or Mix.
+	## Option (macOS) / Alt — summon the gamepad command / select UI.
 	if not (event is InputEventKey):
 		return false
 	var k := event as InputEventKey
@@ -5682,6 +5689,12 @@ func _try_toggle_pad_select_ui(event: InputEvent) -> bool:
 		return _toggle_talk_pad_select_ui()
 	if _mix_stage != 0:
 		return _toggle_mix_pad_select_ui()
+	if _command_menu_open:
+		_close_command_menu()
+		return true
+	if _can_open_command_menu():
+		_open_command_menu()
+		return true
 	return false
 
 
