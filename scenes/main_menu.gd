@@ -484,7 +484,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif code == KEY_O or phys == KEY_O:
 			_on_options()
 			accept_event()
-		elif code == KEY_L or phys == KEY_L:
+		elif code == KEY_A or phys == KEY_A:
 			_on_licenses()
 			accept_event()
 		elif code == KEY_Q or phys == KEY_Q:
@@ -502,7 +502,7 @@ func _refresh_text() -> void:
 	_btn_licenses.text = Locale.t("menu_licenses")
 	_btn_quit.text = Locale.t("menu_quit")
 	_copyright.text = Locale.t("menu_copyright")
-	_hint.text = Locale.t("input_hint_menu") + " · R/J/I/O · ⌘F"
+	_hint.text = Locale.t("input_hint_menu") + " · R/J/I/O/A · ⌘F"
 	if _save_panel and _save_panel.is_open():
 		_save_panel.refresh()
 	if _options_panel and _options_panel.is_open():
@@ -703,7 +703,7 @@ func _handle_options_input(event: InputEvent) -> bool:
 			_options_panel.cycle_current(1)
 		return true
 	if event is InputEventKey or event is InputEventJoypadButton:
-		## Swallow other keys so menu R/J/I/O don't fire under options.
+		## Swallow other keys so menu R/J/I/O/A don't fire under options.
 		return true
 	return false
 
@@ -796,7 +796,7 @@ func _handle_load_input(event: InputEvent) -> bool:
 				_save_panel.set_cursor(dig)
 			_confirm_load(dig)
 			return true
-		## Swallow other keys so menu R/J/I shortcuts don’t fire under the list.
+		## Swallow other keys so menu R/J/I/O/A shortcuts don’t fire under the list.
 		return true
 	if event is InputEventJoypadButton:
 		return true
