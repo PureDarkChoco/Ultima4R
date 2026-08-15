@@ -8,6 +8,7 @@ const REAGENT_COUNT := 8
 const MIXTURE_MAX := 99
 ## Spell letter indices (0 = A … 25 = Z).
 const AWAKEN := 0 ## A
+const BLINK := 1 ## B
 const CURE := 2 ## C
 const GATE := 6 ## G
 const HEAL := 7 ## H
@@ -213,6 +214,17 @@ static func context_of(spell_id: int) -> int:
 static func context_ok(spell_id: int, loc_ctx: int) -> bool:
 	## xu4 spellCheckPrerequisites — (location.context & spell.context) != 0
 	return (loc_ctx & context_of(spell_id)) != 0
+
+
+static func blink_distance(axis_coord: int, toward_positive: bool) -> int:
+	## xu4 spellBlink — not a fixed range. Axis coord % 16, then maybe +16.
+	var distance := posmod(axis_coord, 16)
+	if toward_positive:
+		distance = 16 - distance
+	var diff := 16 - distance
+	if diff > 0 and (randi() % (diff * diff)) > distance:
+		distance += 16
+	return distance
 
 
 static func param_type(spell_id: int) -> int:

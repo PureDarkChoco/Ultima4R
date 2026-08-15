@@ -212,7 +212,7 @@ var _mix_stage := 0
 ## Mix opened from gamepad command menu → full A–Z list (no Mix New + letter).
 var _mix_gamepad_requested := false
 var _mix_pad_full_list := false
-## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster).
+## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster), 4 = Dir.
 var _cast_stage := 0
 var _cast_caster_slot := -1
 var _cast_spell_id := -1
@@ -1716,6 +1716,8 @@ func _prompt_row_text() -> String:
 		return Locale.t("cast_who")
 	if _cast_stage == 3:
 		return Locale.t("cast_player")
+	if _cast_stage == 4:
+		return Locale.t("cast_dir")
 	if _use_stage == 1:
 		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
@@ -2597,6 +2599,9 @@ func _process(delta: float) -> void:
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
 	if _journal_focus_active:
 		_tick_journal_browse_nav()
+		return
+	if _cast_stage == 4:
+		_tick_cast_dir()
 		return
 	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
@@ -8503,6 +8508,8 @@ func _handle_cast_input(event: InputEvent) -> bool:
 		return _handle_cast_who_input(event)
 	if _cast_stage == 3:
 		return _handle_cast_caster_input(event)
+	if _cast_stage == 4:
+		return _handle_cast_dir_input(event)
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_cursor()
 		return true
@@ -8643,6 +8650,9 @@ func _try_cast_spell(spell_id: int) -> void:
 		_close_cast(false, true)
 		return
 	_cast_spell_id = spell_id
+	if spell_id == Spells.BLINK:
+		_begin_cast_dir()
+		return
 	if GameState.party_size() <= 1:
 		_finish_cast_player_spell(0)
 		return
@@ -8662,9 +8672,119 @@ func _begin_cast_who() -> void:
 	_layout_prompt_row()
 
 
+func _begin_cast_dir() -> void:
+	## xu4 PARAM_DIR — "Dir: " then NESW. Cancel spends no mix/MP.
+	if _cast_panel:
+		_cast_panel.close_panel()
+	_cast_stage = 4
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_layout_prompt_row()
+
+
+func _handle_cast_dir_input(event: InputEvent) -> bool:
+	## Direction is polled in _tick_cast_dir (same as Attack Dir?).
+	if event is InputEventKey and _is_direction_key(event as InputEventKey):
+		return true
+	if _GameInput.dir_from_event(event) != Vector2i.ZERO:
+		return true
+	return true
+
+
+func _tick_cast_dir() -> void:
+	var dir := _read_move_dir()
+	if dir.x != 0 and dir.y != 0:
+		dir = Vector2i.ZERO
+	if dir == Vector2i.ZERO:
+		_reset_hold_state()
+		return
+	if dir != _held_dir:
+		_held_dir = dir
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	_finish_cast_blink(dir)
+	_block_dir_until_keyup = true
+	_move_cd = 0.0
+	_move_repeating = false
+	_hold_arm = 0.0
+
+
+func _finish_cast_blink(dir: Vector2i) -> void:
+	## xu4 spellCast + spellBlink: spend mix, then MP, then teleport or Failed!
+	_push_message(_direction_label(dir), false)
+	var spell_id := Spells.BLINK
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_close_cast(false, true)
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if not _apply_cast_blink(dir):
+		_push_message(Locale.t("cast_failed"), false)
+	_close_cast(false, true)
+
+
+func _apply_cast_blink(dir: Vector2i) -> bool:
+	## xu4 spellBlink — world wrap, walkable landing, abyss SE corner fails.
+	if dir == Vector2i.ZERO:
+		return false
+	var from := _tile_pos
+	if from.x >= 192 and from.y >= 192:
+		return false
+	var toward_positive := dir.x > 0 or dir.y > 0
+	var axis := from.x if dir.x != 0 else from.y
+	var distance := Spells.blink_distance(axis, toward_positive)
+	var dest := from
+	for _i in distance:
+		dest = Vector2i(
+			posmod(dest.x + dir.x, WorldMapData.WIDTH),
+			posmod(dest.y + dir.y, WorldMapData.HEIGHT)
+		)
+	var left := distance
+	while left > 0 and not _blink_tile_walkable(dest):
+		left -= 1
+		dest = Vector2i(
+			posmod(dest.x - dir.x, WorldMapData.WIDTH),
+			posmod(dest.y - dir.y, WorldMapData.HEIGHT)
+		)
+	if not _blink_tile_walkable(dest) or dest == from:
+		return false
+	_tile_pos = dest
+	_clear_enter_prompt_decline_if_left()
+	_update_transport_facing(dir)
+	if _map != null:
+		_map.set_center(_tile_pos, false)
+	_refresh_locate_hud()
+	_sync_creatures_to_map()
+	_maybe_offer_enter_prompt()
+	return true
+
+
+func _blink_tile_walkable(pos: Vector2i) -> bool:
+	## xu4 tileTypeAt(WITH_OBJECTS)->isWalkable — walk_on != 0, no creature.
+	if _world_creatures != null and _world_creatures.creature_at(pos) >= 0:
+		return false
+	if _map != null:
+		var ov := _map.overlay_at(pos)
+		if ov >= 0 and _TileRules.walk_on(ov) == 0:
+			return false
+	return _TileRules.walk_on(_effective_world_tid(pos)) != 0
+
+
 func _is_cast_implemented(spell_id: int) -> bool:
 	return (
 		spell_id == Spells.AWAKEN
+		or spell_id == Spells.BLINK
 		or spell_id == Spells.CURE
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.RESURRECT

@@ -1916,6 +1916,11 @@ const _T := {
 		"en_us": "Who: ",
 		"ko": "누구: ",
 	},
+	"cast_dir": {
+		"en_u4": "Dir: ",
+		"en_us": "Dir: ",
+		"ko": "방향: ",
+	},
 	"cast_not_yet": {
 		"en_u4": "Not yet implemented.",
 		"en_us": "Not yet implemented.",
