@@ -152,6 +152,8 @@ func setup(view: TextureRect) -> bool:
 
 	## TITLE.EGA stores "PRESENT" at top; xu4 fixupIntro moves it above Ultima IV.
 	_fixup_intro_title(_title_base)
+	## EGA title is cyan/blue bands; remap to chrome silver (tools/_title_*.png are dumps only).
+	_recolor_ultima_title_silver(_title_base)
 
 	## 2× nearest keeps the map frame matching a 19×5 grid of 32² tiles.
 	_title_img = _title_base.duplicate()
@@ -994,6 +996,41 @@ func _fixup_intro_title(im: Image) -> void:
 	for x in range(84, 236):
 		if x < BASE_W and 31 < BASE_H:
 			im.set_pixel(x, 31, bar_c)
+
+
+## Recolor Ultima IV + Quest of the Avatar (after fixup). PRESENT / Origin stay as-is.
+func _recolor_ultima_title_silver(im: Image) -> void:
+	if im == null or im.is_empty():
+		return
+	_recolor_title_rect_silver(im, 59, 33, 204, 46)
+	_recolor_title_rect_silver(im, 40, 80, 240, 13)
+
+
+func _recolor_title_rect_silver(im: Image, x0: int, y0: int, tw: int, th: int) -> void:
+	var w := im.get_width()
+	var h := im.get_height()
+	for y in range(y0, mini(y0 + th, h)):
+		for x in range(x0, mini(x0 + tw, w)):
+			im.set_pixel(x, y, _silver_title_pixel(im.get_pixel(x, y)))
+
+
+func _silver_title_pixel(c: Color) -> Color:
+	var r := int(round(c.r * 255.0))
+	var g := int(round(c.g * 255.0))
+	var b := int(round(c.b * 255.0))
+	## EGA bright cyan → bright silver
+	if r == 0x55 and g == 0xff and b == 0xff:
+		return Color8(0xe6, 0xe8, 0xee)
+	## EGA bright blue → mid steel
+	if r == 0x55 and g == 0x55 and b == 0xff:
+		return Color8(0x9c, 0xa0, 0xa8)
+	## EGA cyan → warm bronze reflection
+	if r == 0x00 and g == 0xaa and b == 0xaa:
+		return Color8(0x7a, 0x6e, 0x5c)
+	## EGA blue → dark steel
+	if r == 0x00 and g == 0x00 and b == 0xaa:
+		return Color8(0x3c, 0x3a, 0x38)
+	return c
 
 
 func _blit_self(im: Image, dx: int, dy: int, sx: int, sy: int, w: int, h: int) -> void:
