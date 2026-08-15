@@ -1931,6 +1931,11 @@ const _T := {
 		"en_us": "Energy type? ",
 		"ko": "에너지 종류? ",
 	},
+	"cast_phase": {
+		"en_u4": "To Phase: ",
+		"en_us": "To Phase: ",
+		"ko": "위상: ",
+	},
 	"cast_field_poison": {
 		"en_u4": "Poison",
 		"en_us": "Poison",

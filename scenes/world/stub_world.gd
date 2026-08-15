@@ -1725,6 +1725,8 @@ func _prompt_row_text() -> String:
 		return Locale.t("cast_energy_type")
 	if _cast_stage == 6:
 		return Locale.t("cast_aim")
+	if _cast_stage == 7:
+		return Locale.t("cast_phase")
 	if _use_stage == 1:
 		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
@@ -1911,8 +1913,16 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	_enter_btn_row.custom_minimum_size = Vector2.ZERO
 	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
 	var min_w := 48.0 if keys.length() >= 3 else 58.0
+	var sep := 12
+	var expand := false
 	if keys == "abc" or keys == "fa" or keys == "plfs":
 		min_w = 72.0
+	elif keys == "12345678":
+		## Gate 1–8: one compact row, not city names.
+		min_w = 28.0
+		sep = 4
+		expand = true
+	_enter_btn_row.add_theme_constant_override("separation", sep)
 	_enter_prompt_choice = clampi(_enter_prompt_choice, 0, maxi(keys.length() - 1, 0))
 	for i in _choice_btns.size():
 		var btn := _choice_btns[i]
@@ -1921,6 +1931,9 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 		btn.visible = i < keys.length()
 		if i >= keys.length():
 			continue
+		btn.size_flags_horizontal = (
+			Control.SIZE_EXPAND_FILL if expand else Control.SIZE_SHRINK_CENTER
+		)
 		btn.custom_minimum_size = Vector2(min_w, btn_h)
 		btn.text = _prompt_choice_label(keys.substr(i, 1))
 	_sync_enter_prompt_style()
@@ -1970,6 +1983,8 @@ func _talk_gamepad_yes_no_active() -> bool:
 
 
 func _prompt_choice_keys() -> String:
+	if _cast_stage == 7:
+		return "12345678"
 	if _cast_stage == 5:
 		return "plfs"
 	if _combat_exit_prompt:
@@ -2034,6 +2049,9 @@ func _resolve_prompt_choice_index(index: int) -> void:
 	_choice_resolved_frame = frame
 	index = clampi(index, 0, keys.length() - 1)
 	var ch := keys.substr(index, 1)
+	if _cast_stage == 7:
+		_accept_cast_phase(ch)
+		return
 	if _cast_stage == 5:
 		_accept_cast_energy_type(ch)
 		return
@@ -2571,7 +2589,7 @@ func _process(delta: float) -> void:
 		_hold_arm = maxf(0.0, _hold_arm - delta)
 		if _cast_stage == 4:
 			_tick_cast_dir()
-		elif _cast_stage == 5:
+		elif _cast_stage == 5 or _cast_stage == 7:
 			_tick_dialogue_choice_nav()
 		elif _cast_stage == 6:
 			_tick_combat_aim_move()
@@ -8667,6 +8685,8 @@ func _handle_cast_input(event: InputEvent) -> bool:
 		return _handle_cast_energy_type_input(event)
 	if _cast_stage == 6:
 		return _handle_cast_aim_input(event)
+	if _cast_stage == 7:
+		return _handle_cast_phase_input(event)
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_cursor()
 		return true
@@ -8816,6 +8836,14 @@ func _try_cast_spell(spell_id: int) -> void:
 	if Spells.param_type(spell_id) == Spells.PARAM_DIR:
 		_begin_cast_dir()
 		return
+	if Spells.param_type(spell_id) == Spells.PARAM_PHASE:
+		if not _gate_transport_ok():
+			GameState.consume_mixture(spell_id)
+			_push_message(Locale.t("cast_failed"), false)
+			_close_cast(false, true)
+			return
+		_begin_cast_phase()
+		return
 	if GameState.party_size() <= 1:
 		_finish_cast_player_spell(0)
 		return
@@ -8875,6 +8903,53 @@ func _accept_cast_energy_type(key: String) -> void:
 	_cast_field_tid = tid
 	_push_message(Locale.t("cast_named", [_prompt_choice_label(key.to_lower())]), false)
 	_begin_cast_dir()
+
+
+func _begin_cast_phase() -> void:
+	## xu4 PARAM_PHASE — "To Phase: " then 1–8. 0 / cancel spends no mix/MP.
+	if _cast_panel:
+		_cast_panel.close_panel()
+	_cast_stage = 7
+	_enter_prompt_choice = 0
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_push_message(Locale.t("cast_phase").strip_edges(), false)
+	_layout_prompt_row()
+
+
+func _handle_cast_phase_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		var keys := _prompt_choice_keys()
+		if not keys.is_empty():
+			_accept_cast_phase(keys.substr(_enter_prompt_choice, 1))
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		var keys2 := _prompt_choice_keys()
+		if not keys2.is_empty():
+			_accept_cast_phase(keys2.substr(_enter_prompt_choice, 1))
+		return true
+	if event is InputEventKey:
+		var ch := _key_latin_command_char(event as InputEventKey)
+		if ch == "0":
+			_close_cast(true, not _combat_active)
+			return true
+		if ch.length() == 1 and ch >= "1" and ch <= "8":
+			_accept_cast_phase(ch)
+			return true
+	return true
+
+
+func _accept_cast_phase(key: String) -> void:
+	if key.length() != 1 or key < "1" or key > "8":
+		return
+	_finish_cast_phase_spell(int(key) - 1)
+
+
+func _gate_transport_ok() -> bool:
+	## xu4 TRANSPORT_FOOT_OR_HORSE — ship / balloon → Failed!
+	return _transport == Transport.FOOT or _transport == Transport.HORSE
 
 
 func _begin_cast_dir() -> void:
@@ -9096,6 +9171,55 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 	_close_cast(false, true)
 
 
+func _finish_cast_phase_spell(phase: int) -> void:
+	## xu4 spellCast + PARAM_PHASE: spend mix, then MP, then hop to that moongate.
+	if _cast_stage != 7:
+		return
+	_cast_stage = 8
+	_push_message(str(phase + 1), false)
+	var spell_id := _cast_spell_id
+	if spell_id != Spells.GATE or not _is_cast_implemented(spell_id):
+		_close_cast(false, false)
+		return
+	var caster := GameState.party_member_at(_cast_caster_slot)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_close_cast(false, true)
+		return
+	if not _gate_transport_ok():
+		_push_message(Locale.t("cast_failed"), false)
+		_close_cast(false, true)
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	if _enter_btn_row != null:
+		_enter_btn_row.visible = false
+	await _apply_cast_gate(phase)
+	_close_cast(false, true)
+
+
+func _apply_cast_gate(phase: int) -> void:
+	## xu4 spellGate — flash, then set coords to moongate 0..7. No shrine hop.
+	var dest: Vector2i = _Moongates.coords(phase)
+	_moongate_busy = true
+	if _map != null:
+		await _map.await_spell_flash()
+	if dest != _tile_pos:
+		_tile_pos = dest
+		_clear_enter_prompt_decline_if_left()
+		if _map != null:
+			_map.set_center(_tile_pos, false)
+			_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+		_refresh_locate_hud()
+		_sync_creatures_to_map()
+		_sync_moongate(true)
+		_maybe_offer_enter_prompt()
+	_moongate_busy = false
+
+
 func _apply_cast_blink(dir: Vector2i) -> bool:
 	## xu4 spellBlink — world wrap, walkable landing, abyss SE corner fails.
 	if dir == Vector2i.ZERO:
@@ -9243,6 +9367,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.DISPEL
 		or spell_id == Spells.ENERGY_FIELD
 		or spell_id == Spells.FIREBALL
+		or spell_id == Spells.GATE
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.ICEBALL
 		or spell_id == Spells.MAGIC_MISSILE
