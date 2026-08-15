@@ -471,30 +471,18 @@ func _sync_cursor() -> void:
 
 
 func _ensure_cursor_visible() -> void:
-	## Viewport is an exact N-row height → move by whole strides only.
+	## Keep the focused row on the middle visible line, like the gamepad menu.
 	if _cursor < 0 or _cursor >= _row_wraps.size() or _scroll == null:
 		return
 	var stride := INV_ROW_H + INV_LIST_SEP
-	var top := _cursor * stride
-	var bot := top + INV_ROW_H
-	var view_h := _list_viewport_height(_visible_rows)
-	if view_h <= 0:
-		view_h = int(_scroll.size.y)
-	if view_h <= 0:
-		return
-	var max_scroll := _scroll_max()
-	var view_top := int(_scroll.scroll_vertical)
-	var view_bot := view_top + view_h
-	var next := view_top
-	if top < view_top:
-		next = top
-	elif bot > view_bot:
-		next = bot - view_h
-	## Whole-row steps only (and exact max).
-	if next > 0:
-		next = (next / stride) * stride
-	next = clampi(next, 0, max_scroll)
-	if next != view_top:
+	var total := _row_wraps.size()
+	var vis := maxi(1, _visible_rows)
+	var next := 0
+	if total > vis:
+		var center := int(vis / 2)
+		next = clampi(_cursor - center, 0, total - vis) * stride
+	next = clampi(next, 0, _scroll_max())
+	if next != int(_scroll.scroll_vertical):
 		_scroll.scroll_vertical = next
 
 

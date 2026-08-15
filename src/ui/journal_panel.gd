@@ -58,7 +58,7 @@ var _pages: Control
 var _page1: VBoxContainer
 var _page2: ScrollContainer
 var _codex: VBoxContainer
-var _scroll: ScrollContainer
+var _scroll: Control
 var _list: VBoxContainer
 var _empty: Label
 var _pending_tex: Texture2D
@@ -200,16 +200,14 @@ func _ready() -> void:
 	_page1.add_theme_constant_override("separation", 6)
 	_page1.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pages.add_child(_page1)
-	_scroll = ScrollContainer.new()
+	_scroll = Control.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	_scroll.clip_contents = true
 	_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_scroll.resized.connect(_fit_list_width)
 	_page1.add_child(_scroll)
 	_list = VBoxContainer.new()
-	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_list.add_theme_constant_override("separation", ENTRY_GAP)
 	_scroll.add_child(_list)
@@ -283,6 +281,7 @@ func move_selection(step: int) -> void:
 		idx = posmod(idx + step, _nav_ids.size())
 	_set_selected_id(_nav_ids[idx])
 	_apply_selection_visuals()
+	_center_selected()
 	_schedule_center()
 
 
@@ -364,7 +363,7 @@ func refresh(journal_visible: bool = false) -> void:
 				_entry_nodes[id] = entry
 				_nav_ids.append(id)
 			_list.add_child(entry)
-	_fit_list_width()
+	_sync_list_min_size()
 	_reveal_unseen_if_visible(gs, journal_visible)
 	_normalize_selection(gs)
 	_rebuild_codex()
@@ -610,32 +609,105 @@ func _center_selected_async(token: int) -> void:
 
 
 func _center_selected() -> void:
+	## Keep the focused note on the middle of the pane, like the gamepad menu.
 	if _current_page() != 0:
 		return
 	if _scroll == null or _list == null:
 		return
+	var node := _selected_row_node()
+	if node == null:
+		return
+	_sync_list_min_size()
+	var view_h := _scroll.size.y
+	if view_h < 8.0:
+		return
+	var row_h := node.get_combined_minimum_size().y
+	if row_h < 1.0:
+		row_h = node.size.y
+	if row_h < 1.0:
+		return
+	var row_y := _journal_offset_of(node)
+	## Center ordinary rows, but pin the list to its top/bottom at either end.
+	var target_y := view_h * 0.5 - (row_y + row_h * 0.5)
+	var content_h := maxf(_list.custom_minimum_size.y, _list.size.y)
+	var bottom_y := minf(0.0, view_h - content_h)
+	_list.position = Vector2(0.0, clampf(target_y, bottom_y, 0.0))
+
+
+func _selected_row_node() -> Control:
 	var cur := _selected_id()
 	var node: Control = _entry_nodes.get(cur, null) as Control
 	if node == null:
 		node = _header_nodes.get(cur, null) as Control
 	if node == null or not is_instance_valid(node):
-		return
-	var view_h := _scroll.size.y
-	if view_h < 8.0:
-		return
-	var row_y := node.position.y
-	var row_h := node.size.y
-	var target := row_y + row_h * 0.5 - view_h * 0.5
-	var max_scroll := maxf(_list.size.y - view_h, 0.0)
-	_scroll.scroll_vertical = clampi(int(round(target)), 0, int(round(max_scroll)))
+		return null
+	return node
 
 
-func _fit_list_width() -> void:
+func _journal_offset_of(node: Control) -> float:
+	var y := 0.0
+	var sep := float(ENTRY_GAP)
+	for i in _list.get_child_count():
+		var child := _list.get_child(i) as Control
+		if child == null:
+			continue
+		if child == node:
+			return y
+		var h := child.get_combined_minimum_size().y
+		if h < 1.0:
+			h = child.size.y
+		y += maxf(h, 1.0) + sep
+	return node.position.y
+
+
+func _pin_wrap_width(node: Control, w: float) -> void:
+	if node is Label:
+		var lab := node as Label
+		if lab.autowrap_mode != TextServer.AUTOWRAP_OFF:
+			lab.custom_minimum_size.x = maxf(w, 8.0)
+		return
+	for child in node.get_children():
+		if not (child is Control):
+			continue
+		var next_w := w
+		if node is HBoxContainer and child is VBoxContainer:
+			next_w = maxf(w - float(ICON_PX) - 16.0, 8.0)
+		_pin_wrap_width(child as Control, next_w)
+
+
+func _sync_list_min_size() -> void:
+	## Autowrap notes only get a real height after the list has a width.
 	if _list == null or _scroll == null:
 		return
 	var w := _scroll.size.x
-	if w > 1.0:
-		_list.custom_minimum_size.x = w
+	if w < 8.0:
+		return
+	_list.custom_minimum_size.x = w
+	for child in _list.get_children():
+		if child is Control:
+			(child as Control).custom_minimum_size.x = w
+			_pin_wrap_width(child as Control, w)
+	var h := 0.0
+	var sep := float(ENTRY_GAP)
+	var kids := _list.get_child_count()
+	for i in kids:
+		var child := _list.get_child(i) as Control
+		if child == null:
+			continue
+		var ch := child.get_combined_minimum_size().y
+		if ch < 1.0:
+			ch = child.size.y
+		h += maxf(ch, 1.0)
+		if i < kids - 1:
+			h += sep
+	_list.custom_minimum_size.y = h
+	_list.size = Vector2(w, h)
+
+
+func _fit_list_width() -> void:
+	_sync_list_min_size()
+	if _current_page() == 0:
+		_center_selected()
 
 
 func _fit_codex_width() -> void:

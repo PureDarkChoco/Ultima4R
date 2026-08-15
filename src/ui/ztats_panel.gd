@@ -1350,19 +1350,24 @@ func _sync_shop_pick_hilite() -> void:
 
 
 func _ensure_shop_pick_visible() -> void:
+	## Keep the focused sell row on the middle visible line, like the gamepad menu.
 	if not has_shop_pick() or _inv_scroll == null:
 		return
 	if _pick_cursor < 0 or _pick_cursor >= _pick_row_wraps.size():
 		return
-	if _pick_cursor == 0:
-		_inv_scroll.scroll_vertical = 0
-		_inv_saved_scroll[_inv_page] = 0
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var view_h := int(_inv_scroll.size.y)
+	if view_h <= 0:
 		return
-	var wrap := _pick_row_wraps[_pick_cursor]
-	if wrap == null or not is_instance_valid(wrap):
-		return
-	_inv_scroll.ensure_control_visible(wrap)
-	_inv_saved_scroll[_inv_page] = int(_inv_scroll.scroll_vertical)
+	var vis := maxi(1, (view_h + INV_LIST_SEP) / stride)
+	var total := _pick_row_wraps.size()
+	var next := 0
+	if total > vis:
+		var center := int(vis / 2)
+		next = clampi(_pick_cursor - center, 0, total - vis) * stride
+	next = clampi(next, 0, _inv_scroll_max_step())
+	_inv_scroll.scroll_vertical = next
+	_inv_saved_scroll[_inv_page] = next
 
 
 func _register_shop_pick_row(wrap: Control, item_id: int) -> void:

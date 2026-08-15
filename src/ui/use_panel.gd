@@ -217,17 +217,20 @@ func _sync_cursor() -> void:
 
 
 func _ensure_cursor_visible() -> void:
+	## Keep the focused row on the middle visible line, like the gamepad menu.
 	if _cursor < 0 or _cursor >= _row_wraps.size() or _scroll == null:
 		return
-	var row := _row_wraps[_cursor]
-	var top := row.position.y
-	var bot := top + row.size.y
-	var view_top := _scroll.scroll_vertical
-	var view_bot := view_top + _scroll.size.y
-	if top < view_top:
-		_scroll.scroll_vertical = int(top)
-	elif bot > view_bot:
-		_scroll.scroll_vertical = int(bot - _scroll.size.y)
+	var stride := INV_ROW_H + INV_LIST_SEP
+	var view_h := int(_scroll.size.y)
+	if view_h <= 0:
+		return
+	var vis := maxi(1, (view_h + INV_LIST_SEP) / stride)
+	var total := _row_wraps.size()
+	var next := 0
+	if total > vis:
+		var center := int(vis / 2)
+		next = clampi(_cursor - center, 0, total - vis) * stride
+	_scroll.scroll_vertical = clampi(next, 0, maxi(0, (total - vis) * stride))
 
 
 func _scroll_to_top() -> void:
