@@ -29,11 +29,11 @@ Runes are looked up via `RuneIcons` (`src/core/rune_icons.gd`); indices match `V
 
 | File | Virtue | id |
 |------|--------|---:|
-| `honesty.png` | Honesty | 0 |
-| `compassion.png` | Compassion | 1 |
-| `valor.png` | Valor | 2 |
-| `justice.png` | Justice | 3 |
-| `sacrifice.png` | Sacrifice | 4 |
-| `honor.png` | Honor | 5 |
-| `spirituality.png` | Spirituality | 6 |
-| `humility.png` | Humility | 7 |
+| `rune_honesty.png` | Honesty | 0 |
+| `rune_compassion.png` | Compassion | 1 |
+| `rune_valor.png` | Valor | 2 |
+| `rune_justice.png` | Justice | 3 |
+| `rune_sacrifice.png` | Sacrifice | 4 |
+| `rune_honor.png` | Honor | 5 |
+| `rune_spirituality.png` | Spirituality | 6 |
+| `rune_humility.png` | Humility | 7 |

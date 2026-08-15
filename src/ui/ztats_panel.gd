@@ -1458,12 +1458,6 @@ func _fill_items_page() -> void:
 		relics.append({"path": _SpecialItemIcons.BOOK, "key": "ztats_item_book"})
 	if GameState.has_item_flag(GameState.ITEM_CANDLE):
 		relics.append({"path": _SpecialItemIcons.CANDLE, "key": "ztats_item_candle"})
-	if GameState.has_item_flag(GameState.ITEM_KEY_T):
-		relics.append({"path": _SpecialItemIcons.KEY_TRUTH, "key": "ztats_item_key_truth"})
-	if GameState.has_item_flag(GameState.ITEM_KEY_L):
-		relics.append({"path": _SpecialItemIcons.KEY_LOVE, "key": "ztats_item_key_love"})
-	if GameState.has_item_flag(GameState.ITEM_KEY_C):
-		relics.append({"path": _SpecialItemIcons.KEY_COURAGE, "key": "ztats_item_key_courage"})
 	if GameState.has_item_flag(GameState.ITEM_HORN):
 		relics.append({"path": _SpecialItemIcons.HORN, "key": "ztats_item_horn"})
 	if GameState.has_item_flag(GameState.ITEM_WHEEL):
@@ -1478,6 +1472,21 @@ func _fill_items_page() -> void:
 			_add_icon_name_row(
 				_load_keyed_gear_path(str(r.get("path", ""))),
 				Locale.t(str(r.get("key", "")))
+			)
+			any = true
+	var keys: Array[Dictionary] = []
+	if GameState.has_item_flag(GameState.ITEM_KEY_T):
+		keys.append({"path": _SpecialItemIcons.KEY_TRUTH, "key": "ztats_item_key_truth"})
+	if GameState.has_item_flag(GameState.ITEM_KEY_L):
+		keys.append({"path": _SpecialItemIcons.KEY_LOVE, "key": "ztats_item_key_love"})
+	if GameState.has_item_flag(GameState.ITEM_KEY_C):
+		keys.append({"path": _SpecialItemIcons.KEY_COURAGE, "key": "ztats_item_key_courage"})
+	if not keys.is_empty():
+		_add_inv_section(Locale.t("ztats_section_keys"))
+		for k in keys:
+			_add_icon_name_row(
+				_load_keyed_gear_path(str(k.get("path", ""))),
+				Locale.t(str(k.get("key", "")))
 			)
 			any = true
 	if not any:

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dys86p835pwrd"
-path="res://.godot/imported/compassion.png-e932e7387c94cf2d15a8fc56ade93e73.ctex"
+uid="uid://fsscqmo2hvr5"
+path="res://.godot/imported/rune_spirituality.png-4d987ff5a406bd33de2cd7bd1f769136.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/compassion.png"
-dest_files=["res://.godot/imported/compassion.png-e932e7387c94cf2d15a8fc56ade93e73.ctex"]
+source_file="res://assets/ui/special_items/rune_spirituality.png"
+dest_files=["res://.godot/imported/rune_spirituality.png-4d987ff5a406bd33de2cd7bd1f769136.ctex"]
 
 [params]
 

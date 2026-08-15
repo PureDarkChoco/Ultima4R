@@ -98,6 +98,12 @@ var journal_collapsed: Dictionary = {}
 var journal_selected_id: String = ""
 ## New catalog id not yet shown in journal browse; next open jumps here once.
 var journal_unseen_id: String = ""
+## 0 = notes (page 1), 1 = collection page. New entries always return to page 1.
+var journal_page: int = 0
+## Bitmasks (1 << Virtues.Id) of virtues / mantras learned from talk or shrine.
+var journal_known_virtues: int = 0
+var journal_known_mantras: int = 0
+var journal_known_dungeons: int = 0
 ## Spoken NPC interests: "city/d{discourse}" → Array of stable keyword keys.
 ## Legacy saves may still use "city/npc-name".
 var talk_known_keywords: Dictionary = {}
@@ -332,6 +338,10 @@ func reset_party() -> void:
 	journal_collapsed.clear()
 	journal_selected_id = ""
 	journal_unseen_id = ""
+	journal_page = 0
+	journal_known_virtues = 0
+	journal_known_mantras = 0
+	journal_known_dungeons = 0
 	talk_known_keywords.clear()
 	talk_heard_words.clear()
 	clear_aura()
@@ -703,6 +713,10 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	journal_collapsed.clear()
 	journal_selected_id = ""
 	journal_unseen_id = ""
+	journal_page = 0
+	journal_known_virtues = 0
+	journal_known_mantras = 0
+	journal_known_dungeons = 0
 	_Journal.seed_new_game(self)
 
 
@@ -2583,6 +2597,10 @@ func to_save_dict() -> Dictionary:
 		"journal_collapsed": journal_collapsed.duplicate(true),
 		"journal_selected_id": journal_selected_id,
 		"journal_unseen_id": journal_unseen_id,
+		"journal_page": journal_page,
+		"journal_known_virtues": journal_known_virtues,
+		"journal_known_mantras": journal_known_mantras,
+		"journal_known_dungeons": journal_known_dungeons,
 		"talk_known_keywords": talk_known_keywords.duplicate(true),
 		"talk_heard_words": talk_heard_words.duplicate(),
 		"lastreagent": lastreagent,
@@ -2665,6 +2683,11 @@ func apply_save_dict(d: Dictionary) -> void:
 				journal_collapsed[pid] = true
 	journal_selected_id = str(d.get("journal_selected_id", "")).strip_edges()
 	journal_unseen_id = str(d.get("journal_unseen_id", "")).strip_edges()
+	journal_page = clampi(int(d.get("journal_page", 0)), 0, 1)
+	journal_known_virtues = int(d.get("journal_known_virtues", 0))
+	journal_known_mantras = int(d.get("journal_known_mantras", 0))
+	journal_known_dungeons = int(d.get("journal_known_dungeons", 0))
+	_Journal.sync_known(self)
 	talk_known_keywords.clear()
 	var talk_raw: Variant = d.get("talk_known_keywords", {})
 	if typeof(talk_raw) == TYPE_DICTIONARY:
@@ -2962,6 +2985,7 @@ func journal_mark_id(id: String) -> bool:
 func journal_mark_mantra(virtue: int) -> bool:
 	if virtue < 0 or virtue > 7:
 		return false
+	journal_known_mantras |= 1 << virtue
 	return journal_mark_goal("mantra:%s" % Virtues.NAMES_EN[virtue].to_lower())
 
 

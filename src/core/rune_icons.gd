@@ -18,14 +18,14 @@ enum Id {
 const DIR := "res://assets/ui/special_items/"
 
 const PATHS := {
-	Id.HONESTY: DIR + "honesty.png",
-	Id.COMPASSION: DIR + "compassion.png",
-	Id.VALOR: DIR + "valor.png",
-	Id.JUSTICE: DIR + "justice.png",
-	Id.SACRIFICE: DIR + "sacrifice.png",
-	Id.HONOR: DIR + "honor.png",
-	Id.SPIRITUALITY: DIR + "spirituality.png",
-	Id.HUMILITY: DIR + "humility.png",
+	Id.HONESTY: DIR + "rune_honesty.png",
+	Id.COMPASSION: DIR + "rune_compassion.png",
+	Id.VALOR: DIR + "rune_valor.png",
+	Id.JUSTICE: DIR + "rune_justice.png",
+	Id.SACRIFICE: DIR + "rune_sacrifice.png",
+	Id.HONOR: DIR + "rune_honor.png",
+	Id.SPIRITUALITY: DIR + "rune_spirituality.png",
+	Id.HUMILITY: DIR + "rune_humility.png",
 }
 
 const NAME_TO_ID := {

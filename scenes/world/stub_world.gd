@@ -14949,8 +14949,8 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 			return true
 	if event is InputEventJoypadMotion:
 		var stick_x := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-		if stick_x != 0 and _journal_panel != null and _journal_panel.has_method("nudge_selected_place"):
-			_journal_panel.nudge_selected_place(stick_x)
+		if stick_x != 0 and _journal_panel != null and _journal_panel.has_method("turn_page"):
+			_journal_panel.turn_page(stick_x)
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
@@ -14972,8 +14972,8 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 		if key_dir.y != 0:
 			return true
 		if key_dir.x != 0:
-			if _journal_panel != null and _journal_panel.has_method("nudge_selected_place"):
-				_journal_panel.nudge_selected_place(key_dir.x)
+			if _journal_panel != null and _journal_panel.has_method("turn_page"):
+				_journal_panel.turn_page(key_dir.x)
 			return true
 		if (
 			key_event.keycode == KEY_ENTER or key_event.physical_keycode == KEY_ENTER
@@ -14988,8 +14988,8 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 		if pad_dir.y != 0:
 			return true
 		if pad_dir.x != 0:
-			if _journal_panel != null and _journal_panel.has_method("nudge_selected_place"):
-				_journal_panel.nudge_selected_place(pad_dir.x)
+			if _journal_panel != null and _journal_panel.has_method("turn_page"):
+				_journal_panel.turn_page(pad_dir.x)
 			return true
 		return true
 	return true

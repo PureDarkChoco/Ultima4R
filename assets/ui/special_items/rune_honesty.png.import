@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://fsscqmo2hvr5"
-path="res://.godot/imported/spirituality.png-4d987ff5a406bd33de2cd7bd1f769136.ctex"
+uid="uid://by2g7ds6bl8lb"
+path="res://.godot/imported/rune_honesty.png-ec84173c5ab3fd4a7a8a2ed8e2f6c002.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/special_items/spirituality.png"
-dest_files=["res://.godot/imported/spirituality.png-4d987ff5a406bd33de2cd7bd1f769136.ctex"]
+source_file="res://assets/ui/special_items/rune_honesty.png"
+dest_files=["res://.godot/imported/rune_honesty.png-ec84173c5ab3fd4a7a8a2ed8e2f6c002.ctex"]
 
 [params]
 

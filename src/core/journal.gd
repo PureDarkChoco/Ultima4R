@@ -175,6 +175,7 @@ static func _append_catalog_capture(
 	var rows: Array = gs.journal_entries
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
+	_apply_know(gs, cat.get("know", ""))
 	if note_new:
 		_note_new_entry(gs, id, place)
 	return true
@@ -244,6 +245,7 @@ static func _note_new_entry(gs: Node, id: String, place: String) -> void:
 	if nid.is_empty():
 		return
 	gs.journal_unseen_id = nid
+	gs.journal_page = 0
 	var p := place.strip_edges().to_lower()
 	if p.is_empty() or typeof(gs.journal_collapsed) != TYPE_DICTIONARY:
 		return
@@ -644,6 +646,69 @@ static func format_time(unix_at: int) -> String:
 	]
 
 
+static func sync_known(gs: Node) -> void:
+	## Backfill collection bits from already-recorded catalog rows.
+	if gs == null:
+		return
+	ensure_catalog()
+	for row in gs.journal_entries:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var cat := find_catalog_by_id(str((row as Dictionary).get("id", "")))
+		if cat.is_empty():
+			continue
+		_apply_know(gs, cat.get("know", ""))
+
+
+static func known_virtue_mask(gs: Node) -> int:
+	sync_known(gs)
+	if gs == null:
+		return 0
+	return int(gs.journal_known_virtues)
+
+
+static func known_mantra_mask(gs: Node) -> int:
+	sync_known(gs)
+	if gs == null:
+		return 0
+	return int(gs.journal_known_mantras)
+
+
+static func known_dungeon_mask(gs: Node) -> int:
+	sync_known(gs)
+	if gs == null:
+		return 0
+	return int(gs.journal_known_dungeons)
+
+
+static func _apply_know(gs: Node, raw: Variant) -> void:
+	if gs == null:
+		return
+	if typeof(raw) == TYPE_ARRAY:
+		for item in raw:
+			_apply_know_token(gs, str(item))
+		return
+	_apply_know_token(gs, str(raw))
+
+
+static func _apply_know_token(gs: Node, raw: String) -> void:
+	if gs == null:
+		return
+	var k := raw.strip_edges().to_lower()
+	if k.begins_with("virtue:"):
+		var v := _virtue_from_token(k.substr(7))
+		if v >= 0:
+			gs.journal_known_virtues = int(gs.journal_known_virtues) | (1 << v)
+	elif k.begins_with("mantra:"):
+		var v := _virtue_from_token(k.substr(7))
+		if v >= 0:
+			gs.journal_known_mantras = int(gs.journal_known_mantras) | (1 << v)
+	elif k.begins_with("dungeon:"):
+		var d := _dungeon_from_token(k.substr(8))
+		if d >= 0:
+			gs.journal_known_dungeons = int(gs.journal_known_dungeons) | (1 << d)
+
+
 static func _virtue_from_token(token: String) -> int:
 	var t := token.strip_edges().to_lower()
 	match t:
@@ -663,6 +728,29 @@ static func _virtue_from_token(token: String) -> int:
 			return _Virtues.Id.SPIRITUALITY
 		"humility", "7":
 			return _Virtues.Id.HUMILITY
+		_:
+			return -1
+
+
+static func _dungeon_from_token(token: String) -> int:
+	## Same index as Virtues.Id / stone color.
+	match token.strip_edges().to_lower():
+		"deceit", "0":
+			return 0
+		"despise", "1":
+			return 1
+		"destard", "2":
+			return 2
+		"wrong", "3":
+			return 3
+		"covetous", "4":
+			return 4
+		"shame", "5":
+			return 5
+		"hythloth", "6":
+			return 6
+		"abyss", "7":
+			return 7
 		_:
 			return -1
 

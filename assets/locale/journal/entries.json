@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name> fills the journal collection page. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -163,6 +163,7 @@
       "npc": "Shentis",
       "topic": "SACR",
       "goal": "",
+      "know": "virtue:sacrifice",
       "en": "Virtue: Sacrifice",
       "ko": "미덕: 희생"
     },
@@ -293,6 +294,7 @@
       "chain": "minoc.sacrifice-mantra",
       "chain_order": 30,
       "goal": "",
+      "know": "mantra:sacrifice",
       "en": "Sacrifice mantra: CAH, hidden in the raven's song.",
       "ko": "희생의 만트라: 까마귀 노래에 숨은 ‘카아(CAH)’."
     },
@@ -347,6 +349,7 @@
       "chain": "britain.compassion-mantra",
       "chain_order": 20,
       "goal": "",
+      "know": "mantra:compassion",
       "en": "Compassion mantra: MU.",
       "ko": "연민의 만트라: MU."
     },
@@ -432,6 +435,7 @@
       "npc": "Cromwell",
       "topic": "MANT",
       "goal": "",
+      "know": "mantra:honesty",
       "en": "Honesty mantra: AHM.",
       "ko": "정직의 만트라: AHM."
     },
@@ -537,6 +541,7 @@
       "chain": "jhelom.valor-mantra",
       "chain_order": 20,
       "goal": "",
+      "know": "mantra:valor",
       "en": "Valor mantra: RA.",
       "ko": "용기의 만트라: RA."
     },
@@ -606,6 +611,7 @@
       "npc": "Luke",
       "topic": "YEW",
       "goal": "",
+      "know": "virtue:justice",
       "skip_if_recorded": "yew.dwp.justice",
       "speaker_en": "Luke",
       "speaker_ko": "루크",
@@ -620,6 +626,7 @@
       "npc": "Dwp",
       "topic": "JOB",
       "goal": "",
+      "know": "virtue:justice",
       "skip_if_recorded": "yew.luke.justice",
       "speaker_en": "Dwp",
       "speaker_ko": "드웁",
@@ -705,6 +712,7 @@
       "chain": "yew.justice-mantra",
       "chain_order": 20,
       "goal": "",
+      "know": "mantra:justice",
       "en": "Justice mantra: BEH.",
       "ko": "정의의 만트라: BEH."
     },
@@ -757,6 +765,7 @@
       "npc": "Kline",
       "topic": "MANT",
       "goal": "",
+      "know": "mantra:honor",
       "en": "Honor mantra: SUMM.",
       "ko": "명예의 만트라: SUMM."
     },
@@ -766,6 +775,7 @@
       "npc": "Luke",
       "topic": "LIGH_NO",
       "goal": "",
+      "know": "virtue:spirituality",
       "speaker_en": "Luke",
       "speaker_ko": "루크",
       "en": "Virtue: Spirituality",
@@ -841,6 +851,7 @@
       "chain": "skara.spirituality-mantra",
       "chain_order": 30,
       "goal": "",
+      "know": "mantra:spirituality",
       "en": "Spirituality mantra: OM.",
       "ko": "영성의 만트라: OM."
     },
@@ -882,6 +893,7 @@
       "chain": "magincia.humility-mantra",
       "chain_order": 30,
       "goal": "",
+      "know": "mantra:humility",
       "en": "Humility mantra: MUL.",
       "ko": "겸손의 만트라: MUL."
     },
@@ -1033,6 +1045,7 @@
       "npc": "Gem",
       "topic": "MANT",
       "goal": "",
+      "know": "mantra:humility",
       "en": "Humility mantra: reverse the mantra of Pride.",
       "ko": "겸손의 만트라: 자만의 만트라를 거꾸로."
     },

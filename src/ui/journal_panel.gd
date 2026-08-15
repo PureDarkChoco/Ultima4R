@@ -4,6 +4,10 @@ extends VBoxContainer
 ## Left-pane travel journal: place headers + dated quest notes.
 
 const _Journal := preload("res://src/core/journal.gd")
+const _Virtues := preload("res://src/core/virtues.gd")
+const _Shrine := preload("res://src/core/shrine.gd")
+const _RuneIcons := preload("res://src/core/rune_icons.gd")
+const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 const PENDING_ICON := "res://assets/ui/journal/pending.png"
 const DONE_ICON := "res://assets/ui/journal/done.png"
 const TITLE_SIZE := 15
@@ -27,8 +31,33 @@ const COL_SEL_FOCUS := Color(0.98, 0.9, 0.5, 0.28)
 const COL_PLACE_SEL := Color(0.98, 0.92, 0.62, 1)
 const PLACE_PREFIX := "place:"
 const SWEEP_SEC := 0.62
+const PAGE_COUNT := 2
+const CODEX_ICON := 22
+const CODEX_CELL_H := 22
+const CODEX_NAME_SIZE := 11
+const CODEX_HEAD_SIZE := 12
+const CODEX_ICON_LABEL_GAP := 6
+const CODEX_STONE_KEYS := [
+	"journal_codex_stone_blue",
+	"journal_codex_stone_yellow",
+	"journal_codex_stone_red",
+	"journal_codex_stone_green",
+	"journal_codex_stone_orange",
+	"journal_codex_stone_purple",
+	"journal_codex_stone_white",
+	"journal_codex_stone_black",
+]
+const CODEX_DUNGEONS := [
+	"deceit", "despise", "destard", "wrong",
+	"covetous", "shame", "hythloth", "abyss",
+]
 
 var _title: Label
+var _page_mark: Label
+var _pages: Control
+var _page1: VBoxContainer
+var _page2: ScrollContainer
+var _codex: VBoxContainer
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _empty: Label
@@ -153,6 +182,24 @@ func _ready() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(_title, true)
 	add_child(_title)
+	_page_mark = Label.new()
+	_page_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_page_mark.add_theme_font_size_override("font_size", META_SIZE)
+	_page_mark.add_theme_color_override("font_color", COL_META)
+	_page_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(_page_mark)
+	add_child(_page_mark)
+	_pages = Control.new()
+	_pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_pages.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_pages.clip_contents = true
+	_pages.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_pages)
+	_page1 = VBoxContainer.new()
+	_page1.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_page1.add_theme_constant_override("separation", 6)
+	_page1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pages.add_child(_page1)
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -160,7 +207,7 @@ func _ready() -> void:
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_scroll.resized.connect(_fit_list_width)
-	add_child(_scroll)
+	_page1.add_child(_scroll)
 	_list = VBoxContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -173,7 +220,20 @@ func _ready() -> void:
 	_empty.add_theme_color_override("font_color", COL_EMPTY)
 	_empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(_empty)
-	add_child(_empty)
+	_page1.add_child(_empty)
+	_page2 = ScrollContainer.new()
+	_page2.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_page2.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_page2.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	_page2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pages.add_child(_page2)
+	_codex = VBoxContainer.new()
+	_codex.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_codex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_codex.add_theme_constant_override("separation", 20)
+	_page2.add_child(_codex)
+	_page2.resized.connect(_fit_codex_width)
+	_apply_page()
 	if Engine.get_main_loop() != null:
 		var gs = Engine.get_main_loop().root.get_node_or_null("/root/GameState")
 		if gs != null and gs.has_signal("language_changed"):
@@ -198,7 +258,21 @@ func end_browse() -> void:
 	_apply_selection_visuals()
 
 
+func turn_page(dir_x: int) -> bool:
+	## Left / right flips between the notes page and the collection page.
+	if dir_x == 0:
+		return false
+	var next := clampi(_current_page() + (1 if dir_x > 0 else -1), 0, PAGE_COUNT - 1)
+	if next == _current_page():
+		return false
+	_set_page(next)
+	return true
+
+
 func move_selection(step: int) -> void:
+	if _current_page() != 0:
+		_scroll_codex(step)
+		return
 	if step == 0 or _nav_ids.is_empty():
 		return
 	var cur := _selected_id()
@@ -214,14 +288,14 @@ func move_selection(step: int) -> void:
 
 func activate_selection() -> bool:
 	## Enter / A on a city header toggles collapse.
+	if _current_page() != 0:
+		return false
 	return _set_selected_place_collapsed(0)
 
 
 func nudge_selected_place(dir_x: int) -> bool:
-	## Left collapses a focused city header; right expands it.
-	if dir_x == 0:
-		return false
-	return _set_selected_place_collapsed(-1 if dir_x < 0 else 1)
+	## Left/right now turn journal pages. Header collapse stays on Enter / A.
+	return turn_page(dir_x)
 
 
 func recenter_selection() -> void:
@@ -233,6 +307,7 @@ func refresh(journal_visible: bool = false) -> void:
 		return
 	_title.text = Locale.t("journal_title")
 	_empty.text = Locale.t("journal_empty")
+	_refresh_page_mark()
 	_clear_list()
 	_kill_flash()
 	_flash_id = ""
@@ -248,6 +323,8 @@ func refresh(journal_visible: bool = false) -> void:
 	_empty.visible = not has_any
 	_scroll.visible = has_any
 	if not has_any:
+		_rebuild_codex()
+		_apply_page()
 		return
 	var collapsed := _collapsed_map(gs)
 	for group in groups:
@@ -290,6 +367,8 @@ func refresh(journal_visible: bool = false) -> void:
 	_fit_list_width()
 	_reveal_unseen_if_visible(gs, journal_visible)
 	_normalize_selection(gs)
+	_rebuild_codex()
+	_apply_page()
 	_apply_selection_visuals()
 	_schedule_center()
 
@@ -301,6 +380,7 @@ func _prepare_open_selection(current_place: String) -> void:
 		return
 	var unseen := _unseen_id(gs)
 	if not unseen.is_empty() and not _Journal.place_for_entry_id(gs, unseen).is_empty():
+		_set_page(0)
 		_set_selected_id(unseen)
 		return
 	if not _selected_id().is_empty():
@@ -322,6 +402,7 @@ func _reveal_unseen_if_visible(gs: Node, journal_visible: bool) -> void:
 	if _Journal.place_for_entry_id(gs, unseen).is_empty() and not _nav_ids.has(unseen):
 		_set_unseen_id(gs, "")
 		return
+	_set_page(0)
 	_set_selected_id(unseen)
 	_flash_id = unseen
 	_set_unseen_id(gs, "")
@@ -529,6 +610,8 @@ func _center_selected_async(token: int) -> void:
 
 
 func _center_selected() -> void:
+	if _current_page() != 0:
+		return
 	if _scroll == null or _list == null:
 		return
 	var cur := _selected_id()
@@ -555,12 +638,324 @@ func _fit_list_width() -> void:
 		_list.custom_minimum_size.x = w
 
 
+func _fit_codex_width() -> void:
+	if _codex == null or _page2 == null:
+		return
+	var w := _page2.size.x
+	if w > 1.0:
+		_codex.custom_minimum_size.x = w
+
+
+func _scroll_codex(step: int) -> void:
+	## Page 2 has no fold / cursor — up/down just walks the list.
+	if _page2 == null or _codex == null or step == 0:
+		return
+	var view_h := _page2.size.y
+	if view_h < 8.0:
+		return
+	var max_scroll := maxf(_codex.size.y - view_h, 0.0)
+	if max_scroll <= 0.0:
+		return
+	var jump := maxf(CODEX_CELL_H + 10.0, view_h * 0.28)
+	_page2.scroll_vertical = clampi(
+		_page2.scroll_vertical + int(round(jump * step)),
+		0,
+		int(round(max_scroll))
+	)
+
+
+func _rebuild_codex() -> void:
+	if _codex == null:
+		return
+	for c in _codex.get_children():
+		_codex.remove_child(c)
+		c.free()
+	var gs = _game_state()
+	if gs == null:
+		return
+	var virtues := _Journal.known_virtue_mask(gs)
+	var dungeons := _Journal.known_dungeon_mask(gs)
+	var mantras := _Journal.known_mantra_mask(gs)
+	var runes := int(gs.runes)
+	var stones := int(gs.stones)
+	if virtues != 0:
+		_codex_add_section("journal_codex_virtues", _codex_virtue_row(virtues, gs))
+	if dungeons != 0:
+		_codex_add_section("journal_codex_dungeons", _codex_dungeon_row(dungeons))
+	if mantras != 0:
+		_codex_add_section("journal_codex_mantras", _codex_mantra_row(mantras))
+	if stones != 0:
+		_codex_add_section("journal_codex_stones", _codex_stone_row(stones))
+	if runes != 0:
+		_codex_add_section("journal_codex_runes", _codex_rune_row(runes, gs))
+	var relic_flags := [gs.ITEM_BELL, gs.ITEM_BOOK, gs.ITEM_CANDLE]
+	var relic_paths := [
+		_SpecialItemIcons.BELL,
+		_SpecialItemIcons.BOOK,
+		_SpecialItemIcons.CANDLE,
+	]
+	var relic_labels := [
+		"journal_codex_bell",
+		"journal_codex_book",
+		"journal_codex_candle",
+	]
+	var any_relic := false
+	for flag in relic_flags:
+		if gs.has_item_flag(int(flag)):
+			any_relic = true
+			break
+	if any_relic:
+		_codex_add_section(
+			"journal_codex_relics",
+			_codex_key_row(gs, relic_flags, relic_paths, relic_labels)
+		)
+	var key_flags := [
+		gs.ITEM_KEY_T,
+		gs.ITEM_KEY_L,
+		gs.ITEM_KEY_C,
+	]
+	var key_paths := [
+		_SpecialItemIcons.KEY_TRUTH,
+		_SpecialItemIcons.KEY_LOVE,
+		_SpecialItemIcons.KEY_COURAGE,
+	]
+	var key_labels := [
+		"journal_codex_truth",
+		"journal_codex_love",
+		"journal_codex_courage",
+	]
+	var any_key := false
+	for flag in key_flags:
+		if gs.has_item_flag(int(flag)):
+			any_key = true
+			break
+	if any_key:
+		_codex_add_section(
+			"journal_codex_keys",
+			_codex_key_row(gs, key_flags, key_paths, key_labels)
+		)
+	_fit_codex_width()
+
+
+func _codex_add_section(title_key: String, body: Control) -> void:
+	var block := VBoxContainer.new()
+	block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	block.add_theme_constant_override("separation", 2)
+	block.add_child(_codex_header(title_key))
+	block.add_child(body)
+	_codex.add_child(block)
+
+
+func _codex_header(key: String) -> Label:
+	var lab := Label.new()
+	lab.text = Locale.t(key)
+	lab.add_theme_font_size_override("font_size", CODEX_HEAD_SIZE)
+	lab.add_theme_color_override("font_color", COL_PLACE)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(lab, true)
+	return lab
+
+
+func _codex_slot_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 2)
+	return row
+
+
+func _codex_empty_cell() -> Control:
+	var cell := Control.new()
+	cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cell.custom_minimum_size = Vector2(0, CODEX_CELL_H)
+	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return cell
+
+
+func _codex_virtue_row(mask: int, gs: Node) -> HBoxContainer:
+	var row := _codex_slot_row()
+	var lang := "en"
+	if gs != null:
+		lang = gs.lang_short()
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+			continue
+		row.add_child(_codex_text_cell(_Virtues.name_of(i, lang)))
+	return row
+
+
+func _codex_dungeon_row(mask: int) -> HBoxContainer:
+	var row := _codex_slot_row()
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+			continue
+		row.add_child(_codex_text_cell(Locale.place(str(CODEX_DUNGEONS[i]))))
+	return row
+
+
+func _codex_mantra_row(mask: int) -> HBoxContainer:
+	var row := _codex_slot_row()
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+			continue
+		row.add_child(_codex_text_cell(_Shrine.mantra_of(i).to_upper()))
+	return row
+
+
+func _codex_icon_row(mask: int, is_rune: bool) -> HBoxContainer:
+	var row := _codex_slot_row()
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+			continue
+		var path := _RuneIcons.path_for_id(i) if is_rune else _SpecialItemIcons.stone_path(i)
+		row.add_child(_codex_icon_cell(path))
+	return row
+
+
+func _codex_rune_row(mask: int, gs: Node) -> HBoxContainer:
+	var row := _codex_slot_row()
+	var lang := "en"
+	if gs != null:
+		lang = gs.lang_short()
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+			continue
+		row.add_child(_codex_labeled_icon_cell(
+			_RuneIcons.path_for_id(i),
+			_Virtues.name_of(i, lang)
+		))
+	return row
+
+
+func _codex_stone_row(mask: int) -> HBoxContainer:
+	var row := _codex_slot_row()
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+			continue
+		row.add_child(_codex_labeled_icon_cell(
+			_SpecialItemIcons.stone_path(i),
+			Locale.t(str(CODEX_STONE_KEYS[i]))
+		))
+	return row
+
+
+func _codex_key_row(
+	gs: Node, flags: Array, paths: Array, labels: Array
+) -> HBoxContainer:
+	var row := _codex_slot_row()
+	for i in flags.size():
+		if not gs.has_item_flag(int(flags[i])):
+			row.add_child(_codex_empty_cell())
+			continue
+		row.add_child(_codex_labeled_icon_cell(str(paths[i]), Locale.t(str(labels[i]))))
+	return row
+
+
+func _codex_labeled_icon_cell(path: String, label: String) -> Control:
+	var cell := VBoxContainer.new()
+	cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cell.alignment = BoxContainer.ALIGNMENT_CENTER
+	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cell.add_theme_constant_override("separation", CODEX_ICON_LABEL_GAP)
+	var wrap := CenterContainer.new()
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_child(_codex_icon_rect(path))
+	cell.add_child(wrap)
+	var lab := Label.new()
+	lab.text = label
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lab.clip_text = true
+	lab.add_theme_font_size_override("font_size", CODEX_NAME_SIZE)
+	lab.add_theme_color_override("font_color", COL_BODY)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(lab, true)
+	cell.add_child(lab)
+	return cell
+
+
+func _codex_text_cell(text: String) -> Control:
+	var lab := Label.new()
+	lab.text = text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lab.clip_text = true
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.custom_minimum_size = Vector2(0, CODEX_CELL_H)
+	lab.add_theme_font_size_override("font_size", CODEX_NAME_SIZE)
+	lab.add_theme_color_override("font_color", COL_BODY)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(lab, true)
+	return lab
+
+
+func _codex_icon_cell(path: String) -> Control:
+	var cell := CenterContainer.new()
+	cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cell.custom_minimum_size = Vector2(0, CODEX_CELL_H)
+	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cell.add_child(_codex_icon_rect(path))
+	return cell
+
+
+func _codex_icon_rect(path: String) -> TextureRect:
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(CODEX_ICON, CODEX_ICON)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not path.is_empty() and ResourceLoader.exists(path):
+		icon.texture = load(path) as Texture2D
+	return icon
+
+
 func _clear_list() -> void:
 	if _list == null:
 		return
 	for c in _list.get_children():
 		_list.remove_child(c)
 		c.free()
+
+
+func _current_page() -> int:
+	var gs = _game_state()
+	if gs == null:
+		return 0
+	return clampi(int(gs.journal_page), 0, PAGE_COUNT - 1)
+
+
+func _set_page(page: int) -> void:
+	var gs = _game_state()
+	var next := clampi(page, 0, PAGE_COUNT - 1)
+	if gs != null:
+		gs.journal_page = next
+	_apply_page()
+	if next == 0:
+		_schedule_center()
+
+
+func _apply_page() -> void:
+	var page := _current_page()
+	if _page1 != null:
+		_page1.visible = page == 0
+	if _page2 != null:
+		_page2.visible = page == 1
+	_refresh_page_mark()
+
+
+func _refresh_page_mark() -> void:
+	if _page_mark == null:
+		return
+	_page_mark.text = Locale.t("journal_page_mark", [_current_page() + 1, PAGE_COUNT])
 
 
 func _selected_id() -> String:
