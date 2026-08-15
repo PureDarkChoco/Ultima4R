@@ -875,6 +875,7 @@ func add_party_member(klass: int) -> bool:
 		return false
 	if party_order.size() >= 8:
 		return false
+	_scale_companion_to_party(klass)
 	party_order.append(klass)
 	mark_weapon_known(weapon_of_class(klass))
 	mark_armor_known(armor_of_class(klass))
@@ -1548,6 +1549,42 @@ func level_of_class(klass: int) -> int:
 func can_advance_level(klass: int) -> bool:
 	## Enough XP to gain a level at Lord British (real level lags max for XP).
 	return level_of_class(klass) < max_level_for_xp(xp_of_class(klass))
+
+
+func xp_min_for_level(level: int) -> int:
+	## Lowest XP that counts as this real level (1 = 0, 2 = 100, then doubles).
+	var lv := clampi(level, 1, 8)
+	if lv <= 1:
+		return 0
+	return 100 << (lv - 2)
+
+
+func _lowest_party_level() -> int:
+	var lo := 8
+	var found := false
+	for i in party_order.size():
+		var mid := int(party_order[i])
+		if mid < 0:
+			continue
+		found = true
+		lo = mini(lo, level_of_class(mid))
+	return lo if found else 1
+
+
+func _scale_companion_to_party(klass: int) -> void:
+	## Join at (lowest current party level − 1), never below CLASS_START_LEVEL.
+	## XP becomes the minimum for that level when raised.
+	if klass < 0 or klass >= CLASS_START_LEVEL.size():
+		return
+	var start_lv := clampi(int(CLASS_START_LEVEL[klass]), 1, 8)
+	var target := clampi(maxi(start_lv, _lowest_party_level() - 1), 1, 8)
+	if target <= level_of_class(klass):
+		return
+	if klass < member_xp.size():
+		member_xp[klass] = xp_min_for_level(target)
+	if klass < member_max_hp.size():
+		member_max_hp[klass] = target * 100
+		member_hp[klass] = int(member_max_hp[klass])
 
 
 func xp_of_class(klass: int) -> int:
