@@ -161,7 +161,7 @@ const DAGGER_MISSILE_DRAW := 12
 const MAGIC_AXE_MISSILE_PATH := "res://assets/ui/weapons/magic_axe.png"
 const MAGIC_AXE_MISSILE_DRAW := 12
 ## Spin while flying (radians per tile of travel).
-const MAGIC_AXE_SPIN_PER_TILE := TAU * 1.25
+const MAGIC_AXE_SPIN_PER_TILE := TAU * 0.45
 ## Kill whirlpool — slow spin so the spiral stays readable in flight.
 const WHIRLPOOL_SPIN_PER_TILE := TAU * 0.45
 ## Bow / crossbow arrow (pixel stick; tip up; bow-string browns).
