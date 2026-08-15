@@ -455,6 +455,7 @@ func _ready() -> void:
 		_refresh_party()
 		_refresh_ship_hull_hud()
 		_refresh_journal_panel()
+		_sync_music()
 
 
 func _apply_world_save(w: Dictionary) -> void:
@@ -560,6 +561,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_map.clear_moongate()
 	_sync_balloon_view()
 	_sync_creatures_to_map()
+	_sync_music()
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -3323,9 +3325,8 @@ func _command_menu_can_show(cmd: int) -> bool:
 			U4Commands.Id.ZTATS,
 		]
 	## Keep the gamepad palette aligned with commands accepted by combat input.
-	## Volume remains hidden while it is only a stub.
 	if in_combat:
-		return U4Commands.allowed_in_combat(cmd) and cmd != U4Commands.Id.VOLUME
+		return U4Commands.allowed_in_combat(cmd)
 	match cmd:
 		U4Commands.Id.ATTACK:
 			if in_city:
@@ -3382,7 +3383,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 		U4Commands.Id.TALK:
 			return noncombat and _command_menu_has_adjacent_city_person(true)
 		U4Commands.Id.VOLUME:
-			return false ## V remains intentionally unimplemented.
+			return true
 		U4Commands.Id.XIT:
 			return (
 				noncombat and _transport != Transport.FOOT
@@ -5824,6 +5825,8 @@ func _handle_command(cmd: int) -> void:
 		_finish_party_turn()
 	elif cmd == U4Commands.Id.QUIT_SAVE:
 		_do_quit_save()
+	elif cmd == U4Commands.Id.VOLUME:
+		_do_volume()
 	elif cmd == U4Commands.Id.PASS:
 		_push_message(Locale.t("cmd_fired", [name]))
 		_finish_party_turn()
@@ -10380,6 +10383,7 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 		_map.clear_moongate()
 	_maybe_capture_manual_zorin_tip(fname)
+	_sync_music()
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
 
 
@@ -10459,6 +10463,7 @@ func _try_enter_shrine(portal: Dictionary) -> void:
 	_shrine_buffer = ""
 	_shrine_ejecting = false
 	_shrine_session = true
+	_sync_music()
 	_stamp_command_time()
 	_shrine_enter_async()
 
@@ -10768,6 +10773,7 @@ func _shrine_eject_async() -> void:
 	_sync_moongate(true)
 	await _restore_sides_after_shrine()
 	_shrine_session = false
+	_sync_music()
 	_layout_prompt_row()
 	_refresh_party()
 	_finish_party_turn()
@@ -10889,6 +10895,31 @@ func _apply_city_guards_alerted() -> void:
 
 func _is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
+
+
+func _is_castle_city() -> bool:
+	var f := _city_map_fname()
+	return f.begins_with("lcb") or f in ["lycaeum.ult", "empath.ult", "serpent.ult"]
+
+
+func _sync_music() -> void:
+	AudioSfx.music_sync_world({
+		"combat": _combat_active,
+		"shrine": _shrine_session,
+		"shop": _talk_stage == 10 and _shop != null,
+		"hawkwind": _talk_is_hawkwind,
+		"lb_talk": _talk_is_lb,
+		"castle": _is_castle_city(),
+		"city": _is_in_city(),
+	})
+
+
+func _do_volume() -> void:
+	## xu4 V — toggle music, no turn cost.
+	var on := AudioSfx.music_toggle()
+	_push_message(Locale.t("cmd_volume_on" if on else "cmd_volume_off"), false)
+	if on:
+		_sync_music()
 
 
 func _city_map_fname(cmap = null) -> String:
@@ -11028,6 +11059,7 @@ func _exit_city() -> void:
 	_sync_creatures_to_map()
 	_sync_moongate(true)
 	_refresh_locate_hud()
+	_sync_music()
 	_push_message(Locale.t("cmd_exit_city"), false)
 
 
@@ -11956,6 +11988,7 @@ func _death_revive() -> void:
 	_refresh_ship_hull_hud()
 	_sync_creatures_to_map()
 	_refresh_locate_hud()
+	_sync_music()
 	_stamp_command_time()
 	if not entered and _map != null:
 		_map.set_center(_tile_pos, false)
@@ -12195,6 +12228,7 @@ func _begin_lord_british_talk(person_i: int) -> void:
 	_talk_stage = 12
 	for line in _LordBritish.intro_lines():
 		_push_talk_script(line)
+	_sync_music()
 	_layout_prompt_row()
 	_refresh_party()
 
@@ -12248,6 +12282,7 @@ func _begin_vendor_shop(person_i: int, role: int) -> void:
 		_shop.begin_inn_refuse_horse()
 	else:
 		_shop.begin(role, locale)
+	_sync_music()
 	_flush_shop_output()
 
 
@@ -12618,6 +12653,7 @@ func _end_shop() -> void:
 	_layout_prompt_row()
 	_refresh_inventory_bars()
 	_refresh_party()
+	_sync_music()
 	if inn:
 		## xu4 inn-sleep / InnController — do not end the turn until Morning!
 		_begin_inn_rest()
@@ -14440,6 +14476,7 @@ func _end_talk(_aborted: bool) -> void:
 		_city_map.pause_follow(pi)
 	_close_talk_message_panel()
 	_layout_prompt_row()
+	_sync_music()
 	_finish_party_turn()
 
 
@@ -14569,6 +14606,7 @@ func _begin_combat(
 		return
 	## Lock input; open panels while the map wipes explore → combat (0.6s tile diagonals).
 	_combat_active = true
+	_sync_music()
 	if GameState.journal_mark_goal("combat:first"):
 		_refresh_journal_panel()
 	_GameInput.reset_stick_navigation()
@@ -14747,6 +14785,7 @@ func _finish_combat_victory_exit() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_suppress_chests = false
+	_sync_music()
 	## Held D-pad/stick from the arena must not walk the first field tile.
 	_block_dir_until_keyup = true
 	_reset_hold_state()
@@ -15124,7 +15163,7 @@ func _handle_combat_command(cmd: int) -> void:
 			_combat_finish_member_turn()
 		U4Commands.Id.VOLUME:
 			## xu4 V toggles music; no turn cost.
-			_push_message(Locale.t("cmd_stub", [letter, name]), false)
+			_do_volume()
 		_:
 			_push_message(Locale.t("cmd_not_here"), false)
 			_combat_finish_member_turn()
@@ -16244,6 +16283,7 @@ func _end_combat_lost() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_suppress_chests = false
+	_sync_music()
 	_block_dir_until_keyup = true
 	_reset_hold_state()
 	_stamp_command_time()

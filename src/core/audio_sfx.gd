@@ -18,11 +18,14 @@ const FOOT_INDOOR_TILES := {
 	63: true, ## planks
 }
 
+const _AudioMusic := preload("res://src/core/audio_music.gd")
+
 var _streams: Dictionary = {} ## id → AudioStream
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_i := 0
 var _enabled := true
 var _volume_linear := 0.7
+var music: Node
 
 
 func _ready() -> void:
@@ -32,7 +35,35 @@ func _ready() -> void:
 	_load_stream(ID_WALK_INDOOR, "walk_indoor.ogg")
 	_load_stream(ID_WALK_HORSE, "walk_horse.wav")
 	_load_stream(ID_DOOR, "door.ogg")
+	music = _AudioMusic.new()
+	music.name = "Music"
+	add_child(music)
 	_apply_volume()
+
+
+func music_play(id: String) -> void:
+	if music and music.has_method("play"):
+		music.play(id)
+
+
+func music_stop() -> void:
+	if music and music.has_method("stop"):
+		music.stop()
+
+
+func music_toggle() -> bool:
+	if music and music.has_method("toggle"):
+		return bool(music.toggle())
+	return false
+
+
+func music_enabled() -> bool:
+	return music != null and bool(music.is_enabled())
+
+
+func music_sync_world(ctx: Dictionary) -> void:
+	if music and music.has_method("sync_world"):
+		music.sync_world(ctx)
 
 
 func set_enabled(on: bool) -> void:

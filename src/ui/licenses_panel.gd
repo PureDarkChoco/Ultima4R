@@ -198,6 +198,11 @@ https://freesound.org/
 
 각 음원의 라이선스와 제작자 표시는 Freesound의 해당 음원 페이지를 따릅니다.
 
+배경음악
+
+배경음악은 Commodore 64판 Ultima IV 사운드트랙(Ken Arnold 작곡)입니다.
+https://www.youtube.com/watch?v=6ibvs5z2H9U
+
 D2Coding
 
 UI 글꼴은 SIL Open Font License(OFL)의 D2Coding을 사용합니다.
@@ -259,6 +264,11 @@ Some sound effects use free audio from Freesound.
 https://freesound.org/
 
 License and attribution for each clip follow that clip's page on Freesound.
+
+Background music
+
+Background music is the Commodore 64 Ultima IV soundtrack, composed by Ken Arnold.
+https://www.youtube.com/watch?v=6ibvs5z2H9U
 
 D2Coding
 

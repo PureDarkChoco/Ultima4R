@@ -1801,6 +1801,16 @@ const _T := {
 		"en_us": "%s) %s — stub (coming soon)",
 		"ko": "%s) %s — 아직 미구현",
 	},
+	"cmd_volume_on": {
+		"en_u4": "Volume On!",
+		"en_us": "Volume On!",
+		"ko": "음악 켬!",
+	},
+	"cmd_volume_off": {
+		"en_u4": "Volume Off!",
+		"en_us": "Volume Off!",
+		"ko": "음악 끔!",
+	},
 	"mix_title": {
 		"en_u4": "Mix reagents",
 		"en_us": "Mix reagents",

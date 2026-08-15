@@ -88,6 +88,8 @@ func _ready() -> void:
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh_text())
 	_ensure_options_panel()
 	_ensure_licenses_panel()
+	## xu4 introMusic = MUSIC_TOWNS (titles → map → menu).
+	AudioSfx.music_play("towne")
 
 
 func _on_intro_mode(mode: int) -> void:
