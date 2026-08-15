@@ -47,6 +47,55 @@ func restore_menu_language() -> void:
 	## Back to title: use settings.cfg again (default en_us if missing).
 	_load_language_pref()
 
+
+func options_snapshot() -> Dictionary:
+	## Live Options values written into the next slot save.
+	return {
+		"language": language,
+		"hangul_keyboard": HangulInputSettings.layout_id(),
+		"window_scale": DisplaySettings.window_scale_percent(),
+		"fullscreen": DisplaySettings.is_fullscreen_active(),
+		"sfx": AudioSfx.is_enabled(),
+		"music": AudioSfx.music_enabled(),
+		"music_volume": AudioSfx.music_volume_percent(),
+	}
+
+
+func apply_session_options(opts: Dictionary) -> void:
+	## Journey / Load — apply slot options for this play only (app prefs stay).
+	if opts.is_empty():
+		return
+	if opts.has("language"):
+		apply_session_language(str(opts.get("language")))
+	if opts.has("hangul_keyboard"):
+		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), false)
+	if opts.has("window_scale"):
+		DisplaySettings.set_window_scale_percent(int(opts.get("window_scale")), false)
+	if opts.has("fullscreen"):
+		DisplaySettings.set_fullscreen_active(bool(opts.get("fullscreen")), false)
+	if opts.has("sfx"):
+		AudioSfx.set_enabled(bool(opts.get("sfx")), false)
+	if opts.has("music_volume"):
+		AudioSfx.music_set_volume_percent(int(opts.get("music_volume")), false)
+	if opts.has("music"):
+		AudioSfx.music_set_enabled(bool(opts.get("music")), false)
+
+
+func commit_live_options() -> void:
+	## Keep the in-play Options and write them as the app's last state.
+	_persist_language_pref()
+	HangulInputSettings.persist_pref()
+	DisplaySettings.persist_pref()
+	AudioSfx.persist_pref()
+
+
+func restore_menu_options() -> void:
+	## Cold start only: prefs files. Returning to title uses commit_live_options.
+	restore_menu_language()
+	HangulInputSettings.restore_pref()
+	DisplaySettings.restore_pref()
+	AudioSfx.restore_pref()
+
 ## English name (required). Display & save key for English UI.
 var player_name: String = ""
 ## Optional Korean name. Empty → fall back to English when language is ko.
@@ -2909,6 +2958,7 @@ func to_save_dict() -> Dictionary:
 		"wind_counter": wind_counter,
 		"wind_lock": wind_lock,
 		"language": language,
+		"options": options_snapshot(),
 	}
 
 
@@ -3032,8 +3082,11 @@ func apply_save_dict(d: Dictionary) -> void:
 	wind_counter = maxi(0, int(d.get("wind_counter", wind_counter)))
 	## Coerce lock strictly — non-falsey JSON quirks must not freeze wind forever.
 	wind_lock = d.get("wind_lock", false) == true
-	if d.has("language"):
-		## Slot language for this play session only — menu prefs stay separate.
+	var opts_v: Variant = d.get("options", {})
+	if typeof(opts_v) == TYPE_DICTIONARY and not (opts_v as Dictionary).is_empty():
+		apply_session_options(opts_v as Dictionary)
+	elif d.has("language"):
+		## Older slots only stored language.
 		apply_session_language(str(d.get("language")))
 	is_new_game = false
 	if party_order.is_empty():

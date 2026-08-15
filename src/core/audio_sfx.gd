@@ -69,14 +69,14 @@ func music_sync_world(ctx: Dictionary) -> void:
 		music.sync_world(ctx)
 
 
-func music_set_enabled(on: bool) -> void:
+func music_set_enabled(on: bool, persist: bool = true) -> void:
 	if music and music.has_method("set_enabled"):
-		music.set_enabled(on)
+		music.set_enabled(on, persist)
 
 
-func music_set_volume_percent(pct: int) -> void:
+func music_set_volume_percent(pct: int, persist: bool = true) -> void:
 	if music and music.has_method("set_volume_percent"):
-		music.set_volume_percent(pct)
+		music.set_volume_percent(pct, persist)
 
 
 func music_volume_percent() -> int:
@@ -85,9 +85,22 @@ func music_volume_percent() -> int:
 	return 60
 
 
-func set_enabled(on: bool) -> void:
+func set_enabled(on: bool, persist: bool = true) -> void:
 	_enabled = on
+	if persist:
+		_save_settings()
+
+
+func persist_pref() -> void:
 	_save_settings()
+	if music and music.has_method("persist_pref"):
+		music.persist_pref()
+
+
+func restore_pref() -> void:
+	_load_settings()
+	if music and music.has_method("restore_pref"):
+		music.restore_pref()
 
 
 func is_enabled() -> bool:

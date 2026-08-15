@@ -93,9 +93,10 @@ func toggle() -> bool:
 	return _enabled
 
 
-func set_enabled(on: bool) -> void:
+func set_enabled(on: bool, persist: bool = true) -> void:
 	_enabled = on
-	_save_settings()
+	if persist:
+		_save_settings()
 	if _player == null:
 		return
 	if _enabled:
@@ -109,18 +110,35 @@ func is_enabled() -> bool:
 	return _enabled
 
 
-func set_volume_linear(v: float) -> void:
+func set_volume_linear(v: float, persist: bool = true) -> void:
 	_volume_linear = _snap_volume_step(v)
 	_apply_volume()
-	_save_settings()
+	if persist:
+		_save_settings()
 
 
 func volume_linear() -> float:
 	return _volume_linear
 
 
-func set_volume_percent(pct: int) -> void:
-	set_volume_linear(float(clampi(pct, 10, 100)) / 100.0)
+func set_volume_percent(pct: int, persist: bool = true) -> void:
+	set_volume_linear(float(clampi(pct, 10, 100)) / 100.0, persist)
+
+
+func persist_pref() -> void:
+	_save_settings()
+
+
+func restore_pref() -> void:
+	_load_settings()
+	_apply_volume()
+	if _player == null:
+		return
+	if _enabled:
+		if _player.stream != null and not _player.playing:
+			_player.play()
+	else:
+		_player.stop()
 
 
 func volume_percent() -> int:

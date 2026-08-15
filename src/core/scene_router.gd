@@ -45,10 +45,10 @@ func go(path: String, fade: bool = false) -> void:
 
 
 func to_menu(focus: String = "") -> void:
-	## Title screen always uses the app language pref (not the last loaded slot).
+	## Keep the play session's Options; they become the app's last state.
 	## Optional `focus`: "new" / "journey" / "return" / "language" / "options" / "quit".
 	_pending_menu_focus = focus
-	GameState.restore_menu_language()
+	GameState.commit_live_options()
 	go(MAIN_MENU)
 
 

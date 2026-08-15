@@ -37,6 +37,7 @@ var _f11_held := false
 var _window_scale_pct := DEFAULT_SCALE_PCT
 var _windowed_size := Vector2i(DEFAULT_W, DEFAULT_H)
 var _windowed_position := Vector2i(-1, -1)
+var _persist_display := true
 
 
 func _ready() -> void:
@@ -232,23 +233,55 @@ func cycle_window_scale(delta: int) -> void:
 	set_window_scale_percent(SCALE_PCTS[posmod(idx + delta, SCALE_PCTS.size())])
 
 
-func set_window_scale_percent(pct: int) -> void:
+func set_window_scale_percent(pct: int, persist: bool = true) -> void:
 	_window_scale_pct = _nearest_scale_pct(pct)
-	_config.set_value(SECTION, "scale_pct", _window_scale_pct)
+	if persist:
+		_config.set_value(SECTION, "scale_pct", _window_scale_pct)
 	_windowed_size = size_for_scale_percent(_window_scale_pct)
 	## Center after a scale change so the new frame sits cleanly.
 	_windowed_position = Vector2i(-1, -1)
 	if _is_fullscreen or _booting:
-		_schedule_save()
+		if persist:
+			_schedule_save()
 		return
 	_restoring_windowed = true
 	_unlock_resize_briefly()
 	_restore_windowed_geometry()
 	_lock_resize()
 	_restoring_windowed = false
-	_remember_windowed(_windowed_size, _windowed_position)
 	_apply_content_scale()
+	if persist:
+		_remember_windowed(_windowed_size, _windowed_position)
+		_flush_config()
+
+
+func set_fullscreen_active(on: bool, persist: bool = true) -> void:
+	if on == _is_fullscreen:
+		return
+	_persist_display = persist
+	if on:
+		_enter_fullscreen()
+	else:
+		_leave_fullscreen()
+
+
+func persist_pref() -> void:
+	_config.set_value(SECTION, "scale_pct", _window_scale_pct)
+	if _is_fullscreen:
+		_set_saved_mode(WindowModeOption.FULLSCREEN)
+	else:
+		_set_saved_mode(WindowModeOption.WINDOWED)
+		_remember_windowed(_windowed_size, _windowed_position)
 	_flush_config()
+
+
+func restore_pref() -> void:
+	_load_config()
+	var saved_mode := int(_config.get_value(SECTION, "mode", WindowModeOption.WINDOWED))
+	var want_fs := saved_mode == WindowModeOption.FULLSCREEN \
+			or saved_mode == WindowModeOption.BORDERLESS
+	set_window_scale_percent(_window_scale_pct, false)
+	set_fullscreen_active(want_fs, false)
 
 
 func resolution_label_parts() -> Dictionary:
@@ -294,8 +327,9 @@ func _enter_fullscreen(capture_windowed: bool = true) -> void:
 		_lock_resize()
 
 	_apply_content_scale()
-	_set_saved_mode(WindowModeOption.FULLSCREEN)
-	_flush_config()
+	if _persist_display:
+		_set_saved_mode(WindowModeOption.FULLSCREEN)
+		_flush_config()
 	fullscreen_changed.emit(true)
 	call_deferred("_after_mode_change")
 
@@ -313,8 +347,9 @@ func _leave_fullscreen() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	_restore_windowed_geometry()
 	_lock_resize()
-	_set_saved_mode(WindowModeOption.WINDOWED)
-	_flush_config()
+	if _persist_display:
+		_set_saved_mode(WindowModeOption.WINDOWED)
+		_flush_config()
 	fullscreen_changed.emit(false)
 	call_deferred("_after_mode_change")
 
@@ -338,8 +373,10 @@ func _after_mode_change() -> void:
 		_lock_resize()
 	if not _is_fullscreen:
 		_restoring_windowed = false
-		_remember_windowed(_windowed_size, _windowed_position)
-		_flush_config()
+		if _persist_display:
+			_remember_windowed(_windowed_size, _windowed_position)
+			_flush_config()
+	_persist_display = true
 
 
 func _apply_startup_window() -> void:

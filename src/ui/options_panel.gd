@@ -120,7 +120,7 @@ func refresh() -> void:
 
 
 func cycle_language(delta: int = 1) -> void:
-	## Session + settings.cfg; save slots store language on next Save.
+	## Writes app prefs immediately. The next Save also snapshots all Options.
 	var langs := GameState.LANG_IDS
 	var i := langs.find(GameState.language)
 	if i < 0:

@@ -29,14 +29,35 @@ func layout_id() -> String:
 	return _layout_id
 
 
-func set_layout_id(value: String) -> void:
+func set_layout_id(value: String, persist: bool = true) -> void:
 	if value not in LAYOUT_IDS or value == _layout_id:
 		return
 	_layout_id = value
+	if persist:
+		var cfg := ConfigFile.new()
+		cfg.load(CONFIG_PATH)
+		cfg.set_value(SECTION, KEY_LAYOUT, _layout_id)
+		cfg.save(CONFIG_PATH)
+	layout_changed.emit(_layout_id)
+
+
+func persist_pref() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(CONFIG_PATH)
 	cfg.set_value(SECTION, KEY_LAYOUT, _layout_id)
 	cfg.save(CONFIG_PATH)
+
+
+func restore_pref() -> void:
+	var cfg := ConfigFile.new()
+	var saved := DEFAULT_LAYOUT
+	if cfg.load(CONFIG_PATH) == OK:
+		saved = str(cfg.get_value(SECTION, KEY_LAYOUT, DEFAULT_LAYOUT))
+	if saved not in LAYOUT_IDS:
+		saved = DEFAULT_LAYOUT
+	if saved == _layout_id:
+		return
+	_layout_id = saved
 	layout_changed.emit(_layout_id)
 
 

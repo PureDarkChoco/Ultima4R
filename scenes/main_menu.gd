@@ -46,7 +46,6 @@ const HOLD_INTERVAL := 0.10
 
 
 func _ready() -> void:
-	GameState.restore_menu_language()
 	UiTheme.apply_root(self)
 	$ColorRect.color = Color.BLACK
 
