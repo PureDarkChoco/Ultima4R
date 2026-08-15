@@ -12,8 +12,10 @@ const BLINK := 1 ## B
 const CURE := 2 ## C
 const DISPEL := 3 ## D
 const ENERGY_FIELD := 4 ## E
+const FIREBALL := 5 ## F
 const GATE := 6 ## G
 const HEAL := 7 ## H
+const ICEBALL := 8 ## I
 const MAGIC_MISSILE := 12 ## M
 const QUICKNESS := 16 ## Q
 const RESURRECT := 17 ## R
@@ -25,6 +27,8 @@ const PARAM_PLAYER := 1
 const PARAM_DIR := 2
 const PARAM_TYPEDIR := 3
 const PARAM_PHASE := 4
+## Remake: combat free-aim instead of xu4 PARAM_DIR (Fireball / Iceball).
+const PARAM_AIM := 5
 
 ## xu4 spells[].paramType
 const PARAM_TYPE: Array[int] = [
@@ -33,10 +37,10 @@ const PARAM_TYPE: Array[int] = [
 	PARAM_PLAYER, ## C Cure
 	PARAM_DIR, ## D Dispell
 	PARAM_TYPEDIR, ## E Energy Field
-	PARAM_DIR, ## F Fireball
+	PARAM_AIM, ## F Fireball (remake free-aim; xu4 was PARAM_DIR)
 	PARAM_PHASE, ## G Gate
 	PARAM_PLAYER, ## H Heal
-	PARAM_DIR, ## I Iceball
+	PARAM_AIM, ## I Iceball (remake free-aim; xu4 was PARAM_DIR)
 	PARAM_NONE, ## J Jinx
 	PARAM_DIR, ## K Kill
 	PARAM_NONE, ## L Light
@@ -165,6 +169,8 @@ const CASTERR_WORLDMAPONLY := 7
 
 ## Offensive damage (xu4 spellMagicAttack). -1 = none. Equal min/max = fixed.
 ## Magic Missile: classic 16–64 (xu4 call args were swapped).
+## Hit chance: xu4 spellMagicAttackAt has no attackHit roll — 100% if a
+## creature is on the tile the projectile reaches.
 const DAMAGE_MIN: Array[int] = [
 	-1, -1, -1, -1, -1, 24, -1, -1,
 	32, -1, 232, -1, 16, -1, -1, -1,
@@ -193,6 +199,23 @@ static func name_of(spell_id: int, lang: String = "en") -> String:
 	if spell_id < 0 or spell_id >= COUNT:
 		return "?"
 	return NAMES_KO[spell_id] if lang == "ko" else NAMES_EN[spell_id]
+
+
+static func roll_damage(spell_id: int) -> int:
+	## xu4 spellMagicAttack: random((max+1)-min)+min, else maxDamage.
+	if spell_id < 0 or spell_id >= COUNT:
+		return 0
+	var lo := DAMAGE_MIN[spell_id]
+	var hi := DAMAGE_MAX[spell_id]
+	if lo >= 0 and lo < hi:
+		return (randi() % ((hi + 1) - lo)) + lo
+	if hi >= 0:
+		return hi
+	return 0
+
+
+static func uses_free_aim(spell_id: int) -> bool:
+	return param_type(spell_id) == PARAM_AIM
 
 
 static func damage_text(spell_id: int) -> String:

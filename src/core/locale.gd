@@ -1921,6 +1921,11 @@ const _T := {
 		"en_us": "Dir: ",
 		"ko": "방향: ",
 	},
+	"cast_aim": {
+		"en_u4": "Aim: ",
+		"en_us": "Aim: ",
+		"ko": "조준: ",
+	},
 	"cast_energy_type": {
 		"en_u4": "Energy type? ",
 		"en_us": "Energy type? ",

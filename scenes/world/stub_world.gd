@@ -214,7 +214,7 @@ var _mix_stage := 0
 var _mix_gamepad_requested := false
 var _mix_pad_full_list := false
 ## Cast (C): 0 = idle, 1 = spell list, 2 = Who (target), 3 = Player (explore caster),
-## 4 = Dir, 5 = Energy type? (E).
+## 4 = Dir, 5 = Energy type? (E), 6 = free-aim (F Fireball / I Iceball).
 var _cast_stage := 0
 var _cast_caster_slot := -1
 var _cast_spell_id := -1
@@ -1723,6 +1723,8 @@ func _prompt_row_text() -> String:
 		return Locale.t("cast_dir")
 	if _cast_stage == 5:
 		return Locale.t("cast_energy_type")
+	if _cast_stage == 6:
+		return Locale.t("cast_aim")
 	if _use_stage == 1:
 		return Locale.t("cmd_use_which")
 	if _ztats_stage == 1:
@@ -2571,6 +2573,8 @@ func _process(delta: float) -> void:
 			_tick_cast_dir()
 		elif _cast_stage == 5:
 			_tick_dialogue_choice_nav()
+		elif _cast_stage == 6:
+			_tick_combat_aim_move()
 		elif _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
@@ -8637,6 +8641,9 @@ func _handle_cast_input(event: InputEvent) -> bool:
 	## Stick release must reach Dir? so the latch can clear (same as Attack Dir?).
 	if _cast_stage == 4 and event is InputEventJoypadMotion:
 		return _handle_cast_dir_input(event)
+	if _cast_stage == 6 and event is InputEventJoypadMotion:
+		_GameInput.stick_clear_if_released(event)
+		return true
 	if not event.is_pressed():
 		return false
 	if event is InputEventKey:
@@ -8658,6 +8665,8 @@ func _handle_cast_input(event: InputEvent) -> bool:
 		return _handle_cast_dir_input(event)
 	if _cast_stage == 5:
 		return _handle_cast_energy_type_input(event)
+	if _cast_stage == 6:
+		return _handle_cast_aim_input(event)
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_cursor()
 		return true
@@ -8801,6 +8810,9 @@ func _try_cast_spell(spell_id: int) -> void:
 	if Spells.param_type(spell_id) == Spells.PARAM_TYPEDIR:
 		_begin_cast_energy_type()
 		return
+	if Spells.uses_free_aim(spell_id):
+		_begin_cast_aim()
+		return
 	if Spells.param_type(spell_id) == Spells.PARAM_DIR:
 		_begin_cast_dir()
 		return
@@ -8875,6 +8887,134 @@ func _begin_cast_dir() -> void:
 		_roster.visible = true
 	_close_order_roster()
 	_layout_prompt_row()
+
+
+func _begin_cast_aim() -> void:
+	## Remake PARAM_AIM — free cursor, unlimited range. Cancel spends no mix/MP.
+	if _cast_panel:
+		_cast_panel.close_panel()
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_close_cast(false, true)
+		return
+	var from := _map.get_combat_focus_pos()
+	if from.x < 0:
+		_close_cast(false, true)
+		return
+	_cast_stage = 6
+	_reset_hold_state()
+	_GameInput.reset_stick_navigation()
+	_combat_aiming = true
+	_combat_aim_from = from
+	_combat_aim_weapon = -1
+	var party_slot := _map.get_combat_focus_party_slot()
+	_combat_aim_pos = _combat_sticky_aim_pos(from, _combat_aim_weapon, party_slot)
+	if _roster:
+		_roster.visible = true
+	_close_order_roster()
+	_map.set_combat_aim_cursor(_combat_aim_pos)
+	_sync_combat_aim_foe_roster()
+	_layout_prompt_row()
+
+
+func _handle_cast_aim_input(event: InputEvent) -> bool:
+	## Cursor move is polled in _tick_combat_aim_move. Events confirm only.
+	if event is InputEventJoypadMotion:
+		_GameInput.stick_clear_if_released(event)
+		return true
+	if _GameInput.is_select(event) or (
+		event is InputEventKey
+		and (
+			_is_key(event as InputEventKey, KEY_A)
+			or _is_key(event as InputEventKey, KEY_ENTER)
+			or _is_key(event as InputEventKey, KEY_KP_ENTER)
+		)
+	):
+		_finish_cast_aim_spell()
+		return true
+	return true
+
+
+func _clear_cast_aim_cursor() -> void:
+	_combat_aiming = false
+	_combat_aim_weapon = 0
+	_reset_hold_state()
+	if _map:
+		_map.clear_combat_aim_cursor()
+	_sync_combat_aim_foe_roster()
+
+
+func _finish_cast_aim_spell() -> void:
+	## Spend mix/MP on confirm, then fly. xu4 Fireball always returns success.
+	if _cast_stage != 6 or _map == null or not _map.is_in_combat():
+		return
+	var target := _combat_aim_pos
+	var from := _combat_aim_from
+	if target == from:
+		_push_message(Locale.t("cmd_cannot_attack"), false)
+		_layout_prompt_row()
+		return
+	var spell_id := _cast_spell_id
+	var caster_slot := _cast_caster_slot
+	if not _is_cast_implemented(spell_id):
+		_close_cast(false, false)
+		return
+	var caster := GameState.party_member_at(caster_slot)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_close_cast(false, true)
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	_clear_cast_aim_cursor()
+	_close_cast(false, false)
+	_combat_resolving = true
+	await _apply_cast_magic_attack(spell_id, from, target, caster)
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_won():
+		await _begin_combat_victory_aftermath()
+		_combat_resolving = false
+		return
+	_combat_resolving = false
+	_combat_finish_member_turn()
+
+
+func _apply_cast_magic_attack(spell_id: int, from: Vector2i, target: Vector2i, caster: int) -> void:
+	## xu4 spellMagicAttackAt — 100% hit if a creature is on the landing tile.
+	if _map == null:
+		return
+	var land := target
+	if not _map.combat_shot_reaches(from, target):
+		land = _map.combat_projectile_end(from, target)
+	if land == from:
+		return
+	var missile := _spell_missile_tile(spell_id)
+	await _map.await_combat_projectile(from, land, -1, missile)
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		return
+	var foe_i := _map.combat_foe_index_at(land)
+	var ally_i := _map.combat_party_index_at(land) if foe_i < 0 else -1
+	if foe_i < 0 and ally_i < 0:
+		return
+	var dmg := Spells.roll_damage(spell_id)
+	if foe_i >= 0:
+		_combat_remember_aim_target(caster, foe_i)
+		await _combat_apply_foe_hit(caster, foe_i, land, dmg, missile)
+	else:
+		await _combat_apply_ally_hit(caster, ally_i, land, dmg, missile)
+
+
+func _spell_missile_tile(spell_id: int) -> int:
+	## xu4 spellMagicAttack tile: Fireball hitFlash, Iceball magicFlash.
+	match spell_id:
+		Spells.ICEBALL:
+			return MapView.TILE_MAGIC_FLASH
+		_:
+			return MapView.TILE_HIT_FLASH
 
 
 func _handle_cast_dir_input(event: InputEvent) -> bool:
@@ -9100,7 +9240,9 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.CURE
 		or spell_id == Spells.DISPEL
 		or spell_id == Spells.ENERGY_FIELD
+		or spell_id == Spells.FIREBALL
 		or spell_id == Spells.HEAL
+		or spell_id == Spells.ICEBALL
 		or spell_id == Spells.RESURRECT
 	)
 
@@ -9201,6 +9343,8 @@ func _close_cast(show_none: bool, spend_turn: bool) -> void:
 		if _cast_panel:
 			_cast_panel.close_panel()
 		return
+	if was == 6:
+		_clear_cast_aim_cursor()
 	_cast_stage = 0
 	_cast_caster_slot = -1
 	_cast_spell_id = -1
@@ -14567,7 +14711,7 @@ func _combat_sticky_aim_pos(from: Vector2i, wid: int, party_slot: int) -> Vector
 		return from
 	var foe := _map.get_combat_foe_at(foe_i)
 	var pos := Vector2i(int(foe.get("x", from.x)), int(foe.get("y", from.y)))
-	if _map == null or not _map.combat_can_strike(wid, from, pos):
+	if _cast_stage != 6 and (_map == null or not _map.combat_can_strike(wid, from, pos)):
 		_combat_last_aim_foe.erase(party_slot)
 		return from
 	return pos
@@ -14632,7 +14776,7 @@ func _combat_move_aim(dir: Vector2i) -> void:
 	var next := _combat_aim_pos + dir
 	if next.x < 0 or next.y < 0 or next.x >= _CombatMapData.WIDTH or next.y >= _CombatMapData.HEIGHT:
 		return
-	if not WeaponIcons.aim_cursor_allows(_combat_aim_weapon, _combat_aim_from, next):
+	if _cast_stage != 6 and not WeaponIcons.aim_cursor_allows(_combat_aim_weapon, _combat_aim_from, next):
 		return
 	_combat_aim_pos = next
 	_map.set_combat_aim_cursor(_combat_aim_pos)
@@ -14882,17 +15026,19 @@ func _combat_record_foe_damage(foe_i: int, klass: int, dealt: int) -> void:
 	_combat_foe_dmg[foe_i] = by
 
 
-func _combat_apply_foe_hit(klass: int, foe_i: int, at: Vector2i) -> void:
+func _combat_apply_foe_hit(klass: int, foe_i: int, at: Vector2i, dmg: int = -1, flash_tid: int = -1) -> void:
 	if _map == null or foe_i < 0:
 		return
-	var dmg := GameState.party_attack_damage(klass)
+	if dmg < 0:
+		dmg = GameState.party_attack_damage(klass)
 	var result := _map.damage_combat_foe(foe_i, dmg)
 	var killed := bool(result.get("killed", false))
 	var foe_tile := int(result.get("tile", 0))
 	var xp := int(result.get("xp", 0))
 	var dealt := int(result.get("dealt", 0))
 	_combat_record_foe_damage(foe_i, klass, dealt)
-	await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+	var flash := flash_tid if flash_tid >= 0 else MapView.TILE_HIT_FLASH
+	await _map.await_flash_combat_tile(at, flash, COMBAT_HIT_FLASH_SEC)
 	if killed:
 		var nm := _WorldCreaturesScript.display_name(foe_tile)
 		_push_message(Locale.t("cmd_killed", [nm]), false)
@@ -14904,7 +15050,7 @@ func _combat_apply_foe_hit(klass: int, foe_i: int, at: Vector2i) -> void:
 	_refresh_foe_roster()
 
 
-func _combat_apply_ally_hit(attacker_klass: int, ally_i: int, at: Vector2i) -> void:
+func _combat_apply_ally_hit(attacker_klass: int, ally_i: int, at: Vector2i, dmg: int = -1, flash_tid: int = -1) -> void:
 	## Friendly fire — damage a party member on the arena.
 	if _map == null or ally_i < 0:
 		return
@@ -14912,9 +15058,11 @@ func _combat_apply_ally_hit(attacker_klass: int, ally_i: int, at: Vector2i) -> v
 	var def_klass := int(ally.get("klass", -1))
 	if def_klass < 0:
 		return
-	var dmg := GameState.party_attack_damage(attacker_klass)
+	if dmg < 0:
+		dmg = GameState.party_attack_damage(attacker_klass)
 	GameState.apply_member_damage(def_klass, dmg)
-	await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+	var flash := flash_tid if flash_tid >= 0 else MapView.TILE_HIT_FLASH
+	await _map.await_flash_combat_tile(at, flash, COMBAT_HIT_FLASH_SEC)
 	if GameState.status_of_class(def_klass) == PartyRoster.Status.DEAD:
 		var slot := int(ally.get("party_slot", -1))
 		var nm := GameState.party_member_display_name(slot) if slot >= 0 else Virtues.class_name_of(
