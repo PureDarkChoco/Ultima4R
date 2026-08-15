@@ -26,10 +26,12 @@ var _title: Label
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _spell_ids: Array[int] = []
+var _usable: Array[bool] = []
 var _row_wraps: Array[Control] = []
 var _cursor := 0
 var _scroll_gen := 0
 var _show_all := false
+var _last_spell_id := -1
 
 
 func _ready() -> void:
@@ -90,9 +92,10 @@ func open_list(show_all: bool = false, focus_spell_id: int = -1) -> void:
 	_show_all = show_all
 	_title.text = Locale.t("cast_title")
 	_rebuild_list()
-	_cursor = 0
-	if focus_spell_id >= 0:
-		var idx := index_of_spell(focus_spell_id)
+	var want := focus_spell_id if focus_spell_id >= 0 else _last_spell_id
+	_cursor = _first_usable_index()
+	if want >= 0 and GameState.mixture_qty(want) > 0:
+		var idx := index_of_spell(want)
 		if idx >= 0:
 			_cursor = idx
 	_sync_cursor()
@@ -106,6 +109,7 @@ func close_panel() -> void:
 	_scroll_gen += 1
 	visible = false
 	_spell_ids.clear()
+	_usable.clear()
 	_row_wraps.clear()
 	_clear_list()
 	if _scroll != null:
@@ -119,7 +123,26 @@ func is_empty() -> bool:
 func cursor_spell_id() -> int:
 	if _cursor < 0 or _cursor >= _spell_ids.size():
 		return -1
+	if _cursor >= _usable.size() or not _usable[_cursor]:
+		return -1
 	return int(_spell_ids[_cursor])
+
+
+func can_select_spell(spell_id: int) -> bool:
+	## Qty 0 rows stay visible when showing all, but cannot be chosen (Ready/Wear).
+	return GameState.mixture_qty(spell_id) > 0
+
+
+func remember_spell(spell_id: int) -> void:
+	if spell_id >= 0 and spell_id < Spells.COUNT:
+		_last_spell_id = spell_id
+
+
+func _first_usable_index() -> int:
+	for i in _usable.size():
+		if _usable[i]:
+			return i
+	return 0
 
 
 func index_of_spell(spell_id: int) -> int:
@@ -135,19 +158,26 @@ func set_cursor(idx: int) -> void:
 
 
 func nudge_cursor(step: int) -> void:
+	## Skip unmixed rows; no wrap (Ready/Wear).
 	if _spell_ids.is_empty() or step == 0:
 		return
-	var next := clampi(_cursor + step, 0, _spell_ids.size() - 1)
-	if next == _cursor:
-		return
-	_cursor = next
-	_sync_cursor()
-	_ensure_cursor_visible()
+	var i := _cursor
+	var n := _spell_ids.size()
+	while true:
+		i += step
+		if i < 0 or i >= n:
+			return
+		if i < _usable.size() and _usable[i]:
+			_cursor = i
+			_sync_cursor()
+			_ensure_cursor_visible()
+			return
 
 
 func _rebuild_list() -> void:
 	_clear_list()
 	_spell_ids.clear()
+	_usable.clear()
 	_row_wraps.clear()
 	var ko := GameState.language == "ko"
 	for sid in Spells.COUNT:
@@ -202,6 +232,7 @@ func _add_spell_row(
 
 	_list.add_child(wrap)
 	_spell_ids.append(spell_id)
+	_usable.append(mixed)
 	_row_wraps.append(wrap)
 
 
@@ -298,7 +329,7 @@ func _add_qty(row: HBoxContainer, qty_text: String, col: Color) -> void:
 func _sync_cursor() -> void:
 	for i in _row_wraps.size():
 		var wrap := _row_wraps[i]
-		var on := i == _cursor
+		var on := i == _cursor and i < _usable.size() and _usable[i]
 		for c in wrap.get_children():
 			if c.has_meta("cast_bg"):
 				(c as ColorRect).color = COL_CURSOR if on else Color(0, 0, 0, 0)

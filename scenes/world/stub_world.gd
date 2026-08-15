@@ -8602,9 +8602,16 @@ func _accept_cast_cursor() -> void:
 
 func _try_cast_spell(spell_id: int) -> void:
 	## xu4: print the name, then spellCheckPrerequisites. Who only if prereqs pass.
+	## List Enter never reaches here for qty 0; A–Z still reports None Mixed!
 	if spell_id < 0 or spell_id >= Spells.COUNT:
 		return
 	_push_message(Locale.t("cast_named", [Locale.spell_name(spell_id)]), false)
+	if GameState.mixture_qty(spell_id) <= 0:
+		_push_message(Locale.t("cast_none_mixed"), false)
+		_close_cast(false, true)
+		return
+	if _cast_panel:
+		_cast_panel.remember_spell(spell_id)
 	var caster_slot := _cast_caster_slot
 	if caster_slot < 0:
 		caster_slot = _resolve_cast_caster_slot()
