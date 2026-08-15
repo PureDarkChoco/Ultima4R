@@ -92,6 +92,24 @@ func clear() -> void:
 	source_path = ""
 
 
+func set_tile(x: int, y: int, tid: int) -> void:
+	if not loaded or x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT or tiles.size() < TILE_COUNT:
+		return
+	tiles[y * WIDTH + x] = clampi(tid, 0, 255) & 0xFF
+
+
+func remove_dispel_annotation_at(x: int, y: int) -> bool:
+	## xu4 spellDispel — drop the first field annotation at this cell.
+	for i in annotations.size():
+		var a: Dictionary = annotations[i]
+		if int(a.get("x", -1)) != x or int(a.get("y", -1)) != y:
+			continue
+		if _TileRules.can_dispel(int(a.get("tid", -1))):
+			annotations.remove_at(i)
+			return true
+	return false
+
+
 func tile_at(x: int, y: int) -> int:
 	## Raw .ULT terrain (WITHOUT annotations).
 	## Out-of-bounds is handled by MapView's outside ring (portal neighbours).

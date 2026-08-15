@@ -157,6 +157,11 @@ static func dir_mask(dir: Vector2i) -> int:
 	return 0
 
 
+static func can_dispel(tile_id: int) -> bool:
+	## xu4 Tile::canDispel — poison / energy / fire / sleep fields (68–71).
+	return tile_id >= 68 and tile_id <= 71
+
+
 static func walk_on(tile_id: int) -> int:
 	_ensure()
 	tile_id = clampi(tile_id, 0, 255)

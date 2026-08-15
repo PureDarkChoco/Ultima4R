@@ -10,6 +10,7 @@ const MIXTURE_MAX := 99
 const AWAKEN := 0 ## A
 const BLINK := 1 ## B
 const CURE := 2 ## C
+const DISPEL := 3 ## D
 const GATE := 6 ## G
 const HEAL := 7 ## H
 const MAGIC_MISSILE := 12 ## M

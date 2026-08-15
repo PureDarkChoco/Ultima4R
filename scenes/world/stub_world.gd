@@ -8663,7 +8663,7 @@ func _try_cast_spell(spell_id: int) -> void:
 		_close_cast(false, true)
 		return
 	_cast_spell_id = spell_id
-	if spell_id == Spells.BLINK:
+	if Spells.param_type(spell_id) == Spells.PARAM_DIR:
 		_begin_cast_dir()
 		return
 	if GameState.party_size() <= 1:
@@ -8686,7 +8686,7 @@ func _begin_cast_who() -> void:
 
 
 func _begin_cast_dir() -> void:
-	## xu4 PARAM_DIR — "Dir: " then NESW. Cancel spends no mix/MP.
+	## xu4 PARAM_DIR — "Dir: " then NESW (Blink / Dispel). Cancel spends no mix/MP.
 	if _cast_panel:
 		_cast_panel.close_panel()
 	_cast_stage = 4
@@ -8721,17 +8721,20 @@ func _tick_cast_dir() -> void:
 		return
 	if _move_repeating and _hold_arm > 0.0:
 		return
-	_finish_cast_blink(dir)
+	_finish_cast_dir_spell(dir)
 	_block_dir_until_keyup = true
 	_move_cd = 0.0
 	_move_repeating = false
 	_hold_arm = 0.0
 
 
-func _finish_cast_blink(dir: Vector2i) -> void:
-	## xu4 spellCast + spellBlink: spend mix, then MP, then teleport or Failed!
+func _finish_cast_dir_spell(dir: Vector2i) -> void:
+	## xu4 spellCast + PARAM_DIR: spend mix, then MP, then effect or Failed!
 	_push_message(_direction_label(dir), false)
-	var spell_id := Spells.BLINK
+	var spell_id := _cast_spell_id
+	if not _is_cast_implemented(spell_id):
+		_close_cast(false, false)
+		return
 	var caster := GameState.party_member_at(_cast_caster_slot)
 	var loc_ctx := _spell_location_context()
 	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
@@ -8742,7 +8745,15 @@ func _finish_cast_blink(dir: Vector2i) -> void:
 		_close_cast(false, true)
 		return
 	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
-	if not _apply_cast_blink(dir):
+	var ok := false
+	match spell_id:
+		Spells.BLINK:
+			ok = _apply_cast_blink(dir)
+		Spells.DISPEL:
+			ok = _apply_cast_dispel(dir)
+		_:
+			ok = false
+	if not ok:
 		_push_message(Locale.t("cast_failed"), false)
 	_close_cast(false, true)
 
@@ -8783,6 +8794,82 @@ func _apply_cast_blink(dir: Vector2i) -> bool:
 	return true
 
 
+func _apply_cast_dispel(dir: Vector2i) -> bool:
+	## xu4 spellDispel — one adjacent tile, combat or field. Field → brick/grass.
+	if dir == Vector2i.ZERO:
+		return false
+	if _combat_active and _map != null and _map.is_in_combat():
+		var from := _map.get_combat_focus_pos()
+		if from.x < 0:
+			return false
+		var dest := from + dir
+		_map.flash_combat_tile(dest, MapView.TILE_WISP, 0.16)
+		return _dispel_combat_tile(dest)
+	if _map != null and _map.is_camping():
+		var camp_dest := _tile_pos + dir
+		_map.flash_combat_tile(camp_dest, MapView.TILE_WISP, 0.16)
+		return _dispel_camp_tile(camp_dest)
+	if _is_in_city() and _city_map != null and _city_map.loaded:
+		var city_dest := _tile_pos + dir
+		if _map != null:
+			_map.flash_world_tile(city_dest, MapView.TILE_WISP, 0.16)
+		return _dispel_city_tile(city_dest)
+	var world_dest := Vector2i(
+		posmod(_tile_pos.x + dir.x, WorldMapData.WIDTH),
+		posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
+	)
+	if _map != null:
+		_map.flash_world_tile(world_dest, MapView.TILE_WISP, 0.16)
+	return _dispel_world_tile(world_dest)
+
+
+func _dispel_combat_tile(pos: Vector2i) -> bool:
+	if _map == null:
+		return false
+	var tid := _map.combat_tile_at(pos)
+	if not _TileRules.can_dispel(tid):
+		return false
+	return _map.set_combat_tile(pos, MapView.TILE_BRICK_FLOOR)
+
+
+func _dispel_camp_tile(pos: Vector2i) -> bool:
+	if _map == null:
+		return false
+	var tid := _map.camp_tile_at(pos)
+	if not _TileRules.can_dispel(tid):
+		return false
+	return _map.set_camp_tile(pos, MapView.TILE_BRICK_FLOOR)
+
+
+func _dispel_city_tile(pos: Vector2i) -> bool:
+	if _city_map == null or not _city_map.loaded:
+		return false
+	if pos.x < 0 or pos.y < 0 or pos.x >= _CityMapData.WIDTH or pos.y >= _CityMapData.HEIGHT:
+		return false
+	var cleared := _city_map.remove_dispel_annotation_at(pos.x, pos.y)
+	if _TileRules.can_dispel(int(_city_map.tile_at(pos.x, pos.y))):
+		_city_map.set_tile(pos.x, pos.y, MapView.TILE_BRICK_FLOOR)
+		cleared = true
+	if cleared and _map != null:
+		_map.refresh()
+	return cleared
+
+
+func _dispel_world_tile(pos: Vector2i) -> bool:
+	if _map != null:
+		var ov := _map.overlay_at(pos)
+		if _TileRules.can_dispel(ov):
+			_map.remove_overlay_at(pos)
+			_map.refresh()
+			return true
+	if not _TileRules.can_dispel(_effective_world_tid(pos)):
+		return false
+	if _map != null:
+		_map.add_overlay(pos, MapView.TILE_GRASS)
+		_map.refresh()
+	return true
+
+
 func _blink_tile_walkable(pos: Vector2i) -> bool:
 	## xu4 tileTypeAt(WITH_OBJECTS)->isWalkable — walk_on != 0, no creature.
 	if _world_creatures != null and _world_creatures.creature_at(pos) >= 0:
@@ -8799,6 +8886,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		spell_id == Spells.AWAKEN
 		or spell_id == Spells.BLINK
 		or spell_id == Spells.CURE
+		or spell_id == Spells.DISPEL
 		or spell_id == Spells.HEAL
 		or spell_id == Spells.RESURRECT
 	)

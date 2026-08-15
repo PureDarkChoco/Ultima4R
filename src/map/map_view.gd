@@ -78,6 +78,7 @@ const TILE_SPIT := 75 ## campfire spit — 2-frame fire flicker (`075_spit_1.png
 const TILE_CHEST := 60 ## closed chest; open art is frame 1 (`060_chest_1.png`)
 const TILE_BRICK_FLOOR := 62 ## underlay for city map chest tiles
 const TILE_LAVA := 76
+const TILE_WISP := 220 ## xu4 wisp flash (Dispel / Cure / Awaken)
 const TILE_MISS_FLASH := 77 ## xu4 missFlash / red projectile
 const TILE_MAGIC_FLASH := 78 ## xu4 magicFlash (intro mage bolt / wand)
 const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
@@ -471,6 +472,32 @@ func is_camping() -> bool:
 
 func is_in_combat() -> bool:
 	return _combat_map != null
+
+
+func set_combat_tile(pos: Vector2i, tid: int) -> bool:
+	if _combat_map == null or not _combat_in_bounds(pos):
+		return false
+	_combat_map.set_tile(pos.x, pos.y, tid)
+	_rebuild()
+	return true
+
+
+func camp_tile_at(pos: Vector2i) -> int:
+	if _camp_map == null:
+		return -1
+	if pos.x < 0 or pos.y < 0 or pos.x >= CAMP_W or pos.y >= CAMP_H:
+		return -1
+	return int(_camp_map.tile_at(pos.x, pos.y))
+
+
+func set_camp_tile(pos: Vector2i, tid: int) -> bool:
+	if _camp_map == null:
+		return false
+	if pos.x < 0 or pos.y < 0 or pos.x >= CAMP_W or pos.y >= CAMP_H:
+		return false
+	_camp_map.set_tile(pos.x, pos.y, tid)
+	_rebuild()
+	return true
 
 
 func combat_tile_at(pos: Vector2i) -> int:
@@ -2991,6 +3018,7 @@ func _rebuild_city() -> void:
 	_paint_city_persons(cam)
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
+	_paint_tile_flashes(cam)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -3553,6 +3581,7 @@ func _rebuild_camp() -> void:
 	_paint_camp_sleepers(origin_x, origin_y)
 	_paint_camp_guard(origin_x, origin_y)
 	_paint_shrine_walker(origin_x, origin_y)
+	_paint_combat_tile_flashes(origin_x, origin_y)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
