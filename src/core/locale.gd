@@ -45,6 +45,16 @@ const _T := {
 		"en_us": "Choose Folder…",
 		"ko": "폴더 선택…",
 	},
+	"boot_path_select": {
+		"en_u4": "Select",
+		"en_us": "Select",
+		"ko": "선택",
+	},
+	"boot_path_cancel": {
+		"en_u4": "Cancel",
+		"en_us": "Cancel",
+		"ko": "취소",
+	},
 	"boot_path_invalid": {
 		"en_u4": "That folder hath no WORLD.MAP.",
 		"en_us": "WORLD.MAP not found in that folder.",

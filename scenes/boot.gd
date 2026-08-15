@@ -51,8 +51,8 @@ func _ready() -> void:
 		_status.text = Locale.t("boot_path_prompt")
 
 	_ensure_folder_ui()
-	## Open the native folder dialog immediately (no text path entry).
-	_open_folder_dialog()
+	## After the window finishes its first layout — popup during _ready can be 0-size.
+	call_deferred("_open_folder_dialog")
 
 
 func _proceed_ok() -> void:
@@ -79,8 +79,14 @@ func _ensure_folder_ui() -> void:
 		_file_dialog = FileDialog.new()
 		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
-		_file_dialog.use_native_dialog = true
+		## Exported macOS native panels often fail silently (not TCC). In-game picker.
+		_file_dialog.use_native_dialog = false
 		_file_dialog.title = Locale.t("boot_path_prompt")
+		_file_dialog.ok_button_text = Locale.t("boot_path_select")
+		_file_dialog.cancel_button_text = Locale.t("boot_path_cancel")
+		_file_dialog.min_size = Vector2i(760, 480)
+		_file_dialog.exclusive = true
+		_file_dialog.unresizable = false
 		_file_dialog.dir_selected.connect(_on_dir_selected)
 		_file_dialog.canceled.connect(_on_folder_canceled)
 		add_child(_file_dialog)
@@ -94,7 +100,16 @@ func _open_folder_dialog() -> void:
 	_picking_folder = true
 	var start := GameState.u4_data_path
 	if start.begins_with("res://") or start.is_empty() or not DirAccess.dir_exists_absolute(start):
-		start = OS.get_environment("HOME")
+		start = ""
+		if OS.get_name() == "Windows":
+			for gog in GameState._windows_gog_u4_dirs():
+				if DirAccess.dir_exists_absolute(gog):
+					start = gog
+					break
+		if start.is_empty():
+			start = OS.get_environment("HOME")
+		if start.is_empty():
+			start = OS.get_environment("USERPROFILE")
 	if not start.is_empty():
 		_file_dialog.current_dir = start
 	_file_dialog.popup_centered_ratio(0.65)
@@ -113,7 +128,7 @@ func _on_dir_selected(dir: String) -> void:
 
 
 func _on_folder_canceled() -> void:
-	## Native dialog closed without a selection.
+	## Folder dialog closed without a selection.
 	if not _picking_folder:
 		return
 	_picking_folder = false

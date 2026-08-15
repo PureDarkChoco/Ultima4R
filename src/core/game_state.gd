@@ -16,6 +16,7 @@ const SETTINGS_SECTION := "prefs"
 ## External Ultima IV DOS data (never committed).
 const U4_DATA_RES := "res://data/u4"
 const U4_DATA_ABS := "/Applications/Ultima IV™.app/Contents/Resources/game"
+const U4_DATA_GOG_WIN := "C:/Program Files/GOG Galaxy/Games/Ultima 4"
 
 var u4_data_path: String = U4_DATA_RES
 
@@ -3222,15 +3223,20 @@ func _probe_u4_data() -> bool:
 			u4_data_path = resolved
 			_persist_u4_data_path()
 			return true
-		u4_data_path = saved
-		return false
+		## Editor leftover (res://) or a moved folder — keep hunting.
+		u4_data_pref_set = false
 
 	u4_data_pref_set = false
-	var candidates: Array[String] = [
-		U4_DATA_RES,
-		U4_DATA_ABS,
-		resolve_u4_data_dir("/Applications/Ultima IV™.app"),
-	]
+	var exe_dir := OS.get_executable_path().get_base_dir()
+	var bundled_beside_exe := exe_dir.path_join("game")
+	var bundled_macos := exe_dir.get_base_dir().path_join("Resources/game")
+	var candidates: Array[String] = []
+	candidates.append_array(_windows_gog_u4_dirs())
+	candidates.append(bundled_beside_exe)
+	candidates.append(bundled_macos)
+	candidates.append(U4_DATA_RES)
+	candidates.append(U4_DATA_ABS)
+	candidates.append(resolve_u4_data_dir("/Applications/Ultima IV™.app"))
 	var seen: Dictionary = {}
 	for path in candidates:
 		if path.is_empty() or seen.has(path):
@@ -3240,7 +3246,24 @@ func _probe_u4_data() -> bool:
 			u4_data_path = path
 			_persist_u4_data_path()
 			return true
+		var resolved := resolve_u4_data_dir(path)
+		if not resolved.is_empty() and not seen.has(resolved) and is_valid_u4_data_dir(resolved):
+			seen[resolved] = true
+			u4_data_path = resolved
+			_persist_u4_data_path()
+			return true
 	return false
+
+
+func _windows_gog_u4_dirs() -> Array[String]:
+	## Default GOG Galaxy install, then the same folder under %ProgramFiles% / (x86).
+	var out: Array[String] = [U4_DATA_GOG_WIN]
+	for env_key in ["PROGRAMFILES", "PROGRAMFILES(X86)"]:
+		var root := OS.get_environment(env_key)
+		if root.is_empty():
+			continue
+		out.append(root.path_join("GOG Galaxy/Games/Ultima 4"))
+	return out
 
 
 func journal_try_capture(place: String, npc: String, topic: String) -> bool:

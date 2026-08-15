@@ -511,10 +511,21 @@ func _ensure_card_textures() -> void:
 
 
 func _load_rgba(path: String) -> Image:
+	## Editor: source PNG is on disk. Export: only the imported Texture2D is in the PCK.
 	var img := Image.new()
 	if img.load(path) != OK:
+		img = null
+		if ResourceLoader.exists(path):
+			var res = load(path)
+			if res is Texture2D:
+				img = (res as Texture2D).get_image()
+			elif res is Image:
+				img = res as Image
+	if img == null or img.is_empty():
 		push_error("story_sequence: failed to load %s" % path)
 		return null
+	if img.is_compressed():
+		img.decompress()
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
 	return img
@@ -666,11 +677,17 @@ func _layout() -> void:
 
 
 func _fit_view() -> void:
-	if _view == null or _view.texture == null:
+	if _view == null:
 		return
-	var tw := float(_view.texture.get_width())
-	var th := float(_view.texture.get_height())
-	if tw < 1.0 or th < 1.0 or size.x < 1.0:
+	var tw := 320.0
+	var th := float(PIC_H)
+	if _view.texture != null:
+		var w := float(_view.texture.get_width())
+		var h := float(_view.texture.get_height())
+		if w >= 1.0 and h >= 1.0:
+			tw = w
+			th = h
+	if size.x < 1.0:
 		return
 	var scale := size.x / tw
 	_view.size = Vector2(size.x, th * scale)
@@ -771,9 +788,8 @@ func _all_stories_fit(font: Font, font_sz: int, area_w: float, area_h: float) ->
 func _texture_for(path: String) -> Texture2D:
 	if _cache.has(path):
 		return _cache[path] as Texture2D
-	var img := Image.new()
-	if img.load(path) != OK:
-		push_error("story_sequence: failed to load %s" % path)
+	var img := _load_rgba(path)
+	if img == null:
 		var empty := ImageTexture.new()
 		_cache[path] = empty
 		return empty
@@ -794,13 +810,10 @@ func _prepare_tree_anim() -> void:
 	if _tree_full != null:
 		_view.texture = _tree_tex
 		return
-	var path := "%s/%s" % [DIR, TREE_FILE]
-	var img := Image.new()
-	if img.load(path) != OK:
+	var img := _load_rgba("%s/%s" % [DIR, TREE_FILE])
+	if img == null:
 		push_error("story_sequence: failed to load tree for moongate")
 		return
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
 	_tree_full = img
 	_tree_base = _picture_band(img)
 	if _tree_base.get_format() != Image.FORMAT_RGBA8:
