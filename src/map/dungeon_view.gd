@@ -14,20 +14,21 @@ const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 5
+const PIECE_CACHE_REV := 8
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
-const TILE_LADDER_UP := 27
-const TILE_LADDER_DOWN := 28
 const TILE_ALTAR := 74
 const TILE_ORB := 78
 const TILE_FOUNTAIN := 75
+const LADDER_UP := 1
+const LADDER_DOWN := 2
 
 var theme_id: String = "grey_stone"
 var _wall: Image
 var _floor: Image
 var _entrance: Image
+var _ladder_half: Image
 var _theme_loaded := ""
 var _dim_lut: PackedFloat32Array = PackedFloat32Array()
 var _dim_lut_w := 0
@@ -39,6 +40,8 @@ var _piece_cache_h := 0
 
 
 func set_theme(id: String) -> void:
+	if _ladder_half == null:
+		_ladder_half = _load_png("%s/ladder_half.png" % ASSET_ROOT)
 	if id == _theme_loaded and _wall != null:
 		theme_id = id
 		return
@@ -74,6 +77,7 @@ func paint(
 	_ensure_piece_cache_size(w, h)
 	buf.fill(Color(0, 0, 0, 1))
 	var reached_far := true
+	var ladders: Array[Dictionary] = []
 	for depth in range(0, MAX_DEPTH + 1):
 		var cell := _ahead(dmap, pos, dir, depth)
 		var left := _left_of(dmap, cell, dir)
@@ -101,6 +105,9 @@ func paint(
 			)
 			reached_far = false
 			break
+		var ladder_mode := _ladder_mode(tok)
+		if ladder_mode != 0:
+			ladders.append({"depth": depth, "mode": ladder_mode})
 		_blit_cached_piece(
 			buf,
 			"floor:%d" % depth,
@@ -158,6 +165,11 @@ func paint(
 		_paint_cell_object(buf, dmap, cell, z, depth, w, h, dim)
 	if reached_far:
 		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
+	for i in range(ladders.size() - 1, -1, -1):
+		var ladder: Dictionary = ladders[i]
+		_paint_ladder_object(
+			buf, int(ladder["mode"]), int(ladder["depth"]), w, h, 1.0
+		)
 
 
 func _ahead(dmap, pos: Vector2i, dir: int, depth: int) -> Vector2i:
@@ -586,7 +598,8 @@ func _blit_scaled(
 	src_u0: float = 0.0,
 	src_u1: float = 1.0,
 	wrap_u: bool = false,
-	apply_fog: bool = true
+	apply_fog: bool = true,
+	flip_v: bool = false
 ) -> void:
 	if src == null:
 		return
@@ -605,6 +618,8 @@ func _blit_scaled(
 		if y < 0 or y >= bh:
 			continue
 		var sy := clampi(int(float(y - y0) / float(dh) * float(sh)), 0, sh - 1)
+		if flip_v:
+			sy = sh - 1 - sy
 		var row := y * bw
 		for x in range(x0, x1):
 			if x < 0 or x >= bw:
@@ -627,6 +642,61 @@ func _blit_scaled(
 			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
 
 
+func _paint_ladder_piece(
+	buf: Image,
+	fr: Rect2i,
+	dim: float,
+	mode: int
+) -> void:
+	if _ladder_half == null:
+		return
+	var x0 := fr.position.x
+	var y0 := fr.position.y
+	var x1 := x0 + fr.size.x
+	var y1 := y0 + fr.size.y
+	if mode & LADDER_UP:
+		_blit_scaled(
+			buf, _ladder_half,
+			x0, y0, x1, y1,
+			dim, false, 0.0, 1.0, false, true, false
+		)
+	if mode & LADDER_DOWN:
+		_blit_scaled(
+			buf, _ladder_half,
+			x0, y0, x1, y1,
+			dim, false, 0.0, 1.0, false, true, true
+		)
+
+
+func _ladder_mode(tok: int) -> int:
+	match tok:
+		_DungeonMap.TOK_LADDER_UP, _DungeonMap.TOK_CEILING_HOLE:
+			return LADDER_UP
+		_DungeonMap.TOK_LADDER_DOWN, _DungeonMap.TOK_FLOOR_HOLE:
+			return LADDER_DOWN
+		_DungeonMap.TOK_LADDER_BOTH:
+			return LADDER_UP | LADDER_DOWN
+	return 0
+
+
+func _paint_ladder_object(
+	buf: Image,
+	mode: int,
+	depth: int,
+	field_w: int,
+	field_h: int,
+	dim: float
+) -> void:
+	if mode == 0:
+		return
+	var fr := _front_rect(depth, field_w, field_h)
+	_blit_cached_piece(
+		buf,
+		"ladder:%d:%d" % [mode, depth],
+		Callable(self, "_paint_ladder_piece").bind(fr, dim, mode)
+	)
+
+
 func _paint_cell_object(
 	buf: Image,
 	dmap,
@@ -638,17 +708,13 @@ func _paint_cell_object(
 	dim: float
 ) -> void:
 	var tok: int = dmap.token_at(cell.x, cell.y, z)
+	if _ladder_mode(tok) != 0:
+		return
 	var tid := -1
 	match tok:
 		_DungeonMap.TOK_CHEST:
 			if not dmap.is_consumed(cell.x, cell.y, z):
 				tid = TILE_CHEST
-		_DungeonMap.TOK_LADDER_UP, _DungeonMap.TOK_CEILING_HOLE:
-			tid = TILE_LADDER_UP
-		_DungeonMap.TOK_LADDER_DOWN, _DungeonMap.TOK_FLOOR_HOLE:
-			tid = TILE_LADDER_DOWN
-		_DungeonMap.TOK_LADDER_BOTH:
-			tid = TILE_LADDER_UP
 		_DungeonMap.TOK_ALTAR:
 			tid = TILE_ALTAR
 		_DungeonMap.TOK_ORB:
