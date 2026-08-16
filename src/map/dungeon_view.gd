@@ -270,18 +270,19 @@ func _blit_hband_quad(
 		if y < 0 or y >= bh:
 			continue
 		var t := clampf(float(y - y_near) / y_span, 0.0, 1.0)
-		var xl := int(lerpf(x0, nx0, t))
-		var xr := int(lerpf(x1, nx1, t))
+		var xl := int(round(lerpf(x0, nx0, t)))
+		var xr := int(round(lerpf(x1, nx1, t)))
 		if xr <= xl:
 			continue
 		var v := (1.0 - t) if flip_v else t
 		var sy := clampi(int(v * float(sh - 1)), 0, sh - 1)
 		var row := y * bw
+		var dw := float(xr - xl)
 		for x in range(xl, xr):
 			if x < 0 or x >= bw:
 				continue
-			## Repeat horizontally so grout does not converge to a vanishing point.
-			var sx := posmod(x - xl, sw)
+			## One tile fitted to this cell's trapezoid: u=0 on the left diagonal, u=1 on the right.
+			var sx := clampi(int(float(x - xl) / dw * float(sw - 1)), 0, sw - 1)
 			var c := src.get_pixel(sx, sy)
 			var d := dim * _dim_lut[row + x]
 			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
@@ -296,8 +297,31 @@ func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
 	return float(dest_w) / float(far_w)
 
 
+func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
+	## Triangle above the open rect: outer edge stays vertical, inner edge follows the corridor ceiling.
+	var x_outer := float(geom["x0"] if left else geom["x1"])
+	var x_inner_far := float(geom["nx0"] if left else geom["nx1"])
+	var y_near := int(geom["y0"])
+	var y_far := int(geom["ny0"])
+	if left:
+		_blit_hband_quad(
+			buf, _tex_front(depth),
+			x_outer, x_outer, y_near,
+			x_outer, x_inner_far, y_far,
+			dim * 0.38, true
+		)
+	else:
+		_blit_hband_quad(
+			buf, _tex_front(depth),
+			x_outer, x_outer, y_near,
+			x_inner_far, x_outer, y_far,
+			dim * 0.38, true
+		)
+
+
 func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
 	## Open alcove: facing rect flush with the next cell, flat fog.
+	_paint_open_side_ceiling(buf, geom, left, dim, depth)
 	var x0 := int(geom["x0"] if left else geom["nx1"])
 	var x1 := int(geom["nx0"] if left else geom["x1"])
 	var y0 := int(geom["ny0"])
