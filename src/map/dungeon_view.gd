@@ -14,7 +14,7 @@ const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 18
+const PIECE_CACHE_REV := 19
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -658,6 +658,7 @@ func _paint_ladder_piece(
 	var opening_h := maxi(1, int(round(float(fr.size.y) * 0.12)))
 	var opening_far_w := maxi(1, int(round(float(opening_w) * 0.70)))
 	var opening_center_x := float(x0) + float(fr.size.x) * 0.5
+	var ladder_light := dim * _lut_at(x0, y0, buf.get_width(), buf.get_height())
 	if mode & LADDER_UP:
 		var light := dim * _lut_at(x0 + fr.size.x / 2, y0, buf.get_width(), buf.get_height())
 		_paint_framed_ladder_opening(
@@ -676,13 +677,13 @@ func _paint_ladder_piece(
 		_blit_scaled(
 			buf, _ladder_half,
 			x0, y0, x1, y1,
-			1.0, false, 0.0, 1.0, false, false, false
+			ladder_light, false, 0.0, 1.0, false, false, false
 		)
 	if mode & LADDER_DOWN:
 		_blit_scaled(
 			buf, _ladder_half,
 			x0, y0, x1, y1,
-			1.0, false, 0.0, 1.0, false, false, true
+			ladder_light, false, 0.0, 1.0, false, false, true
 		)
 
 
