@@ -7,6 +7,7 @@ Rings 3:3:2.5:2:2:2:2.5:3:3 (23 units) in dungeon_view.gd. These PNGs are source
 from __future__ import annotations
 
 import struct
+import sys
 import zlib
 from pathlib import Path
 
@@ -166,16 +167,21 @@ DT = {
     "void": (12, 8, 6),
 }
 TM = {
-    "base": (74, 50, 32),
-    "dark": (56, 38, 24),
-    "mid": (92, 62, 32),
-    "light": (132, 96, 54),
-    "mortar": (36, 36, 38),
-    "floor": (70, 48, 30),
-    "floor_line": (58, 38, 20),
-    "jamb": (70, 46, 24),
-    "void": (10, 6, 4),
-    "plank": (102, 70, 38),
+    "base": (166, 68, 14),
+    "dark": (92, 30, 8),
+    "mid": (196, 82, 16),
+    "light": (232, 132, 30),
+    "mortar": (46, 15, 7),
+    "floor": (156, 58, 11),
+    "floor_line": (61, 18, 7),
+    "jamb": (188, 76, 14),
+    "void": (8, 4, 3),
+    "plank": (184, 73, 13),
+    "red": (132, 38, 8),
+    "earth": (142, 67, 29),
+    "earth_mid": (174, 83, 31),
+    "earth_light": (204, 112, 43),
+    "earth_dark": (91, 38, 20),
 }
 
 
@@ -260,33 +266,78 @@ def fill_dirt(px: list[list[tuple[int, int, int]]], pal: dict, depth: int, salt:
 def fill_timber(px: list[list[tuple[int, int, int]]], pal: dict, depth: int, salt: int) -> None:
     h = len(px)
     w = len(px[0])
-    fill_dirt(px, pal, depth, salt)
-    post_w = max(2, 6 - depth)
-    beam_h = max(2, 5 - depth)
-    gap = max(8, 24 - depth * 6)
-    posts: list[int] = []
-    if w <= post_w + 2:
-        posts = [max(0, (w - post_w) // 2)]
-    else:
-        x = max(0, 2 - depth)
-        while x < w:
-            posts.append(x)
-            x += gap
-    for x in posts:
-        rect(px, x, 0, x + post_w, h, pal["mid"])
-        for y in range(h):
-            setp(px, x, y, pal["dark"])
-            setp(px, x + post_w - 1, y, pal["light"])
-            if y % max(6, 10 - depth) == 0:
-                rect(px, max(0, x - 1), y, min(w, x + post_w + 1), y + max(1, 2 - depth), pal["mortar"])
-    y = max(1, 4 - depth)
-    while y < h:
-        rect(px, 0, y, w, y + beam_h, pal["mid"])
+    px[:] = blank(w, h, pal["earth"])
+
+    # Packed earth infill: broad irregular patches and cracks, never regular boards.
+    for y in range(h):
         for x in range(w):
-            setp(px, x, y, pal["light"])
-            setp(px, x, y + beam_h - 1, pal["dark"])
-        y += gap
-    dither_noise(px, salt + 20, max(3, 6 - depth))
+            fine = hash2(x, y, salt + 11)
+            if fine < 18:
+                px[y][x] = pal["earth_dark"]
+            elif fine > 237:
+                px[y][x] = pal["earth_light"]
+            elif fine % 17 == 0:
+                px[y][x] = pal["earth_mid"]
+
+    patch_count = max(3, w * h // max(80, 260 - depth * 35))
+    for patch_index in range(patch_count):
+        x0 = hash2(patch_index, depth, salt + 29) % max(1, w)
+        y0 = hash2(patch_index, depth, salt + 31) % max(1, h)
+        patch_w = 2 + hash2(patch_index, depth, salt + 33) % max(2, 10 - depth * 2)
+        patch_h = 2 + hash2(patch_index, depth, salt + 35) % max(2, 7 - depth)
+        tone = pal["earth_mid"] if patch_index % 3 else pal["earth_dark"]
+        for yy in range(y0, min(h, y0 + patch_h)):
+            jag = hash2(patch_index, yy, salt + 37) % 3
+            for xx in range(x0 + jag, min(w, x0 + patch_w - (2 - jag))):
+                setp(px, xx, yy, tone)
+            if yy == y0:
+                for xx in range(x0 + jag, min(w, x0 + patch_w - (2 - jag))):
+                    if xx % 2 == 0:
+                        setp(px, xx, yy, pal["earth_light"])
+
+    crack_count = max(1, min(7, w // max(5, 22 - depth * 3)))
+    for crack in range(crack_count):
+        x = hash2(crack, depth, salt + 17) % max(1, w)
+        y = hash2(crack, depth, salt + 19) % max(1, max(1, h // 3))
+        length = max(3, min(h - y, 9 + hash2(crack, depth, salt + 21) % max(4, 23 - depth * 3)))
+        for step in range(length):
+            if step and step % max(3, 6 - depth) == 0:
+                x += (hash2(crack, step, salt + 23) % 3) - 1
+            setp(px, x, y + step, pal["earth_dark"])
+            if step % 5 == 1:
+                setp(px, x + 1, y + step, pal["earth_light"])
+
+    frame = max(2, min(10 - depth, max(2, min(w, h) // 16)))
+    _timber_beam(px, 0, 0, frame, h, pal)
+    _timber_beam(px, max(0, w - frame), 0, w, h, pal)
+    _timber_beam(px, 0, 0, w, frame, pal)
+
+    # Full front panels get one uninterrupted crossbeam over both side posts.
+    if w >= h // 2 and w >= 28 and h >= 28:
+        cross_y = max(frame + 2, h * 28 // 100)
+        _timber_beam(px, 0, cross_y, w, cross_y + frame, pal)
+
+
+def _timber_beam(
+    px: list[list[tuple[int, int, int]]],
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    pal: dict,
+) -> None:
+    if x1 <= x0 or y1 <= y0:
+        return
+    rect(px, x0, y0, x1, y1, pal["mortar"])
+    inset = 1 if min(x1 - x0, y1 - y0) >= 3 else 0
+    rect(px, x0 + inset, y0 + inset, x1 - inset, y1 - inset, pal["mid"])
+    if inset:
+        for x in range(x0 + 1, x1 - 1):
+            setp(px, x, y0 + 1, pal["light"])
+            setp(px, x, y1 - 2, pal["dark"])
+        for y in range(y0 + 1, y1 - 1):
+            setp(px, x0 + 1, y, pal["light"])
+            setp(px, x1 - 2, y, pal["dark"])
 
 
 def fill_flag_floor(px: list[list[tuple[int, int, int]]], pal: dict, depth: int, salt: int) -> None:
@@ -325,19 +376,54 @@ def fill_dirt_floor(px: list[list[tuple[int, int, int]]], pal: dict, depth: int,
     dither_noise(px, salt, max(3, 6 - depth))
 
 
+def fill_timber_earth_floor(
+    px: list[list[tuple[int, int, int]]], pal: dict, depth: int, salt: int
+) -> None:
+    h = len(px)
+    w = len(px[0])
+    px[:] = blank(w, h, pal["earth"])
+    for y in range(h):
+        for x in range(w):
+            fine = hash2(x, y, salt + 7)
+            if fine < 20:
+                px[y][x] = pal["earth_dark"]
+            elif fine > 237:
+                px[y][x] = pal["earth_light"]
+            elif fine % 19 == 0:
+                px[y][x] = pal["earth_mid"]
+    streaks = max(3, w // max(5, 13 - depth * 2))
+    for i in range(streaks):
+        x0 = hash2(i, depth, salt + 13) % max(1, w)
+        y = hash2(i, depth, salt + 15) % max(1, h)
+        length = 3 + hash2(i, depth, salt + 17) % max(2, 10 - depth)
+        tone = pal["earth_dark"] if i % 2 else pal["earth_mid"]
+        for yy in range(y, min(h, y + max(1, 3 - depth // 2))):
+            inset = hash2(i, yy, salt + 19) % 2
+            for x in range(x0 + inset, min(w, x0 + length - inset)):
+                setp(px, x, yy, tone)
+        for x in range(x0, min(w, x0 + length)):
+            if x % 2 == 0:
+                setp(px, x, y, pal["earth_light"])
+
+
 def fill_plank_floor(px: list[list[tuple[int, int, int]]], pal: dict, depth: int, salt: int) -> None:
     h = len(px)
     w = len(px[0])
-    ph = max(3, 8 - depth * 2)
+    ph = max(3, 10 - depth * 2)
     px[:] = blank(w, h, pal["floor"])
     for y in range(0, h, ph):
-        tone = pal.get("plank", pal["mid"]) if (y // ph) % 2 == 0 else shade(pal.get("plank", pal["mid"]), -12)
+        tone = pal.get("plank", pal["mid"]) if (y // ph) % 2 == 0 else pal["base"]
         rect(px, 0, y, w, min(h, y + ph), tone)
         for x in range(w):
             setp(px, x, y, pal["floor_line"])
-            if hash2(x, y, salt) % 17 == 0 and y + ph // 2 < h:
-                setp(px, x, y + ph // 2, pal["floor_line"])
-    dither_noise(px, salt, max(3, 5 - depth))
+            if y + 1 < h:
+                setp(px, x, y + 1, pal["light"])
+        grain_y = min(h - 1, y + max(2, ph // 2))
+        for x in range(w):
+            if hash2(x, y, salt) % 23 == 0:
+                length = 2 + hash2(x, y, salt + 8) % max(2, 7 - depth)
+                for xx in range(x, min(w, x + length)):
+                    setp(px, xx, grain_y, pal["red"] if x % 2 else pal["dark"])
 
 
 def make_entrance(
@@ -370,6 +456,34 @@ def make_entrance(
     return px
 
 
+def make_timber_entrance(
+    wall: list[list[tuple[int, int, int]]], pal: dict, depth: int
+) -> list[list[tuple[int, int, int]]]:
+    px = [row[:] for row in wall]
+    h = len(px)
+    w = len(px[0]) if h else 0
+    if w < 8 or h < 8:
+        return px
+    door_w = max(4, w * 36 // 100)
+    door_h = max(6, h * 62 // 100)
+    x0 = (w - door_w) // 2
+    x1 = x0 + door_w
+    y0 = h - door_h
+    frame = max(1, min(7 - depth, max(1, w // 28)))
+    rect(px, x0, y0, x1, h, pal["void"])
+    _timber_beam(px, max(0, x0 - frame), y0, x0 + frame, h, pal)
+    _timber_beam(px, x1 - frame, y0, min(w, x1 + frame), h, pal)
+    _timber_beam(
+        px,
+        max(0, x0 - frame),
+        max(0, y0 - frame),
+        min(w, x1 + frame),
+        y0 + frame,
+        pal,
+    )
+    return px
+
+
 THEMES = {
     "grey_stone": {
         "pal": GS,
@@ -392,7 +506,7 @@ THEMES = {
     "timber": {
         "pal": TM,
         "wall": fill_timber,
-        "floor": fill_plank_floor,
+        "floor": fill_timber_earth_floor,
         "salt": 91,
     },
 }
@@ -411,7 +525,10 @@ def paint_floor(theme: dict, w: int, h: int, depth: int) -> list[list[tuple[int,
 
 
 def main() -> None:
+    selected = set(sys.argv[1:])
     for name, theme in THEMES.items():
+        if selected and name not in selected:
+            continue
         dest = ROOT / name
         for depth in range(MAX_DRAW + 1):
             fw, fh = front_wh(depth)
@@ -420,7 +537,11 @@ def main() -> None:
             wall = paint_wall(theme, fw, fh, depth)
             side = paint_wall(theme, sw, sh, depth)
             floor = paint_floor(theme, flw, flh, depth)
-            entrance = make_entrance(wall, theme["pal"], depth)
+            entrance = (
+                make_timber_entrance(wall, theme["pal"], depth)
+                if name == "timber"
+                else make_entrance(wall, theme["pal"], depth)
+            )
             write_png(dest / f"wall_{depth}.png", wall)
             write_png(dest / f"side_{depth}.png", side)
             write_png(dest / f"floor_{depth}.png", floor)
