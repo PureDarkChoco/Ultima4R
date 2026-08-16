@@ -31,6 +31,9 @@ var _dim_lut: PackedFloat32Array = PackedFloat32Array()
 var _dim_lut_w := 0
 var _dim_lut_h := 0
 var _dim_lut_inner := -1
+var _piece_cache: Dictionary = {}
+var _piece_cache_w := 0
+var _piece_cache_h := 0
 
 
 func set_theme(id: String) -> void:
@@ -39,6 +42,7 @@ func set_theme(id: String) -> void:
 		return
 	theme_id = id
 	_theme_loaded = id
+	_piece_cache.clear()
 	## One tile per kind — crop/scale by depth instead of swapping patterns.
 	_wall = _load_png("%s/%s/wall.png" % [ASSET_ROOT, id])
 	_floor = _load_png("%s/%s/floor.png" % [ASSET_ROOT, id])
@@ -65,6 +69,7 @@ func paint(
 	if _wall == null:
 		set_theme(theme_id)
 	_ensure_dim_lut(w, h)
+	_ensure_piece_cache_size(w, h)
 	buf.fill(Color(0, 0, 0, 1))
 	var reached_far := true
 	for depth in range(0, MAX_DEPTH + 1):
@@ -75,27 +80,79 @@ func paint(
 		var tok: int = dmap.token_at(cell.x, cell.y, z)
 		var geom := _depth_geom(w, h, depth)
 		if _is_blocking_wall(dmap, cell, z):
-			_blit_rect(buf, _tex_front(depth), _front_rect(depth, w, h), dim)
+			_blit_cached_piece(
+				buf,
+				"front_wall:%d" % depth,
+				Callable(self, "_blit_rect").bind(
+					_tex_front(depth), _front_rect(depth, w, h), dim
+				)
+			)
 			reached_far = false
 			break
 		if tok == _DungeonMap.TOK_ROOM or tok == _DungeonMap.TOK_DOOR:
-			_blit_rect(buf, _tex_entrance(depth), _front_rect(depth, w, h), dim)
+			_blit_cached_piece(
+				buf,
+				"front_entrance:%d" % depth,
+				Callable(self, "_blit_rect").bind(
+					_tex_entrance(depth), _front_rect(depth, w, h), dim
+				)
+			)
 			reached_far = false
 			break
-		_paint_floor_slab(buf, geom, dim, depth)
-		_paint_ceiling_slab(buf, geom, dim, depth)
+		_blit_cached_piece(
+			buf,
+			"floor:%d" % depth,
+			Callable(self, "_paint_floor_slab").bind(geom, dim, depth)
+		)
+		_blit_cached_piece(
+			buf,
+			"ceiling:%d" % depth,
+			Callable(self, "_paint_ceiling_slab").bind(geom, dim, depth)
+		)
 		if dmap.looks_like_wall(left.x, left.y, z):
-			_blit_side_trap(buf, _tex_side(depth), geom, true, dim * 0.72)
+			_blit_cached_piece(
+				buf,
+				"side_wall:left:%d" % depth,
+				Callable(self, "_blit_side_trap").bind(
+					_tex_side(depth), geom, true, dim * 0.72
+				)
+			)
 		elif _is_side_entrance(dmap, left, z):
-			_blit_side_trap(buf, _tex_entrance(depth), geom, true, dim * 0.72)
+			_blit_cached_piece(
+				buf,
+				"side_entrance:left:%d" % depth,
+				Callable(self, "_blit_side_trap").bind(
+					_tex_entrance(depth), geom, true, dim * 0.72
+				)
+			)
 		else:
-			_blit_side_open_rect(buf, geom, true, dim, depth)
+			_blit_cached_piece(
+				buf,
+				"side_open:left:%d" % depth,
+				Callable(self, "_blit_side_open_rect").bind(geom, true, dim, depth)
+			)
 		if dmap.looks_like_wall(right.x, right.y, z):
-			_blit_side_trap(buf, _tex_side(depth), geom, false, dim * 0.58)
+			_blit_cached_piece(
+				buf,
+				"side_wall:right:%d" % depth,
+				Callable(self, "_blit_side_trap").bind(
+					_tex_side(depth), geom, false, dim * 0.58
+				)
+			)
 		elif _is_side_entrance(dmap, right, z):
-			_blit_side_trap(buf, _tex_entrance(depth), geom, false, dim * 0.58)
+			_blit_cached_piece(
+				buf,
+				"side_entrance:right:%d" % depth,
+				Callable(self, "_blit_side_trap").bind(
+					_tex_entrance(depth), geom, false, dim * 0.58
+				)
+			)
 		else:
-			_blit_side_open_rect(buf, geom, false, dim, depth)
+			_blit_cached_piece(
+				buf,
+				"side_open:right:%d" % depth,
+				Callable(self, "_blit_side_open_rect").bind(geom, false, dim, depth)
+			)
 		_paint_cell_object(buf, dmap, cell, z, depth, w, h, dim)
 	if reached_far:
 		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
@@ -139,11 +196,12 @@ func _paint_peek_wall(buf: Image, dmap, pos: Vector2i, z: int, dir: int, w: int,
 	var cell := _ahead(dmap, pos, dir, PEEK_DEPTH)
 	if not _is_blocking_wall(dmap, cell, z):
 		return
-	_blit_rect(
+	_blit_cached_piece(
 		buf,
-		_tex_front(MAX_DEPTH),
-		_front_rect(MAX_DEPTH, w, h),
-		1.0
+		"front_wall:%d" % MAX_DEPTH,
+		Callable(self, "_blit_rect").bind(
+			_tex_front(MAX_DEPTH), _front_rect(MAX_DEPTH, w, h), 1.0
+		)
 	)
 
 
@@ -206,6 +264,40 @@ func _ensure_dim_lut(w: int, h: int) -> void:
 			var dx := mini(x, w - 1 - x)
 			var t := clampf(float(mini(dx, dy)) * inv, 0.0, 1.0)
 			_dim_lut[row + x] = lerpf(1.0, DIM_FAR, t)
+
+
+func _ensure_piece_cache_size(w: int, h: int) -> void:
+	if _piece_cache_w == w and _piece_cache_h == h:
+		return
+	_piece_cache_w = w
+	_piece_cache_h = h
+	_piece_cache.clear()
+
+
+func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
+	if not _piece_cache.has(key):
+		var canvas := Image.create(
+			_piece_cache_w, _piece_cache_h, false, Image.FORMAT_RGBA8
+		)
+		canvas.fill(Color(0, 0, 0, 0))
+		painter.call(canvas)
+		var used := canvas.get_used_rect()
+		if used.size.x <= 0 or used.size.y <= 0:
+			_piece_cache[key] = {}
+		else:
+			_piece_cache[key] = {
+				"image": canvas.get_region(used),
+				"position": used.position,
+			}
+	var piece: Dictionary = _piece_cache[key]
+	if piece.is_empty():
+		return
+	var image: Image = piece["image"]
+	buf.blend_rect(
+		image,
+		Rect2i(Vector2i.ZERO, image.get_size()),
+		Vector2i(piece["position"])
+	)
 
 
 func _tex_front(_depth: int = 0) -> Image:
