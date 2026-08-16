@@ -26,10 +26,13 @@ const TILE_CHEST := 60
 const TILE_ALTAR := 74
 const TILE_ORB := 78
 const TILE_FOUNTAIN := 75
+const TILE_FIELD_POISON := 68
+const TILE_FIELD_SLEEP := 71
 const LADDER_UP := 1
 const LADDER_DOWN := 2
 const VIEW_OBJECT_TILE := 0
 const VIEW_OBJECT_LADDER := 1
+const VIEW_OBJECT_FLOOR_FIELD := 2
 
 var theme_id: String = "grey_stone"
 var _wall: Image
@@ -130,7 +133,11 @@ func paint(
 			var tile_id := _cell_object_tile_id(dmap, cell, z, tok)
 			if tile_id >= 0:
 				view_objects.append({
-					"kind": VIEW_OBJECT_TILE,
+					"kind": (
+						VIEW_OBJECT_FLOOR_FIELD
+						if tile_id == TILE_FIELD_POISON or tile_id == TILE_FIELD_SLEEP
+						else VIEW_OBJECT_TILE
+					),
 					"depth": depth,
 					"tile_id": tile_id,
 				})
@@ -197,6 +204,10 @@ func paint(
 		if int(object["kind"]) == VIEW_OBJECT_LADDER:
 			_paint_ladder_object(
 				buf, int(object["mode"]), int(object["depth"]), w, h, 1.0
+			)
+		elif int(object["kind"]) == VIEW_OBJECT_FLOOR_FIELD:
+			_paint_floor_field(
+				buf, int(object["tile_id"]), int(object["depth"]), w, h, 1.0, anim_frame
 			)
 		else:
 			_paint_tile_object(
@@ -863,9 +874,62 @@ func _cell_object_tile_id(
 			tid = TILE_FOUNTAIN
 		_DungeonMap.TOK_FIELD:
 			tid = dmap.field_world_tile(cell.x, cell.y, z)
-		_DungeonMap.TOK_TRAP:
-			tid = 77
 	return tid
+
+
+func _paint_floor_field(
+	buf: Image,
+	tid: int,
+	depth: int,
+	field_w: int,
+	field_h: int,
+	dim: float,
+	anim_frame: int
+) -> void:
+	var img: Image = _U4TileBank.image(tid)
+	if img == null:
+		return
+	var fr := _front_rect(depth, field_w, field_h)
+	var far_fr := _front_rect(depth + 1, field_w, field_h)
+	var near_floor_y := float(fr.position.y + fr.size.y)
+	var far_floor_y := float(far_fr.position.y + far_fr.size.y)
+	var y_far := int(round(lerpf(far_floor_y, near_floor_y, 0.18)))
+	var y_near := int(round(lerpf(far_floor_y, near_floor_y, 0.82)))
+	if y_near <= y_far:
+		return
+	var center_x := field_w / 2
+	var center_y := (y_far + y_near) / 2
+	var projected_w := lerpf(float(far_fr.size.x), float(fr.size.x), 0.5)
+	var max_half_w := maxi(2, int(round(projected_w * 0.31)))
+	var sw := img.get_width()
+	var sh := img.get_height()
+	if sw <= 0 or sh <= 0:
+		return
+	var scroll := posmod(anim_frame * 2, sh)
+	var light := dim * _lut_at(center_x, center_y, field_w, field_h)
+	var y_span := float(y_near - y_far)
+	for y in range(y_far, y_near + 1):
+		if y < 0 or y >= field_h:
+			continue
+		var t := clampf((float(y - y_far) + 0.5) / y_span, 0.0, 1.0)
+		var diamond_scale := 1.0 - absf(t * 2.0 - 1.0)
+		var half_w := maxi(1, int(round(float(max_half_w) * diamond_scale)))
+		var x0 := center_x - half_w
+		var x1 := center_x + half_w
+		var sy := posmod(int(floor(t * float(sh))) + scroll, sh)
+		for x in range(x0, x1 + 1):
+			if x < 0 or x >= field_w:
+				continue
+			var u := (float(x - x0) + 0.5) / float(maxi(1, x1 - x0 + 1))
+			var sx := clampi(int(floor(u * float(sw))), 0, sw - 1)
+			var color := img.get_pixel(sx, sy)
+			## Original field tiles use black as their transparent backing.
+			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
+				continue
+			buf.set_pixel(
+				x, y,
+				Color(color.r * light, color.g * light, color.b * light, color.a)
+			)
 
 
 func _paint_tile_object(

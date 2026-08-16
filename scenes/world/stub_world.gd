@@ -11745,13 +11745,6 @@ func _dungeon_step(sign: int) -> void:
 		_arm_hold_after_step(true)
 		return
 	var tok: int = _dungeon_map.token_at(dest.x, dest.y, _dungeon_z)
-	if tok == _DungeonMapData.TOK_TRAP:
-		var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(dest.x, dest.y, _dungeon_z))
-		if sub == _DungeonMapData.TRAP_WINDS:
-			_push_message(Locale.t("cmd_dungeon_trap_winds"), false)
-			_finish_party_turn()
-			_arm_hold_after_step(true)
-			return
 	_tile_pos = dest
 	if _dungeon_skip_room and tok != _DungeonMapData.TOK_ROOM:
 		_dungeon_skip_room = false
@@ -11814,6 +11807,13 @@ func _dungeon_spring_trap() -> void:
 			_dungeon_change_level(1, false)
 		_:
 			_push_message(Locale.t("cmd_dungeon_trap_winds"), false)
+			if (
+				GameState.dungeon_torch_left > 0
+				and not GameState.dungeon_light_is_magic
+			):
+				GameState.dungeon_torch_left = 0
+				GameState.dungeon_light_is_magic = false
+				_refresh_dungeon_view()
 
 
 func _dungeon_touch_orb() -> void:
@@ -11880,6 +11880,7 @@ func _do_ignite() -> void:
 		return
 	GameState.torches -= 1
 	GameState.dungeon_torch_left = 100
+	GameState.dungeon_light_is_magic = false
 	_push_message(Locale.t("cmd_ignite_torch"), false)
 	_refresh_inventory_bars()
 	_refresh_dungeon_view()
@@ -11892,6 +11893,7 @@ func _dungeon_tick_torch() -> void:
 	GameState.dungeon_torch_left -= 1
 	if GameState.dungeon_torch_left <= 0:
 		GameState.dungeon_torch_left = 0
+		GameState.dungeon_light_is_magic = false
 		_push_message(Locale.t("cmd_dungeon_torch_out"), false)
 
 
@@ -12090,6 +12092,7 @@ func _apply_cast_light() -> bool:
 	if not _is_in_dungeon():
 		return false
 	GameState.dungeon_torch_left = 100
+	GameState.dungeon_light_is_magic = true
 	_push_message(Locale.t("cmd_dungeon_light"), false)
 	_refresh_dungeon_view()
 	return true

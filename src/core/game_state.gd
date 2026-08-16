@@ -114,6 +114,8 @@ var keys: int = 0
 var torches: int = 2
 ## Remaining dungeon light turns (torch or Light spell). 0 = dark.
 var dungeon_torch_left: int = 0
+## True when the current dungeon light came from the Light spell, not a torch.
+var dungeon_light_is_magic: bool = false
 ## Abyss: stones already used on matching level altars (same bitflags as `stones`).
 var abyss_stones_used: int = 0
 var skull: int = 0 ## HUD/legacy; kept in sync with ITEM_SKULL bit
@@ -403,6 +405,7 @@ func reset_party() -> void:
 	keys = 0
 	torches = 2
 	dungeon_torch_left = 0
+	dungeon_light_is_magic = false
 	abyss_stones_used = 0
 	skull = 0
 	has_sextant = false
@@ -815,6 +818,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	gold = 200
 	torches = 2
 	dungeon_torch_left = 0
+	dungeon_light_is_magic = false
 	abyss_stones_used = 0
 	gems = 0
 	keys = 0
@@ -2978,6 +2982,7 @@ func to_save_dict() -> Dictionary:
 		"keys": keys,
 		"torches": torches,
 		"dungeon_torch_left": dungeon_torch_left,
+		"dungeon_light_is_magic": dungeon_light_is_magic,
 		"abyss_stones_used": abyss_stones_used,
 		"skull": skull,
 		"items": items,
@@ -3056,6 +3061,9 @@ func apply_save_dict(d: Dictionary) -> void:
 	keys = maxi(0, int(d.get("keys", 0)))
 	torches = maxi(0, int(d.get("torches", 0)))
 	dungeon_torch_left = maxi(0, int(d.get("dungeon_torch_left", 0)))
+	dungeon_light_is_magic = dungeon_torch_left > 0 and bool(
+		d.get("dungeon_light_is_magic", false)
+	)
 	abyss_stones_used = maxi(0, int(d.get("abyss_stones_used", 0)))
 	skull = maxi(0, int(d.get("skull", 0)))
 	items = maxi(0, int(d.get("items", 0)))
