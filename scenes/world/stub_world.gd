@@ -4600,7 +4600,7 @@ func _talk_keyword_menu_intro_default_key() -> String:
 	elif (
 		_talk_city_id() == "empath"
 		and str(entry.name).strip_edges().to_lower() == "suzanna"
-		and GameState.journal_has_id("magincia.demitry.suzanna-horn")
+		and _suzanna_horn_keyword_ready()
 	):
 		default_key = _talk_keyword_stable_key(
 			"뿔" if GameState.lang_short() == "ko" else "horn"
@@ -5279,6 +5279,55 @@ func _maybe_offer_den_prompt_keywords() -> void:
 		)
 
 
+func _heard_love_abbey() -> bool:
+	## Invisible flag — Chinup job / gate Abbey. Not a journal row.
+	return (
+		GameState.talk_has_heard_word("사랑의 수도원")
+		or GameState.talk_has_heard_word("abbey of love")
+	)
+
+
+func _heard_suzanna_job() -> bool:
+	## Suzanna's own job line ("시녀요" / lady in waiting), not Demitry's hint.
+	return (
+		GameState.talk_has_heard_word("시녀")
+		or GameState.talk_has_heard_word("lady in waiting")
+	)
+
+
+func _suzanna_horn_keyword_ready() -> bool:
+	## Horn on Suzanna only after the abbey-of-Love clue and her job.
+	return _heard_love_abbey() and _heard_suzanna_job()
+
+
+func _offer_suzanna_horn_keyword() -> void:
+	var korean := GameState.lang_short() == "ko"
+	var horn_key := _talk_keyword_stable_key("뿔" if korean else "horn")
+	_offer_talk_keyword_item(
+		horn_key,
+		"뿔" if korean else "Horn",
+		"뿔" if korean else "horn"
+	)
+
+
+func _maybe_resolve_suzanna_horn_clues() -> bool:
+	var changed := false
+	if (
+		_heard_love_abbey()
+		and GameState.journal_has_id("magincia.demitry.suzanna-horn")
+	):
+		changed = GameState.journal_try_upgrade_id("magincia.demitry.suzanna-horn")
+	if (
+		_suzanna_horn_keyword_ready()
+		and _talk_keyword_menu_active
+		and _talk_entry != null
+		and _talk_city_id() == "empath"
+		and str(_talk_entry.name).strip_edges().to_lower() == "suzanna"
+	):
+		_offer_suzanna_horn_keyword()
+	return changed
+
+
 func _maybe_offer_keep_chain_keyword() -> void:
 	## Empath Abbey / Lycaeum / Serpent's Hold follow-up keywords.
 	if not _talk_keyword_menu_active or _talk_entry == null:
@@ -5302,14 +5351,9 @@ func _maybe_offer_keep_chain_keyword() -> void:
 	elif (
 		place == "empath"
 		and npc == "suzanna"
-		and GameState.journal_has_id("magincia.demitry.suzanna-horn")
+		and _suzanna_horn_keyword_ready()
 	):
-		var horn_key := _talk_keyword_stable_key("뿔" if korean else "horn")
-		_offer_talk_keyword_item(
-			horn_key,
-			"뿔" if korean else "Horn",
-			"뿔" if korean else "horn"
-		)
+		_offer_suzanna_horn_keyword()
 	elif (
 		place == "empath"
 		and npc == "derek the bard"
@@ -17250,6 +17294,23 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("magincia.banter.demitry-horn"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:demitry-horn"):
+			refresh = true
+		if _maybe_resolve_suzanna_horn_clues():
+			refresh = true
+	if place == "empath" and npc_key == "chinup" and topic == "JOB":
+		GameState.talk_remember_heard_word("사랑의 수도원")
+		GameState.talk_remember_heard_word("abbey of love")
+		if _maybe_resolve_suzanna_horn_clues():
+			refresh = true
+	if place == "empath" and npc_key == "a gate guard" and topic == "ABBE":
+		GameState.talk_remember_heard_word("사랑의 수도원")
+		GameState.talk_remember_heard_word("abbey of love")
+		if _maybe_resolve_suzanna_horn_clues():
+			refresh = true
+	if place == "empath" and npc_key == "suzanna" and topic == "JOB":
+		GameState.talk_remember_heard_word("시녀")
+		GameState.talk_remember_heard_word("lady in waiting")
+		if _maybe_resolve_suzanna_horn_clues():
 			refresh = true
 	if place == "magincia" and npc_key == "nate" and topic in ["RUNE", "STON"]:
 		if GameState.journal_mark_id("magincia.ruskin.nate-rune"):

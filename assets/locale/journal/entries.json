@@ -1046,10 +1046,14 @@
       "chain_order": 10,
       "goal": "ask:suzanna-horn",
       "complete_if_recorded": "empath.suzanna.malchor-horn",
-      "en": "Ask the lady in waiting at {empath} about the horn.",
-      "ko": "{empath}의 시녀에게 은 뿔에 대해 묻기",
-      "en_u4": "Ask the lady in waiting at {empath} of the horn.",
-      "en_us": "Ask the lady in waiting at {empath} about the horn."
+      "en": "Ask the lady in waiting of the queen of love about the horn.",
+      "ko": "사랑의 여왕 곁 시녀에게 은뿔에 대해 묻기",
+      "en_u4": "Ask the lady in waiting of the queen of love of the horn.",
+      "en_us": "Ask the lady in waiting of the queen of love about the horn.",
+      "en_upgraded": "Ask the lady in waiting at {empath} about the horn.",
+      "ko_upgraded": "{empath} 시녀에게 은뿔에 대해 묻기",
+      "en_u4_upgraded": "Ask the lady in waiting at {empath} of the horn.",
+      "en_us_upgraded": "Ask the lady in waiting at {empath} about the horn."
     },
     {
       "id": "magincia.ruskin.nate-rune",

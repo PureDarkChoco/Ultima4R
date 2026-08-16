@@ -3388,6 +3388,10 @@ func journal_mark_id(id: String) -> bool:
 	return _Journal.mark_id(self, id)
 
 
+func journal_try_upgrade_id(id: String) -> bool:
+	return _Journal.try_upgrade_id(self, id)
+
+
 func journal_mark_city(place_id: String) -> bool:
 	return _Journal.mark_known_city(self, place_id)
 

@@ -352,6 +352,30 @@ static func mark_goal(gs: Node, goal: String) -> bool:
 	return changed
 
 
+static func try_upgrade_id(gs: Node, id: String) -> bool:
+	## Flip an existing row to its *_upgraded catalog text. No insert if missing.
+	if gs == null:
+		return false
+	var want := id.strip_edges()
+	if want.is_empty():
+		return false
+	var rows: Array = gs.journal_entries
+	for i in rows.size():
+		var row: Variant = rows[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		if str(d.get("id", "")).strip_edges() != want:
+			continue
+		if bool(d.get("upgraded", false)):
+			return false
+		d["upgraded"] = true
+		rows[i] = d
+		gs.journal_entries = rows
+		return true
+	return false
+
+
 static func mark_id(gs: Node, id: String) -> bool:
 	## Complete a journal row by catalog id (talk-chain advances).
 	if gs == null:
