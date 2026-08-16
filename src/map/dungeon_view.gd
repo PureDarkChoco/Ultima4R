@@ -13,6 +13,8 @@ const PEEK_DEPTH := 5
 const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
+## Increment when cached rasterization rules change during a hot reload.
+const PIECE_CACHE_REV := 5
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -275,7 +277,8 @@ func _ensure_piece_cache_size(w: int, h: int) -> void:
 
 
 func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
-	if not _piece_cache.has(key):
+	var cache_key := "%d:%s:%s" % [PIECE_CACHE_REV, theme_id, key]
+	if not _piece_cache.has(cache_key):
 		var canvas := Image.create(
 			_piece_cache_w, _piece_cache_h, false, Image.FORMAT_RGBA8
 		)
@@ -283,13 +286,13 @@ func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
 		painter.call(canvas)
 		var used := canvas.get_used_rect()
 		if used.size.x <= 0 or used.size.y <= 0:
-			_piece_cache[key] = {}
+			_piece_cache[cache_key] = {}
 		else:
-			_piece_cache[key] = {
+			_piece_cache[cache_key] = {
 				"image": canvas.get_region(used),
 				"position": used.position,
 			}
-	var piece: Dictionary = _piece_cache[key]
+	var piece: Dictionary = _piece_cache[cache_key]
 	if piece.is_empty():
 		return
 	var image: Image = piece["image"]
@@ -318,11 +321,22 @@ func _tex_entrance(_depth: int = 0) -> Image:
 
 func _paint_floor_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> void:
 	## Horizontal bands only — scanlines stay level, left/right edges are the diagonals.
+	if theme_id == "dirt":
+		## Earthen caves have no visible floor beyond the torch-lit walls.
+		return
+	var src := _tex_floor(depth)
+	var floor_dim := dim
+	var flip_v := false
+	if theme_id == "brick" or theme_id == "grey_stone":
+		## Masonry floors use the same material and shade as the ceiling.
+		src = _tex_front(depth)
+		floor_dim *= 0.38
+		flip_v = true
 	_blit_hband_quad(
-		buf, _tex_floor(depth),
+		buf, src,
 		float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
 		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
-		dim, false
+		floor_dim, flip_v
 	)
 
 
@@ -363,7 +377,8 @@ func _blit_hband_quad(
 	for y in range(y_a, y_b):
 		if y < 0 or y >= bh:
 			continue
-		var t := clampf(float(y - y_near) / y_span, 0.0, 1.0)
+		## Sample at pixel centers so top and bottom quads are exact mirrors.
+		var t := clampf((float(y) + 0.5 - float(y_near)) / y_span, 0.0, 1.0)
 		var xl := int(round(lerpf(x0, nx0, t)))
 		var xr := int(round(lerpf(x1, nx1, t)))
 		if xr <= xl:
@@ -378,7 +393,9 @@ func _blit_hband_quad(
 			if x < 0 or x >= bw:
 				continue
 			## u from the full quad so a cropped parallelogram keeps its tile corners.
-			var sx := clampi(int(float(x - xl) / dw * float(sw - 1)), 0, sw - 1)
+			var sx := clampi(
+				int((float(x - xl) + 0.5) / dw * float(sw - 1)), 0, sw - 1
+			)
 			var c := src.get_pixel(sx, sy)
 			var d := dim * _dim_lut[row + x]
 			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
@@ -428,9 +445,52 @@ func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: flo
 		)
 
 
+func _paint_open_side_floor(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
+	## Mirror the open-side ceiling below the facing rect. Dirt remains unlit black.
+	if theme_id == "dirt":
+		return
+	var src := _tex_floor(depth)
+	var floor_dim := dim
+	var flip_v := false
+	if theme_id == "brick" or theme_id == "grey_stone":
+		src = _tex_front(depth)
+		floor_dim *= 0.38
+		flip_v = true
+	var y_near := int(geom["y1"])
+	var y_far := int(geom["ny1"])
+	var far_w := float(int(geom["nx1"]) - int(geom["nx0"]))
+	if far_w < 0.5:
+		return
+	if left:
+		var x_far_inner := float(geom["nx0"])
+		var x_near_inner := float(geom["x0"])
+		var x_far_outer := x_far_inner - far_w
+		var x_near_outer := x_near_inner - far_w
+		_blit_hband_quad(
+			buf, src,
+			x_near_outer, x_near_inner, y_near,
+			x_far_outer, x_far_inner, y_far,
+			floor_dim, flip_v,
+			int(geom["x0"]), int(geom["nx0"])
+		)
+	else:
+		var x_far_inner := float(geom["nx1"])
+		var x_near_inner := float(geom["x1"])
+		var x_far_outer := x_far_inner + far_w
+		var x_near_outer := x_near_inner + far_w
+		_blit_hband_quad(
+			buf, src,
+			x_near_inner, x_near_outer, y_near,
+			x_far_inner, x_far_outer, y_far,
+			floor_dim, flip_v,
+			int(geom["nx1"]), int(geom["x1"])
+		)
+
+
 func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
 	## Open alcove: facing rect flush with the next cell, flat fog.
 	_paint_open_side_ceiling(buf, geom, left, dim, depth)
+	_paint_open_side_floor(buf, geom, left, dim, depth)
 	var x0 := int(geom["x0"] if left else geom["nx1"])
 	var x1 := int(geom["nx0"] if left else geom["x1"])
 	var y0 := int(geom["ny0"])
