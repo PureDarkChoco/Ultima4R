@@ -528,7 +528,7 @@
       "complete_if_recorded": "jhelom.aesop.valor-mantra",
       "complete_on_goal": "mantra:valor",
       "en": "Ask Aesop about the mantra of Valor.",
-      "ko": "이솝에게 용기의 만트라에 대해 묻기",
+      "ko": "이솝에게 용맹의 만트라에 대해 묻기",
       "en_u4": "Ask Aesop of the mantra of Valor.",
       "en_us": "Ask Aesop about the mantra of Valor."
     },
@@ -542,7 +542,7 @@
       "goal": "",
       "know": "mantra:valor",
       "en": "Valor mantra: RA.",
-      "ko": "용기의 만트라: RA."
+      "ko": "용맹의 만트라: RA."
     },
     {
       "id": "jhelom.senora.sextant",
@@ -573,18 +573,6 @@
       "ko": "길드 상점에서 물건 D 청하기",
       "en_u4": "Ask for item D in the guild shops.",
       "en_us": "Ask for item D at a guild shop."
-    },
-    {
-      "id": "jhelom.gravnor.destard",
-      "place": "jhelom",
-      "npc": "Gravnor",
-      "topic": "DUNG",
-      "goal": "",
-      "know": "dungeon:destard",
-      "en": "Dungeon: {destard}",
-      "ko": "던전: {destard}",
-      "en_u4": "Dungeon: {destard}",
-      "en_us": "Dungeon: {destard}"
     },
     {
       "id": "jhelom.gravnor.red-stone",
@@ -1253,7 +1241,7 @@
       "chain_order": 20,
       "goal": "",
       "en": "{abyss} entrance: meditate at the shrines of Honesty, Compassion and Valor for 3 cycles.",
-      "ko": "{abyss} 입장: 정직·연민·용기 사원에서 세 주기 명상하라."
+      "ko": "{abyss} 입장: 정직·연민·용맹 사원에서 세 주기 명상하라."
     },
     {
       "id": "cove.blissful.ankh-chamber",
