@@ -739,6 +739,13 @@ static func known_dungeon_mask(gs: Node) -> int:
 	return int(gs.journal_known_dungeons)
 
 
+static func known_stone_mask(gs: Node) -> int:
+	sync_known(gs)
+	if gs == null:
+		return 0
+	return int(gs.stones) | int(gs.journal_known_stones)
+
+
 static func _apply_know(gs: Node, raw: Variant) -> void:
 	if gs == null:
 		return
@@ -767,6 +774,16 @@ static func mark_known_rune(gs: Node, virtue: int) -> void:
 	mark_known_virtue(gs, virtue)
 
 
+static func mark_known_stone(gs: Node, flag: int) -> void:
+	## Heard or owned stone; same bit as Virtues.Id so the collection columns line up.
+	if gs == null or flag == 0:
+		return
+	gs.journal_known_stones = int(gs.journal_known_stones) | flag
+	for i in 8:
+		if (flag & (1 << i)) != 0:
+			mark_known_virtue(gs, i)
+
+
 static func _link_virtue_sets(gs: Node) -> void:
 	## A learned mantra or owned rune also reveals its virtue.
 	if gs == null:
@@ -775,6 +792,8 @@ static func _link_virtue_sets(gs: Node) -> void:
 		int(gs.journal_known_virtues)
 		| int(gs.journal_known_mantras)
 		| int(gs.runes)
+		| int(gs.journal_known_stones)
+		| int(gs.stones)
 	)
 
 
@@ -790,6 +809,10 @@ static func _apply_know_token(gs: Node, raw: String) -> void:
 		var d := _dungeon_from_token(k.substr(8))
 		if d >= 0:
 			gs.journal_known_dungeons = int(gs.journal_known_dungeons) | (1 << d)
+	elif k.begins_with("stone:"):
+		var flag := _stone_flag_from_token(k.substr(6))
+		if flag != 0:
+			mark_known_stone(gs, flag)
 
 
 static func _virtue_from_token(token: String) -> int:
@@ -841,21 +864,21 @@ static func _dungeon_from_token(token: String) -> int:
 static func _stone_flag_from_token(token: String) -> int:
 	## Matches GameState.STONE_* bitflags.
 	match token.strip_edges().to_lower():
-		"blue":
+		"blue", "honesty":
 			return 0x01
-		"yellow":
+		"yellow", "compassion":
 			return 0x02
-		"red":
+		"red", "valor":
 			return 0x04
-		"green":
+		"green", "justice":
 			return 0x08
-		"orange":
+		"orange", "sacrifice":
 			return 0x10
-		"purple":
+		"purple", "honor":
 			return 0x20
-		"white":
+		"white", "spirituality":
 			return 0x40
-		"black":
+		"black", "humility":
 			return 0x80
 		_:
 			return 0

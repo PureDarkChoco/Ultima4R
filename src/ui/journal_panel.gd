@@ -814,7 +814,7 @@ func _rebuild_codex() -> void:
 	var dungeons := _Journal.known_dungeon_mask(gs)
 	var mantras := _Journal.known_mantra_mask(gs)
 	var runes := int(gs.runes)
-	var stones := int(gs.stones)
+	var stones := _Journal.known_stone_mask(gs)
 	if virtues != 0:
 		_codex_add_section("journal_codex_virtues", _codex_virtue_row(virtues, gs))
 	if dungeons != 0:

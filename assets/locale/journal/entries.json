@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name> fills the journal collection page; mantra:<name> and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -575,11 +575,24 @@
       "en_us": "Ask for item D at a guild shop."
     },
     {
+      "id": "jhelom.gravnor.destard",
+      "place": "jhelom",
+      "npc": "Gravnor",
+      "topic": "DUNG",
+      "goal": "",
+      "know": "dungeon:destard",
+      "en": "Dungeon: {destard}",
+      "ko": "던전: {destard}",
+      "en_u4": "Dungeon: {destard}",
+      "en_us": "Dungeon: {destard}"
+    },
+    {
       "id": "jhelom.gravnor.red-stone",
       "place": "jhelom",
       "npc": "Gravnor",
       "topic": "STON_NO",
       "goal": "stone:red",
+      "know": ["stone:red", "dungeon:destard"],
       "en": "Red stone: in the dungeon of {destard}.",
       "ko": "붉은 돌: {destard}의 던전에 있다.",
       "en_u4": "Red stone: in the dungeon of {destard}.",
@@ -591,6 +604,7 @@
       "npc": "X",
       "topic": "RED_NO",
       "goal": "",
+      "know": "stone:red",
       "speaker_en": "X",
       "speaker_ko": "엑스",
       "en": "Red stone: needed in an altar room for the third part of a key.",
