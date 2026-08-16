@@ -107,7 +107,27 @@ const JOURNAL_TOWNS: Array[String] = [
 	"moonglow", "britain", "jhelom", "yew",
 	"minoc", "trinsic", "skara", "magincia",
 ]
+## Always English 3-letter caps (Korean names overflow the 8-column row).
+const TOWN_ABBREV := {
+	"moonglow": "MOO",
+	"britain": "BRI",
+	"jhelom": "JHE",
+	"yew": "YEW",
+	"minoc": "MIN",
+	"trinsic": "TRI",
+	"skara": "SKA",
+	"magincia": "MAG",
+}
 const JOURNAL_VILLAGES: Array[String] = ["paws", "den", "vesper", "cove"]
+
+
+static func town_moon_index(place_id: String) -> int:
+	## Virtue-town index 0..7 (Moonglow…Magincia), or -1.
+	return JOURNAL_TOWNS.find(place_id.strip_edges().to_lower())
+
+
+static func town_abbrev(place_id: String) -> String:
+	return str(TOWN_ABBREV.get(place_id.strip_edges().to_lower(), ""))
 
 
 static func journal_place_order() -> Array[String]:

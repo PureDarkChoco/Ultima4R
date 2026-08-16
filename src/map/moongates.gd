@@ -32,6 +32,14 @@ static func coords(phase: int) -> Vector2i:
 	return COORDS[clampi(phase, 0, COORDS.size() - 1)]
 
 
+static func phase_at(pos: Vector2i) -> int:
+	## Moon-phase index of this gate tile, or -1 if not a moongate.
+	for i in COORDS.size():
+		if COORDS[i] == pos:
+			return i
+	return -1
+
+
 static func trammel_subphase(moon_phase: int) -> int:
 	## xu4: moonPhase % (MOON_SECONDS_PER_PHASE * 4 * 3)
 	return posmod(moon_phase, SUBPHASE_CYCLE)

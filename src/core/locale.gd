@@ -914,6 +914,11 @@ const _T := {
 		"en_us": "%d / %d",
 		"ko": "%d / %d",
 	},
+	"journal_codex_cities": {
+		"en_u4": "Cities",
+		"en_us": "Cities",
+		"ko": "도시",
+	},
 	"journal_codex_virtues": {
 		"en_u4": "Virtues",
 		"en_us": "Virtues",

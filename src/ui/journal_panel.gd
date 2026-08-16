@@ -8,6 +8,10 @@ const _Virtues := preload("res://src/core/virtues.gd")
 const _Shrine := preload("res://src/core/shrine.gd")
 const _RuneIcons := preload("res://src/core/rune_icons.gd")
 const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
+const _WorldPortals := preload("res://src/map/world_portals.gd")
+const MOON_PHASE_PATH := "res://assets/ui/moons/phase_%d.png"
+## New / empty moon file index (xu4 MOON_CHAR order).
+const MOON_NEW_FILE := 7
 const PENDING_ICON := "res://assets/ui/journal/pending.png"
 const DONE_ICON := "res://assets/ui/journal/done.png"
 const TITLE_SIZE := 15
@@ -815,6 +819,17 @@ func _rebuild_codex() -> void:
 	var mantras := _Journal.known_mantra_mask(gs)
 	var runes := int(gs.runes)
 	var stones := _Journal.known_stone_mask(gs)
+	var city_cols := (
+		int(gs.journal_known_cities)
+		| int(gs.journal_known_city_moons)
+		| virtues
+		| dungeons
+		| mantras
+		| stones
+		| runes
+	)
+	if city_cols != 0:
+		_codex_add_section("journal_codex_cities", _codex_city_block(gs, city_cols))
 	if virtues != 0:
 		_codex_add_section("journal_codex_virtues", _codex_virtue_row(virtues, gs))
 	if dungeons != 0:
@@ -908,6 +923,37 @@ func _codex_empty_cell() -> Control:
 	cell.custom_minimum_size = Vector2(0, CODEX_CELL_H)
 	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return cell
+
+
+func _moon_file_index(phase: int) -> int:
+	## Same mapping as the sky bar: phase 0 → new-moon art.
+	phase = posmod(phase, 8)
+	if phase == 0:
+		return MOON_NEW_FILE
+	return phase - 1
+
+
+func _codex_city_block(gs: Node, show_mask: int) -> Control:
+	var wrap := VBoxContainer.new()
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_theme_constant_override("separation", 2)
+	var moons := _codex_slot_row()
+	var names := _codex_slot_row()
+	var moon_mask := int(gs.journal_known_city_moons)
+	for i in 8:
+		if (show_mask & (1 << i)) == 0:
+			moons.add_child(_codex_empty_cell())
+			names.add_child(_codex_empty_cell())
+			continue
+		var moon_on := (moon_mask & (1 << i)) != 0
+		var moon_file := _moon_file_index(i) if moon_on else MOON_NEW_FILE
+		moons.add_child(_codex_icon_cell(MOON_PHASE_PATH % moon_file))
+		var place := str(_WorldPortals.JOURNAL_TOWNS[i])
+		names.add_child(_codex_text_cell(_WorldPortals.town_abbrev(place)))
+	wrap.add_child(moons)
+	wrap.add_child(names)
+	return wrap
 
 
 func _codex_virtue_row(mask: int, gs: Node) -> HBoxContainer:

@@ -711,7 +711,9 @@ static func sync_known(gs: Node) -> void:
 	for row in gs.journal_entries:
 		if typeof(row) != TYPE_DICTIONARY:
 			continue
-		var cat := find_catalog_by_id(str((row as Dictionary).get("id", "")))
+		var d: Dictionary = row
+		mark_known_city(gs, str(d.get("place", "")))
+		var cat := find_catalog_by_id(str(d.get("id", "")))
 		if cat.is_empty():
 			continue
 		_apply_know(gs, cat.get("know", ""))
@@ -772,6 +774,35 @@ static func mark_known_mantra(gs: Node, virtue: int) -> void:
 static func mark_known_rune(gs: Node, virtue: int) -> void:
 	## Inventory already shows the rune; the matching virtue is learned with it.
 	mark_known_virtue(gs, virtue)
+
+
+static func mark_known_city(gs: Node, place_id: String) -> bool:
+	## Entered a virtue town (Moonglow…Magincia). Returns true if newly marked.
+	if gs == null:
+		return false
+	var i := _WorldPortals.town_moon_index(place_id)
+	if i < 0:
+		return false
+	var bit := 1 << i
+	if (int(gs.journal_known_cities) & bit) != 0:
+		return false
+	gs.journal_known_cities = int(gs.journal_known_cities) | bit
+	return true
+
+
+static func mark_known_city_moon(gs: Node, phase: int) -> bool:
+	## Moongate arrival: reveal that town's name and its moon phase.
+	if gs == null or phase < 0 or phase > 7:
+		return false
+	var bit := 1 << phase
+	var changed := false
+	if (int(gs.journal_known_city_moons) & bit) == 0:
+		gs.journal_known_city_moons = int(gs.journal_known_city_moons) | bit
+		changed = true
+	if (int(gs.journal_known_cities) & bit) == 0:
+		gs.journal_known_cities = int(gs.journal_known_cities) | bit
+		changed = true
+	return changed
 
 
 static func mark_known_stone(gs: Node, flag: int) -> void:

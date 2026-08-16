@@ -566,6 +566,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_sync_balloon_view()
 	_sync_creatures_to_map()
 	_sync_music()
+	_journal_note_entered_city(fname)
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -10765,8 +10766,15 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 		_map.clear_moongate()
 	_maybe_capture_manual_zorin_tip(fname)
+	_journal_note_entered_city(fname)
 	_sync_music()
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
+
+
+func _journal_note_entered_city(fname: String) -> void:
+	var place := _WorldPortals.place_id_for_portal({"fname": fname})
+	if GameState.journal_mark_city(place):
+		_refresh_journal_panel()
 
 
 func _maybe_capture_manual_zorin_tip(fname: String) -> void:
@@ -17584,6 +17592,7 @@ func _try_moongate_travel() -> bool:
 
 func _moongate_travel_async(dest: Vector2i) -> void:
 	## xu4 gameSpellEffect(SOUND_MOONGATE) before and after the hop — held longer here.
+	var origin := _tile_pos
 	var flash_sec := MapView.MOONGATE_FLASH_SEC
 	var gap_sec := MapView.MOONGATE_TRAVEL_GAP_SEC
 	if _map != null:
@@ -17597,6 +17606,14 @@ func _moongate_travel_async(dest: Vector2i) -> void:
 		_refresh_locate_hud()
 		if _map != null:
 			await _map.await_spell_flash(flash_sec)
+	## Departure and arrival towns (same tile when both moons are full at Minoc).
+	var journal_changed := false
+	if GameState.journal_mark_city_moon(_Moongates.phase_at(origin)):
+		journal_changed = true
+	if GameState.journal_mark_city_moon(_Moongates.phase_at(dest)):
+		journal_changed = true
+	if journal_changed:
+		_refresh_journal_panel()
 	## xu4 checkMoongates — both moons full + Spirituality rune → shrine.
 	if (
 		GameState.trammel_phase == 4
