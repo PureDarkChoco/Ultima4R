@@ -14,7 +14,7 @@ const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 8
+const PIECE_CACHE_REV := 11
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -654,6 +654,25 @@ func _paint_ladder_piece(
 	var y0 := fr.position.y
 	var x1 := x0 + fr.size.x
 	var y1 := y0 + fr.size.y
+	var opening_w := maxi(1, int(round(float(fr.size.x) * 0.40)))
+	var opening_h := maxi(1, int(round(float(fr.size.y) * 0.12)))
+	var opening_far_w := maxi(1, int(round(float(opening_w) * 0.70)))
+	var opening_x := x0 + (fr.size.x - opening_w) / 2
+	var opening_far_x := x0 + (fr.size.x - opening_far_w) / 2
+	if mode & LADDER_UP:
+		_fill_solid_hband_quad(
+			buf,
+			float(opening_x), float(opening_x + opening_w), y0,
+			float(opening_far_x), float(opening_far_x + opening_far_w), y0 + opening_h,
+			Color(0, 0, 0, 1)
+		)
+	if mode & LADDER_DOWN:
+		_fill_solid_hband_quad(
+			buf,
+			float(opening_x), float(opening_x + opening_w), y1,
+			float(opening_far_x), float(opening_far_x + opening_far_w), y1 - opening_h,
+			Color(0, 0, 0, 1)
+		)
 	if mode & LADDER_UP:
 		_blit_scaled(
 			buf, _ladder_half,
@@ -666,6 +685,31 @@ func _paint_ladder_piece(
 			x0, y0, x1, y1,
 			dim, false, 0.0, 1.0, false, true, true
 		)
+
+
+func _fill_solid_hband_quad(
+	buf: Image,
+	x0: float,
+	x1: float,
+	y_near: int,
+	nx0: float,
+	nx1: float,
+	y_far: int,
+	color: Color
+) -> void:
+	var y_a := mini(y_near, y_far)
+	var y_b := maxi(y_near, y_far)
+	var y_span := float(y_far - y_near)
+	if y_b <= y_a or absf(y_span) < 0.5:
+		return
+	for y in range(y_a, y_b):
+		if y < 0 or y >= buf.get_height():
+			continue
+		var t := clampf((float(y) + 0.5 - float(y_near)) / y_span, 0.0, 1.0)
+		var xl := clampi(int(round(lerpf(x0, nx0, t))), 0, buf.get_width())
+		var xr := clampi(int(round(lerpf(x1, nx1, t))), 0, buf.get_width())
+		if xr > xl:
+			buf.fill_rect(Rect2i(xl, y, xr - xl, 1), color)
 
 
 func _ladder_mode(tok: int) -> int:
