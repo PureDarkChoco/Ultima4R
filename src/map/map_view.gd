@@ -11,6 +11,8 @@ const _LineOfSightScript := preload("res://src/map/line_of_sight.gd")
 const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const _WeaponIconsScript := preload("res://src/core/weapon_icons.gd")
 const _ArmorIconsScript := preload("res://src/core/armor_icons.gd")
+const _DungeonViewScript := preload("res://src/map/dungeon_view.gd")
+const _DungeonPortalsScript := preload("res://src/map/dungeon_portals.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
@@ -366,6 +368,12 @@ var _combat_tile_flashes: Array[Dictionary] = []
 var _combat_proj: Dictionary = {}
 ## True while the enter-combat tile wipe paints the buffer.
 var _scene_trans_busy := false
+## First-person dungeon corridor (persists through combat).
+var _dungeon_map
+var _dungeon_view
+var _dungeon_z := 0
+var _dungeon_dir := 2
+var _dungeon_lit := false
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -426,6 +434,7 @@ func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
 	exit_combat()
 	exit_camp()
 	exit_city()
+	exit_dungeon()
 	tiles_ready = _U4TileBankScript.ensure_loaded()
 	if tiles_ready:
 		_cache_avatar_icons()
@@ -483,6 +492,15 @@ func is_in_combat() -> bool:
 	return _combat_map != null
 
 
+func apply_dungeon_room_trigger(dmap, index: int, pos: Vector2i) -> bool:
+	if _combat_map == null or dmap == null:
+		return false
+	if not dmap.apply_room_trigger_at(index, pos, _combat_map):
+		return false
+	_rebuild()
+	return true
+
+
 func set_combat_tile(pos: Vector2i, tid: int) -> bool:
 	if _combat_map == null or not _combat_in_bounds(pos):
 		return false
@@ -530,6 +548,48 @@ func open_combat_door(pos: Vector2i) -> bool:
 	return true
 
 
+func is_in_dungeon() -> bool:
+	return _dungeon_map != null and bool(_dungeon_map.loaded)
+
+
+func enter_dungeon(dmap, pos: Vector2i, z: int, dir: int, lit: bool) -> void:
+	exit_combat()
+	exit_camp()
+	exit_city()
+	_dungeon_map = dmap
+	_dungeon_z = z
+	_dungeon_dir = dir
+	_dungeon_lit = lit
+	if _dungeon_view == null:
+		_dungeon_view = _DungeonViewScript.new()
+	_dungeon_view.set_theme(_DungeonPortalsScript.theme_for(str(dmap.dungeon_id)))
+	center = pos
+	_scroll_frames_left = 0
+	_rebuild()
+
+
+func set_dungeon_pose(pos: Vector2i, z: int, dir: int, lit: bool) -> void:
+	if _dungeon_map == null:
+		return
+	_dungeon_z = z
+	_dungeon_dir = dir
+	_dungeon_lit = lit
+	center = pos
+	_scroll_frames_left = 0
+	_rebuild()
+
+
+func exit_dungeon() -> void:
+	if _dungeon_map == null:
+		return
+	_dungeon_map = null
+	_dungeon_z = 0
+	_dungeon_dir = 2
+	_dungeon_lit = false
+	_scroll_frames_left = 0
+	_rebuild()
+
+
 func is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 
@@ -548,6 +608,7 @@ func enter_city(
 	## Keep mounted transport sprite (horse) — do not reset to foot.
 	exit_combat()
 	exit_camp()
+	exit_dungeon()
 	_city_map = map
 	_city_world_pos = world_pos
 	var rim := start
@@ -3145,6 +3206,10 @@ func _rebuild() -> void:
 		_rebuild_camp()
 		return
 
+	if is_in_dungeon():
+		_rebuild_dungeon()
+		return
+
 	if is_in_city():
 		_rebuild_city()
 		return
@@ -3191,6 +3256,23 @@ func _rebuild() -> void:
 	_paint_cannon_proj(cam)
 	_paint_tile_flashes(cam)
 
+	_tex.set_image(_buf)
+	texture = _tex
+	queue_redraw()
+
+
+func _rebuild_dungeon() -> void:
+	if _dungeon_view == null:
+		_dungeon_view = _DungeonViewScript.new()
+		_dungeon_view.set_theme(_DungeonPortalsScript.theme_for(str(_dungeon_map.dungeon_id)))
+	_dungeon_view.paint(
+		_buf,
+		_dungeon_map,
+		Vector2i(int(center.x), int(center.y)),
+		_dungeon_z,
+		_dungeon_dir,
+		_dungeon_lit
+	)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()

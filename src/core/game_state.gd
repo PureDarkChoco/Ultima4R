@@ -112,6 +112,10 @@ var gems: int = 0
 var gold: int = 200 ## xu4 SaveGame.gold
 var keys: int = 0
 var torches: int = 2
+## Remaining dungeon light turns (torch or Light spell). 0 = dark.
+var dungeon_torch_left: int = 0
+## Abyss: stones already used on matching level altars (same bitflags as `stones`).
+var abyss_stones_used: int = 0
 var skull: int = 0 ## HUD/legacy; kept in sync with ITEM_SKULL bit
 ## Sextant required for Locate (L / Ctrl+L). xu4 starts with 0.
 var has_sextant: bool = false
@@ -398,6 +402,8 @@ func reset_party() -> void:
 	gold = 200
 	keys = 0
 	torches = 2
+	dungeon_torch_left = 0
+	abyss_stones_used = 0
 	skull = 0
 	has_sextant = false
 	ship_hull = 50
@@ -808,6 +814,8 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	food = 30000
 	gold = 200
 	torches = 2
+	dungeon_torch_left = 0
+	abyss_stones_used = 0
 	gems = 0
 	keys = 0
 	skull = 0
@@ -1714,6 +1722,27 @@ func is_member_disabled(klass: int) -> bool:
 		st == PartyRoster.Status.DEAD
 		or st == PartyRoster.Status.SLEEPING
 	)
+
+
+func apply_orb_touch(stat_mask: int, damage: int) -> int:
+	## Dungeon orb: hurt every living member, then raise STR/DEX/INT bits (cap 50).
+	var flash := 0
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		if apply_member_damage(mid, maxi(0, damage)):
+			flash |= 1 << i
+		if (stat_mask & 4) != 0 and mid < member_str.size():
+			member_str[mid] = mini(50, int(member_str[mid]) + 5)
+		if (stat_mask & 2) != 0 and mid < member_dex.size():
+			member_dex[mid] = mini(50, int(member_dex[mid]) + 5)
+		if (stat_mask & 1) != 0 and mid < member_int.size():
+			member_int[mid] = mini(50, int(member_int[mid]) + 5)
+			var mmax := max_mp_for_stats(mid, int(member_int[mid]))
+			if mid < member_mp.size() and int(member_mp[mid]) > mmax:
+				member_mp[mid] = mmax
+	return flash
 
 
 func apply_member_damage(klass: int, damage: int) -> bool:
@@ -2948,6 +2977,8 @@ func to_save_dict() -> Dictionary:
 		"gold": gold,
 		"keys": keys,
 		"torches": torches,
+		"dungeon_torch_left": dungeon_torch_left,
+		"abyss_stones_used": abyss_stones_used,
 		"skull": skull,
 		"items": items,
 		"stones": stones,
@@ -3024,6 +3055,8 @@ func apply_save_dict(d: Dictionary) -> void:
 	gold = maxi(0, int(d.get("gold", 0)))
 	keys = maxi(0, int(d.get("keys", 0)))
 	torches = maxi(0, int(d.get("torches", 0)))
+	dungeon_torch_left = maxi(0, int(d.get("dungeon_torch_left", 0)))
+	abyss_stones_used = maxi(0, int(d.get("abyss_stones_used", 0)))
 	skull = maxi(0, int(d.get("skull", 0)))
 	items = maxi(0, int(d.get("items", 0)))
 	stones = maxi(0, int(d.get("stones", 0)))
@@ -3390,6 +3423,10 @@ func journal_mark_id(id: String) -> bool:
 
 func journal_try_upgrade_id(id: String) -> bool:
 	return _Journal.try_upgrade_id(self, id)
+
+
+func journal_mark_dungeon(dungeon_id: String) -> bool:
+	return _Journal.mark_known_dungeon(self, dungeon_id)
 
 
 func journal_mark_city(place_id: String) -> bool:

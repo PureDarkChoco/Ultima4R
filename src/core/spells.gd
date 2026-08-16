@@ -18,6 +18,7 @@ const HEAL := 7 ## H
 const ICEBALL := 8 ## I
 const JINX := 9 ## J
 const KILL := 10 ## K
+const LIGHT := 11 ## L
 const MAGIC_MISSILE := 12 ## M
 const NEGATE := 13 ## N
 const OPEN := 14 ## O
@@ -29,6 +30,9 @@ const TREMOR := 19 ## T
 const UNDEAD := 20 ## U
 const VIEW := 21 ## V
 const WINDS := 22 ## W
+const XIT := 23 ## X
+const Y_UP := 24 ## Y
+const Z_DOWN := 25 ## Z
 
 ## xu4 Spell::ParamType
 const PARAM_NONE := 0

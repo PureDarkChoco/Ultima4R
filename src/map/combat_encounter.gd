@@ -210,6 +210,49 @@ static func initial_hp_for(tile_id: int) -> Dictionary:
 	return {"hp": hp, "max_hp": basehp}
 
 
+## Dungeon corridor random foes by depth (0–7). Harder types deeper.
+const DUNGEON_FOES: Array[Array] = [
+	[144, 148, 152], ## rat / bat / spider
+	[156, 160, 164], ## ghost / slime / troll
+	[168, 172, 176], ## gremlin / mimic / reaper
+	[184, 188, 192], ## gazer / phantom / orc
+	[196, 208, 212], ## skeleton / ettin / headless
+	[216, 224, 228], ## cyclops / mage / liche
+	[240, 244, 248], ## daemon / hydra / dragon
+	[248, 252, 240], ## dragon / balron / daemon
+]
+
+
+static func dungeon_foe_tile(level: int) -> int:
+	var z := clampi(level, 0, DUNGEON_FOES.size() - 1)
+	var row: Array = DUNGEON_FOES[z]
+	if row.is_empty():
+		return 192
+	return int(row[randi() % row.size()])
+
+
+static func place_room_foes(monsters: Array) -> Array:
+	## Fixed dungeon-room placements from the .DNG record.
+	var foes: Array = []
+	for i in monsters.size():
+		var m: Dictionary = monsters[i]
+		var tid := int(m.get("tile", 0))
+		if tid <= 0:
+			continue
+		var vitals := initial_hp_for(tid)
+		foes.append({
+			"x": int(m.get("x", 0)),
+			"y": int(m.get("y", 0)),
+			"tile": tid,
+			"hp": int(vitals["hp"]),
+			"max_hp": int(vitals["max_hp"]),
+			"slot": int(m.get("slot", i)),
+			"priority": i,
+			"show_hp": false,
+		})
+	return foes
+
+
 static func place_foes_from_table(
 	table: Array[int],
 	creature_starts: Array

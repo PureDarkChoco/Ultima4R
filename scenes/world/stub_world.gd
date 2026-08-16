@@ -38,6 +38,9 @@ const _GameInput := preload("res://src/core/game_input.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 const _JournalScript := preload("res://src/core/journal.gd")
+const _DungeonMapData := preload("res://src/map/dungeon_map_data.gd")
+const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
+const _ShrineMantras := preload("res://src/core/shrine.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -290,6 +293,19 @@ var _options_panel # OptionsPanel
 ## City / castle visit (Enter). World position restored on leave.
 var _city_map # CityMapData
 var _city_return_pos := Vector2i.ZERO
+## Dungeon visit. World / city return restored on X-it or ladder-out.
+var _dungeon_map
+var _dungeon_id := ""
+var _dungeon_z := 0
+var _dungeon_dir := 2
+var _dungeon_return_pos := Vector2i.ZERO
+var _dungeon_return_city := ""
+var _dungeon_room_index := -1
+var _dungeon_room_entry_dir := 2
+var _dungeon_skip_room := false
+var _dungeon_last_flee_dir := Vector2i.ZERO
+var _codex_stage := 0
+var _codex_buffer := ""
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
 var _enter_prompt_stage := 0
 var _enter_prompt_choice := 0 ## selected button index in the dialogue choice row
@@ -495,10 +511,15 @@ func _apply_world_save(w: Dictionary) -> void:
 		_world_creatures.from_save(w.get("creatures", []))
 		_sync_creatures_to_map()
 
-	if bool(w.get("in_city", false)):
+	if bool(w.get("in_dungeon", false)):
+		_city_map = null
+		_restore_dungeon_from_save(w)
+	elif bool(w.get("in_city", false)):
+		_clear_dungeon_state()
 		_restore_city_from_save(w)
 	else:
 		_city_map = null
+		_clear_dungeon_state()
 		## Load must snap: MapView defaults to (83,105) next to Britain, so a
 		## nearby save is a 1-tile step and SMOOTH_SCROLL would animate once.
 		_map.set_center(_tile_pos, false)
@@ -1752,6 +1773,8 @@ func _prompt_row_text() -> String:
 		return ""
 	if _shrine_stage == 4:
 		return _shrine_buffer
+	if _codex_stage > 0:
+		return _codex_buffer
 	if _shrine_stage == 5:
 		return ""
 	if _chest_open_stage == 1:
@@ -2763,6 +2786,10 @@ func _process(delta: float) -> void:
 		_hold_arm = 0.0
 		return
 
+	if _is_in_dungeon():
+		_dungeon_handle_dir(dir)
+		return
+
 	## xu4 balloon: keys always "Drift Only!" (real movement is wind while aloft).
 	if _transport == Transport.BALLOON:
 		_push_message(Locale.t("cmd_drift_only"), false)
@@ -3318,7 +3345,7 @@ func _command_menu_on_city_portal(action: int) -> bool:
 func _command_menu_can_show(cmd: int) -> bool:
 	var in_combat := _combat_active
 	var in_city := _is_in_city() and not in_combat
-	var outdoors := not in_city and not in_combat
+	var outdoors := not in_city and not in_combat and not _is_in_dungeon()
 	var noncombat := not in_combat
 	if _combat_victory_aftermath:
 		return cmd in [
@@ -3349,26 +3376,39 @@ func _command_menu_can_show(cmd: int) -> bool:
 		U4Commands.Id.CAST, U4Commands.Id.READY, U4Commands.Id.USE, U4Commands.Id.ZTATS:
 			return true
 		U4Commands.Id.DESCEND:
-			return noncombat and _command_menu_on_city_portal(_CityFloorPortals.Action.DESCEND)
+			return noncombat and (
+				_command_menu_on_city_portal(_CityFloorPortals.Action.DESCEND)
+				or _dungeon_can_descend()
+			)
 		U4Commands.Id.ENTER:
-			if not outdoors or _transport in [Transport.SHIP, Transport.BALLOON]:
+			if _is_in_dungeon() or in_combat:
+				return false
+			if _transport in [Transport.SHIP, Transport.BALLOON]:
 				return false
 			return (
 				not _WorldPortals.portal_at(_tile_pos).is_empty()
 				or not _ShrinePortals.portal_at(_tile_pos).is_empty()
+				or not _DungeonPortals.world_portal_at(_tile_pos).is_empty()
+				or _tile_pos == _DungeonPortals.ABYSS_ENTRANCE
 			)
 		U4Commands.Id.FIRE:
 			return outdoors and _transport == Transport.SHIP
 		U4Commands.Id.GET_CHEST:
-			return noncombat and _command_menu_has_adjacent_city_chest(true)
+			return noncombat and (
+				_command_menu_has_adjacent_city_chest(true)
+				or _dungeon_on_chest()
+			)
 		U4Commands.Id.HOLE_UP:
 			return outdoors and _hole_up_deny_message().is_empty()
 		U4Commands.Id.IGNITE:
-			return false ## Dungeon controller is not implemented yet.
+			return noncombat and _is_in_dungeon()
 		U4Commands.Id.JIMMY:
 			return noncombat and _command_menu_has_adjacent_city_tile("locked_door")
 		U4Commands.Id.KLIMB:
-			return noncombat and _command_menu_on_city_portal(_CityFloorPortals.Action.CLIMB)
+			return noncombat and (
+				_command_menu_on_city_portal(_CityFloorPortals.Action.CLIMB)
+				or _dungeon_can_klimb()
+			)
 		U4Commands.Id.LOCATE:
 			return outdoors and GameState.has_sextant
 		U4Commands.Id.MIX:
@@ -3384,7 +3424,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 				)
 			)
 		U4Commands.Id.PEER:
-			return noncombat and GameState.gems > 0
+			return noncombat and not _is_in_dungeon() and GameState.gems > 0
 		U4Commands.Id.TALK:
 			return noncombat and _command_menu_has_adjacent_city_person(true)
 		U4Commands.Id.VOLUME:
@@ -3484,6 +3524,8 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 		priority.append(U4Commands.Id.KLIMB)
 	if _command_menu_can_show(U4Commands.Id.ENTER):
 		priority.append(U4Commands.Id.ENTER)
+	if _command_menu_can_show(U4Commands.Id.IGNITE):
+		priority.append(U4Commands.Id.IGNITE)
 	if (
 		items.has(U4Commands.Id.XIT)
 		and _command_menu_ship_touches_land()
@@ -3514,7 +3556,7 @@ func _can_open_command_menu() -> bool:
 		return false
 	if (
 		_death_busy or _moongate_busy or _cannon_busy or _search_busy
-		or _shrine_busy or _shrine_stage != 0 or _inn_stage != 0
+		or _shrine_busy or _shrine_stage != 0 or _inn_stage != 0 or _codex_stage > 0
 	):
 		return false
 	if (
@@ -5790,6 +5832,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
 		return
+	if _codex_stage > 0:
+		if _handle_codex_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
 	if _shrine_stage != 0:
 		if _handle_shrine_input(event):
 			get_viewport().set_input_as_handled()
@@ -6181,6 +6229,10 @@ func _handle_command(cmd: int) -> void:
 		_pending_cmd_name = Locale.t("cmd_fire_dir")
 		_layout_prompt_row()
 		return
+	if cmd == U4Commands.Id.GET_CHEST and _is_in_dungeon():
+		_clear_pending_dir()
+		_dungeon_get_chest()
+		return
 	if U4Commands.NEEDS_DIRECTION.get(cmd, false):
 		## One adjacent target → act immediately. Else "Attack: Dir?" and wait.
 		_clear_pending_order()
@@ -6254,6 +6306,8 @@ func _handle_command(cmd: int) -> void:
 	elif cmd == U4Commands.Id.PASS:
 		_push_message(Locale.t("cmd_fired", [name]))
 		_finish_party_turn()
+	elif cmd == U4Commands.Id.IGNITE:
+		_do_ignite()
 	else:
 		_push_message(Locale.t("cmd_stub", [letter, name]))
 		_finish_party_turn()
@@ -6686,6 +6740,9 @@ func _do_search() -> void:
 	## xu4 game.cpp case 's' (world/city). Dungeon Search is separate.
 	if _search_busy:
 		return
+	if _is_in_dungeon():
+		_dungeon_search()
+		return
 	_search_busy = true
 	_push_message(Locale.t("cmd_searching"), false)
 	## Beat so "Searching..." reads, and S can't be mashed into another turn.
@@ -6786,6 +6843,10 @@ func _open_telescope_city(choice_index: int) -> void:
 func _do_peer() -> void:
 	## Peer: spend a gem, show ~16:9 gem map until Space/Enter/Esc.
 	## xu4: even "Peer at What?" still ends the turn.
+	if _is_in_dungeon():
+		_push_message(Locale.t("cmd_not_here"), false)
+		_finish_party_turn()
+		return
 	if GameState.gems <= 0:
 		_push_message(Locale.t("cmd_peer_what"), false)
 		_finish_party_turn()
@@ -7327,8 +7388,23 @@ func _world_save_dict() -> Dictionary:
 		"creatures": _creatures_to_save(),
 		"city_chests": _city_chests_to_save(),
 		"in_city": false,
+		"in_dungeon": false,
 	}
-	if _is_in_city():
+	if _is_in_dungeon():
+		d["in_dungeon"] = true
+		d["x"] = _dungeon_return_pos.x
+		d["y"] = _dungeon_return_pos.y
+		d["dungeon_id"] = _dungeon_id
+		d["dungeon_x"] = _tile_pos.x
+		d["dungeon_y"] = _tile_pos.y
+		d["dungeon_z"] = _dungeon_z
+		d["dungeon_dir"] = _dungeon_dir
+		d["dungeon_return_x"] = _dungeon_return_pos.x
+		d["dungeon_return_y"] = _dungeon_return_pos.y
+		d["dungeon_return_city"] = _dungeon_return_city
+		if _dungeon_map != null:
+			d["dungeon_persist"] = _dungeon_map.consumed_to_save()
+	elif _is_in_city():
 		var fname := ""
 		## Prefer the floor currently loaded (lcb_2 vs lcb_1), not only world Enter.
 		if _city_map != null and not str(_city_map.source_path).is_empty():
@@ -7364,7 +7440,12 @@ func _save_location_dict() -> Dictionary:
 			place = "britain"
 		return {"kind": "in", "place": place}
 
-	## Future: dungeon → {"kind":"dungeon","place":"shame","level":2}
+	if _is_in_dungeon():
+		return {
+			"kind": "dungeon",
+			"place": _dungeon_id if not _dungeon_id.is_empty() else "deceit",
+			"level": _dungeon_z + 1,
+		}
 
 	var world_pos := _tile_pos
 	if _world != null and _world.loaded:
@@ -7662,7 +7743,7 @@ func _update_world_creatures() -> void:
 	## → checkBridgeTrolls.
 	## Creatures act sequentially; after a lethal pirate shot, stop further AI / combat.
 	## xu4: no spawn/move/attack while balloon is aloft (isFlying).
-	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
+	if _combat_active or _is_in_city() or _is_in_dungeon() or _world == null or not _world.loaded:
 		return
 	if _is_balloon_flying():
 		return
@@ -7729,7 +7810,7 @@ func _check_bridge_trolls() -> void:
 	## xu4 GameController::checkBridgeTrolls:
 	## world map + underfoot tile name == bridge + 1/8 → "Bridge Trolls!" on BRIDGE.CON.
 	## Note: only tile 23 (bridge), not bridge_n / bridge_s (xu4 Tile::sym.bridge).
-	if _combat_active or _is_in_city() or _world == null or not _world.loaded:
+	if _combat_active or _is_in_city() or _is_in_dungeon() or _world == null or not _world.loaded:
 		return
 	if _party_wiped_or_dying():
 		return
@@ -9764,6 +9845,13 @@ func _apply_cast_energy_field(dir: Vector2i) -> bool:
 		if dest_tid < 0 or not _TileRules.is_walkable(dest_tid):
 			return false
 		return _map.set_combat_tile(dest, _cast_field_tid)
+	if _is_in_dungeon() and _dungeon_map != null:
+		var dest: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, _DungeonPortals.dir_from_vec(dir))
+		if not _dungeon_map.can_walk(dest.x, dest.y, _dungeon_z):
+			return false
+		_dungeon_map.add_annotation(dest.x, dest.y, _dungeon_z, _cast_field_tid, -1)
+		_refresh_dungeon_view()
+		return true
 	return false
 
 
@@ -9782,6 +9870,9 @@ func _apply_cast_dispel(dir: Vector2i) -> bool:
 		var camp_dest := _tile_pos + dir
 		_map.flash_combat_tile(camp_dest, MapView.TILE_WISP, 0.16)
 		return _dispel_camp_tile(camp_dest)
+	if _is_in_dungeon() and _dungeon_map != null:
+		var ddest: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, _DungeonPortals.dir_from_vec(dir))
+		return _dispel_dungeon_tile(ddest)
 	if _is_in_city() and _city_map != null and _city_map.loaded:
 		var city_dest := _tile_pos + dir
 		if _map != null:
@@ -9867,6 +9958,7 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.ICEBALL
 		or spell_id == Spells.JINX
 		or spell_id == Spells.KILL
+		or spell_id == Spells.LIGHT
 		or spell_id == Spells.MAGIC_MISSILE
 		or spell_id == Spells.NEGATE
 		or spell_id == Spells.OPEN
@@ -9878,6 +9970,9 @@ func _is_cast_implemented(spell_id: int) -> bool:
 		or spell_id == Spells.UNDEAD
 		or spell_id == Spells.VIEW
 		or spell_id == Spells.WINDS
+		or spell_id == Spells.XIT
+		or spell_id == Spells.Y_UP
+		or spell_id == Spells.Z_DOWN
 	)
 
 
@@ -9945,6 +10040,14 @@ func _finish_cast_none_spell() -> void:
 				_refresh_inventory_bars()
 				_close_cast(false, false)
 				return
+		Spells.LIGHT:
+			ok = _apply_cast_light()
+		Spells.XIT:
+			ok = _apply_cast_xit()
+		Spells.Y_UP:
+			ok = _apply_cast_yup()
+		Spells.Z_DOWN:
+			ok = _apply_cast_zdown()
 		_:
 			ok = false
 	if not ok:
@@ -10303,9 +10406,13 @@ func _push_cast_context_error(err: int) -> void:
 func _spell_location_context() -> int:
 	## xu4 Location::context for the current map.
 	if _combat_active:
+		if _is_in_dungeon() and _dungeon_room_index == _DungeonPortals.ALTAR_ROOM_INDEX:
+			return Spells.CTX_ALTAR_ROOM
 		return Spells.CTX_COMBAT
 	if _shrine_session or _shrine_stage != 0:
 		return Spells.CTX_SHRINE
+	if _is_in_dungeon():
+		return Spells.CTX_DUNGEON
 	if _is_in_city():
 		return Spells.CTX_CITY
 	return Spells.CTX_WORLDMAP
@@ -10450,16 +10557,11 @@ func _apply_use_item(kind: int) -> void:
 			await _use_horn()
 			return
 		_UseItems.Kind.KEY_TRUTH, _UseItems.Kind.KEY_LOVE, _UseItems.Kind.KEY_COURAGE:
-			## xu4 useKey — always "No place to Use them!" (Codex key thirds).
-			_push_message(Locale.t("cmd_use_no_place"), false)
-			await _finish_use_command()
+			await _use_principle_key()
 			return
 		_:
 			if kind >= _UseItems.Kind.STONE_BLUE and kind <= _UseItems.Kind.STONE_BLACK:
-				## Full altar / Abyss stone flow deferred with dungeons.
-				## Wrong place for now → xu4 "No place to Use them!".
-				_push_message(Locale.t("cmd_use_no_place"), false)
-				await _finish_use_command()
+				await _use_virtue_stone(kind)
 				return
 			## Remaining unported use kinds.
 			_push_message(Locale.t("cmd_use_no_effect"), false)
@@ -10609,8 +10711,8 @@ func _do_hole_up() -> void:
 
 
 func _do_enter() -> void:
-	## xu4 'e' → usePortalAt(ACTION_ENTER). Cities + shrines.
-	if _is_in_city():
+	## xu4 'e' → usePortalAt(ACTION_ENTER). Cities + shrines + dungeons.
+	if _is_in_city() or _is_in_dungeon():
 		_push_message(Locale.t("cmd_enter_what"), false)
 		return
 	if _shrine_stage != 0:
@@ -10622,6 +10724,8 @@ func _do_enter() -> void:
 	if not shrine_p.is_empty():
 		_try_enter_shrine(shrine_p)
 		return
+	if _try_enter_dungeon_here():
+		return
 	var portal := _WorldPortals.portal_at(_tile_pos)
 	if portal.is_empty():
 		_push_message(Locale.t("cmd_enter_what"), false)
@@ -10630,6 +10734,11 @@ func _do_enter() -> void:
 
 
 func _localized_portal_name(portal: Dictionary) -> String:
+	var dungeon_id := str(portal.get("id", ""))
+	if not dungeon_id.is_empty() and _DungeonPortals.index_for(dungeon_id) >= 0:
+		var dlabel := Locale.place(dungeon_id)
+		if not dlabel.is_empty() and dlabel != "place_%s" % dungeon_id:
+			return dlabel
 	var place_id := _WorldPortals.place_id_for_portal(portal)
 	var name_s := str(portal.get("name", "?"))
 	if not place_id.is_empty():
@@ -10641,6 +10750,12 @@ func _localized_portal_name(portal: Dictionary) -> String:
 
 func _enter_confirm_place_phrase(portal: Dictionary) -> String:
 	## e.g. "Britain" / "브리튼 마을" for the walk-on prompt.
+	if not str(portal.get("id", "")).is_empty() and portal.has("fname"):
+		var dname := _localized_portal_name(portal)
+		var dkind := Locale.t("city_kind_dungeon")
+		if str(GameState.language) == "ko":
+			return "%s %s" % [dname, dkind]
+		return dname
 	var name_s := _localized_portal_name(portal)
 	var kind := int(portal.get("kind", _WorldPortals.CityKind.TOWNE))
 	## Castle/place labels often already include the kind (e.g. Britannia Castle).
@@ -10663,7 +10778,7 @@ func _maybe_offer_enter_prompt() -> void:
 	## Gamepad only: standing on a world city/castle portal offers Yes/No enter.
 	if _enter_prompt_stage != 0:
 		return
-	if _is_in_city() or _combat_active or _talk_stage != 0:
+	if _is_in_city() or _is_in_dungeon() or _combat_active or _talk_stage != 0:
 		return
 	if _transport == Transport.SHIP or _transport == Transport.BALLOON:
 		return
@@ -10671,6 +10786,13 @@ func _maybe_offer_enter_prompt() -> void:
 		return
 	_clear_enter_prompt_decline_if_left()
 	if _tile_pos == _enter_prompt_declined:
+		return
+	var dungeon_p := _DungeonPortals.world_portal_at(_tile_pos)
+	if not dungeon_p.is_empty():
+		_open_enter_prompt(dungeon_p)
+		return
+	if _tile_pos == _DungeonPortals.ABYSS_ENTRANCE:
+		_open_enter_prompt(_DungeonPortals.abyss_portal())
 		return
 	var portal := _WorldPortals.portal_at(_tile_pos)
 	if portal.is_empty():
@@ -11218,6 +11340,9 @@ func _shrine_eject_async() -> void:
 
 func _do_klimb() -> void:
 	## xu4 'k' → usePortalAt(ACTION_KLIMB); else balloon Klimb altitude.
+	if _is_in_dungeon():
+		_dungeon_klimb()
+		return
 	if _try_city_floor_portal(_CityFloorPortals.Action.CLIMB):
 		return
 	if _transport == Transport.BALLOON:
@@ -11232,6 +11357,11 @@ func _do_klimb() -> void:
 
 func _do_descend() -> void:
 	## xu4 'd' → usePortalAt(ACTION_DESCEND); else Land Balloon.
+	if _is_in_dungeon():
+		_dungeon_descend()
+		return
+	if _try_enter_hythloth_from_city():
+		return
 	if _try_city_floor_portal(_CityFloorPortals.Action.DESCEND):
 		return
 	if _transport == Transport.BALLOON:
@@ -11334,6 +11464,756 @@ func _is_in_city() -> bool:
 	return _city_map != null and _city_map.loaded
 
 
+func _is_in_dungeon() -> bool:
+	return _dungeon_map != null and bool(_dungeon_map.loaded)
+
+
+func _dungeon_is_lit() -> bool:
+	return GameState.dungeon_torch_left > 0
+
+
+func _refresh_dungeon_view() -> void:
+	if _map == null or not _is_in_dungeon():
+		return
+	_map.set_dungeon_pose(_tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+
+
+func _clear_dungeon_state() -> void:
+	_dungeon_map = null
+	_dungeon_id = ""
+	_dungeon_z = 0
+	_dungeon_dir = _DungeonMapData.DIR_S
+	_dungeon_return_city = ""
+	_dungeon_room_index = -1
+	_dungeon_skip_room = false
+	_dungeon_last_flee_dir = Vector2i.ZERO
+	if _map != null and _map.is_in_dungeon():
+		_map.exit_dungeon()
+
+
+func _dungeon_token() -> int:
+	if not _is_in_dungeon():
+		return _DungeonMapData.TOK_WALL
+	return _dungeon_map.token_at(_tile_pos.x, _tile_pos.y, _dungeon_z)
+
+
+func _dungeon_on_chest() -> bool:
+	return _is_in_dungeon() and _dungeon_token() == _DungeonMapData.TOK_CHEST
+
+
+func _dungeon_can_klimb() -> bool:
+	if not _is_in_dungeon():
+		return false
+	var tok := _dungeon_token()
+	return tok in [
+		_DungeonMapData.TOK_LADDER_UP,
+		_DungeonMapData.TOK_LADDER_BOTH,
+		_DungeonMapData.TOK_CEILING_HOLE,
+	]
+
+
+func _dungeon_can_descend() -> bool:
+	if not _is_in_dungeon():
+		return false
+	var tok := _dungeon_token()
+	return tok in [
+		_DungeonMapData.TOK_LADDER_DOWN,
+		_DungeonMapData.TOK_LADDER_BOTH,
+		_DungeonMapData.TOK_FLOOR_HOLE,
+	]
+
+
+func _try_enter_dungeon_here() -> bool:
+	if _tile_pos == _DungeonPortals.ABYSS_ENTRANCE:
+		if not _DungeonPortals.bbc_ready():
+			_push_message(Locale.t("cmd_abyss_need_bbc"), false)
+			return true
+		_enter_dungeon_from_portal(_DungeonPortals.abyss_portal())
+		return true
+	var portal := _DungeonPortals.world_portal_at(_tile_pos)
+	if portal.is_empty():
+		return false
+	_enter_dungeon_from_portal(portal)
+	return true
+
+
+func _try_enter_hythloth_from_city() -> bool:
+	if not _is_in_city() or _city_map == null:
+		return false
+	var fname := str(_city_map.source_path).get_file()
+	var portal := _DungeonPortals.city_portal_at(
+		fname, _tile_pos, _CityFloorPortals.Action.DESCEND
+	)
+	if portal.is_empty():
+		return false
+	if _transport != Transport.FOOT:
+		_push_message(Locale.t("cmd_only_on_foot"), false)
+		_finish_party_turn()
+		return true
+	_dungeon_return_city = fname
+	_dungeon_return_pos = _city_return_pos
+	_enter_dungeon_from_portal(portal, true)
+	return true
+
+
+func _enter_dungeon_from_portal(portal: Dictionary, from_city: bool = false) -> void:
+	var id := str(portal.get("id", ""))
+	var fname := str(portal.get("fname", _DungeonPortals.fname_for(id)))
+	var path := _DungeonMapData.resolve_u4_file(fname)
+	var dmap = _DungeonMapData.new()
+	if path.is_empty() or not dmap.load_from_path(path, id):
+		_push_message(Locale.t("cmd_enter_fail"), false)
+		return
+	_push_message(Locale.t("cmd_enter_type", [Locale.t("city_kind_dungeon")]), false)
+	_push_message(_localized_portal_name(portal), false)
+	if not from_city:
+		_dungeon_return_pos = _tile_pos
+		_dungeon_return_city = ""
+		if _is_in_city():
+			_dungeon_return_city = _city_map_fname()
+			_dungeon_return_pos = _city_return_pos
+	_city_map = null
+	_dungeon_map = dmap
+	_dungeon_id = id
+	_dungeon_z = int(portal.get("sz", 0))
+	_dungeon_dir = int(portal.get("dir", _DungeonMapData.DIR_S))
+	_tile_pos = Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 1)))
+	_dungeon_skip_room = false
+	_dungeon_room_index = -1
+	if GameState.journal_mark_dungeon(id):
+		_refresh_journal_panel()
+	if _map != null:
+		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_sync_music()
+
+
+func _restore_dungeon_from_save(w: Dictionary) -> void:
+	var id := str(w.get("dungeon_id", ""))
+	var fname := _DungeonPortals.fname_for(id)
+	var path := _DungeonMapData.resolve_u4_file(fname)
+	var dmap = _DungeonMapData.new()
+	if path.is_empty() or not dmap.load_from_path(path, id):
+		_clear_dungeon_state()
+		_tile_pos = Vector2i(int(w.get("x", _tile_pos.x)), int(w.get("y", _tile_pos.y)))
+		if _map != null:
+			_map.set_center(_tile_pos, false)
+		return
+	var persist: Variant = w.get("dungeon_persist", {})
+	if typeof(persist) == TYPE_DICTIONARY:
+		dmap.consumed_from_save(persist)
+	_dungeon_map = dmap
+	_dungeon_id = id
+	_dungeon_z = clampi(int(w.get("dungeon_z", 0)), 0, 7)
+	_dungeon_dir = posmod(int(w.get("dungeon_dir", _DungeonMapData.DIR_S)), 4)
+	_dungeon_return_pos = Vector2i(
+		int(w.get("dungeon_return_x", w.get("x", 0))),
+		int(w.get("dungeon_return_y", w.get("y", 0)))
+	)
+	_dungeon_return_city = str(w.get("dungeon_return_city", ""))
+	_tile_pos = Vector2i(
+		int(w.get("dungeon_x", _DungeonPortals.START.x)),
+		int(w.get("dungeon_y", _DungeonPortals.START.y))
+	)
+	_city_map = null
+	if _map != null:
+		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_sync_music()
+
+
+func _exit_dungeon_to_surface() -> void:
+	if not _is_in_dungeon():
+		return
+	var back := _dungeon_return_pos
+	var city_fname := _dungeon_return_city
+	_clear_dungeon_state()
+	_push_message(Locale.t("cmd_dungeon_leave"), false)
+	if not city_fname.is_empty():
+		var path := _CityMapData.resolve_u4_file(city_fname)
+		var cmap = _CityMapData.new()
+		if not path.is_empty() and cmap.load_from_path(path):
+			_city_return_pos = back
+			_city_map = cmap
+			_tile_pos = Vector2i(7, 2)
+			if _map != null:
+				_map.enter_city(cmap, _tile_pos, _city_return_pos)
+			_sync_music()
+			return
+	_tile_pos = back
+	if _map != null:
+		_map.set_center(_tile_pos, false)
+	_sync_music()
+
+
+func _dungeon_handle_dir(dir: Vector2i) -> void:
+	var want := _DungeonPortals.dir_from_vec(dir)
+	if want == _dungeon_dir:
+		_dungeon_step(1)
+		return
+	if want == posmod(_dungeon_dir + 2, 4):
+		_dungeon_step(-1)
+		return
+	if want == posmod(_dungeon_dir + 3, 4):
+		_dungeon_turn(-1)
+		return
+	_dungeon_turn(1)
+
+
+func _dungeon_turn(delta: int) -> void:
+	_dungeon_dir = posmod(_dungeon_dir + delta, 4)
+	_refresh_dungeon_view()
+	_arm_hold_after_step(true)
+
+
+func _dungeon_step(sign: int) -> void:
+	if _dungeon_map == null:
+		return
+	var dest: Vector2i = _dungeon_map.neighbor(
+		_tile_pos.x, _tile_pos.y, _dungeon_dir if sign > 0 else posmod(_dungeon_dir + 2, 4)
+	)
+	if not _dungeon_map.can_walk(dest.x, dest.y, _dungeon_z):
+		_push_message(Locale.t("cmd_blocked"), false)
+		_finish_party_turn()
+		_arm_hold_after_step(true)
+		return
+	var tok: int = _dungeon_map.token_at(dest.x, dest.y, _dungeon_z)
+	if tok == _DungeonMapData.TOK_TRAP:
+		var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(dest.x, dest.y, _dungeon_z))
+		if sub == _DungeonMapData.TRAP_WINDS:
+			_push_message(Locale.t("cmd_dungeon_trap_winds"), false)
+			_finish_party_turn()
+			_arm_hold_after_step(true)
+			return
+	_tile_pos = dest
+	if _dungeon_skip_room and tok != _DungeonMapData.TOK_ROOM:
+		_dungeon_skip_room = false
+	_refresh_dungeon_view()
+	_play_transport_step_sfx()
+	_push_move_message(_DungeonPortals.vec_from_dir(_dungeon_dir if sign > 0 else posmod(_dungeon_dir + 2, 4)))
+	if _dungeon_enter_room_if_needed():
+		_arm_hold_after_step(true)
+		return
+	_dungeon_trigger_cell()
+	_finish_party_turn()
+	_arm_hold_after_step(true)
+	_dungeon_maybe_corridor_combat()
+
+
+func _dungeon_enter_room_if_needed() -> bool:
+	if _dungeon_skip_room or _dungeon_map == null:
+		return false
+	var tok := _dungeon_token()
+	if tok != _DungeonMapData.TOK_ROOM:
+		return false
+	var idx: int = _dungeon_map.room_index_at(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	if idx < 0:
+		return false
+	_begin_dungeon_room_combat(idx, _dungeon_dir)
+	return true
+
+
+func _dungeon_trigger_cell() -> void:
+	if _dungeon_map == null:
+		return
+	var tok := _dungeon_token()
+	match tok:
+		_DungeonMapData.TOK_TRAP:
+			_dungeon_spring_trap()
+		_DungeonMapData.TOK_FOUNTAIN:
+			_dungeon_drink_fountain()
+		_DungeonMapData.TOK_ORB:
+			_dungeon_touch_orb()
+		_DungeonMapData.TOK_FLOOR_HOLE:
+			_dungeon_change_level(1, false)
+		_:
+			pass
+
+
+func _dungeon_spring_trap() -> void:
+	var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(_tile_pos.x, _tile_pos.y, _dungeon_z))
+	match sub:
+		_DungeonMapData.TRAP_ROCKS:
+			_push_message(Locale.t("cmd_dungeon_trap_rocks"), false)
+			var flash := 0
+			for i in GameState.party_size():
+				var mid := GameState.party_member_at(i)
+				if mid < 0 or GameState.is_class_dead(mid):
+					continue
+				if GameState.apply_member_damage(mid, 16 + (randi() % 16)):
+					flash |= 1 << i
+			_refresh_party()
+			_flash_party_damage(flash)
+		_DungeonMapData.TRAP_PIT:
+			_push_message(Locale.t("cmd_dungeon_trap_pit"), false)
+			_dungeon_change_level(1, false)
+		_:
+			_push_message(Locale.t("cmd_dungeon_trap_winds"), false)
+
+
+func _dungeon_drink_fountain() -> void:
+	if _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z):
+		_push_message(Locale.t("cmd_dungeon_fountain_empty"), false)
+		return
+	var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(_tile_pos.x, _tile_pos.y, _dungeon_z))
+	_dungeon_map.mark_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	match sub:
+		_DungeonMapData.FOUNTAIN_POISON:
+			_push_message(Locale.t("cmd_dungeon_fountain_poison"), false)
+			var flash := GameState.apply_tile_effect(_TileRules.Effect.POISON)
+			_refresh_party()
+			_flash_party_damage(flash)
+		_DungeonMapData.FOUNTAIN_ACID:
+			_push_message(Locale.t("cmd_dungeon_fountain_acid"), false)
+			var flash2 := 0
+			for i in GameState.party_size():
+				var mid := GameState.party_member_at(i)
+				if mid < 0 or GameState.is_class_dead(mid):
+					continue
+				if GameState.apply_member_damage(mid, 32):
+					flash2 |= 1 << i
+			_refresh_party()
+			_flash_party_damage(flash2)
+		_DungeonMapData.FOUNTAIN_CURE:
+			_push_message(Locale.t("cmd_dungeon_fountain_cure"), false)
+			GameState.wake_party()
+			for i in GameState.party_size():
+				GameState.healer_heal_member(i, "cure")
+			_refresh_party()
+		_:
+			_push_message(Locale.t("cmd_dungeon_fountain_heal"), false)
+			for i in GameState.party_size():
+				GameState.healer_heal_member(i, "fullheal")
+			_refresh_party()
+
+
+func _dungeon_touch_orb() -> void:
+	if _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z):
+		_push_message(Locale.t("cmd_dungeon_orb_spent"), false)
+		return
+	_dungeon_map.mark_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	_push_message(Locale.t("cmd_dungeon_orb"), false)
+	var flash := GameState.apply_orb_touch(
+		_DungeonPortals.orb_stat_mask(_dungeon_id),
+		_DungeonPortals.ORB_DAMAGE
+	)
+	_refresh_party()
+	_flash_party_damage(flash)
+
+
+func _dungeon_change_level(delta: int, announce: bool) -> bool:
+	var next := _dungeon_z + delta
+	if next < 0:
+		_exit_dungeon_to_surface()
+		return true
+	if next > 7:
+		if announce:
+			_push_message(Locale.t("cmd_dungeon_no_level"), false)
+		return false
+	_dungeon_z = next
+	_dungeon_skip_room = false
+	_refresh_dungeon_view()
+	return true
+
+
+func _dungeon_klimb() -> void:
+	if not _dungeon_can_klimb():
+		_push_message(Locale.t("cmd_klimb_what"), false)
+		_finish_party_turn()
+		return
+	_push_message(Locale.t("cmd_dungeon_klimb"), false)
+	_dungeon_change_level(-1, true)
+	_finish_party_turn()
+
+
+func _dungeon_descend() -> void:
+	if not _dungeon_can_descend():
+		_push_message(Locale.t("cmd_descend_what"), false)
+		_finish_party_turn()
+		return
+	_push_message(Locale.t("cmd_dungeon_descend"), false)
+	_dungeon_change_level(1, true)
+	_finish_party_turn()
+
+
+func _do_ignite() -> void:
+	if not _is_in_dungeon():
+		_push_message(Locale.t("cmd_not_here"), false)
+		_finish_party_turn()
+		return
+	if GameState.dungeon_torch_left > 0:
+		_push_message(Locale.t("cmd_ignite_already"), false)
+		_finish_party_turn()
+		return
+	if GameState.torches <= 0:
+		_push_message(Locale.t("cmd_ignite_none"), false)
+		_finish_party_turn()
+		return
+	GameState.torches -= 1
+	GameState.dungeon_torch_left = 100
+	_push_message(Locale.t("cmd_ignite_torch"), false)
+	_refresh_inventory_bars()
+	_refresh_dungeon_view()
+	_finish_party_turn()
+
+
+func _dungeon_tick_torch() -> void:
+	if not _is_in_dungeon() or GameState.dungeon_torch_left <= 0:
+		return
+	GameState.dungeon_torch_left -= 1
+	if GameState.dungeon_torch_left <= 0:
+		GameState.dungeon_torch_left = 0
+		_push_message(Locale.t("cmd_dungeon_torch_out"), false)
+
+
+func _dungeon_search() -> void:
+	_push_message(Locale.t("cmd_searching"), false)
+	var found := false
+	if _dungeon_map.reveal_secret(_tile_pos.x, _tile_pos.y, _dungeon_z):
+		_push_message(Locale.t("cmd_dungeon_secret"), false)
+		found = true
+	for d in 4:
+		var n: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, d)
+		if _dungeon_map.reveal_secret(n.x, n.y, _dungeon_z):
+			_push_message(Locale.t("cmd_dungeon_secret"), false)
+			found = true
+	var stone := _DungeonPortals.stone_at(_dungeon_id, _tile_pos, _dungeon_z)
+	if stone != 0:
+		if GameState.has_stone(stone):
+			_push_message(Locale.t("cmd_dungeon_stone_already"), false)
+		else:
+			GameState.grant_stone(stone)
+			_push_message(Locale.t("cmd_dungeon_stone", [Locale.t(_DungeonPortals.stone_name_key(stone))]), false)
+			_refresh_inventory_bars()
+			_refresh_journal_panel()
+		found = true
+	if not found:
+		_push_message(Locale.t("cmd_search_nothing"), false)
+	_refresh_dungeon_view()
+	_finish_party_turn()
+
+
+func _dungeon_get_chest() -> void:
+	if not _dungeon_on_chest():
+		_push_message(Locale.t("cmd_not_here"), false)
+		_finish_party_turn()
+		return
+	if _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z):
+		_push_message(Locale.t("cmd_chest_empty"), false)
+		_finish_party_turn()
+		return
+	_dungeon_map.mark_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	_dungeon_map.set_raw(_tile_pos.x, _tile_pos.y, _dungeon_z, _DungeonMapData.TOK_CORRIDOR)
+	var gold := GameState.take_chest_gold()
+	_refresh_inventory_bars()
+	_push_message(Locale.t("cmd_chest_holds", [gold]), false)
+	_refresh_dungeon_view()
+	_finish_party_turn()
+
+
+func _apply_cast_light() -> bool:
+	if not _is_in_dungeon():
+		return false
+	GameState.dungeon_torch_left = 100
+	_push_message(Locale.t("cmd_dungeon_light"), false)
+	_refresh_dungeon_view()
+	return true
+
+
+func _apply_cast_xit() -> bool:
+	if not _is_in_dungeon():
+		return false
+	_push_message(Locale.t("cmd_dungeon_xit"), false)
+	_exit_dungeon_to_surface()
+	return true
+
+
+func _apply_cast_yup() -> bool:
+	if not _is_in_dungeon():
+		return false
+	_push_message(Locale.t("cmd_dungeon_yup"), false)
+	return _dungeon_change_level(-1, true)
+
+
+func _apply_cast_zdown() -> bool:
+	if not _is_in_dungeon():
+		return false
+	_push_message(Locale.t("cmd_dungeon_zdown"), false)
+	return _dungeon_change_level(1, true)
+
+
+func _dispel_dungeon_tile(pos: Vector2i) -> bool:
+	if _dungeon_map == null:
+		return false
+	if _dungeon_map.remove_dispel_annotation_at(pos.x, pos.y, _dungeon_z):
+		_refresh_dungeon_view()
+		return true
+	if _dungeon_map.token_at(pos.x, pos.y, _dungeon_z) != _DungeonMapData.TOK_FIELD:
+		return false
+	_dungeon_map.set_raw(pos.x, pos.y, _dungeon_z, _DungeonMapData.TOK_CORRIDOR)
+	_refresh_dungeon_view()
+	return true
+
+
+func _dungeon_maybe_corridor_combat() -> void:
+	if not _is_in_dungeon() or _combat_active or _party_wiped_or_dying():
+		return
+	if _dungeon_token() == _DungeonMapData.TOK_ROOM:
+		return
+	if (randi() % 16) != 0:
+		return
+	var cmap = _CombatMaps.load_named(_DungeonPortals.con_for(_dungeon_id))
+	if cmap == null:
+		return
+	var foe_tid := _CombatEncounter.dungeon_foe_tile(_dungeon_z)
+	_begin_combat({"tile": foe_tid, "x": _tile_pos.x, "y": _tile_pos.y}, false, cmap)
+
+
+func _begin_dungeon_room_combat(index: int, entry_dir: int) -> void:
+	if _dungeon_map == null:
+		return
+	var cmap = _dungeon_map.to_combat_map(index, entry_dir)
+	if cmap == null:
+		return
+	_dungeon_room_index = index
+	_dungeon_room_entry_dir = entry_dir
+	_dungeon_last_flee_dir = Vector2i.ZERO
+	var room: Dictionary = _dungeon_map.room_at(index)
+	var foes: Array = _CombatEncounter.place_room_foes(room.get("monsters", []))
+	var foe_tid := 192
+	if not foes.is_empty():
+		foe_tid = int(foes[0].get("tile", 192))
+	## Place room monsters after enter_combat by stuffing them into begin_combat via force map.
+	## begin_combat rebuilds foes from fill_creature_table — so call enter path with a dummy
+	## then replace. Simpler: start with first monster tile so the table is dungeon-sized,
+	## then overwrite units if the map already has starts.
+	_begin_combat(
+		{"tile": foe_tid, "x": _tile_pos.x, "y": _tile_pos.y, "dungeon_room": true},
+		false,
+		cmap,
+		false,
+		foes
+	)
+
+
+func _dungeon_try_room_trigger() -> void:
+	if not _is_in_dungeon() or _dungeon_room_index < 0 or _map == null:
+		return
+	var pos := _map.get_combat_focus_pos()
+	if pos.x < 0:
+		return
+	if _map.has_method("apply_dungeon_room_trigger"):
+		_map.apply_dungeon_room_trigger(_dungeon_map, _dungeon_room_index, pos)
+
+
+func _dungeon_after_combat_exit() -> void:
+	if not _is_in_dungeon():
+		return
+	var was_room := _dungeon_room_index
+	var flee := _dungeon_last_flee_dir
+	_dungeon_room_index = -1
+	_dungeon_last_flee_dir = Vector2i.ZERO
+	if was_room == _DungeonPortals.ALTAR_ROOM_INDEX and flee != Vector2i.ZERO:
+		var kind := _DungeonPortals.altar_kind_for(_dungeon_id)
+		var dest_id := _DungeonPortals.altar_exit_dungeon(kind, _DungeonPortals.dir_from_vec(flee))
+		if not dest_id.is_empty() and dest_id != _dungeon_id:
+			_enter_connected_dungeon(dest_id, 7)
+			return
+	if was_room >= 0:
+		_dungeon_skip_room = true
+	_refresh_dungeon_view()
+
+
+func _enter_connected_dungeon(id: String, z: int) -> void:
+	var fname := _DungeonPortals.fname_for(id)
+	var path := _DungeonMapData.resolve_u4_file(fname)
+	var dmap = _DungeonMapData.new()
+	if path.is_empty() or not dmap.load_from_path(path, id):
+		_refresh_dungeon_view()
+		return
+	_dungeon_map = dmap
+	_dungeon_id = id
+	_dungeon_z = z
+	_dungeon_dir = _DungeonMapData.DIR_S
+	_tile_pos = _DungeonPortals.START
+	_dungeon_skip_room = false
+	if GameState.journal_mark_dungeon(id):
+		_refresh_journal_panel()
+	if _map != null:
+		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_sync_music()
+
+
+func _use_virtue_stone(kind: int) -> void:
+	var flag := 1 << (kind - _UseItems.Kind.STONE_BLUE)
+	var on_altar := _is_in_dungeon() and _dungeon_token() == _DungeonMapData.TOK_ALTAR
+	if _combat_active and _is_in_dungeon() and _map != null:
+		var cpos := _map.get_combat_focus_pos()
+		if _map.combat_tile_at(cpos) == 74:
+			on_altar = true
+	if not on_altar:
+		_push_message(Locale.t("cmd_use_no_place"), false)
+		await _finish_use_command()
+		return
+	if _dungeon_id == _DungeonPortals.ID_ABYSS:
+		var need := _DungeonPortals.abyss_stone_for_level(_dungeon_z)
+		if flag != need:
+			_push_message(Locale.t("cmd_use_abyss_stone_wrong"), false)
+			await _finish_use_command()
+			return
+		if (GameState.abyss_stones_used & flag) != 0:
+			_push_message(Locale.t("cmd_use_altar_have_key"), false)
+			await _finish_use_command()
+			return
+		GameState.abyss_stones_used |= flag
+		_push_message(Locale.t("cmd_use_abyss_stone"), false)
+		await _finish_use_command()
+		return
+	if _dungeon_room_index != _DungeonPortals.ALTAR_ROOM_INDEX and not _dungeon_in_altar_room_cell():
+		_push_message(Locale.t("cmd_use_no_place"), false)
+		await _finish_use_command()
+		return
+	var kind_i := _DungeonPortals.altar_kind_for(_dungeon_id)
+	var need_mask := int(_DungeonPortals.ALTAR_STONES.get(kind_i, 0))
+	if (flag & need_mask) == 0:
+		_push_message(Locale.t("cmd_use_no_place"), false)
+		await _finish_use_command()
+		return
+	if (GameState.stones & need_mask) != need_mask:
+		_push_message(Locale.t("cmd_use_no_place"), false)
+		await _finish_use_command()
+		return
+	var key_flag := int(_DungeonPortals.ALTAR_KEY.get(kind_i, 0))
+	if GameState.has_item_flag(key_flag):
+		_push_message(Locale.t("cmd_use_altar_have_key"), false)
+		await _finish_use_command()
+		return
+	GameState.add_item_flag(key_flag)
+	_push_message(Locale.t("cmd_use_altar_stones"), false)
+	_push_message(Locale.t("cmd_use_altar_key", [Locale.t(_DungeonPortals.key_name_key(key_flag))]), false)
+	_refresh_inventory_bars()
+	await _finish_use_command()
+
+
+func _dungeon_in_altar_room_cell() -> bool:
+	if _dungeon_map == null:
+		return false
+	if _dungeon_map.room_index_at(_tile_pos.x, _tile_pos.y, _dungeon_z) == _DungeonPortals.ALTAR_ROOM_INDEX:
+		return true
+	return _dungeon_token() == _DungeonMapData.TOK_ALTAR
+
+
+func _use_principle_key() -> void:
+	if not _is_in_dungeon() or _dungeon_id != _DungeonPortals.ID_ABYSS or _dungeon_z != 7:
+		_push_message(Locale.t("cmd_use_no_place"), false)
+		await _finish_use_command()
+		return
+	if not _DungeonPortals.has_three_keys():
+		_push_message(Locale.t("cmd_abyss_need_keys"), false)
+		await _finish_use_command()
+		return
+	_push_message(Locale.t("cmd_use_abyss_keys"), false)
+	await _finish_use_command()
+	_begin_codex()
+
+
+func _begin_codex() -> void:
+	_codex_stage = 1
+	_codex_buffer = ""
+	_push_message(Locale.t("cmd_codex_ask_mantra", [Locale.virtue_card_name(0)]), false)
+	_layout_prompt_row()
+
+
+func _handle_codex_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if not (event is InputEventKey):
+		return true
+	var k := event as InputEventKey
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_codex_fail()
+		return true
+	if _is_order_confirm_key(k):
+		var typed := _codex_buffer.strip_edges().to_lower()
+		_codex_buffer = ""
+		_layout_prompt_row()
+		_codex_submit(typed)
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _codex_buffer.is_empty():
+			_codex_buffer = _codex_buffer.substr(0, _codex_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	var ch := _shrine_char_from_key(k)
+	if ch.is_empty():
+		return true
+	if _codex_buffer.length() >= 12:
+		return true
+	_codex_buffer += ch
+	_layout_prompt_row()
+	return true
+
+
+func _codex_submit(typed: String) -> void:
+	if not typed.is_empty():
+		_push_message(typed, false)
+	if _codex_stage >= 1 and _codex_stage <= 8:
+		if not _ShrineMantras.mantra_matches(_codex_stage - 1, typed):
+			_codex_fail()
+			return
+		_codex_stage += 1
+		if _codex_stage <= 8:
+			_push_message(Locale.t("cmd_codex_ask_mantra", [Locale.virtue_card_name(_codex_stage - 1)]), false)
+			_layout_prompt_row()
+			return
+		_push_message(Locale.t("cmd_codex_ask_principle", [Locale.t("cmd_principle_truth")]), false)
+		_layout_prompt_row()
+		return
+	if _codex_stage == 9:
+		if typed != "truth" and typed != "진리":
+			_codex_fail()
+			return
+		_codex_stage = 10
+		_push_message(Locale.t("cmd_codex_ask_principle", [Locale.t("cmd_principle_love")]), false)
+		_layout_prompt_row()
+		return
+	if _codex_stage == 10:
+		if typed != "love" and typed != "사랑":
+			_codex_fail()
+			return
+		_codex_stage = 11
+		_push_message(Locale.t("cmd_codex_ask_principle", [Locale.t("cmd_principle_courage")]), false)
+		_layout_prompt_row()
+		return
+	if _codex_stage == 11:
+		if typed != "courage" and typed != "용기":
+			_codex_fail()
+			return
+		_codex_stage = 12
+		_push_message(Locale.t("cmd_codex_ask_word"), false)
+		_layout_prompt_row()
+		return
+	if typed != "infinity" and typed != "무한":
+		_codex_fail()
+		return
+	_codex_win()
+
+
+func _codex_fail() -> void:
+	_codex_stage = 0
+	_codex_buffer = ""
+	_layout_prompt_row()
+	_push_message(Locale.t("cmd_codex_wrong"), false)
+	_exit_dungeon_to_surface()
+
+
+func _codex_win() -> void:
+	_codex_stage = 0
+	_codex_buffer = ""
+	_layout_prompt_row()
+	_push_message(Locale.t("cmd_codex_end"), false)
+	await get_tree().create_timer(2.4).timeout
+	SceneRouter.to_menu()
+
+
 func _is_castle_city() -> bool:
 	var f := _city_map_fname()
 	return f.begins_with("lcb") or f in ["lycaeum.ult", "empath.ult", "serpent.ult"]
@@ -11347,6 +12227,7 @@ func _sync_music() -> void:
 		"hawkwind": _talk_is_hawkwind,
 		"lb_talk": _talk_is_lb,
 		"castle": _is_castle_city(),
+		"dungeon": _is_in_dungeon(),
 		"city": _is_in_city(),
 	})
 
@@ -11506,7 +12387,7 @@ func _hole_up_deny_message() -> String:
 	## - transport != FOOT → "Only on foot!" (horse / ship / balloon)
 	## On the world map we also reject water and settlement portal tiles
 	## (dungeon/city/castle/town/LCB) — same "Not here!" spirit.
-	if _is_in_city():
+	if _is_in_city() or _is_in_dungeon():
 		return Locale.t("cmd_not_here")
 	if _transport != Transport.FOOT:
 		return Locale.t("cmd_only_on_foot")
@@ -12455,6 +13336,11 @@ func _move_city_persons() -> void:
 
 func _pass_map_annotations() -> void:
 	## xu4 AnnotationList::passTurn after creature moves.
+	if _is_in_dungeon() and _dungeon_map != null:
+		_dungeon_map.pass_annotations()
+		_dungeon_tick_torch()
+		_refresh_dungeon_view()
+		return
 	if not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return
 	if not _city_map.pass_annotation_turns():
@@ -12468,6 +13354,11 @@ func _apply_ground_tile_effect() -> int:
 	## Skipped while balloon is flying (party not "standing" on the tile).
 	if _is_balloon_flying():
 		return 0
+	if _is_in_dungeon() and _dungeon_map != null:
+		if _dungeon_map.token_at(_tile_pos.x, _tile_pos.y, _dungeon_z) != _DungeonMapData.TOK_FIELD:
+			return 0
+		var ftid: int = _dungeon_map.field_world_tile(_tile_pos.x, _tile_pos.y, _dungeon_z)
+		return GameState.apply_tile_effect(_TileRules.effect_of(ftid))
 	if _is_in_city():
 		if _city_map == null or not _city_map.loaded:
 			return 0
@@ -12496,7 +13387,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -14719,7 +15610,8 @@ func _begin_combat(
 	foe: Dictionary,
 	initiated_by_party: bool,
 	force_map = null,
-	foes_first: bool = false
+	foes_first: bool = false,
+	force_foes: Array = []
 ) -> void:
 	## Open the .CON battlefield. Optional force_map (camp ambush uses CAMP.CON).
 	## foes_first: xu4 camp ambush — placeCreatures then finishTurn (creatures act).
@@ -14815,7 +15707,9 @@ func _begin_combat(
 	var foe_units: Array = _CombatEncounter.place_foes_from_table(
 		table, cmap.creature_start
 	)
-	if foe_units.is_empty():
+	if bool(foe.get("dungeon_room", false)):
+		foe_units = force_foes
+	if foe_units.is_empty() and not bool(foe.get("dungeon_room", false)):
 		## Safety: at least the engaged creature.
 		var foe_start: Vector2i = (
 			cmap.creature_start[0] if cmap.creature_start.size() > 0
@@ -14956,6 +15850,7 @@ func _finish_combat_victory_exit() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_suppress_chests = false
+	_dungeon_after_combat_exit()
 	_sync_music()
 	## Held D-pad/stick from the arena must not walk the first field tile.
 	_block_dir_until_keyup = true
@@ -15870,6 +16765,7 @@ func _combat_try_move(dir: Vector2i) -> void:
 	match result:
 		MapView.COMBAT_MOVE_OK:
 			_push_message(_direction_label(dir, true), false)
+			_dungeon_try_room_trigger()
 			if _apply_combat_field_under_focus():
 				after_flee = true
 		MapView.COMBAT_MOVE_SLOWED:
@@ -15877,6 +16773,7 @@ func _combat_try_move(dir: Vector2i) -> void:
 		MapView.COMBAT_MOVE_FLED:
 			## xu4: direction message + SOUND_FLEE; unit already off the arena.
 			_push_message(_direction_label(dir, true), false)
+			_dungeon_last_flee_dir = dir
 			## No healthy-flee karma after Victory! (already awarded on announce).
 			if not _combat_victory_aftermath:
 				_combat_apply_healthy_fled_karma(_map.get_combat_last_fled())
@@ -16454,6 +17351,7 @@ func _end_combat_lost() -> void:
 	_combat_active = false
 	_combat_resolving = false
 	_combat_suppress_chests = false
+	_dungeon_after_combat_exit()
 	_sync_music()
 	_block_dir_until_keyup = true
 	_reset_hold_state()

@@ -82,3 +82,14 @@ static func load_for_encounter(
 	if not cmap.load_from_path(path):
 		return null
 	return cmap
+
+
+static func load_named(fname: String):
+	## Load a specific .CON (dungeon corridors DNG0–DNG6).
+	var path := _CombatMapData.resolve_u4_file(fname)
+	if path.is_empty():
+		return null
+	var cmap = _CombatMapData.new()
+	if not cmap.load_from_path(path):
+		return null
+	return cmap

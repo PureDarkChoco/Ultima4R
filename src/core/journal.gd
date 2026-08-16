@@ -800,6 +800,19 @@ static func mark_known_rune(gs: Node, virtue: int) -> void:
 	mark_known_virtue(gs, virtue)
 
 
+static func mark_known_dungeon(gs: Node, dungeon_id: String) -> bool:
+	if gs == null:
+		return false
+	var i := _dungeon_from_token(dungeon_id)
+	if i < 0:
+		return false
+	var bit := 1 << i
+	if (int(gs.journal_known_dungeons) & bit) != 0:
+		return false
+	gs.journal_known_dungeons = int(gs.journal_known_dungeons) | bit
+	return true
+
+
 static func mark_known_city(gs: Node, place_id: String) -> bool:
 	## Entered a virtue town (Moonglow…Magincia). Returns true if newly marked.
 	if gs == null:

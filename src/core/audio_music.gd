@@ -158,6 +158,8 @@ func sync_world(ctx: Dictionary) -> void:
 		play(ID_RULE_BRITANNIA)
 	elif bool(ctx.get("castle", false)):
 		play(ID_CASTLE)
+	elif bool(ctx.get("dungeon", false)):
+		play(ID_DUNGEON)
 	elif bool(ctx.get("city", false)):
 		play(ID_TOWNE)
 	else:

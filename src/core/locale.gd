@@ -509,6 +509,11 @@ const _T := {
 		"en_us": "ruins",
 		"ko": "폐허",
 	},
+	"city_kind_dungeon": {
+		"en_u4": "dungeon",
+		"en_us": "dungeon",
+		"ko": "던전",
+	},
 	"cmd_enter_shrine": {
 		"en_u4": "Enter shrine!",
 		"en_us": "Enter shrine!",
@@ -2492,6 +2497,216 @@ const _T := {
 		"en_u4": "Mandrake Root",
 		"en_us": "Mandrake Root",
 		"ko": "맨드레이크 뿌리",
+	},
+	"cmd_ignite_torch": {
+		"en_u4": "Ignite torch!",
+		"en_us": "You light a torch!",
+		"ko": "횃불을 켠다!",
+	},
+	"cmd_ignite_none": {
+		"en_u4": "None left!",
+		"en_us": "You have no torches left!",
+		"ko": "횃불이 없다!",
+	},
+	"cmd_ignite_already": {
+		"en_u4": "A torch is already burning.",
+		"en_us": "A torch is already burning.",
+		"ko": "이미 횃불이 타오르고 있다.",
+	},
+	"cmd_dungeon_torch_out": {
+		"en_u4": "Thy torch is extinguished!",
+		"en_us": "Your torch goes out!",
+		"ko": "횃불이 꺼진다!",
+	},
+	"cmd_dungeon_dark": {
+		"en_u4": "It's too dark to see!",
+		"en_us": "It's too dark to see!",
+		"ko": "너무 어두워 보이지 않는다!",
+	},
+	"cmd_dungeon_leave": {
+		"en_u4": "Leaving...",
+		"en_us": "Leaving...",
+		"ko": "떠난다...",
+	},
+	"cmd_dungeon_secret": {
+		"en_u4": "You find a hidden door!",
+		"en_us": "You find a hidden door!",
+		"ko": "숨겨진 문을 찾았다!",
+	},
+	"cmd_dungeon_fountain_poison": {
+		"en_u4": "You drink from the fountain... Poison!",
+		"en_us": "You drink from the fountain... Poison!",
+		"ko": "샘물을 마신다... 독이다!",
+	},
+	"cmd_dungeon_fountain_heal": {
+		"en_u4": "You drink from the fountain... Ahh, refreshing!",
+		"en_us": "You drink from the fountain... Refreshing!",
+		"ko": "샘물을 마신다... 상쾌하다!",
+	},
+	"cmd_dungeon_fountain_acid": {
+		"en_u4": "You drink from the fountain... Acid!",
+		"en_us": "You drink from the fountain... Acid!",
+		"ko": "샘물을 마신다... 산이다!",
+	},
+	"cmd_dungeon_fountain_cure": {
+		"en_u4": "You drink from the fountain... The poison is gone!",
+		"en_us": "You drink from the fountain... The poison is gone!",
+		"ko": "샘물을 마신다... 독이 가신다!",
+	},
+	"cmd_dungeon_fountain_empty": {
+		"en_u4": "The fountain is dry.",
+		"en_us": "The fountain is dry.",
+		"ko": "샘이 말라 있다.",
+	},
+	"cmd_dungeon_orb": {
+		"en_u4": "You find a Magical Ball... Pain!",
+		"en_us": "You find a magical orb... Pain!",
+		"ko": "마법의 구를 만진다... 고통!",
+	},
+	"cmd_dungeon_orb_spent": {
+		"en_u4": "The Magical Ball is spent.",
+		"en_us": "The magical orb is spent.",
+		"ko": "마법의 구는 이미 힘을 잃었다.",
+	},
+	"cmd_dungeon_trap_winds": {
+		"en_u4": "Winds!",
+		"en_us": "Winds!",
+		"ko": "돌풍!",
+	},
+	"cmd_dungeon_trap_rocks": {
+		"en_u4": "Falling rocks!",
+		"en_us": "Falling rocks!",
+		"ko": "낙석!",
+	},
+	"cmd_dungeon_trap_pit": {
+		"en_u4": "A pit!",
+		"en_us": "A pit!",
+		"ko": "구덩이!",
+	},
+	"cmd_dungeon_klimb": {
+		"en_u4": "Klimb",
+		"en_us": "Climb",
+		"ko": "오른다",
+	},
+	"cmd_dungeon_descend": {
+		"en_u4": "Descend",
+		"en_us": "Descend",
+		"ko": "내려간다",
+	},
+	"cmd_dungeon_light": {
+		"en_u4": "Light!",
+		"en_us": "Light!",
+		"ko": "빛!",
+	},
+	"cmd_dungeon_xit": {
+		"en_u4": "X-it!",
+		"en_us": "You leave the dungeon!",
+		"ko": "던전을 빠져나간다!",
+	},
+	"cmd_dungeon_yup": {
+		"en_u4": "Y-up!",
+		"en_us": "You rise a level!",
+		"ko": "한 층 오른다!",
+	},
+	"cmd_dungeon_zdown": {
+		"en_u4": "Z-down!",
+		"en_us": "You descend a level!",
+		"ko": "한 층 내려간다!",
+	},
+	"cmd_dungeon_no_level": {
+		"en_u4": "Not here!",
+		"en_us": "Not here!",
+		"ko": "여기선 안 된다!",
+	},
+	"cmd_dungeon_stone": {
+		"en_u4": "You find a %s stone!",
+		"en_us": "You find a %s stone!",
+		"ko": "%s 돌을 찾았다!",
+	},
+	"cmd_dungeon_stone_already": {
+		"en_u4": "Nothing here.",
+		"en_us": "Nothing here.",
+		"ko": "여기엔 아무것도 없다.",
+	},
+	"cmd_use_altar_stones": {
+		"en_u4": "The stones shine upon the altar!",
+		"en_us": "The stones shine upon the altar!",
+		"ko": "제단 위에서 돌들이 빛난다!",
+	},
+	"cmd_use_altar_key": {
+		"en_u4": "Thou dost receive the Key of %s!",
+		"en_us": "You receive the Key of %s!",
+		"ko": "%s의 열쇠를 받는다!",
+	},
+	"cmd_use_altar_have_key": {
+		"en_u4": "The altar is silent.",
+		"en_us": "The altar is silent.",
+		"ko": "제단은 고요하다.",
+	},
+	"cmd_use_abyss_stone": {
+		"en_u4": "The stone settles upon the altar.",
+		"en_us": "The stone settles upon the altar.",
+		"ko": "돌이 제단 위에 놓인다.",
+	},
+	"cmd_use_abyss_stone_wrong": {
+		"en_u4": "That stone doth not belong here.",
+		"en_us": "That stone does not belong here.",
+		"ko": "그 돌은 여기 놓을 것이 아니다.",
+	},
+	"cmd_use_abyss_keys": {
+		"en_u4": "The three keys open the way to the Codex!",
+		"en_us": "The three keys open the way to the Codex!",
+		"ko": "세 열쇠가 코덱스로 가는 길을 연다!",
+	},
+	"cmd_abyss_need_bbc": {
+		"en_u4": "A strange force keeps you out!",
+		"en_us": "A strange force keeps you out!",
+		"ko": "이상한 힘이 막는다!",
+	},
+	"cmd_abyss_need_keys": {
+		"en_u4": "Thou hast not the three keys!",
+		"en_us": "You do not have the three keys!",
+		"ko": "세 열쇠가 없다!",
+	},
+	"cmd_codex_ask_mantra": {
+		"en_u4": "What is the mantra of %s?",
+		"en_us": "What is the mantra of %s?",
+		"ko": "%s의 만트라는 무엇인가?",
+	},
+	"cmd_codex_ask_principle": {
+		"en_u4": "What is the principle of %s?",
+		"en_us": "What is the principle of %s?",
+		"ko": "%s의 원리는 무엇인가?",
+	},
+	"cmd_codex_ask_word": {
+		"en_u4": "What is the one Word?",
+		"en_us": "What is the one Word?",
+		"ko": "그 한 단어는 무엇인가?",
+	},
+	"cmd_codex_wrong": {
+		"en_u4": "That is not the answer!",
+		"en_us": "That is not the answer!",
+		"ko": "그것이 답이 아니다!",
+	},
+	"cmd_codex_end": {
+		"en_u4": "The Codex of Ultimate Wisdom is revealed!",
+		"en_us": "The Codex of Ultimate Wisdom is revealed!",
+		"ko": "궁극의 지혜의 코덱스가 드러난다!",
+	},
+	"cmd_principle_truth": {
+		"en_u4": "Truth",
+		"en_us": "Truth",
+		"ko": "진리",
+	},
+	"cmd_principle_love": {
+		"en_u4": "Love",
+		"en_us": "Love",
+		"ko": "사랑",
+	},
+	"cmd_principle_courage": {
+		"en_u4": "Courage",
+		"en_us": "Courage",
+		"ko": "용기",
 	},
 }
 
