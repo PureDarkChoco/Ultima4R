@@ -13,6 +13,7 @@ enum Kind {
 	MYSTIC_ARMOR = 5,
 	MYSTIC_WEAPON = 6,
 	TELESCOPE = 7,
+	UNIQUE_WEAPON = 8,
 }
 
 const SC_NEWMOONS := 0x01
@@ -41,7 +42,7 @@ const CITY_LABELS := {
 	"serpent.ult": {"8,15": "mysticswords"},
 	"moonglow.ult": {"8,6": "honestyrune"},
 	"britain.ult": {"25,1": "compassionrune"},
-	"jhelom.ult": {"30,30": "valorrune"},
+	"jhelom.ult": {"30,30": "valorrune", "1,5": "jhelommagicaxe"},
 	"yew.ult": {"13,6": "justicerune"},
 	"minoc.ult": {"28,30": "sacrificerune"},
 	"trinsic.ult": {"2,29": "honorrune"},
@@ -111,6 +112,12 @@ const ITEMS := {
 	"honorrune": {"kind": Kind.RUNE, "data": 0x20, "conditions": 0, "name_key": "search_item_rune_honor"},
 	"spiritualityrune": {"kind": Kind.RUNE, "data": 0x40, "conditions": 0, "name_key": "search_item_rune_spirituality"},
 	"humilityrune": {"kind": Kind.RUNE, "data": 0x80, "conditions": 0, "name_key": "search_item_rune_humility"},
+	"jhelommagicaxe": {
+		"kind": Kind.UNIQUE_WEAPON,
+		"data": 11, ## WeaponIcons.Id.MAGIC_AXE
+		"conditions": 0,
+		"name_key": "search_item_magic_axe",
+	},
 }
 
 ## xu4 telescope A–P → city .ULT (maps id 1..16).
@@ -188,6 +195,8 @@ static func is_owned(item: Dictionary) -> bool:
 			return GameState.armor.size() > data and int(GameState.armor[data]) > 0
 		Kind.MYSTIC_WEAPON:
 			return GameState.weapons.size() > data and int(GameState.weapons[data]) > 0
+		Kind.UNIQUE_WEAPON:
+			return GameState.has_search_taken(str(item.get("label", "")))
 		_:
 			return false
 
@@ -212,6 +221,8 @@ static func grant(item: Dictionary) -> Dictionary:
 			GameState.grant_mystic_weapon()
 		Kind.TELESCOPE:
 			return {"dropped": false, "telescope": true}
+		Kind.UNIQUE_WEAPON:
+			GameState.grant_unique_search_weapon(data, str(item.get("label", "")))
 		_:
 			pass
 	return {"dropped": dropped, "telescope": false}

@@ -130,6 +130,8 @@ var moves: int = 0
 var lastcamp: int = 0
 ## xu4 SaveGame.lastreagent — (moves & 0xF0) after finding reagents / unique search loot.
 var lastreagent: int = 0
+## One-shot Search labels already taken (save-persistent; independent of pack count).
+var search_taken: Dictionary = {}
 ## xu4 SaveGame.lastvirtue — (moves / 16) & 0xffff when a timed +karma last applied.
 var lastvirtue: int = 0
 ## xu4 SaveGame.lastmeditation — (moves / 100) & 0xffff when shrine meditation began.
@@ -396,6 +398,7 @@ func reset_party() -> void:
 	has_sextant = false
 	ship_hull = 50
 	lastreagent = 0
+	search_taken.clear()
 	items = 0
 	stones = 0
 	runes = 0
@@ -806,6 +809,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	runes = 0
 	lb_intro = false
 	lastreagent = 0
+	search_taken.clear()
 	has_sextant = false
 	moves = 0
 	lastcamp = 0
@@ -2559,6 +2563,23 @@ func grant_mystic_armor() -> void:
 	mark_lastreagent()
 
 
+func has_search_taken(label: String) -> bool:
+	return not label.is_empty() and bool(search_taken.get(label, false))
+
+
+func mark_search_taken(label: String) -> void:
+	if label.is_empty():
+		return
+	search_taken[label] = true
+
+
+func grant_unique_search_weapon(weapon_id: int, label: String) -> void:
+	adjust_karma_found_item()
+	add_pack_weapons(weapon_id, 1)
+	mark_search_taken(label)
+	mark_lastreagent()
+
+
 func grant_search_reagent(reag_id: int) -> bool:
 	## xu4 putReagentInInventory. Returns true if capped (Dropped some!).
 	adjust_karma_found_item()
@@ -2933,6 +2954,7 @@ func to_save_dict() -> Dictionary:
 		"talk_known_keywords": talk_known_keywords.duplicate(true),
 		"talk_heard_words": talk_heard_words.duplicate(),
 		"lastreagent": lastreagent,
+		"search_taken": search_taken.keys(),
 		"has_sextant": has_sextant,
 		"weapons": weapons.duplicate(),
 		"armor": armor.duplicate(),
@@ -3042,6 +3064,19 @@ func apply_save_dict(d: Dictionary) -> void:
 				continue
 			talk_heard_words.append(hs)
 	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
+	search_taken.clear()
+	var taken_raw: Variant = d.get("search_taken", [])
+	if typeof(taken_raw) == TYPE_ARRAY:
+		for v in taken_raw:
+			var lab := str(v).strip_edges()
+			if not lab.is_empty():
+				search_taken[lab] = true
+	elif typeof(taken_raw) == TYPE_DICTIONARY:
+		for k in (taken_raw as Dictionary).keys():
+			if bool((taken_raw as Dictionary)[k]):
+				var lab := str(k).strip_edges()
+				if not lab.is_empty():
+					search_taken[lab] = true
 	## Legacy saves stored only `skull` count — promote into the items bitfield.
 	if skull > 0 and (items & ITEM_SKULL) == 0 and (items & ITEM_SKULL_DESTROYED) == 0:
 		items |= ITEM_SKULL

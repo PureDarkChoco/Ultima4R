@@ -18,8 +18,13 @@ const NPC_MAX := 32
 const NPC_BLOCK := 8 * NPC_MAX ## 256 — tile/x/y/prev + pad + move/conv
 const FILE_MIN := TERRAIN_BYTES
 const FILE_FULL := TERRAIN_BYTES + NPC_BLOCK
+const TILE_FOREST := 6
 const TILE_CHEST := 60
 const TILE_BRICK_FLOOR := 62
+## Ultima4R terrain overrides after .ULT load. Key = basename lower, then "x,y" → tile id.
+const TERRAIN_PATCHES := {
+	"jhelom.ult": {"1,5": TILE_FOREST}, ## magic-axe Search hint (scrub → forest)
+}
 
 ## xu4 PersonDataOffset (column-major arrays of 32).
 const PD_TILE := 0
@@ -469,6 +474,7 @@ func load_from_path(path: String) -> bool:
 		return false
 	source_path = path
 	tiles = bytes.slice(0, TERRAIN_BYTES)
+	_apply_terrain_patches(path)
 	_load_persons(bytes)
 	_apply_file_roles(path)
 	_load_tlk(path)
@@ -498,6 +504,22 @@ func _person_talk_name(person_i: int) -> String:
 	if entry == null:
 		return ""
 	return str(entry.name).strip_edges()
+
+
+func _apply_terrain_patches(ult_path: String) -> void:
+	var fname := ult_path.get_file().to_lower()
+	var patch: Variant = TERRAIN_PATCHES.get(fname, {})
+	if typeof(patch) != TYPE_DICTIONARY or tiles.size() < TILE_COUNT:
+		return
+	for key in (patch as Dictionary).keys():
+		var parts := str(key).split(",")
+		if parts.size() != 2:
+			continue
+		var x := int(parts[0])
+		var y := int(parts[1])
+		if x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT:
+			continue
+		tiles[y * WIDTH + x] = clampi(int((patch as Dictionary)[key]), 0, 255) & 0xFF
 
 
 func _apply_file_roles(ult_path: String) -> void:

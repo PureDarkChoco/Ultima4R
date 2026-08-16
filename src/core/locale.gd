@@ -1546,6 +1546,11 @@ const _T := {
 		"en_us": "the rune of Humility",
 		"ko": "겸손의 룬",
 	},
+	"search_item_magic_axe": {
+		"en_u4": "a Magic Axe",
+		"en_us": "a Magic Axe",
+		"ko": "마법 도끼",
+	},
 	## xu4 board() / exitTransport()
 	"cmd_board_what": {
 		"en_u4": "Board What?",
