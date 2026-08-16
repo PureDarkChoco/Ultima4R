@@ -127,8 +127,7 @@ static func _fill_named() -> void:
 	_set_effect(70, 1, Effect.FIRE)
 	_set_effect(71, 1, Effect.SLEEP)
 	_blocked(72, 1) ## solid
-	## secret_door: player can walk through; NPCs / horses / creatures cannot.
-	_set_range(73, 1, WALK_ALL, WALK_ALL, F_CREATURE_BLOCK)
+	## secret_door: default walkable (NPCs may step on and vanish — e.g. Jhelom inn).
 	## altar — default walkable; campfire solid
 	_blocked(75, 1)
 	## lava — walkable; same 16–47 fire as a fire field
