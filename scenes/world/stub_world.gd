@@ -6259,6 +6259,26 @@ func _is_journal_key(event: InputEventKey) -> bool:
 	return event.keycode == KEY_J or event.physical_keycode == KEY_J
 
 
+func _journal_key_is(event: InputEventKey, code: Key) -> bool:
+	return event.keycode == code or event.physical_keycode == code
+
+
+func _is_journal_home_key(event: InputEventKey) -> bool:
+	return _journal_key_is(event, KEY_HOME)
+
+
+func _is_journal_end_key(event: InputEventKey) -> bool:
+	return _journal_key_is(event, KEY_END)
+
+
+func _is_journal_page_up_key(event: InputEventKey) -> bool:
+	return _journal_key_is(event, KEY_PAGEUP)
+
+
+func _is_journal_page_down_key(event: InputEventKey) -> bool:
+	return _journal_key_is(event, KEY_PAGEDOWN)
+
+
 func _is_locate_key(event: InputEventKey) -> bool:
 	return event.keycode == KEY_L or event.physical_keycode == KEY_L
 
@@ -16952,6 +16972,22 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 			key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
 			or key_event.keycode == KEY_DOWN or key_event.physical_keycode == KEY_DOWN
 		):
+			return true
+		if _is_journal_home_key(key_event):
+			if _journal_panel != null and _journal_panel.has_method("jump_selection_home"):
+				_journal_panel.jump_selection_home()
+			return true
+		if _is_journal_end_key(key_event):
+			if _journal_panel != null and _journal_panel.has_method("jump_selection_end"):
+				_journal_panel.jump_selection_end()
+			return true
+		if _is_journal_page_up_key(key_event):
+			if _journal_panel != null and _journal_panel.has_method("jump_selection_place"):
+				_journal_panel.jump_selection_place(-1)
+			return true
+		if _is_journal_page_down_key(key_event):
+			if _journal_panel != null and _journal_panel.has_method("jump_selection_place"):
+				_journal_panel.jump_selection_place(1)
 			return true
 		var key_dir := _GameInput.dir_from_event(key_event)
 		if key_dir.y != 0:

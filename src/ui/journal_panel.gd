@@ -279,6 +279,61 @@ func move_selection(step: int) -> void:
 		idx = 0 if step > 0 else _nav_ids.size() - 1
 	else:
 		idx = posmod(idx + step, _nav_ids.size())
+	_select_nav_index(idx)
+
+
+func jump_selection_home() -> void:
+	if _current_page() != 0:
+		_scroll_codex_to_edge(false)
+		return
+	if _nav_ids.is_empty():
+		return
+	_select_nav_index(0)
+
+
+func jump_selection_end() -> void:
+	if _current_page() != 0:
+		_scroll_codex_to_edge(true)
+		return
+	if _nav_ids.is_empty():
+		return
+	_select_nav_index(_nav_ids.size() - 1)
+
+
+func jump_selection_place(dir: int) -> void:
+	## Page Up / Down — previous / next town header.
+	if _current_page() != 0:
+		_scroll_codex(dir)
+		return
+	if dir == 0 or _nav_ids.is_empty():
+		return
+	var places: Array[int] = []
+	for i in _nav_ids.size():
+		if _is_place_key(str(_nav_ids[i])):
+			places.append(i)
+	if places.is_empty():
+		return
+	var idx := _nav_ids.find(_selected_id())
+	var slot := 0
+	if idx >= 0:
+		for i in places.size():
+			if places[i] <= idx:
+				slot = i
+			else:
+				break
+	## Page Up from a note lands on this town's header first.
+	if dir < 0 and idx > places[slot]:
+		_select_nav_index(places[slot])
+		return
+	var next_slot := slot + dir
+	if next_slot < 0 or next_slot >= places.size():
+		return
+	_select_nav_index(places[next_slot])
+
+
+func _select_nav_index(idx: int) -> void:
+	if idx < 0 or idx >= _nav_ids.size():
+		return
 	_set_selected_id(_nav_ids[idx])
 	_apply_selection_visuals()
 	_center_selected()
@@ -736,6 +791,14 @@ func _scroll_codex(step: int) -> void:
 		0,
 		int(round(max_scroll))
 	)
+
+
+func _scroll_codex_to_edge(to_end: bool) -> void:
+	if _page2 == null or _codex == null:
+		return
+	var view_h := _page2.size.y
+	var max_scroll := maxf(_codex.size.y - view_h, 0.0)
+	_page2.scroll_vertical = int(round(max_scroll)) if to_end else 0
 
 
 func _rebuild_codex() -> void:
