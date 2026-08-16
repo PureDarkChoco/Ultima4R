@@ -14,7 +14,7 @@ const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 11
+const PIECE_CACHE_REV := 18
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -654,37 +654,108 @@ func _paint_ladder_piece(
 	var y0 := fr.position.y
 	var x1 := x0 + fr.size.x
 	var y1 := y0 + fr.size.y
-	var opening_w := maxi(1, int(round(float(fr.size.x) * 0.40)))
+	var opening_w := maxi(1, int(round(float(fr.size.x) * 0.50)))
 	var opening_h := maxi(1, int(round(float(fr.size.y) * 0.12)))
 	var opening_far_w := maxi(1, int(round(float(opening_w) * 0.70)))
-	var opening_x := x0 + (fr.size.x - opening_w) / 2
-	var opening_far_x := x0 + (fr.size.x - opening_far_w) / 2
+	var opening_center_x := float(x0) + float(fr.size.x) * 0.5
 	if mode & LADDER_UP:
-		_fill_solid_hband_quad(
+		var light := dim * _lut_at(x0 + fr.size.x / 2, y0, buf.get_width(), buf.get_height())
+		_paint_framed_ladder_opening(
 			buf,
-			float(opening_x), float(opening_x + opening_w), y0,
-			float(opening_far_x), float(opening_far_x + opening_far_w), y0 + opening_h,
-			Color(0, 0, 0, 1)
+			opening_center_x, y0, y0 + opening_h,
+			opening_w, opening_far_w, fr.size.x, light
 		)
 	if mode & LADDER_DOWN:
-		_fill_solid_hband_quad(
+		var light := dim * _lut_at(x0 + fr.size.x / 2, y1 - 1, buf.get_width(), buf.get_height())
+		_paint_framed_ladder_opening(
 			buf,
-			float(opening_x), float(opening_x + opening_w), y1,
-			float(opening_far_x), float(opening_far_x + opening_far_w), y1 - opening_h,
-			Color(0, 0, 0, 1)
+			opening_center_x, y1, y1 - opening_h,
+			opening_w, opening_far_w, fr.size.x, light
 		)
 	if mode & LADDER_UP:
 		_blit_scaled(
 			buf, _ladder_half,
 			x0, y0, x1, y1,
-			dim, false, 0.0, 1.0, false, true, false
+			1.0, false, 0.0, 1.0, false, false, false
 		)
 	if mode & LADDER_DOWN:
 		_blit_scaled(
 			buf, _ladder_half,
 			x0, y0, x1, y1,
-			dim, false, 0.0, 1.0, false, true, true
+			1.0, false, 0.0, 1.0, false, false, true
 		)
+
+
+func _paint_framed_ladder_opening(
+	buf: Image,
+	center_x: float,
+	y_near: int,
+	y_far: int,
+	near_w: int,
+	far_w: int,
+	cell_w: int,
+	light: float
+) -> void:
+	var rim := maxi(1, int(round(float(cell_w) * 0.012)))
+	var direction := 1 if y_far > y_near else -1
+	var height := absi(y_far - y_near)
+	var outer_near_w := near_w + rim * 2
+	var outer_far_w := far_w + rim * 2
+	_fill_centered_solid_quad(
+		buf, center_x, y_near, y_far,
+		outer_near_w, outer_far_w,
+		Color(0.02, 0.02, 0.02, 1)
+	)
+	if height <= rim * 2:
+		return
+	var inset_t := float(rim) / float(height)
+	var silver_near_w := maxi(
+		1, int(round(lerpf(float(outer_near_w), float(outer_far_w), inset_t))) - rim * 2
+	)
+	var silver_far_w := maxi(
+		1, int(round(lerpf(float(outer_near_w), float(outer_far_w), 1.0 - inset_t))) - rim * 2
+	)
+	var silver := clampf(0.82 * light, 0.0, 1.0)
+	_fill_centered_solid_quad(
+		buf, center_x, y_near + direction * rim, y_far - direction * rim,
+		silver_near_w, silver_far_w,
+		Color(silver, silver, silver, 1)
+	)
+	var silver_height := height - rim * 2
+	if silver_height > rim * 2:
+		var inner_t := float(rim) / float(silver_height)
+		var inner_near_w := maxi(
+			1, int(round(lerpf(float(silver_near_w), float(silver_far_w), inner_t))) - rim * 2
+		)
+		var inner_far_w := maxi(
+			1, int(round(lerpf(float(silver_near_w), float(silver_far_w), 1.0 - inner_t))) - rim * 2
+		)
+		_fill_centered_solid_quad(
+			buf, center_x, y_near + direction * rim * 2, y_far - direction * rim * 2,
+			inner_near_w, inner_far_w,
+			Color(0, 0, 0, 1)
+		)
+
+
+func _fill_centered_solid_quad(
+	buf: Image,
+	center_x: float,
+	y_near: int,
+	y_far: int,
+	near_w: int,
+	far_w: int,
+	color: Color
+) -> void:
+	_fill_solid_hband_quad(
+		buf,
+		float(center_x) - float(near_w) * 0.5,
+		float(center_x) + float(near_w) * 0.5,
+		y_near,
+		float(center_x) - float(far_w) * 0.5,
+		float(center_x) + float(far_w) * 0.5,
+		y_far,
+		color
+	)
 
 
 func _fill_solid_hband_quad(
