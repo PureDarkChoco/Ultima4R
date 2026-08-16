@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate dungeon wall / side / floor / entrance textures.
 
-Rings 3:3:3:2:2:2:3:3:3 (24 units) in dungeon_view.gd. These PNGs are source tiles.
+Rings 3:3:2.5:2:2:2:2.5:3:3 (23 units) in dungeon_view.gd. These PNGs are source tiles.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1] / "assets" / "dungeon"
 
 VIEW = 176
-RING = (0, 3, 6, 9, 11, 13)
-DENOM = 24
+RING = (0, 3, 6, 8.5, 10.5, 12.5)
+DENOM = 23
 MAX_DRAW = 4
 
 

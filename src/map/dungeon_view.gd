@@ -1,7 +1,7 @@
 class_name DungeonView
 extends RefCounted
 
-## First-person corridor: 9 rings 3:3:3:2:2:2:3:3:3 (24 units).
+## First-person corridor: 9 rings 3:3:2.5:2:2:2:2.5:3:3 (23 units).
 ## Draw current + 4 cells ahead. Cell +5 is wall/not-wall only.
 
 const _DungeonMap := preload("res://src/map/dungeon_map_data.gd")
@@ -10,8 +10,8 @@ const _U4TileBank := preload("res://src/map/u4_tile_bank.gd")
 const ASSET_ROOT := "res://assets/dungeon"
 const MAX_DEPTH := 4
 const PEEK_DEPTH := 5
-const RING_CUMUL: Array[int] = [0, 3, 6, 9, 11, 13]
-const RING_DENOM := 24
+const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
+const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
@@ -30,6 +30,7 @@ var _theme_loaded := ""
 var _dim_lut: PackedFloat32Array = PackedFloat32Array()
 var _dim_lut_w := 0
 var _dim_lut_h := 0
+var _dim_lut_inner := -1
 
 
 func set_theme(id: String) -> void:
@@ -185,12 +186,18 @@ func _front_rect(depth: int, w: int, h: int) -> Rect2i:
 
 
 func _ensure_dim_lut(w: int, h: int) -> void:
-	if _dim_lut_w == w and _dim_lut_h == h and _dim_lut.size() == w * h:
+	var inner := _ring(mini(w, h), MAX_DEPTH)
+	if (
+		_dim_lut_w == w
+		and _dim_lut_h == h
+		and _dim_lut_inner == inner
+		and _dim_lut.size() == w * h
+	):
 		return
 	_dim_lut_w = w
 	_dim_lut_h = h
+	_dim_lut_inner = inner
 	_dim_lut.resize(w * h)
-	var inner := _ring(mini(w, h), MAX_DEPTH)
 	var inv := 1.0 / float(maxi(inner, 1))
 	for y in range(h):
 		var dy := mini(y, h - 1 - y)
