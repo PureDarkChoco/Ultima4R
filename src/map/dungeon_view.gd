@@ -16,6 +16,7 @@ const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 const OBJ_VIEW_RATIO := 0.28
 const CHEST_VIEW_SCALE := 2.0
 const FOUNTAIN_VIEW_SCALE := 2.0
+const ORB_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
 const PIECE_CACHE_REV := 23
@@ -891,6 +892,8 @@ func _paint_tile_object(
 		object_scale = CHEST_VIEW_SCALE
 	elif tid == TILE_FOUNTAIN:
 		object_scale = FOUNTAIN_VIEW_SCALE
+	elif tid == TILE_ORB:
+		object_scale = ORB_VIEW_SCALE
 	var span := maxi(
 		6,
 		int(round(
