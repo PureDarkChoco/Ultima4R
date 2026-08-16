@@ -253,7 +253,9 @@ func _blit_hband_quad(
 	nx1: float,
 	y_far: int,
 	dim: float,
-	flip_v: bool
+	flip_v: bool,
+	clip_x0: int = -0x3fffffff,
+	clip_x1: int = 0x3fffffff
 ) -> void:
 	if src == null:
 		return
@@ -278,10 +280,12 @@ func _blit_hband_quad(
 		var sy := clampi(int(v * float(sh - 1)), 0, sh - 1)
 		var row := y * bw
 		var dw := float(xr - xl)
-		for x in range(xl, xr):
+		var x_draw0 := maxi(xl, clip_x0)
+		var x_draw1 := mini(xr, clip_x1)
+		for x in range(x_draw0, x_draw1):
 			if x < 0 or x >= bw:
 				continue
-			## One tile fitted to this cell's trapezoid: u=0 on the left diagonal, u=1 on the right.
+			## u from the full quad so a cropped parallelogram keeps its tile corners.
 			var sx := clampi(int(float(x - xl) / dw * float(sw - 1)), 0, sw - 1)
 			var c := src.get_pixel(sx, sy)
 			var d := dim * _dim_lut[row + x]
@@ -298,24 +302,37 @@ func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
 
 
 func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
-	## Triangle above the open rect: outer edge stays vertical, inner edge follows the corridor ceiling.
-	var x_outer := float(geom["x0"] if left else geom["x1"])
-	var x_inner_far := float(geom["nx0"] if left else geom["nx1"])
+	## Side-cell ceiling parallelogram. Full width at the far plane is one corridor cell
+	## (same as the facing wall there). Visible alcove / that width is the crop ratio;
+	## outer edge stays parallel so the tile is a cut rhombus matching the wall below.
 	var y_near := int(geom["y0"])
 	var y_far := int(geom["ny0"])
+	var far_w := float(int(geom["nx1"]) - int(geom["nx0"]))
+	if far_w < 0.5:
+		return
 	if left:
+		var x_far_inner := float(geom["nx0"])
+		var x_near_inner := float(geom["x0"])
+		var x_far_outer := x_far_inner - far_w
+		var x_near_outer := x_near_inner - far_w
 		_blit_hband_quad(
 			buf, _tex_front(depth),
-			x_outer, x_outer, y_near,
-			x_outer, x_inner_far, y_far,
-			dim * 0.38, true
+			x_near_outer, x_near_inner, y_near,
+			x_far_outer, x_far_inner, y_far,
+			dim * 0.38, true,
+			int(geom["x0"]), int(geom["nx0"])
 		)
 	else:
+		var x_far_inner := float(geom["nx1"])
+		var x_near_inner := float(geom["x1"])
+		var x_far_outer := x_far_inner + far_w
+		var x_near_outer := x_near_inner + far_w
 		_blit_hband_quad(
 			buf, _tex_front(depth),
-			x_outer, x_outer, y_near,
-			x_inner_far, x_outer, y_far,
-			dim * 0.38, true
+			x_near_inner, x_near_outer, y_near,
+			x_far_inner, x_far_outer, y_far,
+			dim * 0.38, true,
+			int(geom["nx1"]), int(geom["x1"])
 		)
 
 
