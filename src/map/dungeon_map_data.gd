@@ -209,10 +209,15 @@ func effective_at(x: int, y: int, z: int) -> int:
 
 
 func token_at(x: int, y: int, z: int) -> int:
-	var v := effective_at(x, y, z)
-	if v <= 255 and v >= 64 and v <= 71:
+	## Dungeon bytes and world tile ids share the same numeric range:
+	## raw 0x40 is a chest, while annotation tile 68 is a poison field.
+	## Only annotations use world tile ids; raw map bytes always use dungeon tokens.
+	var ann := annotation_at(x, y, z)
+	if ann >= FIELD_TILES[0] and ann <= FIELD_TILES[FIELD_TILES.size() - 1]:
 		return TOK_FIELD
-	return token(v)
+	if ann >= 0:
+		return token(ann)
+	return token(raw_at(x, y, z))
 
 
 func looks_like_wall(x: int, y: int, z: int) -> bool:
@@ -240,12 +245,15 @@ func can_walk(x: int, y: int, z: int) -> bool:
 
 
 func field_subtype(x: int, y: int, z: int) -> int:
-	var v := effective_at(x, y, z)
-	if v >= 68 and v <= 71:
-		return v - 68
+	var ann := annotation_at(x, y, z)
+	if ann >= FIELD_TILES[0] and ann <= FIELD_TILES[FIELD_TILES.size() - 1]:
+		return ann - FIELD_TILES[0]
+	if ann >= 0:
+		return FIELD_POISON
+	var v := raw_at(x, y, z)
 	if token(v) == TOK_FIELD:
 		return subtoken(v)
-	return 0
+	return FIELD_POISON
 
 
 func field_world_tile(x: int, y: int, z: int) -> int:

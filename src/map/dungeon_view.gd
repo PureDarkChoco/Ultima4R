@@ -13,6 +13,9 @@ const PEEK_DEPTH := 5
 const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
+const OBJ_VIEW_RATIO := 0.28
+const CHEST_VIEW_SCALE := 2.0
+const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
 const PIECE_CACHE_REV := 23
 ## Brightness at the innermost square (five cells ahead).
@@ -23,6 +26,8 @@ const TILE_ORB := 78
 const TILE_FOUNTAIN := 75
 const LADDER_UP := 1
 const LADDER_DOWN := 2
+const VIEW_OBJECT_TILE := 0
+const VIEW_OBJECT_LADDER := 1
 
 var theme_id: String = "grey_stone"
 var _wall: Image
@@ -77,7 +82,7 @@ func paint(
 	_ensure_piece_cache_size(w, h)
 	buf.fill(Color(0, 0, 0, 1))
 	var reached_far := true
-	var ladders: Array[Dictionary] = []
+	var view_objects: Array[Dictionary] = []
 	for depth in range(0, MAX_DEPTH + 1):
 		var cell := _ahead(dmap, pos, dir, depth)
 		var left := _left_of(dmap, cell, dir)
@@ -107,7 +112,19 @@ func paint(
 			break
 		var ladder_mode := _ladder_mode(tok)
 		if ladder_mode != 0:
-			ladders.append({"depth": depth, "mode": ladder_mode})
+			view_objects.append({
+				"kind": VIEW_OBJECT_LADDER,
+				"depth": depth,
+				"mode": ladder_mode,
+			})
+		else:
+			var tile_id := _cell_object_tile_id(dmap, cell, z, tok)
+			if tile_id >= 0:
+				view_objects.append({
+					"kind": VIEW_OBJECT_TILE,
+					"depth": depth,
+					"tile_id": tile_id,
+				})
 		_blit_cached_piece(
 			buf,
 			"floor:%d" % depth,
@@ -162,14 +179,20 @@ func paint(
 				"side_open:right:%d" % depth,
 				Callable(self, "_blit_side_open_rect").bind(geom, false, dim, depth)
 			)
-		_paint_cell_object(buf, dmap, cell, z, depth, w, h, dim)
 	if reached_far:
 		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
-	for i in range(ladders.size() - 1, -1, -1):
-		var ladder: Dictionary = ladders[i]
-		_paint_ladder_object(
-			buf, int(ladder["mode"]), int(ladder["depth"]), w, h, 1.0
-		)
+	## Geometry is complete: paint objects back-to-front so no later corridor
+	## surface can hide them and nearer objects correctly overlap farther ones.
+	for i in range(view_objects.size() - 1, -1, -1):
+		var object: Dictionary = view_objects[i]
+		if int(object["kind"]) == VIEW_OBJECT_LADDER:
+			_paint_ladder_object(
+				buf, int(object["mode"]), int(object["depth"]), w, h, 1.0
+			)
+		else:
+			_paint_tile_object(
+				buf, int(object["tile_id"]), int(object["depth"]), w, h, 1.0
+			)
 
 
 func _ahead(dmap, pos: Vector2i, dir: int, depth: int) -> Vector2i:
@@ -811,19 +834,12 @@ func _paint_ladder_object(
 	)
 
 
-func _paint_cell_object(
-	buf: Image,
+func _cell_object_tile_id(
 	dmap,
 	cell: Vector2i,
 	z: int,
-	depth: int,
-	field_w: int,
-	field_h: int,
-	dim: float
-) -> void:
-	var tok: int = dmap.token_at(cell.x, cell.y, z)
-	if _ladder_mode(tok) != 0:
-		return
+	tok: int
+) -> int:
 	var tid := -1
 	match tok:
 		_DungeonMap.TOK_CHEST:
@@ -840,18 +856,56 @@ func _paint_cell_object(
 			tid = dmap.field_world_tile(cell.x, cell.y, z)
 		_DungeonMap.TOK_TRAP:
 			tid = 77
+	return tid
+
+
+func _paint_tile_object(
+	buf: Image,
+	tid: int,
+	depth: int,
+	field_w: int,
+	field_h: int,
+	dim: float
+) -> void:
 	if tid < 0:
 		return
 	var img: Image = _U4TileBank.image(tid)
 	if img == null:
 		return
 	var nscale: int = OBJ_NSCALE[clampi(depth, 0, OBJ_NSCALE.size() - 1)]
-	var span := maxi(6, int(round(float(nscale) / 12.0 * float(field_w) * 0.28)))
+	var object_scale := CHEST_VIEW_SCALE if tid == TILE_CHEST else 1.0
+	var span := maxi(
+		6,
+		int(round(
+			float(nscale) / 12.0
+			* float(field_w)
+			* OBJ_VIEW_RATIO
+			* object_scale
+		))
+	)
 	var fr := _front_rect(depth, field_w, field_h)
+	var far_fr := _front_rect(depth + 1, field_w, field_h)
 	var mid_x := fr.position.x + fr.size.x / 2
-	var obj_y1 := fr.position.y + fr.size.y - 1
+	var near_floor_y := fr.position.y + fr.size.y
+	var far_floor_y := far_fr.position.y + far_fr.size.y
+	var floor_position := 0.0 if depth == 0 else OBJ_FLOOR_POSITION
+	var obj_y1 := clampi(
+		int(round(lerpf(
+			float(near_floor_y), float(far_floor_y), floor_position
+		))),
+		1,
+		field_h - 1
+	)
 	var obj_y0 := obj_y1 - span
-	_blit_scaled(buf, img, mid_x - span / 2, obj_y0, mid_x + span / 2, obj_y1, dim)
+	var object_light := dim * _lut_at(
+		fr.position.x, fr.position.y, buf.get_width(), buf.get_height()
+	)
+	## Tile icons already carry transparent alpha; _blit_scaled skips those pixels.
+	_blit_scaled(
+		buf, img,
+		mid_x - span / 2, obj_y0, mid_x + span / 2, obj_y1,
+		object_light, false, 0.0, 1.0, false, false
+	)
 
 
 func _load_png(path: String) -> Image:
