@@ -14,7 +14,7 @@ const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 22
+const PIECE_CACHE_REV := 23
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -123,7 +123,7 @@ func paint(
 				buf,
 				"side_wall:left:%d" % depth,
 				Callable(self, "_blit_side_trap").bind(
-					_tex_side(depth), geom, true, dim * 0.72
+					_tex_side(depth), geom, true, dim
 				)
 			)
 		elif _is_side_entrance(dmap, left, z):
@@ -131,7 +131,7 @@ func paint(
 				buf,
 				"side_entrance:left:%d" % depth,
 				Callable(self, "_blit_side_trap").bind(
-					_tex_entrance(depth), geom, true, dim * 0.72
+					_tex_entrance(depth), geom, true, dim
 				)
 			)
 		else:
@@ -145,7 +145,7 @@ func paint(
 				buf,
 				"side_wall:right:%d" % depth,
 				Callable(self, "_blit_side_trap").bind(
-					_tex_side(depth), geom, false, dim * 0.58
+					_tex_side(depth), geom, false, dim
 				)
 			)
 		elif _is_side_entrance(dmap, right, z):
@@ -153,7 +153,7 @@ func paint(
 				buf,
 				"side_entrance:right:%d" % depth,
 				Callable(self, "_blit_side_trap").bind(
-					_tex_entrance(depth), geom, false, dim * 0.58
+					_tex_entrance(depth), geom, false, dim
 				)
 			)
 		else:
@@ -340,9 +340,8 @@ func _paint_floor_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> 
 	var floor_dim := dim
 	var flip_v := false
 	if theme_id == "brick" or theme_id == "grey_stone":
-		## Masonry floors use the same material and shade as the ceiling.
+		## Masonry floors use the same material as the ceiling.
 		src = _tex_front(depth)
-		floor_dim *= 0.38
 		flip_v = true
 	_blit_hband_quad(
 		buf, src,
@@ -357,7 +356,7 @@ func _paint_ceiling_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -
 		buf, _tex_front(depth),
 		float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
 		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
-		dim * 0.38, true
+		dim, true
 	)
 
 
@@ -440,7 +439,7 @@ func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: flo
 			buf, _tex_front(depth),
 			x_near_outer, x_near_inner, y_near,
 			x_far_outer, x_far_inner, y_far,
-			dim * 0.38, true,
+			dim, true,
 			int(geom["x0"]), int(geom["nx0"])
 		)
 	else:
@@ -452,7 +451,7 @@ func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: flo
 			buf, _tex_front(depth),
 			x_near_inner, x_near_outer, y_near,
 			x_far_inner, x_far_outer, y_far,
-			dim * 0.38, true,
+			dim, true,
 			int(geom["nx1"]), int(geom["x1"])
 		)
 
@@ -466,7 +465,6 @@ func _paint_open_side_floor(buf: Image, geom: Dictionary, left: bool, dim: float
 	var flip_v := false
 	if theme_id == "brick" or theme_id == "grey_stone":
 		src = _tex_front(depth)
-		floor_dim *= 0.38
 		flip_v = true
 	var y_near := int(geom["y1"])
 	var y_far := int(geom["ny1"])
