@@ -349,13 +349,14 @@ func alert_guards() -> void:
 
 
 func take_adjacent_attacker(avatar: Vector2i) -> Dictionary:
-	## First orthogonal (manhattan 1) MOVE_ATTACK person — engages combat.
+	## First orthogonal MOVE_ATTACK person already next to the party.
+	## Call only for foes flagged before this turn's move (xu4 moveObjects).
 	for i in persons.size():
 		if i >= person_move.size():
 			continue
 		if int(person_move[i]) != MOVE_ATTACK:
 			continue
-		if _manhattan(persons[i], avatar) != 1:
+		if _manhattan(persons[i], avatar) > 1:
 			continue
 		return take_person_at_index(i)
 	return {}
@@ -542,16 +543,21 @@ func _apply_file_roles(ult_path: String) -> void:
 			if i < person_role.size():
 				person_role[i] = _CityNpcRoles.Role.GUARD
 
-func move_persons(avatar: Vector2i) -> bool:
+func move_persons(avatar: Vector2i) -> Dictionary:
 	## xu4 Map::moveObjects — one attempt per person after the party turn.
-	## Returns true if any coordinate changed (caller should rebuild the view).
+	## Attacker is whoever was already adjacent *before* moving (still on map).
+	## A foe that steps adjacent this turn engages on the next party turn.
+	var out := {"changed": false, "attacker_index": -1}
 	if not loaded or persons.is_empty():
-		return false
-	var any := false
+		return out
 	for i in persons.size():
+		if i < person_move.size() and int(person_move[i]) == MOVE_ATTACK:
+			if _manhattan(persons[i], avatar) <= 1:
+				if int(out["attacker_index"]) < 0:
+					out["attacker_index"] = i
 		if _move_one(i, avatar):
-			any = true
-	return any
+			out["changed"] = true
+	return out
 
 
 func pause_follow(person_i: int) -> void:
@@ -637,7 +643,7 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 			if (randi() % 2) != 0:
 				return false
 		MOVE_ATTACK:
-			## Adjacent attacker stays put; stub_world engages combat after move_persons.
+			## Already adjacent: hold. Combat uses the pre-move attacker_index.
 			if _manhattan(persons[i], avatar) <= 1:
 				return false
 		_:

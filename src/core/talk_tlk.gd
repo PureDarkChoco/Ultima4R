@@ -599,10 +599,9 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 				continue
 			if lower.substr(i, kl.length()) != kl:
 				continue
-			var before_ok := i == 0 or not _is_word_char(text.unicode_at(i - 1))
-			if not before_ok:
-				continue
 			var hangul_kw := _is_hangul_code(kl.unicode_at(0))
+			if not _keyword_before_ok(text, i, hangul_kw):
+				continue
 			if hangul_kw:
 				## Exact keyword only — never pull in 조사 / conjugations after it.
 				if kl.length() > hit_len:
@@ -648,9 +647,10 @@ static func keyword_first_index(text: String, keyword: String) -> int:
 			break
 		if lower.substr(i, kl.length()) != kl:
 			continue
-		if i > 0 and _is_word_char(text.unicode_at(i - 1)):
+		var hangul_kw := _is_hangul_code(kl.unicode_at(0))
+		if not _keyword_before_ok(text, i, hangul_kw):
 			continue
-		if _is_hangul_code(kl.unicode_at(0)):
+		if hangul_kw:
 			return i
 		var after_i := i + kl.length()
 		var after_ok := (
@@ -660,6 +660,16 @@ static func keyword_first_index(text: String, keyword: String) -> int:
 		if after_ok or _colorize_stem_ok(kl):
 			return i
 	return -1
+
+
+static func _keyword_before_ok(text: String, i: int, hangul_kw: bool) -> bool:
+	## Word start, or Hangul compound prefix (은뿔 → tint 뿔 only).
+	if i <= 0:
+		return true
+	var prev := text.unicode_at(i - 1)
+	if not _is_word_char(prev):
+		return true
+	return hangul_kw and _is_hangul_code(prev)
 
 
 static func _colorize_key_ok(s: String) -> bool:

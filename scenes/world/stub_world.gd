@@ -12389,17 +12389,19 @@ func _death_revive() -> void:
 
 func _move_city_persons() -> void:
 	## xu4 finishTurn → location->map->moveObjects(avatar).
-	## Adjacent MOVE_ATTACK persons then engage combat (like wilderness attackers).
+	## Engage only foes already adjacent before this move (Nate can be talked to).
 	if _combat_active or not _is_in_city() or _city_map == null or not _city_map.loaded:
 		return
-	if _city_map.move_persons(_tile_pos):
+	var moved: Dictionary = _city_map.move_persons(_tile_pos)
+	if bool(moved.get("changed", false)):
 		if _map != null and _map.has_method("refresh"):
 			_map.refresh()
 	if _combat_active or _party_wiped_or_dying():
 		return
-	if not _city_map.has_method("take_adjacent_attacker"):
+	var attacker_i := int(moved.get("attacker_index", -1))
+	if attacker_i < 0:
 		return
-	var foe: Dictionary = _city_map.take_adjacent_attacker(_tile_pos)
+	var foe: Dictionary = _city_map.take_person_at_index(attacker_i)
 	if foe.is_empty():
 		return
 	if _map != null and _map.has_method("refresh"):
