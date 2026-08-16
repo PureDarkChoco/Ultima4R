@@ -371,6 +371,7 @@ var _scene_trans_busy := false
 ## First-person dungeon corridor (persists through combat).
 var _dungeon_map
 var _dungeon_view
+var _dungeon_field: Image
 var _dungeon_z := 0
 var _dungeon_dir := 2
 var _dungeon_lit := false
@@ -758,7 +759,10 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_ensure_combat_aim_cursor()
 	_combat_focus_on = true
 	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
-	_build_camp_background()
+	if is_in_dungeon():
+		_camp_bg = PackedByteArray()
+	else:
+		_build_camp_background()
 	_scroll_frames_left = 0
 	_rebuild()
 
@@ -3262,17 +3266,32 @@ func _rebuild() -> void:
 
 
 func _rebuild_dungeon() -> void:
+	## xu4 map window: paint only the center 11×11. No left/right margin work.
+	_buf.fill(Color(0, 0, 0, 1))
 	if _dungeon_view == null:
 		_dungeon_view = _DungeonViewScript.new()
 		_dungeon_view.set_theme(_DungeonPortalsScript.theme_for(str(_dungeon_map.dungeon_id)))
+	var field_w := CAMP_W * TILE_SRC
+	var field_h := CAMP_H * TILE_SRC
+	if (
+		_dungeon_field == null
+		or _dungeon_field.get_width() != field_w
+		or _dungeon_field.get_height() != field_h
+	):
+		_dungeon_field = Image.create(field_w, field_h, false, Image.FORMAT_RGBA8)
 	_dungeon_view.paint(
-		_buf,
+		_dungeon_field,
 		_dungeon_map,
 		Vector2i(int(center.x), int(center.y)),
 		_dungeon_z,
 		_dungeon_dir,
 		_dungeon_lit
 	)
+	var origin := Vector2i(
+		((view_w - CAMP_W) / 2) * TILE_SRC,
+		((view_h - CAMP_H) / 2) * TILE_SRC
+	)
+	_buf.blit_rect(_dungeon_field, Rect2i(0, 0, field_w, field_h), origin)
 	_tex.set_image(_buf)
 	texture = _tex
 	queue_redraw()
@@ -3896,23 +3915,32 @@ func _rebuild_combat() -> void:
 	var camp_h := CAMP_H
 	var origin_x := (view_w - camp_w) / 2
 	var origin_y := (view_h - camp_h) / 2
-	if _camp_bg.size() != view_w * view_h:
-		_build_camp_background()
-
-	for dy in view_h:
-		for dx in view_w:
-			var tid := 4
-			var cx := dx - origin_x
-			var cy := dy - origin_y
-			if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
-				tid = clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
-			else:
-				var bi := dy * view_w + dx
-				if bi >= 0 and bi < _camp_bg.size():
-					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
-			var dst := _tile_px(dx, dy)
-			## View-space coords so left/right beach margins get shore freckles too.
-			_blit_terrain_to(_buf, tid, dst, dx, dy)
+	if is_in_dungeon():
+		## xu4 dungeon fight: center arena only — no world/side-strip backdrop.
+		_buf.fill(Color(0, 0, 0, 1))
+		for cy in camp_h:
+			for cx in camp_w:
+				var tid := clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+				var dx := origin_x + cx
+				var dy := origin_y + cy
+				_blit_terrain_to(_buf, tid, _tile_px(dx, dy), dx, dy)
+	else:
+		if _camp_bg.size() != view_w * view_h:
+			_build_camp_background()
+		for dy in view_h:
+			for dx in view_w:
+				var tid := 4
+				var cx := dx - origin_x
+				var cy := dy - origin_y
+				if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+					tid = clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+				else:
+					var bi := dy * view_w + dx
+					if bi >= 0 and bi < _camp_bg.size():
+						tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
+				var dst := _tile_px(dx, dy)
+				## View-space coords so left/right beach margins get shore freckles too.
+				_blit_terrain_to(_buf, tid, dst, dx, dy)
 
 	_paint_combat_chests(origin_x, origin_y)
 	_paint_combat_foes(origin_x, origin_y)
@@ -4313,6 +4341,9 @@ func _rotate_image_nearest(src: Image, angle: float) -> Image:
 
 func _build_camp_background() -> void:
 	## Left/right margins from the tile immediately beside the party.
+	if is_in_dungeon():
+		_camp_bg = PackedByteArray()
+		return
 	_camp_bg = PackedByteArray()
 	_camp_bg.resize(view_w * view_h)
 	_camp_bg.fill(TILE_GRASS)

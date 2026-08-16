@@ -304,6 +304,8 @@ var _dungeon_room_index := -1
 var _dungeon_room_entry_dir := 2
 var _dungeon_skip_room := false
 var _dungeon_last_flee_dir := Vector2i.ZERO
+var _dungeon_saved_sides_open := false
+var _dungeon_sides_forced := false
 var _codex_stage := 0
 var _codex_buffer := ""
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
@@ -2430,7 +2432,7 @@ func _open_sides_for_combat(await_done: bool = true) -> void:
 func _restore_sides_after_combat() -> void:
 	## After the world map is back: snap open, or animate closed if that was the prior state.
 	_order_opened_roster = false
-	if _combat_saved_sides_open:
+	if _is_in_dungeon() or _combat_saved_sides_open:
 		_sides_open = true
 		_layout_side_panels(false)
 	else:
@@ -5761,8 +5763,11 @@ func _handle_panel_toggle() -> void:
 	## Ztats / Ready / Wear / Mix / camp pick open: don't collapse/expand side panels.
 	## Camp rest allows Tab so inventory panels stay reachable.
 	## Shrine session: panels stay forced open; Tab/left trigger locked.
+	## Dungeon: left/right panels stay forced open; Tab / R2 locked.
 	## Talk: only toggle the left inventory panel; state persists after Bye.
 	if _journal_focus_active:
+		return
+	if _is_in_dungeon():
 		return
 	if _death_busy or (_combat_active and not _command_menu_open):
 		return
@@ -6416,6 +6421,19 @@ func _build_city_warp_items() -> Array[Dictionary]:
 			"wx": int(p.get("wx", 0)),
 			"wy": int(p.get("wy", 0)),
 		})
+	for did in _DungeonPortals.IDS:
+		var dest := _DungeonPortals.world_return_for(did)
+		if dest == Vector2i.ZERO:
+			continue
+		var dlabel := Locale.place(did)
+		if dlabel.is_empty() or dlabel == "place_%s" % did:
+			dlabel = did.capitalize()
+		out.append({
+			"place_id": did,
+			"label": dlabel,
+			"wx": dest.x,
+			"wy": dest.y,
+		})
 	return out
 
 
@@ -6516,6 +6534,8 @@ func _apply_city_warp(item: Dictionary) -> void:
 	if _combat_active or _shrine_session or _shrine_stage != 0:
 		_push_message("City warp: not now.", false)
 		return
+	if _is_in_dungeon():
+		_clear_dungeon_state()
 	if _is_in_city():
 		_exit_city()
 	var dest := Vector2i(int(item.get("wx", 0)), int(item.get("wy", 0)))
@@ -6525,6 +6545,7 @@ func _apply_city_warp(item: Dictionary) -> void:
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 	_sync_creatures_to_map()
 	_sync_moongate(true)
+	_sync_music()
 	_refresh_locate_hud()
 	_push_message("Warp: %s" % str(item.get("label", "")), false)
 
@@ -10963,6 +10984,28 @@ func _maybe_complete_manual_zorin_tip() -> bool:
 	return changed
 
 
+func _open_sides_for_dungeon() -> void:
+	## Dungeon keeps both side panels open; Tab / R2 cannot close them.
+	if not _dungeon_sides_forced:
+		_dungeon_saved_sides_open = _sides_open
+		_dungeon_sides_forced = true
+	_order_opened_roster = false
+	if _talk_msg_open:
+		_talk_msg_open = false
+	_sides_open = true
+	_refresh_party()
+	_layout_side_panels(false)
+
+
+func _restore_sides_after_dungeon() -> void:
+	if not _dungeon_sides_forced:
+		return
+	_dungeon_sides_forced = false
+	_order_opened_roster = false
+	_sides_open = _dungeon_saved_sides_open
+	_layout_side_panels(false)
+
+
 func _open_sides_for_shrine() -> void:
 	## Force both side panels + tall message strip open for the shrine script.
 	_shrine_saved_sides_open = _sides_open
@@ -11479,6 +11522,7 @@ func _refresh_dungeon_view() -> void:
 
 
 func _clear_dungeon_state() -> void:
+	var was_in := _dungeon_map != null
 	_dungeon_map = null
 	_dungeon_id = ""
 	_dungeon_z = 0
@@ -11489,6 +11533,8 @@ func _clear_dungeon_state() -> void:
 	_dungeon_last_flee_dir = Vector2i.ZERO
 	if _map != null and _map.is_in_dungeon():
 		_map.exit_dungeon()
+	if was_in:
+		_restore_sides_after_dungeon()
 
 
 func _dungeon_token() -> int:
@@ -11584,6 +11630,7 @@ func _enter_dungeon_from_portal(portal: Dictionary, from_city: bool = false) -> 
 		_refresh_journal_panel()
 	if _map != null:
 		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_open_sides_for_dungeon()
 	_sync_music()
 
 
@@ -11617,6 +11664,7 @@ func _restore_dungeon_from_save(w: Dictionary) -> void:
 	_city_map = null
 	if _map != null:
 		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_open_sides_for_dungeon()
 	_sync_music()
 
 
@@ -11645,14 +11693,14 @@ func _exit_dungeon_to_surface() -> void:
 
 
 func _dungeon_handle_dir(dir: Vector2i) -> void:
-	var want := _DungeonPortals.dir_from_vec(dir)
-	if want == _dungeon_dir:
+	## First-person: keys are view-relative, not world compass.
+	if dir.y < 0:
 		_dungeon_step(1)
 		return
-	if want == posmod(_dungeon_dir + 2, 4):
+	if dir.y > 0:
 		_dungeon_step(-1)
 		return
-	if want == posmod(_dungeon_dir + 3, 4):
+	if dir.x < 0:
 		_dungeon_turn(-1)
 		return
 	_dungeon_turn(1)
@@ -11661,6 +11709,10 @@ func _dungeon_handle_dir(dir: Vector2i) -> void:
 func _dungeon_turn(delta: int) -> void:
 	_dungeon_dir = posmod(_dungeon_dir + delta, 4)
 	_refresh_dungeon_view()
+	_push_message(
+		Locale.t("cmd_dungeon_turn", [_direction_label(_DungeonPortals.vec_from_dir(_dungeon_dir), false)]),
+		false
+	)
 	_arm_hold_after_step(true)
 
 

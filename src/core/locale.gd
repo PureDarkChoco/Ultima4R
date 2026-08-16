@@ -2528,6 +2528,11 @@ const _T := {
 		"en_us": "Leaving...",
 		"ko": "떠난다...",
 	},
+	"cmd_dungeon_turn": {
+		"en_u4": "Turn %s!",
+		"en_us": "Turn %s!",
+		"ko": "%s으로 돈다!",
+	},
 	"cmd_dungeon_secret": {
 		"en_u4": "You find a hidden door!",
 		"en_us": "You find a hidden door!",
