@@ -15,6 +15,7 @@ const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 const OBJ_VIEW_RATIO := 0.28
 const CHEST_VIEW_SCALE := 2.0
+const FOUNTAIN_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
 const PIECE_CACHE_REV := 23
@@ -34,6 +35,7 @@ var _wall: Image
 var _floor: Image
 var _entrance: Image
 var _ladder_half: Image
+var _fountain_frames: Array[Image] = []
 var _theme_loaded := ""
 var _dim_lut: PackedFloat32Array = PackedFloat32Array()
 var _dim_lut_w := 0
@@ -47,6 +49,11 @@ var _piece_cache_h := 0
 func set_theme(id: String) -> void:
 	if _ladder_half == null:
 		_ladder_half = _load_png("%s/ladder_half.png" % ASSET_ROOT)
+	if _fountain_frames.is_empty():
+		_fountain_frames = [
+			_load_png("%s/fountain_0.png" % ASSET_ROOT),
+			_load_png("%s/fountain_1.png" % ASSET_ROOT),
+		]
 	if id == _theme_loaded and _wall != null:
 		theme_id = id
 		return
@@ -65,7 +72,8 @@ func paint(
 	pos: Vector2i,
 	z: int,
 	dir: int,
-	lit: bool
+	lit: bool,
+	anim_frame: int = 0
 ) -> void:
 	if buf == null or dmap == null or not dmap.loaded:
 		return
@@ -191,7 +199,7 @@ func paint(
 			)
 		else:
 			_paint_tile_object(
-				buf, int(object["tile_id"]), int(object["depth"]), w, h, 1.0
+				buf, int(object["tile_id"]), int(object["depth"]), w, h, 1.0, anim_frame
 			)
 
 
@@ -865,15 +873,24 @@ func _paint_tile_object(
 	depth: int,
 	field_w: int,
 	field_h: int,
-	dim: float
+	dim: float,
+	anim_frame: int
 ) -> void:
 	if tid < 0:
 		return
-	var img: Image = _U4TileBank.image(tid)
+	var img: Image
+	if tid == TILE_FOUNTAIN and not _fountain_frames.is_empty():
+		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
+	else:
+		img = _U4TileBank.image(tid)
 	if img == null:
 		return
 	var nscale: int = OBJ_NSCALE[clampi(depth, 0, OBJ_NSCALE.size() - 1)]
-	var object_scale := CHEST_VIEW_SCALE if tid == TILE_CHEST else 1.0
+	var object_scale := 1.0
+	if tid == TILE_CHEST:
+		object_scale = CHEST_VIEW_SCALE
+	elif tid == TILE_FOUNTAIN:
+		object_scale = FOUNTAIN_VIEW_SCALE
 	var span := maxi(
 		6,
 		int(round(

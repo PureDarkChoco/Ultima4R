@@ -3285,7 +3285,8 @@ func _rebuild_dungeon() -> void:
 		Vector2i(int(center.x), int(center.y)),
 		_dungeon_z,
 		_dungeon_dir,
-		_dungeon_lit
+		_dungeon_lit,
+		_tile_anim_frame
 	)
 	var origin := Vector2i(
 		((view_w - CAMP_W) / 2) * TILE_SRC,

@@ -51,6 +51,34 @@ def write_png(path: Path, pixels: list[list[tuple[int, int, int]]]) -> None:
     )
 
 
+def write_rgba_png(
+    path: Path, pixels: list[list[tuple[int, int, int, int]]]
+) -> None:
+    h = len(pixels)
+    w = len(pixels[0]) if h else 0
+    raw = b"".join(
+        b"\x00" + bytes(channel for pixel in row for channel in pixel)
+        for row in pixels
+    )
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
+
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b"")
+    )
+
+
 def clamp(v: int) -> int:
     return 0 if v < 0 else 255 if v > 255 else v
 
@@ -524,6 +552,162 @@ def paint_floor(theme: dict, w: int, h: int, depth: int) -> list[list[tuple[int,
     return px
 
 
+def make_fountain(frame: int) -> list[list[tuple[int, int, int, int]]]:
+    """32px transparent VGA-style pedestal fountain with animated cyan water."""
+    size = 96
+    transparent = (0, 0, 0, 0)
+    outline = (12, 15, 18, 255)
+    stone_dark = (99, 104, 107, 255)
+    stone_mid = (163, 168, 171, 255)
+    stone = (221, 224, 225, 255)
+    highlight = (255, 255, 255, 255)
+    water_dark = (0, 135, 202, 255)
+    water = (7, 199, 230, 255)
+    water_light = (75, 239, 242, 255)
+    px = [[transparent for _ in range(size)] for _ in range(size)]
+
+    def dot(x: int, y: int, color: tuple[int, int, int, int], radius: int = 0) -> None:
+        for yy in range(y - radius, y + radius + 1):
+            for xx in range(x - radius, x + radius + 1):
+                if 0 <= xx < size and 0 <= yy < size:
+                    px[yy][xx] = color
+
+    def line(
+        x0: int, y0: int, x1: int, y1: int,
+        color: tuple[int, int, int, int], radius: int = 0
+    ) -> None:
+        dx = abs(x1 - x0)
+        sx = 1 if x0 < x1 else -1
+        dy = -abs(y1 - y0)
+        sy = 1 if y0 < y1 else -1
+        error = dx + dy
+        while True:
+            dot(x0, y0, color, radius)
+            if x0 == x1 and y0 == y1:
+                break
+            twice = error * 2
+            if twice >= dy:
+                error += dy
+                x0 += sx
+            if twice <= dx:
+                error += dx
+                y0 += sy
+
+    def span(y: int, x0: int, x1: int, color: tuple[int, int, int, int]) -> None:
+        for x in range(x0, x1 + 1):
+            dot(x, y, color)
+
+    def centered_span(
+        y: int, half_width: int, color: tuple[int, int, int, int], center: int = 48
+    ) -> None:
+        span(y, center - half_width, center + half_width, color)
+
+    # Broad stone pedestal, hidden behind the basin at its top.
+    for y in range(57, 95):
+        if y < 66:
+            outer_half = 18 - (y - 57)
+        elif y < 85:
+            outer_half = 9
+        else:
+            outer_half = 9 + (y - 84)
+        centered_span(y, outer_half, outline)
+        inner_half = max(1, outer_half - 3)
+        centered_span(y, inner_half, stone_mid)
+        if inner_half > 4:
+            span(y, 48 - inner_half + 2, 48 - inner_half + 4, highlight)
+            span(y, 48 + inner_half - 3, 48 + inner_half - 1, stone_dark)
+    centered_span(94, 21, outline)
+    centered_span(92, 18, highlight)
+
+    # Deep, concave bowl: a recessed water surface above a tall shaded front.
+    outer_bowl = (
+        (38, 27, 69), (39, 19, 77), (40, 13, 83), (41, 9, 87),
+        (42, 7, 89), (43, 6, 90), (44, 6, 90), (45, 7, 89),
+        (46, 8, 88), (47, 9, 87), (48, 10, 86), (49, 11, 85),
+        (50, 12, 84), (51, 14, 82), (52, 16, 80), (53, 18, 78),
+        (54, 20, 76), (55, 23, 73), (56, 26, 70), (57, 30, 66),
+        (58, 32, 64), (59, 34, 62), (60, 36, 60), (61, 38, 58),
+        (62, 40, 56), (63, 42, 54), (64, 44, 52),
+    )
+    for y, x0, x1 in outer_bowl:
+        span(y, x0, x1, outline)
+    inner_bowl = (
+        (41, 20, 76), (42, 14, 82), (43, 11, 85), (44, 10, 86),
+        (45, 11, 85), (46, 12, 84), (47, 13, 83), (48, 14, 82),
+        (49, 15, 81), (50, 17, 79), (51, 19, 77), (52, 21, 75),
+        (53, 23, 73), (54, 25, 71), (55, 27, 69), (56, 29, 67),
+        (57, 32, 64), (58, 35, 61), (59, 38, 58), (60, 41, 55),
+    )
+    for y, x0, x1 in inner_bowl:
+        span(y, x0, x1, stone_dark if y >= 57 else stone_mid if y >= 49 else stone)
+    for y, x0, x1 in (
+        (42, 24, 72), (43, 20, 76), (44, 19, 77), (45, 22, 74),
+        (46, 28, 68),
+    ):
+        span(y, x0, x1, water_dark)
+    for y, x0, x1 in ((42, 30, 66), (43, 25, 71), (44, 26, 70), (45, 31, 65)):
+        span(y, x0, x1, water)
+    span(40, 22, 74, highlight)
+    span(41, 16, 35, highlight)
+    span(43, 24, 39, water_light)
+    span(46, 14, 30, highlight)
+    span(47, 18, 37, highlight)
+    span(50, 22, 35, stone)
+    span(54, 27, 69, stone)
+    span(55, 31, 65, highlight)
+
+    # Slender, low-pressure jets. The two frames gently shift their arcs.
+    bob = frame & 1
+    jets = (
+        [(46, 42), (43, 29), (39, 21 - bob), (35, 18), (31, 21), (29, 30), (29, 39)],
+        [(50, 42), (53, 29), (57, 20 + bob), (61, 18), (65, 22), (67, 31), (67, 39)],
+    )
+    for points in jets:
+        for start, end in zip(points, points[1:]):
+            line(*start, *end, outline, 1)
+        for start, end in zip(points, points[1:]):
+            line(*start, *end, water_light)
+        for start, end in zip(points[1:], points[2:]):
+            line(*start, *end, water)
+
+    # A modest central spout anchors the animation without overpowering the bowl.
+    center_top = 22 + bob * 2
+    line(48, 43, 48, center_top, outline, 1)
+    line(48, 43, 48, center_top, water)
+    dot(48, center_top - 1, water_light)
+    droplets = (
+        ((27, 25), (37, 19), (59, 20), (69, 28))
+        if frame == 0 else
+        ((28, 29), (38, 22), (58, 18), (68, 31))
+    )
+    for x, y in droplets:
+        dot(x, y, outline, 1)
+        dot(x, y, water_light)
+    # Author at 3× for readable geometry, then reduce to the same native 32×32
+    # resolution as every other U4 tile. Opaque-only voting preserves thin jets.
+    reduced = [[transparent for _ in range(32)] for _ in range(32)]
+    for tile_y in range(32):
+        for tile_x in range(32):
+            counts: dict[tuple[int, int, int, int], int] = {}
+            for source_y in range(tile_y * 3, tile_y * 3 + 3):
+                for source_x in range(tile_x * 3, tile_x * 3 + 3):
+                    color = px[source_y][source_x]
+                    if color[3] == 0:
+                        continue
+                    counts[color] = counts.get(color, 0) + 1
+            if counts:
+                water_colors = [
+                    color for color in (water_dark, water, water_light) if color in counts
+                ]
+                if water_colors and tile_y < 13:
+                    reduced[tile_y][tile_x] = max(
+                        water_colors, key=lambda color: counts[color]
+                    )
+                else:
+                    reduced[tile_y][tile_x] = max(counts, key=counts.get)
+    return reduced
+
+
 def main() -> None:
     selected = set(sys.argv[1:])
     for name, theme in THEMES.items():
@@ -553,6 +737,10 @@ def main() -> None:
             print(
                 f"{name} d{depth}: front {fw}x{fh}  side {sw}x{sh}  floor {flw}x{flh}"
             )
+    if not selected or "fountain" in selected:
+        for frame in range(2):
+            write_rgba_png(ROOT / f"fountain_{frame}.png", make_fountain(frame))
+        print("fountain: 2 transparent 32x32 frames")
 
 
 if __name__ == "__main__":

@@ -43,11 +43,11 @@ const TRAP_WINDS := 0
 const TRAP_ROCKS := 1
 const TRAP_PIT := 2
 
-const FOUNTAIN_POISON := 0
+const FOUNTAIN_NORMAL := 0
 const FOUNTAIN_HEAL := 1
 const FOUNTAIN_ACID := 2
 const FOUNTAIN_CURE := 3
-const FOUNTAIN_HEAL_ALT := 4
+const FOUNTAIN_POISON := 4
 
 const FIELD_POISON := 0
 const FIELD_ENERGY := 1
@@ -79,7 +79,7 @@ var is_abyss: bool = false
 var annotations: Array[Dictionary] = []
 ## Revealed secret doors: "x,y,z" → true.
 var revealed_secrets: Dictionary = {}
-## Looted corridor chests / spent orbs / drunk fountains: "x,y,z" → true.
+## Looted corridor chests / spent orbs: "x,y,z" → true.
 var consumed: Dictionary = {}
 
 
