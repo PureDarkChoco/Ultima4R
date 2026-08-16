@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name> fills the journal collection page; mantra:<name> and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet (묻기 / 찾기 / 만나기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name> fills the journal collection page; mantra:<name> and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -789,6 +789,23 @@
       "ko": "명예의 만트라: SUMM."
     },
     {
+      "id": "trinsic.terran.sloven-white-stone",
+      "place": "trinsic",
+      "npc": "Terran",
+      "topic": "WHITE STONE",
+      "chain": "trinsic.white-stone",
+      "chain_order": 10,
+      "goal": "ask:sloven-stone",
+      "complete_if_recorded": "cove.sloven.isaac-stone",
+      "complete_on_goal": "stone:white",
+      "speaker_en": "Terran",
+      "speaker_ko": "테란",
+      "en": "Meet Sloven the hermit near Lock Lake.",
+      "ko": "록 호수 근처의 은자 슬로벤 만나기",
+      "en_u4": "Seek Sloven the hermit near Lock Lake.",
+      "en_us": "Meet Sloven the hermit near Lock Lake."
+    },
+    {
       "id": "skara.luke.spirituality",
       "place": "skara",
       "npc": "Luke",
@@ -827,10 +844,25 @@
       "goal": "rune:spirituality",
       "speaker_en": "the Ankh of Spirituality",
       "speaker_ko": "영성의 앙크",
-      "en": "Search in the treasure chamber of Britannia.",
-      "ko": "브리타니아 보물 창고에서 찾기",
-      "en_u4": "Search in the treasure chamber of Britannia.",
-      "en_us": "Search in the treasure chamber of Britannia."
+      "en": "Search for the rune in the treasure chamber of Britannia.",
+      "ko": "브리타니아 보물창고에서 룬 찾기",
+      "en_u4": "Search for the rune in the treasure chamber of Britannia.",
+      "en_us": "Search for the rune in the treasure chamber of Britannia."
+    },
+    {
+      "id": "skara.ankh.full-moon-shrine",
+      "place": "skara",
+      "npc": "the Ankh of\nSpirituality",
+      "topic": "SHRI_NO",
+      "chain": "skara.spirituality-shrine",
+      "chain_order": 10,
+      "goal": "shrine:spirituality",
+      "speaker_en": "the Ankh of Spirituality",
+      "speaker_ko": "영성의 앙크",
+      "en": "Enter the shrine of Spirituality through the full-moon gate.",
+      "ko": "보름달 문으로 영성 사원에 들어가기",
+      "en_u4": "Enter the shrine of Spirituality through the gate of full moons.",
+      "en_us": "Enter the shrine of Spirituality through the full-moon gate."
     },
     {
       "id": "skara.granted.ambule-mantra",
@@ -873,6 +905,48 @@
       "know": "mantra:spirituality",
       "en": "Spirituality mantra: OM.",
       "ko": "영성의 만트라: OM."
+    },
+    {
+      "id": "skara.mitre.trinsic-tap-stone",
+      "place": "skara",
+      "npc": "Mitre",
+      "topic": "STON_YES",
+      "chain": "skara.white-stone",
+      "chain_order": 10,
+      "goal": "ask:trinsic-tap-stone",
+      "complete_if_recorded": "trinsic.terran.sloven-white-stone",
+      "complete_on_goal": "stone:white",
+      "en": "Ask about the white stone at the Tap in {trinsic}.",
+      "ko": "{trinsic}의 탭에서 흰 돌에 대해 묻기",
+      "en_u4": "Ask of the white stone at the Tap in {trinsic}.",
+      "en_us": "Ask about the white stone at the Tap in {trinsic}."
+    },
+    {
+      "id": "skara.isaac.white-stone",
+      "place": "skara",
+      "npc": "Isaac",
+      "topic": "STON",
+      "chain": "skara.white-stone",
+      "chain_order": 20,
+      "goal": "stone:white",
+      "en": "White stone: atop the Serpent's Spine; reach it by floating in the clouds.",
+      "ko": "흰 돌: 뱀의 등뼈 꼭대기. 구름 속에 떠야 닿는다.",
+      "en_u4": "White stone: atop the Serpent's Spine; reach it by one who floats within the clouds.",
+      "en_us": "White stone: atop the Serpent's Spine; reach it by floating in the clouds."
+    },
+    {
+      "id": "skara.romasco.zair-word",
+      "place": "skara",
+      "npc": "Romasco",
+      "topic": "WORD",
+      "chain": "skara.word-of-passage",
+      "chain_order": 10,
+      "goal": "ask:zair-word",
+      "complete_if_recorded": "paws.zair.brother-word",
+      "en": "Ask Zair the Wise in {paws} about the word.",
+      "ko": "{paws}의 자이르에게 말씀에 대해 묻기",
+      "en_u4": "Ask Zair the Wise in {paws} of the word.",
+      "en_us": "Ask Zair the Wise in {paws} about the word."
     },
     {
       "id": "magincia.casperin.heywood-mantra",
@@ -1059,6 +1133,22 @@
       "en_us": "Search in the training room of {serpent}."
     },
     {
+      "id": "paws.zair.brother-word",
+      "place": "paws",
+      "npc": "Zair the Wise",
+      "topic": "WORD",
+      "chain": "paws.word-of-passage",
+      "chain_order": 10,
+      "goal": "ask:brother-zair-word",
+      "complete_if_recorded": "cove.zair.word-of-passage",
+      "speaker_en": "Zair the Wise",
+      "speaker_ko": "지혜로운 자이르",
+      "en": "Ask Zair's brother beyond Lock Lake about the word.",
+      "ko": "록 호수 너머 자이르의 형제에게 말씀에 대해 묻기",
+      "en_u4": "Ask Zair's brother beyond Lock Lake of the word.",
+      "en_us": "Ask Zair's brother beyond Lock Lake about the word."
+    },
+    {
       "id": "vesper.gem.humility-mantra",
       "place": "vesper",
       "npc": "Gem",
@@ -1211,6 +1301,21 @@
       "topic": "GATE",
       "en": "Gate spell: requires ash, pearl, and mandrake root.",
       "ko": "차원문 주문: 재·진주·맨드레이크가 필요하다."
+    },
+    {
+      "id": "cove.sloven.isaac-stone",
+      "place": "cove",
+      "npc": "Sloven",
+      "topic": "STON",
+      "chain": "cove.white-stone",
+      "chain_order": 10,
+      "goal": "ask:isaac-stone",
+      "complete_if_recorded": "skara.isaac.white-stone",
+      "complete_on_goal": "stone:white",
+      "en": "Ask Isaac at the inn in {skara} about the white stone.",
+      "ko": "{skara} 여관의 아이작에게 흰 돌에 대해 묻기",
+      "en_u4": "Ask Isaac at the inn in {skara} of the white stone.",
+      "en_us": "Ask Isaac at the inn in {skara} about the white stone."
     },
     {
       "id": "cove.zair.word-of-passage",

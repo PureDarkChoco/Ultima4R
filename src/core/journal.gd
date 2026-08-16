@@ -482,7 +482,7 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return gs.is_person_joined("Jaana")
 	if g == "item:sextant" or g == "sextant":
 		return bool(gs.has_sextant)
-	## talk:first-note / combat:first complete only when the event fires.
+	## talk:first-note / combat:first / shrine:* complete only when the event fires.
 	## mantra:* is a shrine fallback for ask-tips (complete_on_goal), not a pending knowledge goal.
 	return false
 

@@ -58,7 +58,7 @@
         "pronoun": "그",
         "look": "다친 남자다.",
         "job": "영성의 길을\n찾소.",
-        "health": "심각하게\n부상했소.",
+        "health": "부상당했소.",
         "response1": "영성은 어떤\n물질의 힘보다\n강하오.",
         "response2": "원칙의 승리만이\n평화를 주오!",
         "question": "영혼이\n선하오?",
@@ -236,7 +236,7 @@
         "name": "부처",
         "pronoun": "그",
         "look": "위대한 철학자다.",
-        "job": "가르칩니다.",
+        "job": "가르침을 주오.",
         "health": "건강하오.",
         "response1": "모든 생명에\n연민을 품을 때\n고귀해지오.",
         "response2": "순수 생각으로\n말하고 행하면\n행복이 그림자처럼\n따라오오.",
@@ -307,12 +307,12 @@
         "name": "로마스코",
         "pronoun": "그",
         "look": "책을 든 자그마한 남자다.",
-        "job": "선생이오. 어린\n마음을 키우오.",
+        "job": "가르침으로 어린\n마음을 키우오.",
         "health": "괜찮소.",
-        "response1": "{abyss}을\n가르치오.",
-        "response2": "말(진언)에 대해선\n{paws}의 자이르에게\n물으시오.",
+        "response1": "{abyss}의\n가르침을 전하오.",
+        "response2": "{paws}의 자이르에게\n말씀을 더\n물으시오.",
         "question": "{abyss}을 아오?",
-        "yes": "마지막 문에\n통과의 말이\n필요하오!",
+        "yes": "마지막 문에\n통과의 말씀이\n필요하오!",
         "no": "배우시오!",
         "topic1": "가르침",
         "topic1_aliases": [
@@ -344,7 +344,7 @@
         "look": "현명한 마법사다.",
         "job": "마법을\n쓰오.",
         "health": "좋습니다.",
-        "response1": "무언가 믿으며\n살소.",
+        "response1": "무언가에 대한\n믿음으로 살고 있소.",
         "response2": "큰 발견은 생각이\n앞서기 전 감정으로\n달린 자가 하오.",
         "question": "마법을\n믿소?",
         "yes": "마법 화살은\n유황재 한 부분이면\n되오!",
@@ -390,7 +390,7 @@
           "story",
           "stor"
         ],
-        "topic2": "영성",
+        "topic2": "영혼",
         "topic2_aliases": [
           "spirit",
           "spir"
@@ -461,9 +461,10 @@
         "topic1_aliases": [
           "rune"
         ],
-        "topic2": "옴",
+        "topic2": "OM",
         "topic2_aliases": [
-          "om"
+          "om",
+          "옴"
         ]
       }
     },

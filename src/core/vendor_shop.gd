@@ -1209,6 +1209,9 @@ func _t_topic(raw: String) -> void:
 	if _topic_key == "sextant":
 		GameState.journal_mark_id("jhelom.senora.sextant")
 		GameState.journal_mark_goal("ask:barkeep-sextant")
+	if _topic_key == "white stone":
+		GameState.journal_mark_id("skara.mitre.trinsic-tap-stone")
+		GameState.journal_mark_goal("ask:trinsic-tap-stone")
 	_t_foggy()
 
 
@@ -1225,6 +1228,8 @@ func _t_foggy() -> void:
 		_say(rumor)
 		if _topic_key == "sextant" and _locale == "Jhelom":
 			GameState.journal_try_capture("jhelom", "Celestial", "SEXTANT")
+		if _topic_key == "white stone" and _locale == "Trinsic":
+			GameState.journal_try_capture("trinsic", "Terran", "WHITE STONE")
 		_t_something_else()
 		return
 	_say(_L("That subject is a bit foggy, perhaps more gold will refresh my memory. You\ngive:"))

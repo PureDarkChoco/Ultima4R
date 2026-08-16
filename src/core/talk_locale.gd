@@ -330,13 +330,21 @@ static func _ingest_npc(npc: Dictionary) -> void:
 			for a in ko_d[akey]:
 				als.append(_fill_places(str(a).strip_edges()).to_lower())
 		## Primary KO topic label always matches (aliases stay Latin / extras only).
+		var primary_ko := ""
 		if ko_d.has(ti) and not str(ko_d[ti]).is_empty():
-			als.append(_fill_places(str(ko_d[ti]).strip_edges()).to_lower())
+			primary_ko = _fill_places(str(ko_d[ti]).strip_edges())
+			als.append(primary_ko.to_lower())
 		_merge_alias(stem, als)
+		## Latin mantra labels (OM) stay OM on the menu. Hangul aliases (옴)
+		## still match typed input but must not win the gray/white keyword row.
+		var latin_topic := not primary_ko.is_empty() and not word_has_hangul(primary_ko)
 		var hls: Array = []
 		for a in als:
-			if not str(a).is_empty():
-				hls.append(str(a))
+			if str(a).is_empty():
+				continue
+			if latin_topic and word_has_hangul(str(a)):
+				continue
+			hls.append(str(a))
 		_merge_hl(stem, hls)
 		_store_npc_topic(str(npc.get("name", "")), stem, als, hls)
 

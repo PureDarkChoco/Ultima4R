@@ -379,6 +379,10 @@ var _talk_hangul_preedit := ""
 var _talk_keywords: Array = []
 var _talk_turn_away := 0
 var _talk_pending_ask := false
+## True after this NPC has spoken their name (random intro or player asked).
+var _talk_npc_gave_name := false
+## Skara Ankh: OM stays hidden until the "Mantra?" / "만트라?" line.
+var _talk_skara_ankh_om_ready := false
 var _talk_is_hawkwind := false
 var _talk_is_lb := false
 var _shop = null ## _VendorShop session
@@ -3779,15 +3783,10 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_talk_gamepad_requested = false
 	_talk_keyword_menu_active = true
 	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
-	## Start on Job rather than Name — most first interests ask about work.
-	## Hawkwind opens on the first virtue instead.
+	## Hawkwind / LB keep the first row. City NPCs: Name until they give it,
+	## then Job (or a journal shortcut). Do not assume Job on first contact.
 	_talk_keyword_menu_cursor = 0
 	_talk_keyword_menu_scroll = 0
-	if not _talk_is_hawkwind:
-		for i in _talk_keyword_menu_items.size():
-			if str(_talk_keyword_menu_items[i].get("key", "")) == "job":
-				_talk_keyword_menu_cursor = i
-				break
 	_talk_keyword_menu_seen.clear()
 	for item in _talk_keyword_menu_items:
 		_remember_talk_keyword_menu_word(str(item.get("key", "")))
@@ -3807,6 +3806,9 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_GameInput.latch_current_stick_navigation()
 	_seed_talk_latent_keywords()
 	_restore_talk_known_keywords()
+	if _talk_npc_gave_name:
+		_offer_named_npc_journal_keywords()
+	_talk_keyword_menu_apply_intro_default()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
 
@@ -3864,6 +3866,12 @@ func _seed_talk_latent_keywords() -> void:
 		if key.is_empty() or _talk_keyword_menu_seen.has(key):
 			continue
 		if _talk_is_white_builtin_key(key):
+			continue
+		if (
+			_talk_npc_is_skara_ankh(str(_talk_entry.name) if _talk_entry != null else "")
+			and _talk_word_is_om(word)
+			and not _talk_skara_ankh_om_ready
+		):
 			continue
 		var revealed := (
 			_talk_npc_is_iolo()
@@ -3952,6 +3960,9 @@ func _tavern_topic_unlocked(en_name: String) -> bool:
 		return false
 	if want == "sextant":
 		if GameState.journal_has_id("jhelom.senora.sextant"):
+			return true
+	if want == "white stone":
+		if GameState.journal_has_id("skara.mitre.trinsic-tap-stone"):
 			return true
 	for alias in _tavern_topic_aliases(en_name):
 		if GameState.talk_has_heard_word(str(alias)):
@@ -4351,6 +4362,315 @@ func _maybe_offer_moonglow_chain_keyword() -> void:
 	)
 
 
+func _talk_keyword_menu_intro_default_key() -> String:
+	## Menu cursor after greet: Name if they have not said who they are.
+	if _talk_entry == null or not _talk_npc_gave_name:
+		return "name"
+	var entry := _talk_entry
+	var default_key := "job"
+	if (
+		str(entry.name).strip_edges().to_lower() == "azure"
+		and GameState.journal_has_id("minoc.gimble.azure-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif str(entry.name).strip_edges().to_lower() == "mischief":
+		if (
+			GameState.journal_has_id("minoc.azure.mischief-rune")
+			or GameState.journal_has_id("minoc.mischief.forge-rune")
+		):
+			default_key = _talk_keyword_stable_key(
+				"룬" if GameState.lang_short() == "ko" else "rune"
+			)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "alkerion"
+		and GameState.journal_has_id("minoc.mischief.alkerion-stone")
+	):
+		default_key = _talk_keyword_stable_key(
+			"돌" if GameState.lang_short() == "ko" else "stone"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "damon"
+		and GameState.journal_has_id("minoc.merida.damon-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "singsong"
+		and GameState.journal_has_id("minoc.damon.bard-song")
+	):
+		default_key = _talk_keyword_stable_key(
+			"가사" if GameState.lang_short() == "ko" else "song"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "zircon"
+		and GameState.journal_has_id("lcb.seesha.zircon-mystics")
+	):
+		default_key = _talk_keyword_stable_key(
+			"신비" if GameState.lang_short() == "ko" else "mystic"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "pepper"
+		and GameState.journal_has_id("britain.sprite.pepper-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "cricket"
+		and GameState.journal_has_id("britain.child.cricket-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "julio"
+		and GameState.journal_has_id("britain.shapero.julio-compassion")
+	):
+		default_key = _talk_keyword_stable_key(
+			"연민" if GameState.lang_short() == "ko" else "compassion"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "william"
+		and GameState.journal_has_id("moonglow.christen.william-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "nostro"
+		and GameState.journal_has_id("jhelom.robert.nostro-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "aesop"
+		and GameState.journal_has_id("jhelom.hrothgar.aesop-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "talfourd"
+		and GameState.journal_has_id("yew.druid.talfourd-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "silent"
+		and GameState.journal_has_id("yew.pinrod.druids-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"직업" if GameState.lang_short() == "ko" else "job"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "winthrop"
+		and GameState.journal_has_id("trinsic.kline.winthrop-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "terrin"
+		and GameState.journal_has_id("trinsic.winthrop.terrin-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "ambule"
+		and GameState.journal_has_id("skara.granted.ambule-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "barren"
+		and GameState.journal_has_id("skara.ambule.barren-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif _talk_npc_is_skara_ankh(str(entry.name)):
+		if _talk_skara_ankh_om_ready:
+			default_key = _talk_keyword_stable_key("om")
+		elif GameState.journal_has_id("skara.granted.ankh-rune"):
+			default_key = _talk_keyword_stable_key(
+				"룬" if GameState.lang_short() == "ko" else "rune"
+			)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "isaac"
+		and GameState.journal_has_id("cove.sloven.isaac-stone")
+	):
+		default_key = _talk_keyword_stable_key(
+			"돌" if GameState.lang_short() == "ko" else "stone"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "heywood"
+		and GameState.journal_has_id("magincia.casperin.heywood-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "faultless"
+		and GameState.journal_has_id("magincia.heywood.faultless-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "wierdrum"
+		and GameState.journal_has_id("magincia.banter.wierdrum-shrine")
+	):
+		default_key = _talk_keyword_stable_key(
+			"사원" if GameState.lang_short() == "ko" else "shrine"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "demitry"
+		and GameState.journal_has_id("magincia.banter.demitry-horn")
+	):
+		default_key = _talk_keyword_stable_key(
+			"뿔" if GameState.lang_short() == "ko" else "horn"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "nate"
+		and (
+			GameState.journal_has_id("magincia.ruskin.nate-rune")
+			or GameState.journal_has_id("magincia.splot.nate-rune")
+		)
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		_talk_city_id() == "paws"
+		and str(entry.name).strip_edges().to_lower() == "barren"
+		and GameState.journal_has_id("magincia.nate.barren-rune")
+	):
+		default_key = _talk_keyword_stable_key(
+			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		_talk_city_id() == "paws"
+		and str(entry.name).strip_edges().to_lower()
+		in ["sir simon", "lady tessa"]
+		and GameState.journal_has_id("minoc.zircon.mystic-arms")
+	):
+		default_key = _talk_keyword_stable_key(
+			"신비" if GameState.lang_short() == "ko" else "mystic"
+		)
+	elif (
+		_talk_city_id() == "cove"
+		and str(entry.name).strip_edges().to_lower() == "blissful"
+		and GameState.journal_has_id("cove.allen.blissful-abyss")
+	):
+		default_key = _talk_keyword_stable_key(
+			"심연" if GameState.lang_short() == "ko" else "abyss"
+		)
+	elif (
+		_talk_city_id() == "cove"
+		and _talk_npc_is_cove_ankh(str(entry.name))
+		and GameState.journal_has_id("cove.blissful.ankh-chamber")
+	):
+		default_key = _talk_keyword_stable_key(
+			"방" if GameState.lang_short() == "ko" else "chamber"
+		)
+	elif (
+		_talk_city_id() == "cove"
+		and str(entry.name).strip_edges().to_lower() == "merlin"
+		and GameState.journal_has_id("cove.merlin.black-stone")
+	):
+		default_key = _talk_keyword_stable_key(
+			"달문" if GameState.lang_short() == "ko" else "gate"
+		)
+	elif (
+		_talk_city_id() == "empath"
+		and str(entry.name).strip_edges().to_lower() == "malchor"
+		and GameState.journal_has_id("empath.suzanna.malchor-horn")
+	):
+		default_key = _talk_keyword_stable_key(
+			"뿔" if GameState.lang_short() == "ko" else "horn"
+		)
+	elif (
+		_talk_city_id() == "empath"
+		and str(entry.name).strip_edges().to_lower() == "suzanna"
+		and GameState.journal_has_id("magincia.demitry.suzanna-horn")
+	):
+		default_key = _talk_keyword_stable_key(
+			"뿔" if GameState.lang_short() == "ko" else "horn"
+		)
+	elif (
+		_talk_city_id() == "empath"
+		and str(entry.name).strip_edges().to_lower() == "derek the bard"
+		and GameState.journal_has_id("empath.life.derek-candle")
+	):
+		default_key = _talk_keyword_stable_key(
+			"촛대" if GameState.lang_short() == "ko" else "candle"
+		)
+	elif (
+		_talk_city_id() == "lycaeum"
+		and str(entry.name).strip_edges().to_lower() == "lord terence"
+		and GameState.journal_has_id("lycaeum.father-antos.book")
+	):
+		default_key = _talk_keyword_stable_key(
+			"진리" if GameState.lang_short() == "ko" else "truth"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "garam"
+		and GameState.journal_has_id("serpent.sister-antos.garam-bell")
+	):
+		default_key = _talk_keyword_stable_key(
+			"종" if GameState.lang_short() == "ko" else "bell"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "lassorn"
+		and GameState.journal_has_id("serpent.noxum.lassorn-wheel")
+	):
+		default_key = _talk_keyword_stable_key(
+			"타륜" if GameState.lang_short() == "ko" else "wheel"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "shyra"
+		and GameState.journal_has_id("serpent.ranger.shrya-rooms")
+	):
+		default_key = _talk_keyword_stable_key(
+			"방" if GameState.lang_short() == "ko" else "room"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "durham"
+		and GameState.journal_has_id("serpent.treasure-guard.durham")
+	):
+		default_key = _talk_keyword_stable_key(
+			"던전" if GameState.lang_short() == "ko" else "dungeon"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "roderick"
+		and GameState.journal_has_id("britain.thevel.roderick-orbs")
+	):
+		default_key = _talk_keyword_stable_key(
+			"오브" if GameState.lang_short() == "ko" else "orbs"
+		)
+	return default_key
+
+
+func _talk_keyword_menu_apply_intro_default() -> void:
+	if not _talk_keyword_menu_active or _talk_is_hawkwind or _talk_is_lb:
+		return
+	_talk_keyword_menu_focus_key(_talk_keyword_menu_intro_default_key())
+	_rebuild_command_menu_rows()
+	_layout_command_menu_layer()
+
+
 func _talk_keyword_menu_focus_key(want: String) -> void:
 	if want.is_empty() or _talk_keyword_menu_items.is_empty():
 		return
@@ -4468,6 +4788,34 @@ func _talk_npc_is_skara_ankh(npc_name: String) -> bool:
 	)
 
 
+func _talk_word_is_om(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["om", "옴"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _offer_skara_ankh_om_keyword() -> void:
+	var om_key := _talk_keyword_stable_key("om")
+	_offer_talk_keyword_item(om_key, "OM", "om")
+
+
+func _unlock_skara_ankh_om_keyword() -> void:
+	## After "Mantra?" / "만트라?" — add OM only if Barren already taught it.
+	if not GameState.journal_has_id("skara.barren.spirituality-mantra"):
+		return
+	_talk_skara_ankh_om_ready = true
+	if not _talk_keyword_menu_active:
+		return
+	_offer_skara_ankh_om_keyword()
+	_talk_keyword_menu_focus_key(_talk_keyword_stable_key("om"))
+	_rebuild_command_menu_rows()
+	_layout_command_menu_layer()
+
+
 func _maybe_offer_skara_chain_keyword() -> void:
 	## Skara: Ambule/Barren mantra chain; Ankh rune (Rune then Om).
 	if not _talk_keyword_menu_active or _talk_entry == null:
@@ -4499,13 +4847,8 @@ func _maybe_offer_skara_chain_keyword() -> void:
 			"만트라" if korean else "mantra"
 		)
 	elif _talk_npc_is_skara_ankh(str(_talk_entry.name)):
-		if GameState.journal_has_id("skara.barren.spirituality-mantra"):
-			var om_key := _talk_keyword_stable_key("옴" if korean else "om")
-			_offer_talk_keyword_item(
-				om_key,
-				"옴" if korean else "Om",
-				"옴" if korean else "om"
-			)
+		if _talk_skara_ankh_om_ready:
+			_offer_skara_ankh_om_keyword()
 		if GameState.journal_has_id("skara.granted.ankh-rune"):
 			var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
 			_offer_talk_keyword_item(
@@ -4513,6 +4856,16 @@ func _maybe_offer_skara_chain_keyword() -> void:
 				"룬" if korean else "Rune",
 				"룬" if korean else "rune"
 			)
+	elif (
+		npc == "isaac"
+		and GameState.journal_has_id("cove.sloven.isaac-stone")
+	):
+		var stone_key := _talk_keyword_stable_key("돌" if korean else "stone")
+		_offer_talk_keyword_item(
+			stone_key,
+			"돌" if korean else "Stone",
+			"돌" if korean else "stone"
+		)
 
 
 func _maybe_offer_magincia_chain_keyword() -> void:
@@ -4754,6 +5107,12 @@ func _restore_talk_known_keywords() -> void:
 				GameState.talk_remember_keyword(npc_id, stored)
 	var korean := GameState.lang_short() == "ko"
 	for stored in stored_keys:
+		if (
+			_talk_npc_is_skara_ankh(str(_talk_entry.name) if _talk_entry != null else "")
+			and _talk_word_is_om(stored)
+			and not _talk_skara_ankh_om_ready
+		):
+			continue
 		if _reveal_talk_keyword_if_latent(stored) != 0:
 			continue
 		if _talk_keyword_menu_seen.has(stored):
@@ -4798,6 +5157,16 @@ func _maybe_offer_paws_chain_keyword() -> void:
 			mystic_key,
 			"신비" if korean else "Mystic",
 			"신비" if korean else "mystic"
+		)
+	elif (
+		npc == "zair the wise"
+		and GameState.journal_has_id("skara.romasco.zair-word")
+	):
+		var word_key := _talk_keyword_stable_key("말씀" if korean else "word")
+		_offer_talk_keyword_item(
+			word_key,
+			"말씀" if korean else "Word",
+			"말씀" if korean else "word"
 		)
 
 
@@ -4864,6 +5233,16 @@ func _maybe_offer_cove_chain_keyword() -> void:
 			gate_key,
 			"달문" if korean else "Gate",
 			"달문" if korean else "gate"
+		)
+	elif (
+		npc == "brother zair"
+		and GameState.journal_has_id("paws.zair.brother-word")
+	):
+		var word_key := _talk_keyword_stable_key("말씀" if korean else "word")
+		_offer_talk_keyword_item(
+			word_key,
+			"말씀" if korean else "Word",
+			"말씀" if korean else "word"
 		)
 
 
@@ -10446,6 +10825,9 @@ func _try_enter_shrine(portal: Dictionary) -> void:
 	_shrine_buffer = ""
 	_shrine_ejecting = false
 	_shrine_session = true
+	if virtue == Virtues.Id.SPIRITUALITY:
+		if GameState.journal_mark_goal("shrine:spirituality"):
+			_refresh_journal_panel()
 	_sync_music()
 	_stamp_command_time()
 	_shrine_enter_async()
@@ -12844,6 +13226,8 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_reset_talk_hangul()
 	_talk_turn_away = int(entry.turn_away)
 	_talk_pending_ask = false
+	_talk_npc_gave_name = false
+	_talk_skara_ankh_om_ready = false
 	_talk_keywords = entry.highlight_keywords(_talk_city_id())
 	_begin_talk_keyword_menu_if_requested()
 	_city_map.pause_follow(person_i)
@@ -12851,304 +13235,11 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_open_talk_message_panel()
 	## "You meet %s"
 	_push_talk_script("You meet %s" % str(entry.look))
-	## 50% self-introduction.
-	var introduced_name := (randi() % 2) != 0
-	if introduced_name:
+	## Classic xu4: half the time the NPC gives their name unprompted.
+	if (randi() % 2) != 0:
 		_talk_say_name()
-	## If the NPC already gave their name, continue naturally with Job.
-	## Otherwise leave Name selected so the player can ask who they are.
 	if _talk_keyword_menu_active:
-		var default_key := "job" if introduced_name else "name"
-		## Journal shortcuts after this NPC has given their name.
-		if introduced_name:
-			if (
-				str(entry.name).strip_edges().to_lower() == "azure"
-				and GameState.journal_has_id("minoc.gimble.azure-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif str(entry.name).strip_edges().to_lower() == "mischief":
-				if (
-					GameState.journal_has_id("minoc.azure.mischief-rune")
-					or GameState.journal_has_id("minoc.mischief.forge-rune")
-				):
-					default_key = _talk_keyword_stable_key(
-						"룬" if GameState.lang_short() == "ko" else "rune"
-					)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "alkerion"
-				and GameState.journal_has_id("minoc.mischief.alkerion-stone")
-			):
-				default_key = _talk_keyword_stable_key(
-					"돌" if GameState.lang_short() == "ko" else "stone"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "damon"
-				and GameState.journal_has_id("minoc.merida.damon-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "singsong"
-				and GameState.journal_has_id("minoc.damon.bard-song")
-			):
-				default_key = _talk_keyword_stable_key(
-					"가사" if GameState.lang_short() == "ko" else "song"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "zircon"
-				and GameState.journal_has_id("lcb.seesha.zircon-mystics")
-			):
-				default_key = _talk_keyword_stable_key(
-					"신비" if GameState.lang_short() == "ko" else "mystic"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "pepper"
-				and GameState.journal_has_id("britain.sprite.pepper-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "cricket"
-				and GameState.journal_has_id("britain.child.cricket-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "julio"
-				and GameState.journal_has_id("britain.shapero.julio-compassion")
-			):
-				default_key = _talk_keyword_stable_key(
-					"연민" if GameState.lang_short() == "ko" else "compassion"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "william"
-				and GameState.journal_has_id("moonglow.christen.william-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "nostro"
-				and GameState.journal_has_id("jhelom.robert.nostro-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "aesop"
-				and GameState.journal_has_id("jhelom.hrothgar.aesop-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "talfourd"
-				and GameState.journal_has_id("yew.druid.talfourd-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "silent"
-				and GameState.journal_has_id("yew.pinrod.druids-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"직업" if GameState.lang_short() == "ko" else "job"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "winthrop"
-				and GameState.journal_has_id("trinsic.kline.winthrop-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "terrin"
-				and GameState.journal_has_id("trinsic.winthrop.terrin-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "ambule"
-				and GameState.journal_has_id("skara.granted.ambule-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "barren"
-				and GameState.journal_has_id("skara.ambule.barren-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif _talk_npc_is_skara_ankh(str(entry.name)):
-				if GameState.journal_has_id("skara.barren.spirituality-mantra"):
-					default_key = _talk_keyword_stable_key(
-						"옴" if GameState.lang_short() == "ko" else "om"
-					)
-				elif GameState.journal_has_id("skara.granted.ankh-rune"):
-					default_key = _talk_keyword_stable_key(
-						"룬" if GameState.lang_short() == "ko" else "rune"
-					)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "heywood"
-				and GameState.journal_has_id("magincia.casperin.heywood-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "faultless"
-				and GameState.journal_has_id("magincia.heywood.faultless-mantra")
-			):
-				default_key = _talk_keyword_stable_key(
-					"만트라" if GameState.lang_short() == "ko" else "mantra"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "wierdrum"
-				and GameState.journal_has_id("magincia.banter.wierdrum-shrine")
-			):
-				default_key = _talk_keyword_stable_key(
-					"사원" if GameState.lang_short() == "ko" else "shrine"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "demitry"
-				and GameState.journal_has_id("magincia.banter.demitry-horn")
-			):
-				default_key = _talk_keyword_stable_key(
-					"뿔" if GameState.lang_short() == "ko" else "horn"
-				)
-			elif (
-				str(entry.name).strip_edges().to_lower() == "nate"
-				and (
-					GameState.journal_has_id("magincia.ruskin.nate-rune")
-					or GameState.journal_has_id("magincia.splot.nate-rune")
-				)
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				_talk_city_id() == "paws"
-				and str(entry.name).strip_edges().to_lower() == "barren"
-				and GameState.journal_has_id("magincia.nate.barren-rune")
-			):
-				default_key = _talk_keyword_stable_key(
-					"룬" if GameState.lang_short() == "ko" else "rune"
-				)
-			elif (
-				_talk_city_id() == "paws"
-				and str(entry.name).strip_edges().to_lower()
-				in ["sir simon", "lady tessa"]
-				and GameState.journal_has_id("minoc.zircon.mystic-arms")
-			):
-				default_key = _talk_keyword_stable_key(
-					"신비" if GameState.lang_short() == "ko" else "mystic"
-				)
-			elif (
-				_talk_city_id() == "cove"
-				and str(entry.name).strip_edges().to_lower() == "blissful"
-				and GameState.journal_has_id("cove.allen.blissful-abyss")
-			):
-				default_key = _talk_keyword_stable_key(
-					"심연" if GameState.lang_short() == "ko" else "abyss"
-				)
-			elif (
-				_talk_city_id() == "cove"
-				and _talk_npc_is_cove_ankh(str(entry.name))
-				and GameState.journal_has_id("cove.blissful.ankh-chamber")
-			):
-				default_key = _talk_keyword_stable_key(
-					"방" if GameState.lang_short() == "ko" else "chamber"
-				)
-			elif (
-				_talk_city_id() == "cove"
-				and str(entry.name).strip_edges().to_lower() == "merlin"
-				and GameState.journal_has_id("cove.merlin.black-stone")
-			):
-				default_key = _talk_keyword_stable_key(
-					"달문" if GameState.lang_short() == "ko" else "gate"
-				)
-			elif (
-				_talk_city_id() == "empath"
-				and str(entry.name).strip_edges().to_lower() == "malchor"
-				and GameState.journal_has_id("empath.suzanna.malchor-horn")
-			):
-				default_key = _talk_keyword_stable_key(
-					"뿔" if GameState.lang_short() == "ko" else "horn"
-				)
-			elif (
-				_talk_city_id() == "empath"
-				and str(entry.name).strip_edges().to_lower() == "suzanna"
-				and GameState.journal_has_id("magincia.demitry.suzanna-horn")
-			):
-				default_key = _talk_keyword_stable_key(
-					"뿔" if GameState.lang_short() == "ko" else "horn"
-				)
-			elif (
-				_talk_city_id() == "empath"
-				and str(entry.name).strip_edges().to_lower() == "derek the bard"
-				and GameState.journal_has_id("empath.life.derek-candle")
-			):
-				default_key = _talk_keyword_stable_key(
-					"촛대" if GameState.lang_short() == "ko" else "candle"
-				)
-			elif (
-				_talk_city_id() == "lycaeum"
-				and str(entry.name).strip_edges().to_lower() == "lord terence"
-				and GameState.journal_has_id("lycaeum.father-antos.book")
-			):
-				default_key = _talk_keyword_stable_key(
-					"진리" if GameState.lang_short() == "ko" else "truth"
-				)
-			elif (
-				_talk_city_id() == "serpent"
-				and str(entry.name).strip_edges().to_lower() == "garam"
-				and GameState.journal_has_id("serpent.sister-antos.garam-bell")
-			):
-				default_key = _talk_keyword_stable_key(
-					"종" if GameState.lang_short() == "ko" else "bell"
-				)
-			elif (
-				_talk_city_id() == "serpent"
-				and str(entry.name).strip_edges().to_lower() == "lassorn"
-				and GameState.journal_has_id("serpent.noxum.lassorn-wheel")
-			):
-				default_key = _talk_keyword_stable_key(
-					"타륜" if GameState.lang_short() == "ko" else "wheel"
-				)
-			elif (
-				_talk_city_id() == "serpent"
-				and str(entry.name).strip_edges().to_lower() == "shyra"
-				and GameState.journal_has_id("serpent.ranger.shrya-rooms")
-			):
-				default_key = _talk_keyword_stable_key(
-					"방" if GameState.lang_short() == "ko" else "room"
-				)
-			elif (
-				_talk_city_id() == "serpent"
-				and str(entry.name).strip_edges().to_lower() == "durham"
-				and GameState.journal_has_id("serpent.treasure-guard.durham")
-			):
-				default_key = _talk_keyword_stable_key(
-					"던전" if GameState.lang_short() == "ko" else "dungeon"
-				)
-			elif (
-				_talk_city_id() == "serpent"
-				and str(entry.name).strip_edges().to_lower() == "roderick"
-				and GameState.journal_has_id("britain.thevel.roderick-orbs")
-			):
-				default_key = _talk_keyword_stable_key(
-					"오브" if GameState.lang_short() == "ko" else "orbs"
-				)
-		_talk_keyword_menu_focus_key(default_key)
+		_talk_keyword_menu_apply_intro_default()
 		_layout_command_menu_layer()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
@@ -13237,8 +13328,10 @@ func _talk_say_name() -> void:
 	var e := _talk_entry
 	if e == null:
 		return
+	_talk_npc_gave_name = true
 	_push_talk_script("%s says: I am %s" % [str(e.pronoun), str(e.name)])
 	_offer_named_npc_journal_keywords()
+	_talk_keyword_menu_apply_intro_default()
 	if str(e.name).strip_edges().to_lower() == "zorin":
 		if _maybe_complete_manual_zorin_tip():
 			_refresh_journal_panel()
@@ -13929,6 +14022,11 @@ func _talk_process_keyword(input: String) -> void:
 			and GameState.can_person_join_name(str(e.name))
 		):
 			_offer_talk_join_keyword()
+		if (
+			_talk_npc_is_skara_ankh(str(e.name))
+			and kind == _TalkTlk.REPLY_TOPIC1
+		):
+			_unlock_skara_ankh_om_keyword()
 		if _TalkTlk.should_ask_after(e, kind):
 			_talk_stage = 2
 			_talk_pending_ask = true
@@ -14139,9 +14237,23 @@ func _talk_answer_yn(yes: bool) -> void:
 			journal_changed = true
 		if GameState.journal_mark_goal("ask:winthrop-rune"):
 			journal_changed = true
+	## Mitre (Skara): Yes after Stone points to the Tap in Trinsic.
+	if yes and npc_key == "mitre":
+		if GameState.journal_try_capture_talk("skara", "Mitre", "STON_YES"):
+			journal_changed = true
+		GameState.talk_remember_heard_word("white stone")
+		GameState.talk_remember_heard_word("흰 돌")
+		GameState.talk_remember_heard_word("흰돌")
+		GameState.talk_remember_heard_word("백석")
 	## Granted (Skara): Yes after Money points to the Ankh (rune) and Ambule (mantra).
 	if yes and npc_key == "granted":
 		if GameState.journal_try_capture_talk("skara", "Granted", "MONE_YES"):
+			journal_changed = true
+	## Ankh of Spirituality: No after the shrine question — full-moon gate.
+	if not yes and _talk_npc_is_skara_ankh(str(e.name)):
+		if GameState.journal_try_capture_talk(
+			"skara", "the Ankh of\nSpirituality", "SHRI_NO"
+		):
 			journal_changed = true
 	## Banter (Magincia): Yes after Shrine points to Demitry and the silver horn.
 	if (
@@ -14452,6 +14564,8 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_keywords.clear()
 	_talk_turn_away = 0
 	_talk_pending_ask = false
+	_talk_npc_gave_name = false
+	_talk_skara_ankh_om_ready = false
 	_talk_is_hawkwind = false
 	_talk_is_lb = false
 	_shop = null
@@ -17040,6 +17154,26 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("skara.ambule.barren-mantra"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:barren-mantra"):
+			refresh = true
+	if place == "skara" and npc_key == "isaac" and topic == "STON":
+		if GameState.journal_mark_id("cove.sloven.isaac-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:isaac-stone"):
+			refresh = true
+	if place == "cove" and npc_key == "sloven" and topic == "STON":
+		if GameState.journal_mark_id("trinsic.terran.sloven-white-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:sloven-stone"):
+			refresh = true
+	if place == "paws" and npc_key == "zair the wise" and topic == "WORD":
+		if GameState.journal_mark_id("skara.romasco.zair-word"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:zair-word"):
+			refresh = true
+	if place == "cove" and npc_key == "brother zair" and topic == "WORD":
+		if GameState.journal_mark_id("paws.zair.brother-word"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:brother-zair-word"):
 			refresh = true
 	if (
 		place == "skara"
