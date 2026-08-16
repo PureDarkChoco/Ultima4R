@@ -1,13 +1,18 @@
 class_name DungeonView
 extends RefCounted
 
-## First-person corridor renderer. Shared geometry; theme textures swap per dungeon.
+## First-person corridor: 9 rings 3:3:3:2:2:2:3:3:3 (24 units).
+## Draw current + 4 cells ahead. Cell +5 is wall/not-wall only.
 
 const _DungeonMap := preload("res://src/map/dungeon_map_data.gd")
 const _U4TileBank := preload("res://src/map/u4_tile_bank.gd")
 
 const ASSET_ROOT := "res://assets/dungeon"
-const MAX_DEPTH := 3
+const MAX_DEPTH := 4
+const PEEK_DEPTH := 5
+const RING_CUMUL: Array[int] = [0, 3, 6, 9, 11, 13]
+const RING_DENOM := 24
+const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 const TILE_CHEST := 60
 const TILE_LADDER_UP := 27
 const TILE_LADDER_DOWN := 28
@@ -28,6 +33,7 @@ func set_theme(id: String) -> void:
 		return
 	theme_id = id
 	_theme_loaded = id
+	## One tile per kind — crop/scale by depth instead of swapping patterns.
 	_wall = _load_png("%s/%s/wall.png" % [ASSET_ROOT, id])
 	_floor = _load_png("%s/%s/floor.png" % [ASSET_ROOT, id])
 	_entrance = _load_png("%s/%s/room_entrance.png" % [ASSET_ROOT, id])
@@ -52,28 +58,36 @@ func paint(
 		return
 	if _wall == null:
 		set_theme(theme_id)
-	buf.fill(_shade_color(Color(0.04, 0.03, 0.03, 1), 0.15))
-	_paint_floor_ceiling(buf, w, h)
-	for depth in range(MAX_DEPTH, -1, -1):
+	buf.fill(Color(0, 0, 0, 1))
+	var reached_far := true
+	for depth in range(0, MAX_DEPTH + 1):
 		var cell := _ahead(dmap, pos, dir, depth)
 		var left := _left_of(dmap, cell, dir)
 		var right := _right_of(dmap, cell, dir)
-		var geom := _depth_geom(w, h, depth)
-		if dmap.looks_like_wall(left.x, left.y, z):
-			_blit_side(buf, _wall, geom, true, _falloff(depth))
-		if dmap.looks_like_wall(right.x, right.y, z):
-			_blit_side(buf, _wall, geom, false, _falloff(depth))
+		var dim := _falloff(depth)
 		var tok: int = dmap.token_at(cell.x, cell.y, z)
-		if tok == _DungeonMap.TOK_WALL or (
-			tok == _DungeonMap.TOK_SECRET and not dmap.is_secret_revealed(cell.x, cell.y, z)
-		):
-			_blit_front(buf, _wall, geom, _falloff(depth))
-			continue
+		var geom := _depth_geom(w, h, depth)
+		if _is_blocking_wall(dmap, cell, z):
+			_blit_rect(buf, _tex_front(depth), _front_rect(depth, w, h), dim)
+			reached_far = false
+			break
 		if tok == _DungeonMap.TOK_ROOM or tok == _DungeonMap.TOK_DOOR:
-			_blit_front(buf, _entrance, geom, _falloff(depth))
-		elif tok == _DungeonMap.TOK_SECRET:
-			_blit_front(buf, _entrance, geom, _falloff(depth) * 0.85)
-		_paint_cell_object(buf, dmap, cell, z, geom, _falloff(depth))
+			_blit_rect(buf, _tex_entrance(depth), _front_rect(depth, w, h), dim)
+			reached_far = false
+			break
+		_paint_floor_slab(buf, geom, dim, depth)
+		_paint_ceiling_slab(buf, geom, dim, depth)
+		if dmap.looks_like_wall(left.x, left.y, z):
+			_blit_side_trap(buf, _tex_side(depth), geom, true, dim * 0.72)
+		else:
+			_blit_side_open_rect(buf, geom, true, _falloff(depth + 1), depth)
+		if dmap.looks_like_wall(right.x, right.y, z):
+			_blit_side_trap(buf, _tex_side(depth), geom, false, dim * 0.58)
+		else:
+			_blit_side_open_rect(buf, geom, false, _falloff(depth + 1), depth)
+		_paint_cell_object(buf, dmap, cell, z, depth, w, h, dim)
+	if reached_far:
+		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
 
 
 func _ahead(dmap, pos: Vector2i, dir: int, depth: int) -> Vector2i:
@@ -91,61 +105,180 @@ func _right_of(dmap, pos: Vector2i, dir: int) -> Vector2i:
 	return dmap.neighbor(pos.x, pos.y, posmod(dir + 1, 4))
 
 
+func _is_blocking_wall(dmap, cell: Vector2i, z: int) -> bool:
+	var tok: int = dmap.token_at(cell.x, cell.y, z)
+	if tok == _DungeonMap.TOK_WALL:
+		return true
+	if tok == _DungeonMap.TOK_SECRET and not bool(dmap.is_secret_revealed(cell.x, cell.y, z)):
+		return true
+	return false
+
+
+func _paint_peek_wall(buf: Image, dmap, pos: Vector2i, z: int, dir: int, w: int, h: int) -> void:
+	## +5: only whether a wall closes the vanishing square.
+	var cell := _ahead(dmap, pos, dir, PEEK_DEPTH)
+	if not _is_blocking_wall(dmap, cell, z):
+		return
+	_blit_rect(
+		buf,
+		_tex_front(MAX_DEPTH),
+		_front_rect(MAX_DEPTH, w, h),
+		_falloff(PEEK_DEPTH)
+	)
+
+
+func _ring(size: int, i: int) -> int:
+	var idx := clampi(i, 0, RING_CUMUL.size() - 1)
+	return int(round(float(size) * float(RING_CUMUL[idx]) / float(RING_DENOM)))
+
+
 func _depth_geom(w: int, h: int, depth: int) -> Dictionary:
-	var t := float(depth) / float(MAX_DEPTH + 1)
-	var t2 := float(depth + 1) / float(MAX_DEPTH + 1)
-	var inset0 := int(w * (0.04 + t * 0.32))
-	var inset1 := int(w * (0.04 + t2 * 0.32))
-	var top0 := int(h * (0.06 + t * 0.22))
-	var top1 := int(h * (0.06 + t2 * 0.22))
-	var bot0 := h - int(h * (0.08 + t * 0.20))
-	var bot1 := h - int(h * (0.08 + t2 * 0.20))
+	## Trapezoid from this depth's frame to the next.
+	var near := _front_rect(depth, w, h)
+	var far := _front_rect(depth + 1, w, h)
+	if depth >= MAX_DEPTH:
+		far = Rect2i(
+			near.position.x + near.size.x / 2,
+			near.position.y + near.size.y / 2,
+			0,
+			0
+		)
 	return {
-		"x0": inset0, "x1": w - inset0, "y0": top0, "y1": bot0,
-		"nx0": inset1, "nx1": w - inset1, "ny0": top1, "ny1": bot1,
-		"w": w, "h": h, "depth": depth,
+		"x0": near.position.x,
+		"y0": near.position.y,
+		"x1": near.position.x + near.size.x,
+		"y1": near.position.y + near.size.y,
+		"nx0": far.position.x,
+		"ny0": far.position.y,
+		"nx1": far.position.x + far.size.x,
+		"ny1": far.position.y + far.size.y,
+		"w": w,
+		"h": h,
+		"depth": depth,
 	}
 
 
+func _front_rect(depth: int, w: int, h: int) -> Rect2i:
+	var d := clampi(depth, 0, RING_CUMUL.size() - 1)
+	var x0 := _ring(w, d)
+	var y0 := _ring(h, d)
+	return Rect2i(x0, y0, maxi(w - 2 * x0, 1), maxi(h - 2 * y0, 1))
+
+
 func _falloff(depth: int) -> float:
-	return clampf(1.0 - float(depth) * 0.22, 0.28, 1.0)
+	## Near stays readable; +5 is almost black.
+	return clampf(lerpf(1.0, 0.05, float(depth) / float(PEEK_DEPTH)), 0.05, 1.0)
 
 
-func _paint_floor_ceiling(buf: Image, w: int, h: int) -> void:
-	var horizon := int(h * 0.42)
-	if _floor != null:
-		for y in range(horizon, h):
-			var u := float(y - horizon) / float(maxi(h - horizon, 1))
-			var inset := int(w * (0.36 * (1.0 - u)))
-			var src_y := clampi(int(u * float(_floor.get_height() - 1)), 0, _floor.get_height() - 1)
-			var dim := 0.35 + u * 0.55
-			for x in range(inset, w - inset):
-				var src_x := int(float(x - inset) / float(maxi(w - inset * 2, 1)) * float(_floor.get_width() - 1))
-				var c := _floor.get_pixel(src_x, src_y)
-				buf.set_pixel(x, y, _shade_color(c, dim))
-	if _wall != null:
-		for y in range(0, horizon):
-			var u := 1.0 - float(y) / float(maxi(horizon, 1))
-			var inset := int(w * (0.36 * (1.0 - u)))
-			var src_y := clampi(int((1.0 - u) * float(_wall.get_height() - 1)), 0, _wall.get_height() - 1)
-			var dim := 0.18 + u * 0.22
-			for x in range(inset, w - inset):
-				var src_x := int(float(x - inset) / float(maxi(w - inset * 2, 1)) * float(_wall.get_width() - 1))
-				var c := _wall.get_pixel(src_x, src_y)
-				buf.set_pixel(x, y, _shade_color(c, dim))
+func _tex_front(_depth: int = 0) -> Image:
+	return _wall
 
 
-func _blit_front(buf: Image, src: Image, geom: Dictionary, dim: float) -> void:
+func _tex_side(_depth: int = 0) -> Image:
+	return _wall
+
+
+func _tex_floor(_depth: int = 0) -> Image:
+	return _floor
+
+
+func _tex_entrance(_depth: int = 0) -> Image:
+	return _entrance
+
+
+func _paint_floor_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> void:
+	## Horizontal bands only — scanlines stay level, left/right edges are the diagonals.
+	_blit_hband_quad(
+		buf, _tex_floor(depth),
+		float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
+		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
+		dim, false
+	)
+
+
+func _paint_ceiling_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> void:
+	_blit_hband_quad(
+		buf, _tex_front(depth),
+		float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
+		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
+		dim * 0.38, true
+	)
+
+
+func _blit_hband_quad(
+	buf: Image,
+	src: Image,
+	x0: float,
+	x1: float,
+	y_near: int,
+	nx0: float,
+	nx1: float,
+	y_far: int,
+	dim: float,
+	flip_v: bool
+) -> void:
 	if src == null:
 		return
-	var x0 := int(geom["nx0"])
-	var x1 := int(geom["nx1"])
+	var y_a := mini(y_near, y_far)
+	var y_b := maxi(y_near, y_far)
+	var y_span := float(y_far - y_near)
+	if y_b <= y_a or absf(y_span) < 0.5:
+		return
+	var sw := src.get_width()
+	var sh := src.get_height()
+	var bw := buf.get_width()
+	var bh := buf.get_height()
+	for y in range(y_a, y_b):
+		if y < 0 or y >= bh:
+			continue
+		var t := clampf(float(y - y_near) / y_span, 0.0, 1.0)
+		var xl := int(lerpf(x0, nx0, t))
+		var xr := int(lerpf(x1, nx1, t))
+		if xr <= xl:
+			continue
+		var v := (1.0 - t) if flip_v else t
+		var sy := clampi(int(v * float(sh - 1)), 0, sh - 1)
+		var row_dim := dim * (1.0 - t * 0.18)
+		for x in range(xl, xr):
+			if x < 0 or x >= bw:
+				continue
+			## Repeat horizontally so grout does not converge to a vanishing point.
+			var sx := posmod(x - xl, sw)
+			var c := src.get_pixel(sx, sy)
+			buf.set_pixel(x, y, _shade_color(c, row_dim))
+
+
+func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
+	## Visible alcove width / one cell at the far plane (same scale as that front wall).
+	var far_w := int(geom["nx1"]) - int(geom["nx0"])
+	var dest_w := dest_x1 - dest_x0
+	if far_w <= 0 or dest_w <= 0:
+		return 1.0
+	return float(dest_w) / float(far_w)
+
+
+func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
+	## Open alcove: crop (window / far-cell) of the next-depth tile and fill the dest.
+	var x0 := int(geom["x0"] if left else geom["nx1"])
+	var x1 := int(geom["nx0"] if left else geom["x1"])
 	var y0 := int(geom["ny0"])
 	var y1 := int(geom["ny1"])
-	_blit_scaled(buf, src, x0, y0, x1, y1, dim)
+	if x1 <= x0 or y1 <= y0:
+		return
+	var span := _open_side_src_span(geom, x0, x1)
+	## Inner (corridor) edge of the far-plane tile, matching Z's scale.
+	var u0 := (1.0 - span) if left else 0.0
+	var u1 := 1.0 if left else span
+	_blit_scaled(
+		buf,
+		_tex_front(mini(depth + 1, MAX_DEPTH)),
+		x0, y0, x1, y1,
+		dim, false, u0, u1, true
+	)
 
 
-func _blit_side(buf: Image, src: Image, geom: Dictionary, left: bool, dim: float) -> void:
+func _blit_side_trap(buf: Image, src: Image, geom: Dictionary, left: bool, dim: float) -> void:
+	## Trapezoid silhouette; bricks stay upright (column-wise), only top/bottom edges slope.
 	if src == null:
 		return
 	var x_near := int(geom["x0"] if left else geom["x1"])
@@ -160,30 +293,66 @@ func _blit_side(buf: Image, src: Image, geom: Dictionary, left: bool, dim: float
 		return
 	var sw := src.get_width()
 	var sh := src.get_height()
+	var bw := buf.get_width()
+	var bh := buf.get_height()
+	var x_span := float(x_far - x_near)
+	if absf(x_span) < 0.5:
+		return
 	for x in range(x_a, x_b):
-		var t := float(x - x_a) / float(x_b - x_a)
-		if left:
-			t = 1.0 - t
-		var y0 := int(lerpf(float(y0n), float(y0f), 1.0 - t if left else t))
-		var y1 := int(lerpf(float(y1n), float(y1f), 1.0 - t if left else t))
+		if x < 0 or x >= bw:
+			continue
+		var from_near := clampf(float(x - x_near) / x_span, 0.0, 1.0)
+		var y0 := int(lerpf(float(y0n), float(y0f), from_near))
+		var y1 := int(lerpf(float(y1n), float(y1f), from_near))
 		if y1 <= y0:
 			continue
-		var sx := clampi(int(t * float(sw - 1)), 0, sw - 1)
+		var u := (1.0 - from_near) if left else from_near
+		var sx := clampi(int(u * float(sw - 1)), 0, sw - 1)
 		for y in range(y0, y1):
+			if y < 0 or y >= bh:
+				continue
 			var sy := clampi(int(float(y - y0) / float(y1 - y0) * float(sh - 1)), 0, sh - 1)
 			var c := src.get_pixel(sx, sy)
-			buf.set_pixel(x, y, _shade_color(c, dim * (0.72 if left else 0.58)))
+			buf.set_pixel(x, y, _shade_color(c, dim))
 
 
-func _blit_scaled(buf: Image, src: Image, x0: int, y0: int, x1: int, y1: int, dim: float) -> void:
+func _blit_rect(buf: Image, src: Image, r: Rect2i, dim: float, flip_h: bool = false) -> void:
+	if src == null or r.size.x <= 0 or r.size.y <= 0:
+		return
+	_blit_scaled(
+		buf, src,
+		r.position.x, r.position.y,
+		r.position.x + r.size.x, r.position.y + r.size.y,
+		dim, flip_h
+	)
+
+
+func _blit_scaled(
+	buf: Image,
+	src: Image,
+	x0: int,
+	y0: int,
+	x1: int,
+	y1: int,
+	dim: float,
+	flip_h: bool = false,
+	src_u0: float = 0.0,
+	src_u1: float = 1.0,
+	wrap_u: bool = false
+) -> void:
+	if src == null:
+		return
 	var dw := x1 - x0
 	var dh := y1 - y0
 	if dw <= 0 or dh <= 0:
 		return
 	var sw := src.get_width()
 	var sh := src.get_height()
+	if sw <= 0 or sh <= 0:
+		return
 	var bw := buf.get_width()
 	var bh := buf.get_height()
+	var u_span := src_u1 - src_u0
 	for y in range(y0, y1):
 		if y < 0 or y >= bh:
 			continue
@@ -191,14 +360,31 @@ func _blit_scaled(buf: Image, src: Image, x0: int, y0: int, x1: int, y1: int, di
 		for x in range(x0, x1):
 			if x < 0 or x >= bw:
 				continue
-			var sx := clampi(int(float(x - x0) / float(dw) * float(sw)), 0, sw - 1)
+			var t := float(x - x0) / float(dw)
+			if flip_h:
+				t = 1.0 - t
+			var u := src_u0 + t * u_span
+			var sx: int
+			if wrap_u:
+				sx = posmod(int(floor(u * float(sw))), sw)
+			else:
+				sx = clampi(int(u * float(sw)), 0, sw - 1)
 			var c := src.get_pixel(sx, sy)
 			if c.a < 0.05:
 				continue
 			buf.set_pixel(x, y, _shade_color(c, dim))
 
 
-func _paint_cell_object(buf: Image, dmap, cell: Vector2i, z: int, geom: Dictionary, dim: float) -> void:
+func _paint_cell_object(
+	buf: Image,
+	dmap,
+	cell: Vector2i,
+	z: int,
+	depth: int,
+	field_w: int,
+	field_h: int,
+	dim: float
+) -> void:
 	var tok: int = dmap.token_at(cell.x, cell.y, z)
 	var tid := -1
 	match tok:
@@ -227,13 +413,11 @@ func _paint_cell_object(buf: Image, dmap, cell: Vector2i, z: int, geom: Dictiona
 	var img: Image = _U4TileBank.image(tid)
 	if img == null:
 		return
-	var x0 := int(geom["nx0"])
-	var x1 := int(geom["nx1"])
-	var y0 := int(geom["ny0"])
-	var y1 := int(geom["ny1"])
-	var mid_x := (x0 + x1) / 2
-	var span := maxi((x1 - x0) / 3, 12)
-	var obj_y1 := y1 - 2
+	var nscale: int = OBJ_NSCALE[clampi(depth, 0, OBJ_NSCALE.size() - 1)]
+	var span := maxi(6, int(round(float(nscale) / 12.0 * float(field_w) * 0.28)))
+	var fr := _front_rect(depth, field_w, field_h)
+	var mid_x := fr.position.x + fr.size.x / 2
+	var obj_y1 := fr.position.y + fr.size.y - 1
 	var obj_y0 := obj_y1 - span
 	_blit_scaled(buf, img, mid_x - span / 2, obj_y0, mid_x + span / 2, obj_y1, dim)
 
