@@ -3433,7 +3433,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 				)
 			)
 		U4Commands.Id.PEER:
-			return noncombat and not _is_in_dungeon() and GameState.gems > 0
+			return noncombat and GameState.gems > 0
 		U4Commands.Id.TALK:
 			return noncombat and _command_menu_has_adjacent_city_person(true)
 		U4Commands.Id.VOLUME:
@@ -6881,10 +6881,6 @@ func _open_telescope_city(choice_index: int) -> void:
 func _do_peer() -> void:
 	## Peer: spend a gem, show ~16:9 gem map until Space/Enter/Esc.
 	## xu4: even "Peer at What?" still ends the turn.
-	if _is_in_dungeon():
-		_push_message(Locale.t("cmd_not_here"), false)
-		_finish_party_turn()
-		return
 	if GameState.gems <= 0:
 		_push_message(Locale.t("cmd_peer_what"), false)
 		_finish_party_turn()
@@ -6902,6 +6898,9 @@ func _open_peer_view() -> bool:
 	if _peer_overlay == null or _map == null:
 		return false
 	var tile_sz := _map.displayed_tile_size()
+	if _is_in_dungeon() and _dungeon_map != null and _dungeon_map.loaded:
+		_peer_overlay.open_peer_dungeon(_dungeon_map, _tile_pos, _dungeon_z, tile_sz)
+		return true
 	if _is_in_city() and _city_map != null and _city_map.loaded:
 		var fname := str(_city_map.source_path).get_file()
 		var portal := _WorldPortals.portal_for_fname(fname)
