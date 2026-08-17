@@ -30,6 +30,8 @@ const TILE_ALTAR := 74
 const TILE_ORB := 78
 const TILE_FOUNTAIN := 75
 const TILE_FIELD_POISON := 68
+const TILE_FIELD_ENERGY := 69
+const TILE_FIELD_FIRE := 70
 const TILE_FIELD_SLEEP := 71
 const TILE_MONSTER_FIRST := 144
 const TILE_MONSTER_LAST := 252
@@ -148,7 +150,12 @@ func paint(
 				view_objects.append({
 					"kind": (
 						VIEW_OBJECT_FLOOR_FIELD
-						if tile_id == TILE_FIELD_POISON or tile_id == TILE_FIELD_SLEEP
+						if tile_id in [
+							TILE_FIELD_POISON,
+							TILE_FIELD_ENERGY,
+							TILE_FIELD_FIRE,
+							TILE_FIELD_SLEEP,
+						]
 						else VIEW_OBJECT_TILE
 					),
 					"depth": depth,
@@ -944,15 +951,22 @@ func _paint_floor_field(
 	if sw <= 0 or sh <= 0:
 		return
 	var scroll := posmod(anim_frame * 2, sh)
+	var full_volume := tid == TILE_FIELD_ENERGY
+	if full_volume:
+		## Energy is impassable: close the far face before painting the four
+		## receding surfaces, then close the near face last.
+		_paint_field_front_mask(
+			buf, img, _front_rect(depth + 1, field_w, field_h), dim, scroll
+		)
 	_paint_field_hband_mask(
 		buf, img,
 		float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
 		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
 		dim, scroll, view_dir
 	)
-	if left_surface:
+	if full_volume or left_surface:
 		_paint_field_side_mask(buf, img, geom, true, dim, scroll)
-	if right_surface:
+	if full_volume or right_surface:
 		_paint_field_side_mask(buf, img, geom, false, dim, scroll)
 	_paint_field_hband_mask(
 		buf, img,
@@ -960,6 +974,10 @@ func _paint_floor_field(
 		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
 		dim, scroll, view_dir
 	)
+	if full_volume:
+		_paint_field_front_mask(
+			buf, img, _front_rect(depth, field_w, field_h), dim, scroll
+		)
 
 
 func _paint_field_hband_mask(
@@ -1070,6 +1088,40 @@ func _paint_field_side_mask(
 			var v := (float(y - y0) + 0.5) / wall_h
 			## Wall masks always travel from screen top to bottom.
 			var sy := posmod(int(floor(v * float(sh))) - scroll, sh)
+			var color := img.get_pixel(sx, sy)
+			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
+				continue
+			var light := dim * _dim_lut[y * field_w + x]
+			buf.set_pixel(
+				x, y,
+				Color(color.r * light, color.g * light, color.b * light, color.a)
+			)
+
+
+func _paint_field_front_mask(
+	buf: Image,
+	img: Image,
+	rect: Rect2i,
+	dim: float,
+	scroll: int
+) -> void:
+	var sw := img.get_width()
+	var sh := img.get_height()
+	var field_w := buf.get_width()
+	var field_h := buf.get_height()
+	if sw <= 0 or sh <= 0 or rect.size.x <= 0 or rect.size.y <= 0:
+		return
+	for y in range(rect.position.y, rect.end.y):
+		if y < 0 or y >= field_h:
+			continue
+		var v := (float(y - rect.position.y) + 0.5) / float(rect.size.y)
+		## Match side walls: the energy pattern travels from top to bottom.
+		var sy := posmod(int(floor(v * float(sh))) - scroll, sh)
+		for x in range(rect.position.x, rect.end.x):
+			if x < 0 or x >= field_w:
+				continue
+			var u := (float(x - rect.position.x) + 0.5) / float(rect.size.x)
+			var sx := clampi(int(floor(u * float(sw))), 0, sw - 1)
 			var color := img.get_pixel(sx, sy)
 			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
 				continue
