@@ -17,6 +17,7 @@ const OBJ_VIEW_RATIO := 0.28
 const CHEST_VIEW_SCALE := 2.0
 const FOUNTAIN_VIEW_SCALE := 2.0
 const ORB_VIEW_SCALE := 2.0
+const MONSTER_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
 const PIECE_CACHE_REV := 30
@@ -28,6 +29,8 @@ const TILE_ORB := 78
 const TILE_FOUNTAIN := 75
 const TILE_FIELD_POISON := 68
 const TILE_FIELD_SLEEP := 71
+const TILE_MONSTER_FIRST := 144
+const TILE_MONSTER_LAST := 252
 const LADDER_UP := 1
 const LADDER_DOWN := 2
 const VIEW_OBJECT_TILE := 0
@@ -48,6 +51,7 @@ var _dim_lut_inner := -1
 var _piece_cache: Dictionary = {}
 var _piece_cache_w := 0
 var _piece_cache_h := 0
+var _keyed_monster_cache: Dictionary = {}
 
 
 func set_theme(id: String) -> void:
@@ -102,6 +106,13 @@ func paint(
 		var dim := 1.0
 		var tok: int = dmap.token_at(cell.x, cell.y, z)
 		var geom := _depth_geom(w, h, depth)
+		var monster_tile := int(dmap.monster_tile_at(cell.x, cell.y, z))
+		if monster_tile >= 0 and not _is_blocking_wall(dmap, cell, z):
+			view_objects.append({
+				"kind": VIEW_OBJECT_TILE,
+				"depth": depth,
+				"tile_id": monster_tile,
+			})
 		if _is_blocking_wall(dmap, cell, z):
 			_blit_cached_piece(
 				buf,
@@ -1079,6 +1090,12 @@ func _paint_tile_object(
 	var img: Image
 	if tid == TILE_FOUNTAIN and not _fountain_frames.is_empty():
 		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
+	elif tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST:
+		if _keyed_monster_cache.has(tid):
+			img = _keyed_monster_cache[tid] as Image
+		else:
+			img = _U4TileBank.keyed_copy(tid)
+			_keyed_monster_cache[tid] = img
 	else:
 		img = _U4TileBank.image(tid)
 	if img == null:
@@ -1091,6 +1108,8 @@ func _paint_tile_object(
 		object_scale = FOUNTAIN_VIEW_SCALE
 	elif tid == TILE_ORB:
 		object_scale = ORB_VIEW_SCALE
+	elif tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST:
+		object_scale = MONSTER_VIEW_SCALE
 	var span := maxi(
 		6,
 		int(round(

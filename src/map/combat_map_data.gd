@@ -42,6 +42,31 @@ func set_tile(x: int, y: int, tid: int) -> void:
 	tiles[y * WIDTH + x] = clampi(tid, 0, 255) & 0xFF
 
 
+static func rotate_pos_cw(pos: Vector2i, quarter_turns: int = 1) -> Vector2i:
+	var rotated := pos
+	for _i in posmod(quarter_turns, 4):
+		rotated = Vector2i(WIDTH - 1 - rotated.y, rotated.x)
+	return rotated
+
+
+func rotate_quarter_turns(quarter_turns: int) -> void:
+	var turns := posmod(quarter_turns, 4)
+	if turns == 0:
+		return
+	for _turn in turns:
+		var rotated := PackedByteArray()
+		rotated.resize(TILE_COUNT)
+		for y in HEIGHT:
+			for x in WIDTH:
+				var target := rotate_pos_cw(Vector2i(x, y))
+				rotated[target.y * WIDTH + target.x] = tiles[y * WIDTH + x]
+		tiles = rotated
+		for i in player_start.size():
+			player_start[i] = rotate_pos_cw(player_start[i])
+		for i in creature_start.size():
+			creature_start[i] = rotate_pos_cw(creature_start[i])
+
+
 func load_from_path(path: String) -> bool:
 	clear()
 	if path.is_empty() or not FileAccess.file_exists(path):

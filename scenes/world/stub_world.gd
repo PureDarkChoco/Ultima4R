@@ -11757,6 +11757,13 @@ func _dungeon_step(sign: int) -> void:
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
+	var waiting_monster: Dictionary = _dungeon_map.monster_at(dest.x, dest.y, _dungeon_z)
+	if not waiting_monster.is_empty():
+		## The occupied cell blocks the step; normal turn completion lets the
+		## adjacent monster initiate combat in the dungeon creature phase.
+		_finish_party_turn()
+		_arm_hold_after_step(true)
+		return
 	var tok: int = _dungeon_map.token_at(dest.x, dest.y, _dungeon_z)
 	_tile_pos = dest
 	if _dungeon_skip_room and tok != _DungeonMapData.TOK_ROOM:
@@ -11770,7 +11777,6 @@ func _dungeon_step(sign: int) -> void:
 	_dungeon_trigger_cell()
 	_finish_party_turn()
 	_arm_hold_after_step(true)
-	_dungeon_maybe_corridor_combat()
 
 
 func _dungeon_enter_room_if_needed() -> bool:
@@ -12146,12 +12152,52 @@ func _dispel_dungeon_tile(pos: Vector2i) -> bool:
 	return true
 
 
-func _dungeon_maybe_corridor_combat() -> void:
+func _update_dungeon_monsters() -> void:
 	if not _is_in_dungeon() or _combat_active or _party_wiped_or_dying():
 		return
-	if _dungeon_token() == _DungeonMapData.TOK_ROOM:
+	var moved: Dictionary = _dungeon_map.advance_monsters(_dungeon_z, _tile_pos)
+	var changed := bool(moved.get("changed", false))
+	var attacker: Dictionary = moved.get("attacker", {})
+	if typeof(attacker) == TYPE_DICTIONARY and not attacker.is_empty():
+		var monster_pos := Vector2i(int(attacker["x"]), int(attacker["y"]))
+		_begin_dungeon_corridor_combat(
+			attacker,
+			_dungeon_map.wrapped_cardinal_dir(_tile_pos, monster_pos)
+		)
 		return
-	if (randi() % 16) != 0:
+	if _dungeon_map.try_spawn_monster(_dungeon_z, _tile_pos):
+		changed = true
+	if changed:
+		_refresh_dungeon_view()
+
+
+func _combat_map_start_direction(cmap, foes: Array) -> int:
+	var player_sum := Vector2.ZERO
+	var player_count := 0
+	for i in mini(GameState.party_size(), cmap.player_start.size()):
+		var member_id := GameState.party_member_at(i)
+		if member_id < 0 or GameState.is_class_dead(member_id):
+			continue
+		var pos: Vector2i = cmap.player_start[i]
+		player_sum += Vector2(pos)
+		player_count += 1
+	var foe_sum := Vector2.ZERO
+	var foe_count := 0
+	for raw_foe in foes:
+		var foe: Dictionary = raw_foe
+		var pos := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
+		foe_sum += Vector2(pos)
+		foe_count += 1
+	if player_count == 0 or foe_count == 0:
+		return _DungeonMapData.DIR_N
+	var delta := foe_sum / float(foe_count) - player_sum / float(player_count)
+	if absf(delta.x) > absf(delta.y):
+		return _DungeonMapData.DIR_E if delta.x > 0.0 else _DungeonMapData.DIR_W
+	return _DungeonMapData.DIR_S if delta.y > 0.0 else _DungeonMapData.DIR_N
+
+
+func _begin_dungeon_corridor_combat(monster: Dictionary, relative_dir: int) -> void:
+	if not _is_in_dungeon() or _combat_active or _party_wiped_or_dying():
 		return
 	var tok := _dungeon_token()
 	if (
@@ -12162,8 +12208,33 @@ func _dungeon_maybe_corridor_combat() -> void:
 	var cmap = _CombatMaps.load_named(_DungeonPortals.con_for_token(tok))
 	if cmap == null:
 		return
-	var foe_tid := _CombatEncounter.dungeon_foe_tile(_dungeon_z)
-	_begin_combat({"tile": foe_tid, "x": _tile_pos.x, "y": _tile_pos.y}, false, cmap)
+	var taken: Dictionary = _dungeon_map.take_monster_at(
+		int(monster.get("x", 0)),
+		int(monster.get("y", 0)),
+		_dungeon_z
+	)
+	if taken.is_empty():
+		return
+	var foe_tile := int(taken.get("tile", 144))
+	var table: Array[int] = _CombatEncounter.fill_creature_table(
+		foe_tile, GameState.party_size(), false
+	)
+	var foes: Array = _CombatEncounter.place_foes_from_table(table, cmap.creature_start)
+	var start_dir := _combat_map_start_direction(cmap, foes)
+	var turns := posmod(relative_dir - start_dir, 4)
+	cmap.rotate_quarter_turns(turns)
+	for i in foes.size():
+		var combat_foe: Dictionary = foes[i]
+		var rotated := _CombatMapData.rotate_pos_cw(
+			Vector2i(int(combat_foe["x"]), int(combat_foe["y"])),
+			turns
+		)
+		combat_foe["x"] = rotated.x
+		combat_foe["y"] = rotated.y
+		foes[i] = combat_foe
+	var foe := taken
+	foe["dungeon_corridor"] = true
+	_begin_combat(foe, false, cmap, false, foes)
 
 
 func _begin_dungeon_room_combat(index: int, entry_dir: int) -> void:
@@ -13122,6 +13193,10 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 	## xu4 creatureCleanup → checkRandomCreatures (world; offscreen of explore view).
 	if not in_combat:
 		await _update_world_creatures()
+		_update_dungeon_monsters()
+		if _combat_active:
+			_pass_map_annotations()
+			return
 	## Death after world AI (ship sink / cannon wipe) — skip leftover turn bookkeeping FX noise.
 	if not in_combat and _party_wiped_or_dying():
 		return
@@ -15902,15 +15977,16 @@ func _begin_combat(
 		})
 	## xu4 fillCreatureTable — town size for city; standard groups in wilderness
 	## (inn ambush: forceStandardEncounterSize → not town).
-	var table: Array[int] = _CombatEncounter.fill_creature_table(
-		foe_tid, GameState.party_size(), town_encounter
-	)
-	var foe_units: Array = _CombatEncounter.place_foes_from_table(
-		table, cmap.creature_start
-	)
-	if bool(foe.get("dungeon_room", false)):
+	var use_forced_foes := bool(foe.get("dungeon_room", false)) or not force_foes.is_empty()
+	var foe_units: Array = []
+	if use_forced_foes:
 		foe_units = force_foes
-	if foe_units.is_empty() and not bool(foe.get("dungeon_room", false)):
+	else:
+		var table: Array[int] = _CombatEncounter.fill_creature_table(
+			foe_tid, GameState.party_size(), town_encounter
+		)
+		foe_units = _CombatEncounter.place_foes_from_table(table, cmap.creature_start)
+	if foe_units.is_empty() and not use_forced_foes:
 		## Safety: at least the engaged creature.
 		var foe_start: Vector2i = (
 			cmap.creature_start[0] if cmap.creature_start.size() > 0

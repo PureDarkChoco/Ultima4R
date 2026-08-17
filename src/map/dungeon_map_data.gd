@@ -68,6 +68,11 @@ const DIRS: Array[Vector2i] = [
 
 ## World / city field tile ids matching dungeon field subtypes.
 const FIELD_TILES: Array[int] = [68, 69, 70, 71]
+const MONSTER_TILE_FIRST := 144
+const MONSTER_TILE_STEP := 4
+const MAX_CORRIDOR_MONSTERS_PER_LEVEL := 4
+const MONSTER_SPAWN_TRIES := 32
+const MONSTER_FIXED_TILES: Array[int] = [172, 176] ## Mimic / Reaper.
 
 var levels: Array[PackedByteArray] = []
 var rooms: Array[Dictionary] = []
@@ -81,6 +86,9 @@ var annotations: Array[Dictionary] = []
 var revealed_secrets: Dictionary = {}
 ## Looted corridor chests / spent orbs: "x,y,z" → true.
 var consumed: Dictionary = {}
+## xu4 corridor creatures: {id,tile,x,y,prev_x,prev_y,z}.
+var corridor_monsters: Array[Dictionary] = []
+var _next_monster_id := 1
 
 
 func clear() -> void:
@@ -89,6 +97,8 @@ func clear() -> void:
 	annotations.clear()
 	revealed_secrets.clear()
 	consumed.clear()
+	corridor_monsters.clear()
+	_next_monster_id = 1
 	loaded = false
 	source_path = ""
 	dungeon_id = ""
@@ -296,6 +306,7 @@ func load_from_path(path: String, id: String = "") -> bool:
 		var off := MAP_BYTES + i * ROOM_BYTES
 		rooms.append(_parse_room(bytes.slice(off, off + ROOM_BYTES), i))
 	loaded = true
+	_load_monsters_from_levels()
 	return true
 
 
@@ -410,11 +421,244 @@ func apply_room_trigger_at(index: int, pos: Vector2i, cmap) -> bool:
 	return changed
 
 
+func _token_uses_monster_nibble(tok: int) -> bool:
+	return (
+		tok != TOK_TRAP
+		and tok != TOK_FOUNTAIN
+		and tok != TOK_FIELD
+		and tok != TOK_ROOM
+	)
+
+
+func _monster_tile_from_nibble(nibble: int) -> int:
+	if nibble <= 0 or nibble > 0x0F:
+		return -1
+	return MONSTER_TILE_FIRST + (nibble - 1) * MONSTER_TILE_STEP
+
+
+func _monster_nibble_from_tile(tile_id: int) -> int:
+	if tile_id < MONSTER_TILE_FIRST:
+		return 0
+	return clampi((tile_id - MONSTER_TILE_FIRST) / MONSTER_TILE_STEP + 1, 1, 0x0F)
+
+
+func _load_monsters_from_levels() -> void:
+	corridor_monsters.clear()
+	_next_monster_id = 1
+	for z in LEVELS:
+		var level_count := 0
+		for y in HEIGHT:
+			for x in WIDTH:
+				var raw := raw_at(x, y, z)
+				var nibble := subtoken(raw)
+				if nibble == 0 or not _token_uses_monster_nibble(token(raw)):
+					continue
+				if level_count >= MAX_CORRIDOR_MONSTERS_PER_LEVEL:
+					continue
+				var tile_id := _monster_tile_from_nibble(nibble)
+				if tile_id < 0:
+					continue
+				corridor_monsters.append({
+					"id": _next_monster_id,
+					"tile": tile_id,
+					"x": x,
+					"y": y,
+					"prev_x": x,
+					"prev_y": y,
+					"z": z,
+				})
+				_next_monster_id += 1
+				level_count += 1
+
+
+func monster_index_at(x: int, y: int, z: int) -> int:
+	x = wrap_coord(x)
+	y = wrap_coord(y)
+	for i in corridor_monsters.size():
+		var monster: Dictionary = corridor_monsters[i]
+		if (
+			int(monster.get("x", -1)) == x
+			and int(monster.get("y", -1)) == y
+			and int(monster.get("z", -1)) == z
+		):
+			return i
+	return -1
+
+
+func monster_at(x: int, y: int, z: int) -> Dictionary:
+	var index := monster_index_at(x, y, z)
+	if index < 0:
+		return {}
+	return corridor_monsters[index].duplicate(true)
+
+
+func monster_tile_at(x: int, y: int, z: int) -> int:
+	var index := monster_index_at(x, y, z)
+	if index < 0:
+		return -1
+	return int(corridor_monsters[index].get("tile", -1))
+
+
+func _write_monster_nibble(x: int, y: int, z: int, tile_id: int) -> void:
+	var raw := raw_at(x, y, z)
+	if not _token_uses_monster_nibble(token(raw)):
+		return
+	set_raw(x, y, z, (raw & 0xF0) | _monster_nibble_from_tile(tile_id))
+
+
+func _clear_monster_nibble(x: int, y: int, z: int) -> void:
+	var raw := raw_at(x, y, z)
+	if _token_uses_monster_nibble(token(raw)):
+		set_raw(x, y, z, raw & 0xF0)
+
+
+func take_monster_at(x: int, y: int, z: int) -> Dictionary:
+	var index := monster_index_at(x, y, z)
+	if index < 0:
+		return {}
+	var monster: Dictionary = corridor_monsters[index]
+	corridor_monsters.remove_at(index)
+	_clear_monster_nibble(x, y, z)
+	return monster.duplicate(true)
+
+
+func _monster_terrain_walkable(pos: Vector2i, z: int) -> bool:
+	var tok := token_at(pos.x, pos.y, z)
+	if (
+		tok == TOK_WALL
+		or tok == TOK_TRAP
+		or tok == TOK_FOUNTAIN
+		or tok == TOK_FIELD
+		or tok == TOK_ROOM
+	):
+		return false
+	if tok == TOK_SECRET and not is_secret_revealed(pos.x, pos.y, z):
+		return false
+	return true
+
+
+func _monster_can_occupy(pos: Vector2i, z: int, player: Vector2i) -> bool:
+	if pos == player or monster_index_at(pos.x, pos.y, z) >= 0:
+		return false
+	return _monster_terrain_walkable(pos, z)
+
+
+func _monster_can_restore(pos: Vector2i, z: int) -> bool:
+	if monster_index_at(pos.x, pos.y, z) >= 0:
+		return false
+	return _token_uses_monster_nibble(token(raw_at(pos.x, pos.y, z)))
+
+
+func _wrapped_axis_delta(a: int, b: int) -> int:
+	var forward := posmod(b - a, WIDTH)
+	if forward > WIDTH / 2:
+		forward -= WIDTH
+	return forward
+
+
+func wrapped_cardinal_dir(from: Vector2i, to: Vector2i) -> int:
+	var dx := _wrapped_axis_delta(from.x, to.x)
+	var dy := _wrapped_axis_delta(from.y, to.y)
+	if abs(dx) > abs(dy):
+		return DIR_E if dx > 0 else DIR_W
+	return DIR_S if dy > 0 else DIR_N
+
+
+func _wrapped_manhattan(a: Vector2i, b: Vector2i) -> int:
+	return abs(_wrapped_axis_delta(a.x, b.x)) + abs(_wrapped_axis_delta(a.y, b.y))
+
+
+func _next_monster_step(start: Vector2i, z: int, player: Vector2i) -> Vector2i:
+	var best := start
+	var best_distance := _wrapped_manhattan(start, player)
+	var dirs := DIRS.duplicate()
+	dirs.shuffle()
+	for delta in dirs:
+		var next := Vector2i(wrap_coord(start.x + delta.x), wrap_coord(start.y + delta.y))
+		if not _monster_can_occupy(next, z, player):
+			continue
+		var distance := _wrapped_manhattan(next, player)
+		if distance < best_distance:
+			best = next
+			best_distance = distance
+	return best
+
+
+func advance_monsters(z: int, player: Vector2i) -> Dictionary:
+	for monster in corridor_monsters:
+		if int(monster.get("z", -1)) != z:
+			continue
+		var pos := Vector2i(int(monster["x"]), int(monster["y"]))
+		if not _monster_terrain_walkable(pos, z):
+			continue
+		if _wrapped_manhattan(pos, player) <= 1:
+			return {"changed": false, "attacker": monster.duplicate(true)}
+	var changed := false
+	for i in corridor_monsters.size():
+		var monster: Dictionary = corridor_monsters[i]
+		if int(monster.get("z", -1)) != z:
+			continue
+		if MONSTER_FIXED_TILES.has(int(monster.get("tile", -1))):
+			continue
+		var old_pos := Vector2i(int(monster["x"]), int(monster["y"]))
+		var next := _next_monster_step(old_pos, z, player)
+		if next == old_pos:
+			continue
+		_clear_monster_nibble(old_pos.x, old_pos.y, z)
+		monster["prev_x"] = old_pos.x
+		monster["prev_y"] = old_pos.y
+		monster["x"] = next.x
+		monster["y"] = next.y
+		corridor_monsters[i] = monster
+		_write_monster_nibble(next.x, next.y, z, int(monster["tile"]))
+		changed = true
+	return {"changed": changed, "attacker": {}}
+
+
+func _random_monster_tile_for_level(z: int) -> int:
+	var variant_count := 4 if z >= 5 else 3
+	var nibble := clampi(z + 1 + (randi() % variant_count), 1, 0x0F)
+	if nibble >= 8:
+		nibble = mini(nibble + 1, 0x0F) ## xu4 randomForDungeon skips Mimic.
+	return _monster_tile_from_nibble(nibble)
+
+
+func try_spawn_monster(z: int, player: Vector2i) -> bool:
+	var count := 0
+	for monster in corridor_monsters:
+		if int(monster.get("z", -1)) == z:
+			count += 1
+	if count >= MAX_CORRIDOR_MONSTERS_PER_LEVEL:
+		return false
+	var divisor := maxi(4, 32 - clampi(z, 0, LEVELS - 1) * 4)
+	if (randi() % divisor) != 0:
+		return false
+	for _try in MONSTER_SPAWN_TRIES:
+		var pos := Vector2i(randi() % WIDTH, randi() % HEIGHT)
+		if not _monster_can_occupy(pos, z, player):
+			continue
+		var tile_id := _random_monster_tile_for_level(z)
+		corridor_monsters.append({
+			"id": _next_monster_id,
+			"tile": tile_id,
+			"x": pos.x,
+			"y": pos.y,
+			"prev_x": pos.x,
+			"prev_y": pos.y,
+			"z": z,
+		})
+		_next_monster_id += 1
+		_write_monster_nibble(pos.x, pos.y, z, tile_id)
+		return true
+	return false
+
+
 func consumed_to_save() -> Dictionary:
 	return {
 		"consumed": consumed.keys(),
 		"secrets": revealed_secrets.keys(),
 		"annotations": annotations.duplicate(true),
+		"monsters": corridor_monsters.duplicate(true),
 	}
 
 
@@ -431,6 +675,44 @@ func consumed_from_save(d: Dictionary) -> void:
 		for row in raw:
 			if typeof(row) == TYPE_DICTIONARY:
 				annotations.append((row as Dictionary).duplicate(true))
+	var monsters_raw: Variant = d.get("monsters", null)
+	if typeof(monsters_raw) == TYPE_ARRAY:
+		for monster in corridor_monsters:
+			_clear_monster_nibble(
+				int(monster.get("x", 0)),
+				int(monster.get("y", 0)),
+				int(monster.get("z", 0))
+			)
+		corridor_monsters.clear()
+		_next_monster_id = 1
+		var level_counts: Dictionary = {}
+		for row in monsters_raw:
+			if typeof(row) != TYPE_DICTIONARY:
+				continue
+			var saved: Dictionary = (row as Dictionary).duplicate(true)
+			var z := clampi(int(saved.get("z", 0)), 0, LEVELS - 1)
+			var x := wrap_coord(int(saved.get("x", 0)))
+			var y := wrap_coord(int(saved.get("y", 0)))
+			var tile_id := int(saved.get("tile", -1))
+			var level_count := int(level_counts.get(z, 0))
+			if (
+				tile_id < MONSTER_TILE_FIRST
+				or level_count >= MAX_CORRIDOR_MONSTERS_PER_LEVEL
+				or not _monster_can_restore(Vector2i(x, y), z)
+			):
+				continue
+			var id := maxi(1, int(saved.get("id", _next_monster_id)))
+			saved["id"] = id
+			saved["tile"] = tile_id
+			saved["x"] = x
+			saved["y"] = y
+			saved["prev_x"] = wrap_coord(int(saved.get("prev_x", x)))
+			saved["prev_y"] = wrap_coord(int(saved.get("prev_y", y)))
+			saved["z"] = z
+			corridor_monsters.append(saved)
+			_write_monster_nibble(x, y, z, tile_id)
+			level_counts[z] = level_count + 1
+			_next_monster_id = maxi(_next_monster_id, id + 1)
 
 
 static func resolve_u4_file(fname: String) -> String:
