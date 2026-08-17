@@ -2506,7 +2506,8 @@ func creature_hits_party_member(klass: int) -> bool:
 
 
 func spell_aura_hud_text() -> String:
-	## Sky-bar chips: "J" / "N" / "W" / "J  P  Q". Letter only — no remaining turns.
+	## Sky-bar chips after the Horn icon: "J" / "N" / "W" / "J  P  Q".
+	## Letters only — no remaining turns. Horn is a separate first-slot icon.
 	var parts: PackedStringArray = []
 	if is_aura(AuraType.JINX):
 		parts.append("J")

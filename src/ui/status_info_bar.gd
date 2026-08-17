@@ -18,6 +18,7 @@ const HUD_FOOD_PATH := "res://assets/ui/hud/food.png"
 const HUD_KEY_PATH := "res://assets/ui/hud/key.png"
 const HUD_TORCH_PATH := "res://assets/ui/hud/torch.png"
 const HUD_GEM_PATH := "res://assets/ui/hud/gem.png"
+const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 ## DOS Ultima IV CHARSET.EGA moon glyphs (chars 20..27), extracted 8×8.
 const MOON_DIR := "res://assets/ui/moons"
 
@@ -57,9 +58,12 @@ var _keys_lab: Label
 var _torches_lab: Label
 var _gems_lab: Label
 var _last_drawn_wind: int = -1
+var _aura_row: HBoxContainer
+var _aura_horn: TextureRect
 var _aura_lab: Label
 var _aura_host: Control
 var _last_aura_hud := ""
+var _last_aura_horn := false
 ## Global X of the battlefield's left edge (11-tile field). −1 = unset.
 var _aura_field_global_x := -1.0
 
@@ -89,6 +93,7 @@ func _process(_delta: float) -> void:
 		or trammel_phase != GameState.trammel_phase
 		or felucca_phase != GameState.felucca_phase
 		or _last_aura_hud != GameState.spell_aura_hud_text()
+		or _last_aura_horn != GameState.is_aura_horn()
 	):
 		refresh()
 
@@ -231,7 +236,7 @@ func _build_sky_centered() -> void:
 	row.add_child(_make_sky_cluster())
 	row.add_child(_h_spacer())
 	_aura_host.add_child(row)
-	_aura_host.add_child(_make_aura_label())
+	_aura_host.add_child(_make_aura_overlay())
 	add_child(_aura_host)
 
 
@@ -257,8 +262,15 @@ func _build_full() -> void:
 	add_child(row)
 
 
-func _make_aura_label() -> Label:
-	## Overlay: "J" / "N" / "P" / "Q" / "W". World aligns X to the open battlefield's left edge.
+func _make_aura_overlay() -> Control:
+	## Horn icon first (while the 10-turn aura lasts), then "J" / "N" / "P" / "Q" / "W".
+	## No remaining-turn digits. X aligns to the open battlefield's left edge.
+	_aura_row = HBoxContainer.new()
+	_aura_row.add_theme_constant_override("separation", 4)
+	_aura_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_aura_horn = _make_icon(_load_hud_icon(_SpecialItemIcons.HORN))
+	_aura_horn.visible = false
+	_aura_row.add_child(_aura_horn)
 	_aura_lab = Label.new()
 	_aura_lab.add_theme_font_size_override("font_size", 11)
 	_aura_lab.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55, 1))
@@ -266,7 +278,9 @@ func _make_aura_label() -> Label:
 	_aura_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_aura_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_aura_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return _aura_lab
+	_aura_lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_aura_row.add_child(_aura_lab)
+	return _aura_row
 
 
 func set_aura_field_global_x(global_x: float) -> void:
@@ -276,18 +290,18 @@ func set_aura_field_global_x(global_x: float) -> void:
 
 
 func _place_aura_overlay() -> void:
-	if _aura_lab == null:
+	if _aura_row == null:
 		return
-	_aura_lab.reset_size()
-	var sz := _aura_lab.get_minimum_size()
-	_aura_lab.size = sz
+	_aura_row.reset_size()
+	var sz := _aura_row.get_combined_minimum_size()
+	_aura_row.size = sz
 	var local_x := 0.0
 	if _aura_field_global_x >= 0.0:
-		var parent_ctl := _aura_lab.get_parent() as Control
+		var parent_ctl := _aura_row.get_parent() as Control
 		var origin := parent_ctl.global_position.x if parent_ctl != null else global_position.x
 		local_x = _aura_field_global_x - origin
 	var host_h := _aura_host.size.y if _aura_host != null else size.y
-	_aura_lab.position = Vector2(
+	_aura_row.position = Vector2(
 		maxf(local_x, 0.0),
 		floorf((host_h - sz.y) * 0.5)
 	)
@@ -473,9 +487,14 @@ func refresh() -> void:
 	if _gems_lab:
 		_gems_lab.text = "%d" % mini(GameState.gems, ITEM_MAX)
 	_last_aura_hud = GameState.spell_aura_hud_text()
+	_last_aura_horn = GameState.is_aura_horn()
+	if _aura_horn != null:
+		_aura_horn.visible = _last_aura_horn
 	if _aura_lab != null:
 		_aura_lab.text = _last_aura_hud
 		_aura_lab.visible = not _last_aura_hud.is_empty()
+	if _aura_row != null:
+		_aura_row.visible = _last_aura_horn or not _last_aura_hud.is_empty()
 		_place_aura_overlay()
 
 

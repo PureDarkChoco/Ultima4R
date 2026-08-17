@@ -28,8 +28,17 @@ const LOCKE_LAKE := Vector2i(127, 78)
 ## xu4 STORM/WHIRLPOOL specialEffect — send the whirlpool to (0,0) after a swallow.
 const WHIRLPOOL_BANISH := Vector2i(0, 0)
 const TILE_LAVA_LIZARD := 232
+const TILE_DAEMON := 240
 const TILE_HYDRA := 244
 const TILE_DRAGON := 248
+## xu4 checkSpecialCreatures — south toward Shrine of Humility (231,216).
+const HUMILITY_AMBUSH_X0 := 229
+const HUMILITY_AMBUSH_X1 := 234
+const HUMILITY_AMBUSH_Y0 := 212
+const HUMILITY_AMBUSH_Y1 := 217
+const HUMILITY_AMBUSH_COUNT := 8
+## Spread the horde on y+1 so each daemon occupies its own tile (xu4 stacks all 8).
+const HUMILITY_AMBUSH_LINE_X0 := 228
 
 ## xu4 Creature::specialAction — world-map ranged (not combat free-aim).
 const _WORLD_RANGED_SPECIAL := {
@@ -969,20 +978,23 @@ func try_random_spawn(
 
 
 func try_humility_daemon_ambush(dir: Vector2i, avatar: Vector2i) -> int:
-	## xu4 gameCheck mixed trigger: walking south near Shrine of Humility.
-	## Spawns 8 daemons unless Silver Horn aura is active.
+	## xu4 GameController::checkSpecialCreatures — south toward Humility.
+	## Horn aura (Use Silver Horn) skips the spawn.
 	if dir != Vector2i(0, 1):
 		return 0
-	if avatar.x < 229 or avatar.x >= 234:
+	if avatar.x < HUMILITY_AMBUSH_X0 or avatar.x >= HUMILITY_AMBUSH_X1:
 		return 0
-	if avatar.y < 212 or avatar.y >= 217:
+	if avatar.y < HUMILITY_AMBUSH_Y0 or avatar.y >= HUMILITY_AMBUSH_Y1:
 		return 0
 	if GameState.is_aura_horn():
 		return 0
 	var y := avatar.y + 1
 	var n := 0
-	for _i in 8:
-		creatures.append(_make_creature(231, y, 240, 0))
+	for i in HUMILITY_AMBUSH_COUNT:
+		## xu4 stacks all eight at (231, y+1). Spread on that row so they
+		## paint separately and at least one is orthogonally adjacent.
+		var x := HUMILITY_AMBUSH_LINE_X0 + i
+		creatures.append(_make_creature(x, y, TILE_DAEMON, 0))
 		n += 1
 	return n
 
@@ -1276,7 +1288,7 @@ static func _swims(base: int) -> bool:
 
 
 static func _flies(base: int) -> bool:
-	return base == 142 or base == 148 or base == 240 or base == 248 or base == 252
+	return base == 142 or base == 148 or base == TILE_DAEMON or base == 248 or base == 252
 
 
 static func _walks(base: int) -> bool:

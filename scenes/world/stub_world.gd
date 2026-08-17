@@ -10844,7 +10844,7 @@ func _finish_use_command() -> void:
 
 func _use_horn() -> void:
 	## xu4 useHorn — always succeeds: message + Aura::HORN for 10 turns.
-	## Only material effect elsewhere is blocking humility-shrine daemon ambush.
+	## Blocks humility-shrine daemon ambush. Sky-bar horn icon, no remaining-turn chip.
 	_push_message(Locale.t("cmd_use_horn"), false)
 	GameState.set_aura(GameState.AuraType.HORN, GameState.AURA_SPELL_TURNS)
 	await _finish_use_command()
