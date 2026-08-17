@@ -721,7 +721,8 @@ def main() -> None:
         write_png(dest / "floor.png", floor)
         write_png(dest / "room_entrance.png", entrance)
         print(f"{name}: wall {fw}x{fh}  floor {flw}x{flh}")
-    if not selected or "fountain" in selected:
+    ## Custom fountain_0/1 art is hand-authored; only rewrite when asked.
+    if "fountain" in selected:
         for frame in range(2):
             write_rgba_png(ROOT / f"fountain_{frame}.png", make_fountain(frame))
         print("fountain: 2 transparent 32x32 frames")
