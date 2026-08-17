@@ -17991,7 +17991,7 @@ func _combat_resolve_foe_act(plan: Dictionary) -> void:
 			await _combat_resolve_foe_cast_sleep()
 		"fled":
 			_combat_resolve_foe_fled(plan)
-		"advance", "flee":
+		"advance", "flee", "teleport":
 			_apply_combat_field_to_foe(
 				plan.get("to", Vector2i.ZERO),
 				int(plan.get("index", -1))

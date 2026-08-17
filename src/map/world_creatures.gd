@@ -574,6 +574,7 @@ const _RANGED_EFFECT := {
 const _STEALS_GOLD := {200: true} ## Rogue
 const _STEALS_FOOD := {168: true} ## Gremlin
 const _CASTS_SLEEP := {176: true, 252: true} ## Reaper, Balron
+const _TELEPORTS := {220: true} ## Wisp
 
 ## xu4 Creature::getState — flee when current HP drops below this.
 const FLEE_HP := 24
@@ -662,6 +663,16 @@ static func steals_food(tile_or_base: int) -> bool:
 
 static func casts_sleep(tile_or_base: int) -> bool:
 	return bool(_CASTS_SLEEP.get(_base_tile(tile_or_base), false))
+
+
+static func teleports(tile_or_base: int) -> bool:
+	## xu4 `teleports: true` — Wisp, 1/8 of combat turns.
+	return bool(_TELEPORTS.get(_base_tile(tile_or_base), false))
+
+
+static func is_stationary(tile_or_base: int) -> bool:
+	## xu4 `movement: none` — Mimic / Reaper. World and combat both stay put.
+	return _default_movement(_base_tile(tile_or_base)) == MOVE_FIXED
 
 
 static func is_undead(tile_or_base: int) -> bool:

@@ -1697,6 +1697,13 @@ func act_combat_creature_at(index: int) -> Dictionary:
 	out["from"] = from
 	out["tile"] = tid
 	out["base_hp"] = base_hp
+	## xu4: creatures who teleport do so 1/8 of the time (before ranged / sleep).
+	if _WorldCreaturesScript.teleports(tid) and (randi() % 8) == 0:
+		var dest := _combat_try_teleport(index, from)
+		if dest != from:
+			out["action"] = "teleport"
+			out["to"] = dest
+			return out
 	## Free-aim ranged: on row/col/exact-diagonal → always shoot if LOF.
 	## Off-axis free aim → 40% shoot, 60% advance (keeps melee party in play).
 	if _WorldCreaturesScript.is_ranged(tid):
@@ -1731,7 +1738,11 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		return out
 	## Low HP — flee toward map edge (xu4 MSTAT_FLEEING, all species).
 	## Remake Undead: turned undead flee the same way without an HP drop.
-	if _WorldCreaturesScript.is_fleeing_hp(hp) or is_combat_foe_turned(index):
+	## xu4 moveCombatObject: fixed objects cannot move (or flee).
+	if (
+		not _WorldCreaturesScript.is_stationary(tid)
+		and (_WorldCreaturesScript.is_fleeing_hp(hp) or is_combat_foe_turned(index))
+	):
 		var away := _nearest_combat_opponent_info(from, index, false)
 		if int(away.get("dist", 1_000_000)) >= 1_000_000:
 			return out
@@ -1747,6 +1758,8 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		out["foe_i"] = int(near.get("foe_i", -1))
 		out["klass"] = near.klass
 		return out
+	if _WorldCreaturesScript.is_stationary(tid):
+		return out
 	if _combat_apply_advance_step(index, from, near.pos):
 		out["action"] = "advance"
 		out["to"] = Vector2i(int(_combat_foes[index].get("x", from.x)), int(_combat_foes[index].get("y", from.y)))
@@ -1759,6 +1772,8 @@ func move_combat_creature_at(index: int) -> bool:
 		return false
 	var foe: Dictionary = _combat_foes[index]
 	if int(foe.get("hp", 1)) <= 0:
+		return false
+	if _WorldCreaturesScript.is_stationary(int(foe.get("tile", 0))):
 		return false
 	var from := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
 	var near := _nearest_combat_opponent_info(from, index, true)
@@ -2278,12 +2293,49 @@ func _combat_foe_tile(index: int) -> int:
 	return int(_combat_foes[index].get("tile", 0))
 
 
+func _combat_try_teleport(index: int, from: Vector2i) -> Vector2i:
+	## xu4 CA_TELEPORT — random creature-walkable cell; skip a slow tile once.
+	if _combat_map == null or index < 0 or index >= _combat_foes.size():
+		return from
+	var first_try := true
+	var guard := CAMP_W * CAMP_H * 3
+	while guard > 0:
+		guard -= 1
+		var dest := Vector2i(randi() % CAMP_W, randi() % CAMP_H)
+		if dest == from or _combat_occupied(dest, -1, index):
+			continue
+		var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+		if not _TileRulesCamp.is_creature_walkable(dest_tid):
+			continue
+		if first_try and _TileRulesCamp.speed_of(dest_tid) != _TileRulesCamp.Speed.FAST:
+			first_try = false
+			continue
+		var foe: Dictionary = _combat_foes[index]
+		foe["x"] = dest.x
+		foe["y"] = dest.y
+		_combat_foes[index] = foe
+		_rebuild()
+		return dest
+	return from
+
+
+func _combat_flyer_can_enter(dest_tid: int) -> bool:
+	## xu4 combat/town flyers: flyable and (walkable or water). World map is open.
+	if not _TileRulesCamp.is_flyable(dest_tid):
+		return false
+	return (
+		_TileRulesCamp.is_walkable(dest_tid)
+		or _TileRulesCamp.is_swimable(dest_tid)
+		or _TileRulesCamp.is_sailable(dest_tid)
+	)
+
+
 func _combat_terrain_ok_for_mover(dest_tid: int, mover_tile: int) -> bool:
 	## Wilderness-style mobility on combat tiles (xu4 Map::getValidMoves).
 	if mover_tile < 0:
 		return _TileRulesCamp.is_creature_walkable(dest_tid)
 	if _WorldCreaturesScript.is_flyer(mover_tile):
-		return true
+		return _combat_flyer_can_enter(dest_tid)
 	if _WorldCreaturesScript.is_sailor(mover_tile):
 		return _TileRulesCamp.is_sailable(dest_tid)
 	if _WorldCreaturesScript.is_swimmer(mover_tile):
@@ -2304,7 +2356,7 @@ func _combat_can_walk(
 	var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
 	if mover_tile >= 0:
 		if _WorldCreaturesScript.is_flyer(mover_tile):
-			return true
+			return _combat_flyer_can_enter(dest_tid)
 		if _WorldCreaturesScript.is_sailor(mover_tile):
 			return _TileRulesCamp.is_sailable(dest_tid)
 		if _WorldCreaturesScript.is_swimmer(mover_tile):
