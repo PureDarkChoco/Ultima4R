@@ -305,6 +305,7 @@ func load_from_path(path: String, id: String = "") -> bool:
 	for i in nrooms:
 		var off := MAP_BYTES + i * ROOM_BYTES
 		rooms.append(_parse_room(bytes.slice(off, off + ROOM_BYTES), i))
+	_apply_xu4_room_fixups()
 	loaded = true
 	_load_monsters_from_levels()
 	return true
@@ -357,6 +358,82 @@ func _parse_room(block: PackedByteArray, index: int) -> Dictionary:
 		"tiles": tiles,
 		"is_altar": _room_has_tile(tiles, 74),
 	}
+
+
+func _set_room_party_start(
+	index: int,
+	dir: int,
+	xs: Array[int],
+	ys: Array[int]
+) -> void:
+	if index < 0 or index >= rooms.size():
+		return
+	var room: Dictionary = rooms[index]
+	var party: Dictionary = room.get("party", {})
+	party[posmod(dir, 4)] = {
+		"x": xs.duplicate(),
+		"y": ys.duplicate(),
+	}
+	room["party"] = party
+	rooms[index] = room
+
+
+func _apply_xu4_room_fixups() -> void:
+	## xu4 maploader.cpp repairs invalid DOS Hythloth room starts and the
+	## connected room geometry they depend on.
+	if dungeon_id != "hythloth":
+		return
+	_set_room_party_start(
+		7,
+		DIR_E,
+		[8, 8, 9, 9, 9, 10, 10, 10],
+		[3, 2, 3, 2, 1, 3, 2, 1]
+	)
+	_set_room_party_start(
+		7,
+		DIR_S,
+		[3, 2, 3, 2, 1, 3, 2, 1],
+		[8, 8, 9, 9, 9, 10, 10, 10]
+	)
+	_set_room_party_start(
+		9,
+		DIR_W,
+		[2, 2, 1, 1, 1, 0, 0, 0],
+		[9, 8, 9, 8, 7, 9, 8, 7]
+	)
+	if rooms.size() <= 9:
+		return
+	var room: Dictionary = rooms[9]
+	var monsters: Array = room.get("monsters", [])
+	var fixed_pos := {
+		7: Vector2i(4, 5),
+		8: Vector2i(6, 5),
+		9: Vector2i(5, 6),
+	}
+	for i in monsters.size():
+		var monster: Dictionary = monsters[i]
+		var slot := int(monster.get("slot", -1))
+		if not fixed_pos.has(slot):
+			continue
+		var pos: Vector2i = fixed_pos[slot]
+		monster["x"] = pos.x
+		monster["y"] = pos.y
+		monsters[i] = monster
+	room["monsters"] = monsters
+	var tiles: PackedByteArray = room.get("tiles", PackedByteArray())
+	if tiles.size() >= ROOM_MAP_COUNT:
+		var replacements := {
+			Vector2i(5, 5): 60, ## chest
+			Vector2i(0, 7): 22, ## floor
+			Vector2i(1, 7): 22,
+			Vector2i(0, 8): 22,
+			Vector2i(1, 8): 22,
+			Vector2i(0, 9): 22,
+		}
+		for pos in replacements:
+			tiles[pos.y * ROOM_MAP_W + pos.x] = int(replacements[pos])
+		room["tiles"] = tiles
+	rooms[9] = room
 
 
 func _room_has_tile(tiles: PackedByteArray, tid: int) -> bool:

@@ -11749,8 +11749,9 @@ func _dungeon_turn(delta: int) -> void:
 func _dungeon_step(sign: int) -> void:
 	if _dungeon_map == null:
 		return
+	var move_dir := _dungeon_dir if sign > 0 else posmod(_dungeon_dir + 2, 4)
 	var dest: Vector2i = _dungeon_map.neighbor(
-		_tile_pos.x, _tile_pos.y, _dungeon_dir if sign > 0 else posmod(_dungeon_dir + 2, 4)
+		_tile_pos.x, _tile_pos.y, move_dir
 	)
 	if not _dungeon_map.can_walk(dest.x, dest.y, _dungeon_z):
 		_push_message(Locale.t("cmd_blocked"), false)
@@ -11770,8 +11771,10 @@ func _dungeon_step(sign: int) -> void:
 		_dungeon_skip_room = false
 	_refresh_dungeon_view()
 	_play_transport_step_sfx()
-	_push_move_message(_DungeonPortals.vec_from_dir(_dungeon_dir if sign > 0 else posmod(_dungeon_dir + 2, 4)))
-	if _dungeon_enter_room_if_needed():
+	_push_move_message(_DungeonPortals.vec_from_dir(move_dir))
+	## Room records select starts by the side the party came from, not by the
+	## direction of travel (xu4 passes dirReverse(realDir)).
+	if _dungeon_enter_room_if_needed(posmod(move_dir + 2, 4)):
 		_arm_hold_after_step(true)
 		return
 	_dungeon_trigger_cell()
@@ -11779,7 +11782,7 @@ func _dungeon_step(sign: int) -> void:
 	_arm_hold_after_step(true)
 
 
-func _dungeon_enter_room_if_needed() -> bool:
+func _dungeon_enter_room_if_needed(entry_from_dir: int) -> bool:
 	if _dungeon_skip_room or _dungeon_map == null:
 		return false
 	var tok := _dungeon_token()
@@ -11788,7 +11791,7 @@ func _dungeon_enter_room_if_needed() -> bool:
 	var idx: int = _dungeon_map.room_index_at(_tile_pos.x, _tile_pos.y, _dungeon_z)
 	if idx < 0:
 		return false
-	_begin_dungeon_room_combat(idx, _dungeon_dir)
+	_begin_dungeon_room_combat(idx, entry_from_dir)
 	return true
 
 
