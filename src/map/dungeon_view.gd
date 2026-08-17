@@ -988,30 +988,31 @@ func _paint_floor_field(
 	if sw <= 0 or sh <= 0:
 		return
 	var scroll := posmod(anim_frame * 2, sh)
-	var full_volume := tid == TILE_FIELD_ENERGY
-	if full_volume:
-		## Energy is impassable: close the far face before painting the four
-		## receding surfaces, then close the near face last.
+	var walls_only := tid == TILE_FIELD_ENERGY
+	if walls_only:
+		## Energy is impassable: four walls (far / left / right / near), no lid.
 		_paint_field_front_mask(
 			buf, img, _front_rect(depth + 1, field_w, field_h), dim, scroll
 		)
-	_paint_field_hband_mask(
-		buf, img,
-		float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
-		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
-		dim, scroll, view_dir
-	)
-	if full_volume or left_surface:
+	else:
+		_paint_field_hband_mask(
+			buf, img,
+			float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
+			float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
+			dim, scroll, view_dir
+		)
+	if walls_only or left_surface:
 		_paint_field_side_mask(buf, img, geom, true, dim, scroll)
-	if full_volume or right_surface:
+	if walls_only or right_surface:
 		_paint_field_side_mask(buf, img, geom, false, dim, scroll)
-	_paint_field_hband_mask(
-		buf, img,
-		float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
-		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
-		dim, scroll, view_dir
-	)
-	if full_volume:
+	if not walls_only:
+		_paint_field_hband_mask(
+			buf, img,
+			float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
+			float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
+			dim, scroll, view_dir
+		)
+	if walls_only:
 		_paint_field_front_mask(
 			buf, img, _front_rect(depth, field_w, field_h), dim, scroll
 		)
