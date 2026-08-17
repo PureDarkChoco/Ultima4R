@@ -213,13 +213,23 @@ static func index_for(id: String) -> int:
 	return int(INDEX_OF.get(id, -1))
 
 
-static func con_for(id: String) -> String:
-	var i := index_for(id)
-	if i < 0:
-		i = 0
-	if i >= 7:
-		i = 6
-	return "DNG%d.CON" % i
+static func con_for_token(tok: int) -> String:
+	## DNG0–DNG6 describe the current corridor cell, not the dungeon identity.
+	match tok:
+		_DungeonMap.TOK_LADDER_UP:
+			return "DNG1.CON"
+		_DungeonMap.TOK_LADDER_DOWN:
+			return "DNG2.CON"
+		_DungeonMap.TOK_LADDER_BOTH:
+			return "DNG3.CON"
+		_DungeonMap.TOK_CHEST:
+			return "DNG4.CON"
+		_DungeonMap.TOK_DOOR:
+			return "DNG5.CON"
+		_DungeonMap.TOK_SECRET:
+			return "DNG6.CON"
+		_:
+			return "DNG0.CON"
 
 
 static func world_return_for(id: String) -> Vector2i:

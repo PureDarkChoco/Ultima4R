@@ -12153,7 +12153,13 @@ func _dungeon_maybe_corridor_combat() -> void:
 		return
 	if (randi() % 16) != 0:
 		return
-	var cmap = _CombatMaps.load_named(_DungeonPortals.con_for(_dungeon_id))
+	var tok := _dungeon_token()
+	if (
+		tok == _DungeonMapData.TOK_CHEST
+		and _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	):
+		tok = _DungeonMapData.TOK_CORRIDOR
+	var cmap = _CombatMaps.load_named(_DungeonPortals.con_for_token(tok))
 	if cmap == null:
 		return
 	var foe_tid := _CombatEncounter.dungeon_foe_tile(_dungeon_z)
