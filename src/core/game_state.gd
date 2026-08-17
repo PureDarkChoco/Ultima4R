@@ -40,8 +40,8 @@ func _set_language(value: String, persist_pref: bool) -> void:
 
 
 func apply_session_language(lang: String) -> void:
-	## In-game only (e.g. Load slot) — does not touch settings.cfg.
-	_set_language(lang, false)
+	## Load / journey — apply language and write it as the app default.
+	_set_language(lang, true)
 
 
 func restore_menu_language() -> void:
@@ -50,11 +50,14 @@ func restore_menu_language() -> void:
 
 
 func options_snapshot() -> Dictionary:
-	## Live Options values written into the next slot save.
+	## Live Options values written into the next slot save and app prefs.
+	var pos := DisplaySettings.windowed_position()
 	return {
 		"language": language,
 		"hangul_keyboard": HangulInputSettings.layout_id(),
 		"window_scale": DisplaySettings.window_scale_percent(),
+		"window_pos_x": pos.x,
+		"window_pos_y": pos.y,
 		"fullscreen": DisplaySettings.is_fullscreen_active(),
 		"sfx": AudioSfx.is_enabled(),
 		"music": AudioSfx.music_enabled(),
@@ -63,23 +66,28 @@ func options_snapshot() -> Dictionary:
 
 
 func apply_session_options(opts: Dictionary) -> void:
-	## Journey / Load — apply slot options for this play only (app prefs stay).
+	## Journey / Load — apply slot options and write them as app defaults.
 	if opts.is_empty():
 		return
 	if opts.has("language"):
 		apply_session_language(str(opts.get("language")))
 	if opts.has("hangul_keyboard"):
-		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), false)
+		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), true)
 	if opts.has("window_scale"):
-		DisplaySettings.set_window_scale_percent(int(opts.get("window_scale")), false)
+		DisplaySettings.set_window_scale_percent(int(opts.get("window_scale")), true)
 	if opts.has("fullscreen"):
-		DisplaySettings.set_fullscreen_active(bool(opts.get("fullscreen")), false)
+		DisplaySettings.set_fullscreen_active(bool(opts.get("fullscreen")), true)
+	var px := int(opts.get("window_pos_x", -1))
+	var py := int(opts.get("window_pos_y", -1))
+	if px >= 0 and py >= 0:
+		DisplaySettings.set_windowed_position(Vector2i(px, py), true)
 	if opts.has("sfx"):
-		AudioSfx.set_enabled(bool(opts.get("sfx")), false)
+		AudioSfx.set_enabled(bool(opts.get("sfx")), true)
 	if opts.has("music_volume"):
-		AudioSfx.music_set_volume_percent(int(opts.get("music_volume")), false)
+		AudioSfx.music_set_volume_percent(int(opts.get("music_volume")), true)
 	if opts.has("music"):
-		AudioSfx.music_set_enabled(bool(opts.get("music")), false)
+		AudioSfx.music_set_enabled(bool(opts.get("music")), true)
+	commit_live_options()
 
 
 func commit_live_options() -> void:
@@ -3179,6 +3187,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	elif d.has("language"):
 		## Older slots only stored language.
 		apply_session_language(str(d.get("language")))
+		commit_live_options()
 	is_new_game = false
 	if party_order.is_empty():
 		refresh_party_order()

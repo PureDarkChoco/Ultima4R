@@ -119,8 +119,12 @@ func _sample_windowed_geometry() -> void:
 	if win == null:
 		return
 	if win.size.x >= MIN_W and win.size.y >= MIN_H:
-		_windowed_size = win.size
+		if _windowed_position == win.position:
+			return
 		_windowed_position = win.position
+		_config.set_value(SECTION, "pos_x", win.position.x)
+		_config.set_value(SECTION, "pos_y", win.position.y)
+		_schedule_save()
 
 
 ## Route the macOS title-bar green button through the same path as Cmd+F.
@@ -211,6 +215,27 @@ func is_fullscreen_active() -> bool:
 
 func window_scale_percent() -> int:
 	return _window_scale_pct
+
+
+func windowed_position() -> Vector2i:
+	return _windowed_position
+
+
+func set_windowed_position(pos: Vector2i, persist: bool = true) -> void:
+	## Restore a saved windowed origin. Ignored while fullscreen (kept for later).
+	if pos.x < 0 or pos.y < 0:
+		return
+	_windowed_position = pos
+	if _is_fullscreen or _booting:
+		if persist:
+			_config.set_value(SECTION, "pos_x", pos.x)
+			_config.set_value(SECTION, "pos_y", pos.y)
+			_schedule_save()
+		return
+	_reapply_windowed_position()
+	if persist:
+		_remember_windowed(_windowed_size, _windowed_position)
+		_flush_config()
 
 
 func size_for_scale_percent(pct: int = -1) -> Vector2i:
