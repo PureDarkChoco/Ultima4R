@@ -3392,6 +3392,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 			U4Commands.Id.CAST,
 			U4Commands.Id.GET_CHEST,
 			U4Commands.Id.OPEN,
+			U4Commands.Id.PASS,
 			U4Commands.Id.READY,
 			U4Commands.Id.USE,
 			U4Commands.Id.ZTATS,
@@ -3485,6 +3486,9 @@ func _build_command_menu_items() -> Array[int]:
 	for cmd in range(U4Commands.Id.ATTACK, U4Commands.Id.ZTATS + 1):
 		if _command_menu_can_show(cmd):
 			items.append(cmd)
+	## PASS sits after Ztats in the enum, so the A–Z sweep misses it.
+	if _combat_victory_aftermath and _command_menu_can_show(U4Commands.Id.PASS):
+		items.append(U4Commands.Id.PASS)
 	return items
 
 
@@ -3711,7 +3715,9 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 	):
 		_close_command_menu()
 		if _combat_active:
-			if not _combat_victory_aftermath:
+			if _combat_victory_aftermath:
+				_handle_combat_victory_command(U4Commands.Id.PASS)
+			else:
 				_handle_combat_command(U4Commands.Id.PASS)
 		elif not _is_party_asleep_locked():
 			_handle_command(U4Commands.Id.PASS)
@@ -16952,6 +16958,11 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 		if _combat_victory_allows_esc_exit():
 			_open_combat_exit_prompt()
 		return true
+	if _GameInput.is_pass(event) or (
+		event is InputEventKey and _is_space_key(event as InputEventKey)
+	):
+		_victory_pass()
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		## 0 = party rotation, 1–8 = solo control of that party slot (xu4 active player).
@@ -16973,6 +16984,8 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 				_do_ready()
 			U4Commands.Id.USE:
 				_do_use()
+			U4Commands.Id.PASS:
+				_victory_pass()
 			_:
 				pass ## ignore other letters (no Not here! spam)
 	## Keep solo character focused (in case focus drifted).
@@ -16995,6 +17008,8 @@ func _handle_combat_victory_command(cmd: int) -> void:
 			_do_ready()
 		U4Commands.Id.USE:
 			_do_use()
+		U4Commands.Id.PASS:
+			_victory_pass()
 
 
 func _handle_combat_pending_dir(k: InputEventKey) -> bool:
@@ -17154,6 +17169,16 @@ func _victory_ensure_solo_focus() -> void:
 	if _map.get_combat_focus() != combat_i:
 		_map.set_combat_focus(combat_i)
 		_sync_combat_focus_roster()
+
+
+func _victory_pass() -> void:
+	## After Victory!: Pass cycles party focus so a blocked exit can be retried.
+	_push_message(Locale.t("cmd_pass"), false)
+	if _victory_solo_party_slot < 0:
+		_victory_advance_party_focus()
+	else:
+		_victory_ensure_solo_focus()
+	_sync_combat_focus_roster()
 
 
 func _victory_advance_party_focus() -> void:
@@ -17654,10 +17679,11 @@ func _combat_try_move(dir: Vector2i) -> void:
 			_sync_combat_focus_roster()
 			_refresh_party()
 		elif _victory_solo_party_slot < 0:
-			## Party mode: after a successful step, pass focus to the next unit.
+			## Party mode: a step, slow, or bump spends this unit and passes focus.
 			if (
 				result == MapView.COMBAT_MOVE_OK
 				or result == MapView.COMBAT_MOVE_SLOWED
+				or result == MapView.COMBAT_MOVE_BLOCKED
 			):
 				_victory_advance_party_focus()
 			else:
