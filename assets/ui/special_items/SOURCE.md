@@ -13,6 +13,7 @@ Runes are looked up via `RuneIcons` (`src/core/rune_icons.gd`); indices match `V
 | `book.png` | Book of Truth |
 | `wheel.png` | Wheel of the H.M.S. Cape |
 | `horn.png` | Silver Horn |
+| `sextant.png` | Sextant |
 | `key_truth.png` | Key of Truth |
 | `key_love.png` | Key of Love |
 | `key_courage.png` | Key of Courage |

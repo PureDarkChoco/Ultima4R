@@ -1472,7 +1472,7 @@ func _fill_items_page() -> void:
 	if GameState.has_item_flag(GameState.ITEM_SKULL):
 		relics.append({"path": _SpecialItemIcons.SKULL, "key": "ztats_item_skull"})
 	if GameState.has_sextant:
-		relics.append({"path": "", "key": "ztats_item_sextant"})
+		relics.append({"path": _SpecialItemIcons.SEXTANT, "key": "ztats_item_sextant"})
 	if not relics.is_empty():
 		_add_inv_section(Locale.t("ztats_section_relics"))
 		for r in relics:

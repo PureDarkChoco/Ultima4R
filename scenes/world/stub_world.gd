@@ -602,6 +602,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_sync_creatures_to_map()
 	_sync_music()
 	_journal_note_entered_city(fname)
+	_refresh_locate_hud()
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -6349,10 +6350,11 @@ func _handle_command(cmd: int) -> void:
 		if not GameState.has_sextant:
 			_push_message(Locale.t("cmd_locate_what"), false)
 		else:
+			var loc := _locate_world_pos()
 			_push_message(Locale.t("cmd_locate", [
 				name,
-				_format_u4_sextant(_tile_pos.x),
-				_format_u4_sextant(_tile_pos.y),
+				_format_u4_sextant(loc.x),
+				_format_u4_sextant(loc.y),
 			]))
 		_finish_party_turn()
 	elif cmd == U4Commands.Id.QUIT_SAVE:
@@ -6680,32 +6682,45 @@ func _toggle_locate_hud() -> void:
 		return
 	_locate_on = not _locate_on
 	_ensure_locate_hud()
-	if _locate_label:
-		_locate_label.visible = _locate_on
+	_refresh_locate_hud()
 	if _locate_on:
-		_refresh_locate_hud()
-		_layout_locate_hud()
 		_push_message(Locale.t("locate_on"), false)
 	else:
 		_push_message(Locale.t("locate_off"), false)
 
 
+func _locate_hud_should_show() -> bool:
+	## Keep the lock, but hide the readout in towns and dungeons.
+	return _locate_on and not _is_in_city() and not _is_in_dungeon()
+
+
 func _refresh_locate_hud() -> void:
 	if _locate_label == null:
 		return
+	var pos := _locate_world_pos()
 	_locate_label.text = "%s %s" % [
-		_format_u4_sextant(_tile_pos.x),
-		_format_u4_sextant(_tile_pos.y),
+		_format_u4_sextant(pos.x),
+		_format_u4_sextant(pos.y),
 	]
-	if _locate_on:
+	_locate_label.visible = _locate_hud_should_show()
+	if _locate_hud_should_show():
 		_layout_locate_hud()
+
+
+func _locate_world_pos() -> Vector2i:
+	## Persistent Locate always shows Britannia map coords (never city-local).
+	if _is_in_dungeon():
+		return _dungeon_return_pos
+	if _is_in_city():
+		return _city_return_pos
+	return _tile_pos
 
 
 func _layout_locate_hud() -> void:
 	## Same X as before (open-map right). Y centered on the top bar.
 	if _locate_label == null or _map_pane == null or _top_bar == null:
 		return
-	if not _locate_on:
+	if not _locate_hud_should_show():
 		return
 	var g := _side_geom()
 	var map_right: float = floorf(g["right_open_x"])
@@ -11066,6 +11081,7 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 	_maybe_capture_manual_zorin_tip(fname)
 	_journal_note_entered_city(fname)
 	_sync_music()
+	_refresh_locate_hud()
 	## xu4 endTurn = 0 on successful enter — do not finish party turn.
 
 
@@ -11604,6 +11620,7 @@ func _use_city_floor_portal(action: int) -> void:
 		_map.enter_city(cmap, start, _city_return_pos, spawn)
 		_map.set_transport_tile(-1)
 		_map.clear_moongate()
+	_refresh_locate_hud()
 	_finish_party_turn()
 
 
@@ -11756,6 +11773,7 @@ func _enter_dungeon_from_portal(portal: Dictionary, from_city: bool = false) -> 
 		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
 	_open_sides_for_dungeon()
 	_sync_music()
+	_refresh_locate_hud()
 
 
 func _restore_dungeon_from_save(w: Dictionary) -> void:
@@ -11790,6 +11808,7 @@ func _restore_dungeon_from_save(w: Dictionary) -> void:
 		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
 	_open_sides_for_dungeon()
 	_sync_music()
+	_refresh_locate_hud()
 
 
 func _exit_dungeon_to_surface() -> void:
@@ -11809,11 +11828,13 @@ func _exit_dungeon_to_surface() -> void:
 			if _map != null:
 				_map.enter_city(cmap, _tile_pos, _city_return_pos)
 			_sync_music()
+			_refresh_locate_hud()
 			return
 	_tile_pos = back
 	if _map != null:
 		_map.set_center(_tile_pos, false)
 	_sync_music()
+	_refresh_locate_hud()
 
 
 func _dungeon_handle_dir(dir: Vector2i) -> void:

@@ -1444,7 +1444,7 @@ const _T := {
 	"search_item_book": {
 		"en_u4": "the Book of Truth",
 		"en_us": "the Book of Truth",
-		"ko": "진리의 서",
+		"ko": "진리의 책",
 	},
 	"search_item_candle": {
 		"en_u4": "the Candle of Love",
