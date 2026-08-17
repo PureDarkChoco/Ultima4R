@@ -167,6 +167,10 @@ var _combat_exit_prompt := false
 var _combat_suppress_chests := false
 ## Victory solo control: party_order slot (0..7), or −1 = sequential party mode.
 var _victory_solo_party_slot := -1
+## Victory aftermath still consumes turns; blocks input while sleepers auto-pass.
+var _victory_turn_pending := false
+## xu4 CampController alone wakes the party when its ambush combat ends.
+var _combat_wake_on_victory := false
 ## True while pacing delays / foe turns run — blocks combat input.
 var _combat_resolving := false
 ## xu4 combat sleep wake (1/8) allowed. Camp ambush keeps this false until
@@ -284,8 +288,9 @@ const CAMP_REST_SEC := 10.0
 const CAMP_AMBUSH_MIN_SEC := 3.0
 ## xu4 settings innTime default (InnController wait before Morning!).
 const INN_REST_SEC := 8.0
-## xu4 finishTurn Zzzzzz pause (~4 frames @ 24fps).
-const IMMOBILIZED_SLEEP_SEC := 0.166
+## xu4 waited ~0.166s, which reads as an instant skip on modern displays.
+## Keep each forced sleep turn visible so lost time has perceptible weight.
+const IMMOBILIZED_SLEEP_SEC := 0.75
 ## xu4 death.cpp — deathStart(delay) + DeathController tick + revive.
 ## Pre-message (xu4 ~10s): delay 5s + controller 5s → remake: 5 + 3 hold + 2 fade.
 const DEATH_PAUSE_SEC := 5.0 ## seconds between death dialogue lines (controller tick)
@@ -2685,7 +2690,11 @@ func _process(delta: float) -> void:
 			_tick_ready_weapon_cursor()
 		elif _combat_aiming:
 			_tick_combat_aim_move()
-		elif _combat_victory_aftermath and not _combat_exit_prompt:
+		elif (
+			_combat_victory_aftermath
+			and not _combat_exit_prompt
+			and not _victory_turn_pending
+		):
 			_tick_combat_victory_move()
 		elif (
 			not _combat_resolving
@@ -13913,6 +13922,10 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 func _maybe_continue_immobilized() -> void:
 	## xu4: while isImmobilized && !isDead → "Zzzzzz" then another finishTurn.
 	## xu4 finishTurn: isDead → deathStart(0).
+	## Combat owns its own sleeper pass/wake loop.
+	if _combat_active:
+		_immobilized_pending = false
+		return
 	if GameState.is_party_dead():
 		_immobilized_pending = false
 		_start_death_sequence(0.0)
@@ -13939,6 +13952,8 @@ func _on_immobilized_timer() -> void:
 	if not is_inside_tree():
 		return
 	if _death_busy:
+		return
+	if _combat_active:
 		return
 	if GameState.is_party_dead():
 		_start_death_sequence(0.0)
@@ -14443,10 +14458,14 @@ func _finish_directed_command(dir: Vector2i) -> void:
 	## Chest Open waits on "Who opens?" — turn finishes after the pick.
 	if _chest_open_stage != 0:
 		return
-	## Victory aftermath: no foe clock; party-mode Open/Get still pass focus.
+	## Victory aftermath: directed actions still spend the active member's turn.
 	if _combat_active and _combat_victory_aftermath:
-		if result.is_empty() or result == Locale.t("cmd_opened"):
-			_victory_advance_party_focus()
+		## Get may already have completed through `_finish_action_turn`.
+		if (
+			not _victory_turn_pending
+			and (result.is_empty() or result == Locale.t("cmd_opened"))
+		):
+			_victory_finish_member_turn()
 		return
 	## Combat arena: directed action spends the current member (not party clock).
 	## Call without await so the turn coroutine is not nested under this input
@@ -16649,6 +16668,8 @@ func _begin_combat(
 	_combat_victory_aftermath = false
 	_combat_exit_prompt = false
 	_victory_solo_party_slot = -1
+	_victory_turn_pending = false
+	_combat_wake_on_victory = foes_first
 	## Inn ambush and dungeon rooms: xu4 awardLoot never runs (winOrLose false).
 	_combat_suppress_chests = (
 		bool(foe.get("no_chest_loot", false))
@@ -16770,10 +16791,13 @@ func _begin_combat_victory_aftermath() -> void:
 	## Always free combat input after Victory (even if a turn-gap coroutine still runs).
 	_combat_victory_aftermath = true
 	_victory_solo_party_slot = -1
+	_victory_turn_pending = false
 	_combat_resolving = false
 	_combat_aiming = false
-	## xu4 CampController::endCombat — wake sleepers after the fight.
-	GameState.wake_party()
+	## xu4 CampController::endCombat wakes sleepers; ordinary and dungeon
+	## combat preserves sleep into the post-victory turn loop.
+	if _combat_wake_on_victory:
+		GameState.wake_party()
 	var engaged_tid := int(_combat_foe.get("tile", 0))
 	var foe_pos := Vector2i(
 		int(_combat_foe.get("x", _tile_pos.x)),
@@ -16803,6 +16827,8 @@ func _begin_combat_victory_aftermath() -> void:
 	## Already empty (edge case) — leave immediately.
 	if _map == null or _map.combat_party_count() <= 0:
 		await _finish_combat_victory_exit()
+	else:
+		_victory_resume_turn_flow()
 
 
 func _finish_combat_victory_exit() -> void:
@@ -16814,6 +16840,8 @@ func _finish_combat_victory_exit() -> void:
 	_combat_resolving = true
 	_combat_victory_aftermath = false
 	_victory_solo_party_slot = -1
+	_victory_turn_pending = false
+	_combat_wake_on_victory = false
 	if _map != null:
 		_map.exit_combat()
 	_combat_foe = {}
@@ -16834,6 +16862,9 @@ func _finish_combat_victory_exit() -> void:
 	_block_dir_until_keyup = true
 	_reset_hold_state()
 	_stamp_command_time()
+	## A room exit can return an entirely sleeping party to the corridor.
+	## Start xu4's Zzzzzz world/dungeon turn loop immediately.
+	_maybe_continue_immobilized()
 
 
 func _combat_victory_allows_esc_exit() -> bool:
@@ -16943,6 +16974,7 @@ func _tick_combat_victory_move() -> void:
 	## Victory free-roam: keys + pad held at world walk cadence (no event double-step).
 	if (
 		not _combat_victory_aftermath
+		or _victory_turn_pending
 		or _command_menu_open
 		or _pending_cmd != U4Commands.Id.NONE
 		or _ztats_stage != 0
@@ -17072,6 +17104,8 @@ func _handle_combat_victory_input(k: InputEventKey) -> bool:
 
 func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 	## Free movement and loot commands; Y/Esc leave except in dungeon rooms.
+	if _victory_turn_pending:
+		return true
 	_combat_resolving = false
 	if event is InputEventJoypadMotion:
 		## Stick roam is polled; clear latch on release for Dir? / aim later.
@@ -17298,28 +17332,154 @@ func _victory_ensure_solo_focus() -> void:
 
 
 func _victory_pass() -> void:
-	## After Victory!: Pass cycles party focus so a blocked exit can be retried.
+	## After Victory!: Pass spends the active member's turn.
 	_push_message(Locale.t("cmd_pass"), false)
+	_victory_finish_member_turn()
+
+
+func _victory_resume_turn_flow() -> void:
+	## Victory may begin with the focused member asleep. Seek an able member,
+	## or automatically pass full rounds until someone wakes.
+	if _victory_turn_pending:
+		return
+	_victory_turn_pending = true
+	await _victory_seek_able_focus()
+	_victory_turn_pending = false
+
+
+func _victory_finish_member_turn(after_flee: bool = false) -> void:
+	## Post-victory room/free-roam still follows the combat party clock.
+	if (
+		_victory_turn_pending
+		or not _combat_active
+		or not _combat_victory_aftermath
+		or _map == null
+		or not _map.is_in_combat()
+	):
+		return
+	_victory_turn_pending = true
+	_stamp_command_time()
+
+	## xu4 finishTurn applies the tile under the active member on every spent
+	## turn, including Pass / blocked / slowed. Flee has no tile underfoot.
+	if not after_flee and _apply_combat_field_under_focus():
+		after_flee = true
+	if _map == null or _map.combat_party_count() <= 0:
+		_victory_turn_pending = false
+		await _finish_combat_victory_exit()
+		return
+
+	var wrapped := false
+	if _victory_solo_party_slot >= 0:
+		var solo_i := _map.find_combat_party_index_for_slot(_victory_solo_party_slot)
+		if solo_i < 0:
+			_victory_solo_party_slot = -1
+		else:
+			_map.set_combat_focus(solo_i)
+			wrapped = true
+
 	if _victory_solo_party_slot < 0:
-		_victory_advance_party_focus()
-	else:
-		_victory_ensure_solo_focus()
-	_sync_combat_focus_roster()
+		var n := _map.combat_party_count()
+		var cur := _map.get_combat_focus()
+		var next := cur if after_flee else cur + 1
+		if next < 0:
+			next = 0
+		if next >= n:
+			next = 0
+			wrapped = true
+		_map.set_combat_focus(next)
+
+	if wrapped:
+		_victory_apply_round_turn()
+	await _victory_seek_able_focus()
+	_victory_turn_pending = false
 
 
-func _victory_advance_party_focus() -> void:
-	## Party mode after Victory: cycle focus through remaining units.
-	if _map == null or _victory_solo_party_slot >= 0:
-		return
-	var n := _map.combat_party_count()
-	if n <= 1:
-		return
-	var cur := _map.get_combat_focus()
-	if cur < 0:
-		_map.set_combat_focus(0)
-	else:
-		_map.set_combat_focus((cur + 1) % n)
-	_sync_combat_focus_roster()
+func _victory_seek_able_focus() -> void:
+	## Sleeping focus cannot move, issue commands, or clear solo mode. Combat's
+	## 1/8 wake roll is retained; each full pass also advances the party clock.
+	while true:
+		if (
+			not _combat_active
+			or not _combat_victory_aftermath
+			or _map == null
+			or not _map.is_in_combat()
+		):
+			return
+		if GameState.is_party_dead():
+			await _finish_combat_victory_exit()
+			return
+		if _map.combat_party_count() <= 0:
+			await _finish_combat_victory_exit()
+			return
+
+		if _victory_solo_party_slot >= 0:
+			var solo_i := _map.find_combat_party_index_for_slot(_victory_solo_party_slot)
+			if solo_i < 0:
+				_victory_solo_party_slot = -1
+				_map.set_combat_focus(0)
+				continue
+			_map.set_combat_focus(solo_i)
+
+		var klass := _map.get_combat_focus_klass()
+		if klass < 0:
+			return
+		if GameState.status_of_class(klass) == PartyRoster.Status.SLEEPING:
+			if (randi() % 8) == 0 and GameState.wake_member(klass):
+				_refresh_party()
+				_map.refresh_combat_view()
+		if not GameState.is_member_disabled(klass):
+			_sync_combat_focus_roster()
+			_refresh_party()
+			return
+
+		## Solo remains on the selected sleeper. Party mode skips to the next
+		## member and advances the round when the focus wraps.
+		var wrapped := false
+		if _victory_solo_party_slot < 0:
+			var n := _map.combat_party_count()
+			var next := _map.get_combat_focus() + 1
+			if next >= n:
+				next = 0
+				wrapped = true
+			_map.set_combat_focus(next)
+		else:
+			wrapped = true
+
+		if wrapped:
+			if _victory_solo_party_slot >= 0 or GameState.is_party_immobilized():
+				_push_message(Locale.t("cmd_zzzzzz"), false)
+				await get_tree().create_timer(IMMOBILIZED_SLEEP_SEC).timeout
+				if not _combat_active or not _combat_victory_aftermath:
+					return
+			_victory_apply_round_turn()
+
+
+func _victory_apply_round_turn() -> void:
+	## Advance food/status/moves without applying the dungeon corridor tile or
+	## moving corridor monsters while the party is still on the combat map.
+	var result: Dictionary = GameState.end_party_turn(false, false)
+	GameState.pass_aura_turn()
+	## Poison/starvation can kill during these real turns; dead units must not
+	## remain stranded on an arena that only living members can walk out of.
+	if _map != null:
+		for i in range(_map.combat_party_count() - 1, -1, -1):
+			var unit := _map.get_combat_party_unit(i)
+			var klass := int(unit.get("klass", -1))
+			if klass >= 0 and GameState.is_class_dead(klass):
+				_map.remove_combat_party_at(i)
+	if bool(result.get("food_changed", false)):
+		_refresh_inventory_bars()
+	if bool(result.get("starving", false)):
+		_push_message(Locale.t("cmd_starving"), false)
+	if bool(result.get("vitals_changed", false)):
+		_refresh_party()
+		var mask := int(result.get("damaged_mask", 0))
+		if mask != 0:
+			if _roster and _roster.has_method("flash_players"):
+				_roster.flash_players(mask)
+			if _compact_roster and _compact_roster.has_method("flash_players"):
+				_compact_roster.flash_players(mask)
 
 
 func _is_key(k: InputEventKey, code: int) -> bool:
@@ -17778,7 +17938,9 @@ func _combat_try_move(dir: Vector2i) -> void:
 		MapView.COMBAT_MOVE_OK:
 			_push_message(_direction_label(dir, true), false)
 			_dungeon_try_room_trigger()
-			if _apply_combat_field_under_focus():
+			## Normal combat applies immediately. Victory applies once at turn end
+			## so Pass / blocked / slowed turns also re-trigger the standing field.
+			if not _combat_victory_aftermath and _apply_combat_field_under_focus():
 				after_flee = true
 		MapView.COMBAT_MOVE_SLOWED:
 			_push_message(Locale.t("cmd_slow_progress"), false)
@@ -17793,30 +17955,15 @@ func _combat_try_move(dir: Vector2i) -> void:
 		_:
 			_push_message(Locale.t("cmd_blocked"), false)
 	if _combat_victory_aftermath:
-		## Free roam after Victory! — no turn clock; leave when empty.
+		## Post-victory movement still spends turns (sleep wake, food, aura).
 		if after_flee and (_map == null or _map.combat_party_count() <= 0):
 			_finish_combat_victory_exit()
-		elif after_flee:
+		else:
 			## Solo character left the map → drop to party rotation / next order.
 			if _victory_solo_party_slot >= 0:
 				if _map.find_combat_party_index_for_slot(_victory_solo_party_slot) < 0:
 					_victory_solo_party_slot = -1
-			_map.refocus_after_flee()
-			_sync_combat_focus_roster()
-			_refresh_party()
-		elif _victory_solo_party_slot < 0:
-			## Party mode: a step, slow, or bump spends this unit and passes focus.
-			if (
-				result == MapView.COMBAT_MOVE_OK
-				or result == MapView.COMBAT_MOVE_SLOWED
-				or result == MapView.COMBAT_MOVE_BLOCKED
-			):
-				_victory_advance_party_focus()
-			else:
-				_sync_combat_focus_roster()
-		else:
-			_victory_ensure_solo_focus()
-			_sync_combat_focus_roster()
+			_victory_finish_member_turn(after_flee)
 		return
 	## xu4: move (incl. blocked/slowed/flee) ends the active member's turn.
 	_combat_finish_member_turn(after_flee)
@@ -17920,10 +18067,9 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	## Sleeping/dead members auto-skip with no player wait (xu4 do-while).
 	if _map == null or not _map.is_in_combat() or _combat_resolving:
 		return
-	## Victory aftermath never runs the foe phase or defeat path.
+	## Victory aftermath has no foe phase, but still spends party/status turns.
 	if _combat_victory_aftermath:
-		if after_flee and _map.combat_party_count() <= 0:
-			_finish_combat_victory_exit()
+		_victory_finish_member_turn(after_flee)
 		return
 	_combat_resolving = true
 	_stamp_command_time()
@@ -18593,8 +18739,6 @@ func _complete_chest_open(slot: int, finish_turn: bool) -> void:
 
 func _finish_action_turn() -> void:
 	## Party-clock outside combat; combat spends the focused member.
-	if _combat_active and _combat_victory_aftermath:
-		return
 	if _combat_active:
 		_combat_finish_member_turn()
 	else:
