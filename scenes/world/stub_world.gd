@@ -17747,6 +17747,9 @@ func _apply_combat_field_to_foe(pos: Vector2i, foe_i: int) -> void:
 		return
 	match effect:
 		_TileRules.Effect.FIRE, _TileRules.Effect.LAVA:
+			var foe_tid := int(_map.get_combat_foe_at(foe_i).get("tile", 0))
+			if _WorldCreaturesScript.resists_fire(foe_tid):
+				return
 			_combat_note_field_foe_hit(_map.damage_combat_foe(foe_i, 16 + (randi() % 32)))
 		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
 			if not _map.is_combat_foe_poisoned(foe_i):

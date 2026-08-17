@@ -1697,6 +1697,9 @@ func act_combat_creature_at(index: int) -> Dictionary:
 	out["from"] = from
 	out["tile"] = tid
 	out["base_hp"] = base_hp
+	## xu4: Zorn refreshes Negate (2 turns) and still takes its action.
+	if _WorldCreaturesScript.negates(tid):
+		GameState.set_aura(GameState.AuraType.NEGATE, _WorldCreaturesScript.ZORN_NEGATE_TURNS)
 	## xu4: creatures who teleport do so 1/8 of the time (before ranged / sleep).
 	if _WorldCreaturesScript.teleports(tid) and (randi() % 8) == 0:
 		var dest := _combat_try_teleport(index, from)

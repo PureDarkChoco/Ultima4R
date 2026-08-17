@@ -575,6 +575,9 @@ const _STEALS_GOLD := {200: true} ## Rogue
 const _STEALS_FOOD := {168: true} ## Gremlin
 const _CASTS_SLEEP := {176: true, 252: true} ## Reaper, Balron
 const _TELEPORTS := {220: true} ## Wisp
+const _NEGATES := {236: true} ## Zorn
+## xu4 Creature::act — Zorn refreshes Negate for this many turns, then still acts.
+const ZORN_NEGATE_TURNS := 2
 
 ## xu4 Creature::getState — flee when current HP drops below this.
 const FLEE_HP := 24
@@ -670,6 +673,11 @@ static func teleports(tile_or_base: int) -> bool:
 	return bool(_TELEPORTS.get(_base_tile(tile_or_base), false))
 
 
+static func negates(tile_or_base: int) -> bool:
+	## xu4 `casts: negate` — Zorn.
+	return bool(_NEGATES.get(_base_tile(tile_or_base), false))
+
+
 static func is_stationary(tile_or_base: int) -> bool:
 	## xu4 `movement: none` — Mimic / Reaper. World and combat both stay put.
 	return _default_movement(_base_tile(tile_or_base)) == MOVE_FIXED
@@ -690,6 +698,18 @@ static func resists_sleep(tile_or_base: int) -> bool:
 		or base == 196 ## Skeleton
 		or base == 228 ## Liche
 		or base == 252 ## Balron
+	)
+
+
+static func resists_fire(tile_or_base: int) -> bool:
+	## xu4 `resists: fire` — lava lizard, daemon, hydra, dragon, balron.
+	var base := _base_tile(tile_or_base)
+	return (
+		base == 232
+		or base == 240
+		or base == 244
+		or base == 248
+		or base == 252
 	)
 
 
