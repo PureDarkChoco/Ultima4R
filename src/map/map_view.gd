@@ -339,7 +339,10 @@ var _combat_foe_spawn_count := 0
 ## Combat loot chests: key "x,y" → { open, stack, ... }.
 var _combat_chests: Dictionary = {}
 ## xu4 InnController::awardLoot empty — inn night fights drop nothing.
+## Dungeon rooms also suppress (xu4 winOrLose false).
 var suppress_combat_chests := false
+## Closed / open chest with keyed black so combat underdraw (CON floor) shows.
+var _keyed_chest_frames: Array = []
 ## Index into `_combat_party` for xu4 TileView::drawFocus (blinking white box).
 var _combat_focus := -1
 ## Index into `_combat_foes` while that creature acts (−1 = party phase).
@@ -4043,8 +4046,14 @@ func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
 			continue
 		var dst := _tile_px(sx, sy)
 		var is_open := bool(d.get("open", false))
-		## Terrain already drawn under — blend keyed chest so grass shows through.
-		_U4TileBankScript.blend_to(_buf, TILE_CHEST, dst, 1 if is_open else 0)
+		## Terrain already drawn — keyed chest keeps the .CON / room floor.
+		var chest_img := _keyed_chest_image(1 if is_open else 0)
+		if chest_img != null:
+			_buf.blend_rect(
+				chest_img,
+				Rect2i(0, 0, chest_img.get_width(), chest_img.get_height()),
+				dst
+			)
 		if not is_open:
 			continue
 		var stack: Array = []
@@ -5265,11 +5274,31 @@ func _shore_filter_keeps(x: int, y: int, sides: int, corner: bool, depth: int) -
 	return n or s or w or e
 
 
+func _keyed_chest_image(frame: int) -> Image:
+	var f := 1 if frame != 0 else 0
+	if _keyed_chest_frames.size() < 2:
+		_keyed_chest_frames = [null, null]
+	var cached: Variant = _keyed_chest_frames[f]
+	if cached is Image and not (cached as Image).is_empty():
+		return cached as Image
+	var img: Image = _U4TileBankScript.keyed_copy(TILE_CHEST, f)
+	_keyed_chest_frames[f] = img
+	return img
+
+
 func _blit_chest_tile(target: Image, dst: Vector2i, frame: int, city_floor: bool) -> void:
-	## Floor underlay + alpha-blended chest (PNG margins are transparent).
-	var under := TILE_BRICK_FLOOR if city_floor else TILE_GRASS
+	## Floor underlay + keyed chest. Dungeon / city use brick, wilderness grass.
+	var under := TILE_GRASS
+	if city_floor or is_in_dungeon():
+		under = TILE_BRICK_FLOOR
 	_U4TileBankScript.blit_to(target, under, dst, 0)
-	_U4TileBankScript.blend_to(target, TILE_CHEST, dst, frame)
+	var chest_img := _keyed_chest_image(frame)
+	if chest_img != null:
+		target.blend_rect(
+			chest_img,
+			Rect2i(0, 0, chest_img.get_width(), chest_img.get_height()),
+			dst
+		)
 
 
 func _refresh_los() -> void:

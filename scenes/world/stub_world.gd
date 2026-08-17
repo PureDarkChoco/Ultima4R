@@ -16649,7 +16649,11 @@ func _begin_combat(
 	_combat_victory_aftermath = false
 	_combat_exit_prompt = false
 	_victory_solo_party_slot = -1
-	_combat_suppress_chests = bool(foe.get("no_chest_loot", false))
+	## Inn ambush and dungeon rooms: xu4 awardLoot never runs (winOrLose false).
+	_combat_suppress_chests = (
+		bool(foe.get("no_chest_loot", false))
+		or bool(foe.get("dungeon_room", false))
+	)
 	## Camp ambush: no sleep→wake rolls until the first creature phase ends.
 	## Normal engage: party may need the 1/8 roll before any creature acts.
 	_combat_allow_sleep_wake = not foes_first
