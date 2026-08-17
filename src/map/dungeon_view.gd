@@ -62,11 +62,12 @@ var _keyed_monster_cache: Dictionary = {}
 func set_theme(id: String) -> void:
 	if _ladder_half == null:
 		_ladder_half = _load_png("%s/ladder_half.png" % ASSET_ROOT)
-	if _fountain_frames.is_empty():
-		_fountain_frames = [
-			_load_png("%s/fountain_0.png" % ASSET_ROOT),
-			_load_png("%s/fountain_1.png" % ASSET_ROOT),
-		]
+	## Reload on dungeon entry/theme setup so replaced source art cannot remain
+	## hidden behind frames cached by an earlier DungeonView session.
+	_fountain_frames = [
+		_load_png("%s/fountain_0.png" % ASSET_ROOT),
+		_load_png("%s/fountain_1.png" % ASSET_ROOT),
+	]
 	if id == _theme_loaded and _wall != null:
 		theme_id = id
 		return
@@ -1314,7 +1315,20 @@ func _paint_tile_object(
 
 
 func _load_png(path: String) -> Image:
-	if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
+	## In editor/dev runs, read the source PNG first so replacing an asset cannot
+	## be hidden by a stale imported texture. Exported builds use Texture2D.
+	if OS.has_feature("editor") and FileAccess.file_exists(path):
+		var bytes := FileAccess.get_file_as_bytes(path)
+		var source := Image.new()
+		if not bytes.is_empty() and source.load_png_from_buffer(bytes) == OK:
+			return source
+	if ResourceLoader.exists(path):
+		var resource := ResourceLoader.load(path)
+		if resource is Texture2D:
+			var imported := (resource as Texture2D).get_image()
+			if imported != null and not imported.is_empty():
+				return imported
+	if not FileAccess.file_exists(path):
 		return null
 	var img := Image.new()
 	if img.load(path) != OK:
