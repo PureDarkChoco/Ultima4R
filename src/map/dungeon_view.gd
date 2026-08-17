@@ -40,6 +40,7 @@ const LADDER_DOWN := 2
 const VIEW_OBJECT_TILE := 0
 const VIEW_OBJECT_LADDER := 1
 const VIEW_OBJECT_FLOOR_FIELD := 2
+const VIEW_OBJECT_SIDE_FIELD := 3
 
 var theme_id: String = "grey_stone"
 var _wall: Image
@@ -170,6 +171,24 @@ func paint(
 						or _is_side_entrance(dmap, right, z)
 					),
 				})
+		var left_field_tid := _cell_field_tile_id(dmap, left, z)
+		if left_field_tid >= 0:
+			view_objects.append({
+				"kind": VIEW_OBJECT_SIDE_FIELD,
+				"depth": depth,
+				"tile_id": left_field_tid,
+				"view_dir": dir,
+				"left": true,
+			})
+		var right_field_tid := _cell_field_tile_id(dmap, right, z)
+		if right_field_tid >= 0:
+			view_objects.append({
+				"kind": VIEW_OBJECT_SIDE_FIELD,
+				"depth": depth,
+				"tile_id": right_field_tid,
+				"view_dir": dir,
+				"left": false,
+			})
 		_blit_cached_piece(
 			buf,
 			"floor:%d" % depth,
@@ -246,6 +265,18 @@ func paint(
 				int(object["view_dir"]),
 				bool(object["left_surface"]),
 				bool(object["right_surface"])
+			)
+		elif int(object["kind"]) == VIEW_OBJECT_SIDE_FIELD:
+			_paint_side_field(
+				buf,
+				int(object["tile_id"]),
+				int(object["depth"]),
+				w,
+				h,
+				1.0,
+				anim_frame,
+				int(object["view_dir"]),
+				bool(object["left"])
 			)
 		else:
 			_paint_tile_object(
@@ -930,6 +961,12 @@ func _cell_object_tile_id(
 	return tid
 
 
+func _cell_field_tile_id(dmap, cell: Vector2i, z: int) -> int:
+	if dmap.token_at(cell.x, cell.y, z) != _DungeonMap.TOK_FIELD:
+		return -1
+	return int(dmap.field_world_tile(cell.x, cell.y, z))
+
+
 func _paint_floor_field(
 	buf: Image,
 	tid: int,
@@ -980,6 +1017,69 @@ func _paint_floor_field(
 		)
 
 
+func _paint_side_field(
+	buf: Image,
+	tid: int,
+	depth: int,
+	field_w: int,
+	field_h: int,
+	dim: float,
+	anim_frame: int,
+	view_dir: int,
+	left: bool
+) -> void:
+	var img: Image = _U4TileBank.image(tid)
+	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
+		return
+	var geom := _depth_geom(field_w, field_h, depth)
+	var far_w := float(int(geom["nx1"]) - int(geom["nx0"]))
+	if far_w < 0.5:
+		return
+	var x_near_inner := float(geom["x0"] if left else geom["x1"])
+	var x_far_inner := float(geom["nx0"] if left else geom["nx1"])
+	var x_near_outer := x_near_inner + (-far_w if left else far_w)
+	var x_far_outer := x_far_inner + (-far_w if left else far_w)
+	var clip_x0 := int(geom["x0"] if left else geom["nx1"])
+	var clip_x1 := int(geom["nx0"] if left else geom["x1"])
+	var side_view_dir := posmod(
+		view_dir + (_DungeonMap.DIR_W if left else _DungeonMap.DIR_E),
+		4
+	)
+	var scroll := posmod(anim_frame * 2, img.get_height())
+	_paint_field_hband_mask(
+		buf, img,
+		mini(x_near_outer, x_near_inner),
+		maxf(x_near_outer, x_near_inner),
+		int(geom["y0"]),
+		mini(x_far_outer, x_far_inner),
+		maxf(x_far_outer, x_far_inner),
+		int(geom["ny0"]),
+		dim, scroll, side_view_dir, clip_x0, clip_x1
+	)
+	_paint_field_hband_mask(
+		buf, img,
+		mini(x_near_outer, x_near_inner),
+		maxf(x_near_outer, x_near_inner),
+		int(geom["y1"]),
+		mini(x_far_outer, x_far_inner),
+		maxf(x_far_outer, x_far_inner),
+		int(geom["ny1"]),
+		dim, scroll, side_view_dir, clip_x0, clip_x1
+	)
+	_paint_field_front_mask(
+		buf,
+		img,
+		Rect2i(
+			clip_x0,
+			int(geom["ny0"]),
+			maxi(clip_x1 - clip_x0, 1),
+			maxi(int(geom["ny1"]) - int(geom["ny0"]), 1)
+		),
+		dim,
+		scroll
+	)
+
+
 func _paint_field_hband_mask(
 	buf: Image,
 	img: Image,
@@ -991,7 +1091,9 @@ func _paint_field_hband_mask(
 	y_far: int,
 	dim: float,
 	scroll: int,
-	view_dir: int
+	view_dir: int,
+	clip_x0: int = -0x3fffffff,
+	clip_x1: int = 0x3fffffff
 ) -> void:
 	var y_a := mini(y_near, y_far)
 	var y_b := maxi(y_near, y_far)
@@ -1011,7 +1113,7 @@ func _paint_field_hband_mask(
 		if xr <= xl:
 			continue
 		var span := float(xr - xl)
-		for x in range(xl, xr):
+		for x in range(maxi(xl, clip_x0), mini(xr, clip_x1)):
 			if x < 0 or x >= field_w:
 				continue
 			var u := (float(x - xl) + 0.5) / span
