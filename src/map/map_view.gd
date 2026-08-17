@@ -1572,6 +1572,17 @@ func _set_combat_proj_pos(pos: Vector2) -> void:
 	_rebuild()
 
 
+func combat_focus_would_flee(dir: Vector2i) -> bool:
+	## True if this step would leave the arena (OOB flee), without moving.
+	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return false
+	if dir == Vector2i.ZERO or (dir.x != 0 and dir.y != 0):
+		return false
+	var u: Dictionary = _combat_party[_combat_focus]
+	var dest := Vector2i(int(u.get("x", 0)), int(u.get("y", 0))) + dir
+	return not _combat_in_bounds(dest)
+
+
 func try_move_combat_focus(dir: Vector2i) -> int:
 	## Move the focused party unit one orthogonal step (xu4 movePartyMember).
 	## OOB → flee (remove unit). Occupied / unwalkable → BLOCKED. Slowed → SLOWED.

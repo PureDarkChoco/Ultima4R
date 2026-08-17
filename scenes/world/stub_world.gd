@@ -12392,6 +12392,31 @@ func _dungeon_try_room_trigger() -> void:
 		_map.apply_dungeon_room_trigger(_dungeon_map, _dungeon_room_index, pos)
 
 
+func _dungeon_room_blocks_other_exit(dir: Vector2i) -> bool:
+	## After anyone leaves a dungeon room, only that same edge stays open.
+	if _dungeon_room_index < 0 or _dungeon_last_flee_dir == Vector2i.ZERO:
+		return false
+	if dir == _dungeon_last_flee_dir or _map == null:
+		return false
+	return _map.combat_focus_would_flee(dir)
+
+
+func _dungeon_place_after_room_exit(flee: Vector2i) -> bool:
+	## xu4: face the exit, then advance one dungeon cell off the room tile.
+	if _dungeon_map == null or flee == Vector2i.ZERO:
+		_dungeon_skip_room = true
+		return false
+	var exit_dir := _DungeonPortals.dir_from_vec(flee)
+	_dungeon_dir = exit_dir
+	var dest: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, exit_dir)
+	if _dungeon_map.can_walk(dest.x, dest.y, _dungeon_z):
+		_tile_pos = dest
+		_dungeon_skip_room = false
+		return true
+	_dungeon_skip_room = true
+	return false
+
+
 func _dungeon_after_combat_exit() -> void:
 	if not _is_in_dungeon():
 		return
@@ -12405,9 +12430,13 @@ func _dungeon_after_combat_exit() -> void:
 		if not dest_id.is_empty() and dest_id != _dungeon_id:
 			_enter_connected_dungeon(dest_id, 7)
 			return
+	var moved := false
 	if was_room >= 0:
-		_dungeon_skip_room = true
+		moved = _dungeon_place_after_room_exit(flee)
 	_refresh_dungeon_view()
+	if moved and _dungeon_token() == _DungeonMapData.TOK_ROOM:
+		var exit_dir := _DungeonPortals.dir_from_vec(flee)
+		_dungeon_enter_room_if_needed(posmod(exit_dir + 2, 4))
 
 
 func _enter_connected_dungeon(id: String, z: int) -> void:
@@ -16461,6 +16490,7 @@ func _combat_clear_aim_state() -> void:
 func _begin_combat_victory_aftermath() -> void:
 	## Enemies wiped — show Victory! + karma/loot once, stay on the .CON map.
 	## Leave later via ESC (party_slot order) or walking everyone off the edge.
+	## Dungeon rooms ignore Esc/Y so the party must choose an exit side.
 	if not _combat_active or _combat_victory_aftermath:
 		return
 	_combat_clear_aim_state()
@@ -16535,9 +16565,16 @@ func _finish_combat_victory_exit() -> void:
 	_stamp_command_time()
 
 
+func _combat_victory_allows_esc_exit() -> bool:
+	## Dungeon rooms have several exits; Esc/Y would leave with no chosen side.
+	return _dungeon_room_index < 0
+
+
 func _combat_victory_esc_exit_all() -> void:
 	## ESC after Victory!: peel party_slot 0…7 with a short gap, then field map.
 	if not _combat_active or not _combat_victory_aftermath or _map == null:
+		return
+	if not _combat_victory_allows_esc_exit():
 		return
 	if _combat_resolving:
 		return
@@ -16571,6 +16608,7 @@ func _open_combat_exit_prompt() -> void:
 	if (
 		not _combat_active or not _combat_victory_aftermath
 		or _combat_resolving or _combat_exit_prompt
+		or not _combat_victory_allows_esc_exit()
 	):
 		return
 	## With no unopened chest left, Y exits immediately without confirmation.
@@ -16762,7 +16800,7 @@ func _handle_combat_victory_input(k: InputEventKey) -> bool:
 
 
 func _handle_combat_victory_input_event(event: InputEvent) -> bool:
-	## Free movement and loot commands; Y asks to leave — no turn clock.
+	## Free movement and loot commands; Y/Esc leave except in dungeon rooms.
 	_combat_resolving = false
 	if event is InputEventJoypadMotion:
 		## Stick roam is polled; clear latch on release for Dir? / aim later.
@@ -16772,7 +16810,8 @@ func _handle_combat_victory_input_event(event: InputEvent) -> bool:
 		_GameInput.is_victory_exit(event)
 		or (event is InputEventKey and _is_cancel_event(event))
 	):
-		_open_combat_exit_prompt()
+		if _combat_victory_allows_esc_exit():
+			_open_combat_exit_prompt()
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -17439,7 +17478,11 @@ func _combat_try_move(dir: Vector2i) -> void:
 			else:
 				_finish_combat_victory_exit()
 				return
-	var result := _map.try_move_combat_focus(dir)
+	var result := (
+		MapView.COMBAT_MOVE_BLOCKED
+		if _dungeon_room_blocks_other_exit(dir)
+		else _map.try_move_combat_focus(dir)
+	)
 	var after_flee := false
 	match result:
 		MapView.COMBAT_MOVE_OK:

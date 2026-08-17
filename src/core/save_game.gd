@@ -157,22 +157,84 @@ static func read_slot(slot: int) -> Dictionary:
 		return {}
 	var text := f.get_as_text()
 	f.close()
-	var parsed: Variant = JSON.parse_string(text)
-	if typeof(parsed) != TYPE_DICTIONARY:
+	var parsed := _parse_slot_json(text)
+	if parsed.is_empty():
 		push_warning("SaveGame: bad JSON in %s" % path)
 		return {}
-	return parsed as Dictionary
+	return parsed
+
+
+static func _parse_slot_json(text: String) -> Dictionary:
+	## Accept a clean object, or recover when trailing junk follows a valid root.
+	var trimmed := text.strip_edges()
+	if trimmed.is_empty():
+		return {}
+	var parsed: Variant = JSON.parse_string(trimmed)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		return parsed as Dictionary
+	var end := _json_root_end(trimmed)
+	if end <= 0:
+		return {}
+	parsed = JSON.parse_string(trimmed.substr(0, end))
+	if typeof(parsed) == TYPE_DICTIONARY:
+		return parsed as Dictionary
+	return {}
+
+
+static func _json_root_end(text: String) -> int:
+	## Index after the first top-level `{...}` (string-aware brace match).
+	if text.is_empty() or text[0] != "{":
+		return -1
+	var depth := 0
+	var in_string := false
+	var escape := false
+	for i in text.length():
+		var ch := text[i]
+		if in_string:
+			if escape:
+				escape = false
+			elif ch == "\\":
+				escape = true
+			elif ch == "\"":
+				in_string = false
+			continue
+		match ch:
+			"\"":
+				in_string = true
+			"{":
+				depth += 1
+			"}":
+				depth -= 1
+				if depth == 0:
+					return i + 1
+	return -1
 
 
 static func write_slot(slot: int, data: Dictionary) -> bool:
 	ensure_dir()
 	var path := slot_path(slot)
-	var f := FileAccess.open(path, FileAccess.WRITE)
+	var abs_path := ProjectSettings.globalize_path(path)
+	var tmp_path := abs_path + ".tmp"
+	var f := FileAccess.open(tmp_path, FileAccess.WRITE)
 	if f == null:
-		push_warning("SaveGame: cannot write %s" % path)
-		return false
+		## Fallback if temp open fails (rare sandbox / path issues).
+		f = FileAccess.open(path, FileAccess.WRITE)
+		if f == null:
+			push_warning("SaveGame: cannot write %s" % path)
+			return false
+		f.store_string(JSON.stringify(data, "\t"))
+		f.close()
+		set_last_saved_slot(slot)
+		return true
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
+	## Atomic replace so a crash mid-write cannot leave a truncated slot.
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(abs_path)
+	var err := DirAccess.rename_absolute(tmp_path, abs_path)
+	if err != OK:
+		push_warning("SaveGame: cannot finalize %s (err %d)" % [path, err])
+		return false
 	set_last_saved_slot(slot)
 	return true
 
