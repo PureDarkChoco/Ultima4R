@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Generate dungeon wall / side / floor / entrance textures.
+"""Generate dungeon wall / floor / room-entrance source tiles.
 
-Rings 3:3:2.5:2:2:2:2.5:3:3 (23 units) in dungeon_view.gd. These PNGs are source tiles.
+dungeon_view.gd crops and scales one tile per kind; it does not load
+per-depth wall_N / side_N / floor_N / entrance_N sheets.
 """
 
 from __future__ import annotations
@@ -16,7 +17,6 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "dungeon"
 VIEW = 176
 RING = (0, 3, 6, 8.5, 10.5, 12.5)
 DENOM = 23
-MAX_DRAW = 4
 
 
 def ring(i: int) -> int:
@@ -130,12 +130,6 @@ def dither_noise(px: list[list[tuple[int, int, int]]], salt: int, amp: int = 8) 
         for x in range(w):
             d = (hash2(x, y, salt) % (amp * 2 + 1)) - amp
             px[y][x] = shade(px[y][x], d)
-
-
-def side_wh(depth: int) -> tuple[int, int]:
-    w = max(1, ring(depth + 1) - ring(depth))
-    h = max(1, VIEW - 2 * ring(depth))
-    return w, h
 
 
 def front_wh(depth: int) -> tuple[int, int]:
@@ -714,29 +708,19 @@ def main() -> None:
         if selected and name not in selected:
             continue
         dest = ROOT / name
-        for depth in range(MAX_DRAW + 1):
-            fw, fh = front_wh(depth)
-            sw, sh = side_wh(depth)
-            flw, flh = floor_wh(depth)
-            wall = paint_wall(theme, fw, fh, depth)
-            side = paint_wall(theme, sw, sh, depth)
-            floor = paint_floor(theme, flw, flh, depth)
-            entrance = (
-                make_timber_entrance(wall, theme["pal"], depth)
-                if name == "timber"
-                else make_entrance(wall, theme["pal"], depth)
-            )
-            write_png(dest / f"wall_{depth}.png", wall)
-            write_png(dest / f"side_{depth}.png", side)
-            write_png(dest / f"floor_{depth}.png", floor)
-            write_png(dest / f"entrance_{depth}.png", entrance)
-            if depth == 0:
-                write_png(dest / "wall.png", wall)
-                write_png(dest / "floor.png", floor)
-                write_png(dest / "room_entrance.png", entrance)
-            print(
-                f"{name} d{depth}: front {fw}x{fh}  side {sw}x{sh}  floor {flw}x{flh}"
-            )
+        fw, fh = front_wh(0)
+        flw, flh = floor_wh(0)
+        wall = paint_wall(theme, fw, fh, 0)
+        floor = paint_floor(theme, flw, flh, 0)
+        entrance = (
+            make_timber_entrance(wall, theme["pal"], 0)
+            if name == "timber"
+            else make_entrance(wall, theme["pal"], 0)
+        )
+        write_png(dest / "wall.png", wall)
+        write_png(dest / "floor.png", floor)
+        write_png(dest / "room_entrance.png", entrance)
+        print(f"{name}: wall {fw}x{fh}  floor {flw}x{flh}")
     if not selected or "fountain" in selected:
         for frame in range(2):
             write_rgba_png(ROOT / f"fountain_{frame}.png", make_fountain(frame))
