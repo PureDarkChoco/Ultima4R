@@ -140,6 +140,15 @@ func paint(
 					),
 					"depth": depth,
 					"tile_id": tile_id,
+					"view_dir": dir,
+					"left_surface": (
+						dmap.looks_like_wall(left.x, left.y, z)
+						or _is_side_entrance(dmap, left, z)
+					),
+					"right_surface": (
+						dmap.looks_like_wall(right.x, right.y, z)
+						or _is_side_entrance(dmap, right, z)
+					),
 				})
 		_blit_cached_piece(
 			buf,
@@ -207,7 +216,16 @@ func paint(
 			)
 		elif int(object["kind"]) == VIEW_OBJECT_FLOOR_FIELD:
 			_paint_floor_field(
-				buf, int(object["tile_id"]), int(object["depth"]), w, h, 1.0, anim_frame
+				buf,
+				int(object["tile_id"]),
+				int(object["depth"]),
+				w,
+				h,
+				1.0,
+				anim_frame,
+				int(object["view_dir"]),
+				bool(object["left_surface"]),
+				bool(object["right_surface"])
 			)
 		else:
 			_paint_tile_object(
@@ -897,48 +915,150 @@ func _paint_floor_field(
 	field_w: int,
 	field_h: int,
 	dim: float,
-	anim_frame: int
+	anim_frame: int,
+	view_dir: int,
+	left_surface: bool,
+	right_surface: bool
 ) -> void:
 	var img: Image = _U4TileBank.image(tid)
 	if img == null:
 		return
-	var fr := _front_rect(depth, field_w, field_h)
-	var far_fr := _front_rect(depth + 1, field_w, field_h)
-	var near_floor_y := float(fr.position.y + fr.size.y)
-	var far_floor_y := float(far_fr.position.y + far_fr.size.y)
-	var y_far := int(round(lerpf(far_floor_y, near_floor_y, 0.18)))
-	var y_near := int(round(lerpf(far_floor_y, near_floor_y, 0.82)))
-	if y_near <= y_far:
-		return
-	var center_x := field_w / 2
-	var center_y := (y_far + y_near) / 2
-	var projected_w := lerpf(float(far_fr.size.x), float(fr.size.x), 0.5)
-	var max_half_w := maxi(2, int(round(projected_w * 0.31)))
+	var geom := _depth_geom(field_w, field_h, depth)
 	var sw := img.get_width()
 	var sh := img.get_height()
 	if sw <= 0 or sh <= 0:
 		return
 	var scroll := posmod(anim_frame * 2, sh)
-	var light := dim * _lut_at(center_x, center_y, field_w, field_h)
-	var y_span := float(y_near - y_far)
-	for y in range(y_far, y_near + 1):
+	_paint_field_hband_mask(
+		buf, img,
+		float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
+		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
+		dim, scroll, view_dir
+	)
+	if left_surface:
+		_paint_field_side_mask(buf, img, geom, true, dim, scroll)
+	if right_surface:
+		_paint_field_side_mask(buf, img, geom, false, dim, scroll)
+	_paint_field_hband_mask(
+		buf, img,
+		float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
+		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
+		dim, scroll, view_dir
+	)
+
+
+func _paint_field_hband_mask(
+	buf: Image,
+	img: Image,
+	x0: float,
+	x1: float,
+	y_near: int,
+	nx0: float,
+	nx1: float,
+	y_far: int,
+	dim: float,
+	scroll: int,
+	view_dir: int
+) -> void:
+	var y_a := mini(y_near, y_far)
+	var y_b := maxi(y_near, y_far)
+	var y_span := float(y_far - y_near)
+	if y_b <= y_a or absf(y_span) < 0.5:
+		return
+	var sw := img.get_width()
+	var sh := img.get_height()
+	var field_w := buf.get_width()
+	var field_h := buf.get_height()
+	for y in range(y_a, y_b):
 		if y < 0 or y >= field_h:
 			continue
-		var t := clampf((float(y - y_far) + 0.5) / y_span, 0.0, 1.0)
-		var diamond_scale := 1.0 - absf(t * 2.0 - 1.0)
-		var half_w := maxi(1, int(round(float(max_half_w) * diamond_scale)))
-		var x0 := center_x - half_w
-		var x1 := center_x + half_w
-		var sy := posmod(int(floor(t * float(sh))) + scroll, sh)
-		for x in range(x0, x1 + 1):
+		var t := clampf((float(y) + 0.5 - float(y_near)) / y_span, 0.0, 1.0)
+		var xl := int(round(lerpf(x0, nx0, t)))
+		var xr := int(round(lerpf(x1, nx1, t)))
+		if xr <= xl:
+			continue
+		var span := float(xr - xl)
+		for x in range(xl, xr):
 			if x < 0 or x >= field_w:
 				continue
-			var u := (float(x - x0) + 0.5) / float(maxi(1, x1 - x0 + 1))
-			var sx := clampi(int(floor(u * float(sw))), 0, sw - 1)
+			var u := (float(x - xl) + 0.5) / span
+			var near_factor := 1.0 - t
+			var world_uv := _field_world_uv(u, near_factor, view_dir)
+			var sx := clampi(int(floor(world_uv.x * float(sw))), 0, sw - 1)
+			## Negative sampling offset makes the pattern travel north → south.
+			var sy := posmod(
+				int(floor(world_uv.y * float(sh))) - scroll,
+				sh
+			)
 			var color := img.get_pixel(sx, sy)
 			## Original field tiles use black as their transparent backing.
 			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
 				continue
+			var light := dim * _dim_lut[y * field_w + x]
+			buf.set_pixel(
+				x, y,
+				Color(color.r * light, color.g * light, color.b * light, color.a)
+			)
+
+
+func _field_world_uv(screen_u: float, near_factor: float, view_dir: int) -> Vector2:
+	## Source U is west → east; source V is north → south.
+	match posmod(view_dir, 4):
+		_DungeonMap.DIR_N:
+			return Vector2(screen_u, near_factor)
+		_DungeonMap.DIR_E:
+			return Vector2(1.0 - near_factor, screen_u)
+		_DungeonMap.DIR_S:
+			return Vector2(1.0 - screen_u, 1.0 - near_factor)
+		_:
+			return Vector2(near_factor, 1.0 - screen_u)
+
+
+func _paint_field_side_mask(
+	buf: Image,
+	img: Image,
+	geom: Dictionary,
+	left: bool,
+	dim: float,
+	scroll: int
+) -> void:
+	var x_near := int(geom["x0"] if left else geom["x1"])
+	var x_far := int(geom["nx0"] if left else geom["nx1"])
+	var x_a := mini(x_near, x_far)
+	var x_b := maxi(x_near, x_far)
+	var x_span := float(x_far - x_near)
+	if x_b <= x_a or absf(x_span) < 0.5:
+		return
+	var y0n := int(geom["y0"])
+	var y1n := int(geom["y1"])
+	var y0f := int(geom["ny0"])
+	var y1f := int(geom["ny1"])
+	var sw := img.get_width()
+	var sh := img.get_height()
+	var field_w := buf.get_width()
+	var field_h := buf.get_height()
+	for x in range(x_a, x_b):
+		if x < 0 or x >= field_w:
+			continue
+		var from_near := clampf(float(x - x_near) / x_span, 0.0, 1.0)
+		var y0 := int(round(lerpf(float(y0n), float(y0f), from_near)))
+		var y1 := int(round(lerpf(float(y1n), float(y1f), from_near)))
+		if y1 <= y0:
+			continue
+		## Both walls keep the same screen-left → screen-right orientation.
+		var u := (float(x - x_a) + 0.5) / float(x_b - x_a)
+		var sx := clampi(int(floor(u * float(sw))), 0, sw - 1)
+		var wall_h := float(y1 - y0)
+		for y in range(y0, y1):
+			if y < 0 or y >= field_h:
+				continue
+			var v := (float(y - y0) + 0.5) / wall_h
+			## Wall masks always travel from screen top to bottom.
+			var sy := posmod(int(floor(v * float(sh))) - scroll, sh)
+			var color := img.get_pixel(sx, sy)
+			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
+				continue
+			var light := dim * _dim_lut[y * field_w + x]
 			buf.set_pixel(
 				x, y,
 				Color(color.r * light, color.g * light, color.b * light, color.a)
