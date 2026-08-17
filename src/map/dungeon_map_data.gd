@@ -606,6 +606,20 @@ func take_monster_at(x: int, y: int, z: int) -> Dictionary:
 	return monster.duplicate(true)
 
 
+func destroy_all_except_lord_british() -> int:
+	## xu4 gameDestroyAllCreatures on a dungeon map — wipe corridor monsters.
+	var removed := corridor_monsters.size()
+	for i in range(removed - 1, -1, -1):
+		var monster: Dictionary = corridor_monsters[i]
+		_clear_monster_nibble(
+			int(monster.get("x", 0)),
+			int(monster.get("y", 0)),
+			int(monster.get("z", 0))
+		)
+	corridor_monsters.clear()
+	return removed
+
+
 func _monster_terrain_walkable(pos: Vector2i, z: int) -> bool:
 	var tok := token_at(pos.x, pos.y, z)
 	if (

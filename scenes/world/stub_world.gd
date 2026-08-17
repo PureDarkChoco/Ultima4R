@@ -335,6 +335,8 @@ var _choice_resolved_frame := -1
 ## xu4 anger forgotten next visit; within one stay (incl. LCB floor changes), keep
 ## guards/LB on MOVE_ATTACK after alertGuards until the player leaves the place.
 var _city_guards_alerted := false
+## Current town/castle visit: skull wipe until the party leaves to the world.
+var _city_skull_wiped := false
 ## Per-.ULT emptied chests only (not open lids). Key = lowercase basename →
 ## { "x,y": true }. Leave/floor change closes lids; memory/save keep emptied spots.
 var _city_chest_memory: Dictionary = {}
@@ -527,6 +529,7 @@ func _apply_world_save(w: Dictionary) -> void:
 	if _world_creatures != null:
 		_world_creatures.from_save(w.get("creatures", []))
 		_sync_creatures_to_map()
+	_city_skull_wiped = bool(w.get("city_skull_wiped", w.get("lcb_skull_wiped", false)))
 
 	if bool(w.get("in_dungeon", false)):
 		_city_map = null
@@ -606,6 +609,8 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_sync_music()
 	_journal_note_entered_city(fname)
 	_refresh_locate_hud()
+	_apply_city_skull_wipe()
+	_apply_city_guards_alerted()
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -7539,6 +7544,9 @@ func _world_save_dict() -> Dictionary:
 		d["city_x"] = _tile_pos.x
 		d["city_y"] = _tile_pos.y
 		d["city_fname"] = fname
+		d["city_skull_wiped"] = _city_skull_wiped
+	if _is_in_dungeon() and not _dungeon_return_city.is_empty():
+		d["city_skull_wiped"] = _city_skull_wiped
 	return d
 
 
@@ -10883,7 +10891,8 @@ func _use_wheel() -> void:
 
 
 func _use_skull() -> void:
-	## xu4 useSkull — Abyss gate destroys it; elsewhere kill all creatures + bad karma.
+	## xu4 useSkull — not combat-only. World / town / dungeon / combat all work.
+	## Abyss gate (233,233) destroys it for good karma; elsewhere wipe creatures.
 	if GameState.has_item_flag(GameState.ITEM_SKULL_DESTROYED):
 		_push_message(Locale.t("cmd_use_none_owned"), false)
 		await _finish_use_command()
@@ -10892,9 +10901,9 @@ func _use_skull() -> void:
 		_push_message(Locale.t("cmd_use_none_owned"), false)
 		await _finish_use_command()
 		return
-	## Abyss entrance world tile (0xe9, 0xe9).
+	## Abyss entrance world tile (0xe9, 0xe9). Combat uses the combat map coords.
 	const ABYSS_ENTRANCE := Vector2i(233, 233)
-	if not _combat_active and not _is_in_city() and _tile_pos == ABYSS_ENTRANCE:
+	if not _combat_active and not _is_in_city() and not _is_in_dungeon() and _tile_pos == ABYSS_ENTRANCE:
 		_push_message(Locale.t("cmd_use_skull_abyss"), false)
 		GameState.destroy_skull()
 		GameState.adjust_karma_destroyed_skull()
@@ -10904,29 +10913,33 @@ func _use_skull() -> void:
 		await _finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_skull_aloft"), false)
-	GameState.adjust_karma_used_skull()
+	## xu4 gameDestroyAllCreatures starts with the Tremor spell effect.
 	if _map != null:
-		await _map.await_spell_flash()
-	## Destroy creatures (combat foes / wilderness / town Persons); spare LB.
+		var shake_sec := _map.shake_quake(TREMOR_SHAKE_AMP)
+		if shake_sec > 0.0:
+			await get_tree().create_timer(shake_sec).timeout
+	GameState.adjust_karma_used_skull()
 	if _combat_active and _map != null and _map.is_in_combat():
 		_map.destroy_combat_foes_except_lord_british()
 		_refresh_foe_roster()
-		if _is_in_city() and _city_map != null and _city_map.has_method("alert_guards"):
-			_city_map.alert_guards()
-			_city_guards_alerted = true
+		if _is_in_city() and _city_map != null:
+			_city_skull_wiped = true
+			_apply_city_skull_wipe()
 		if _map.is_combat_won() and not _combat_victory_aftermath:
 			await _begin_combat_victory_aftermath()
 		elif not _combat_resolving:
 			_combat_finish_member_turn()
 		return
 	if _is_in_city() and _city_map != null:
-		if _city_map.has_method("destroy_all_except_lord_british"):
-			_city_map.destroy_all_except_lord_british()
-		if _city_map.has_method("alert_guards"):
-			_city_map.alert_guards()
-			_city_guards_alerted = true
-		if _map != null and _map.has_method("refresh"):
+		_city_skull_wiped = true
+		_city_map.destroy_all_except_lord_british()
+		_city_map.alert_guards()
+		_city_guards_alerted = true
+		if _map != null:
 			_map.refresh()
+	elif _is_in_dungeon() and _dungeon_map != null:
+		_dungeon_map.destroy_all_except_lord_british()
+		_refresh_dungeon_view()
 	elif _world_creatures != null:
 		_world_creatures.destroy_all_except_lord_british()
 		_sync_creatures_to_map()
@@ -11180,8 +11193,9 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 	_push_message(Locale.t("cmd_enter_type", [kind_name]), false)
 	_push_message(city_name, false)
 	_city_return_pos = _tile_pos
-	## Fresh enter from world — anger reset (xu4 forgets next visit).
+	## Fresh enter from world — anger / skull wipe reset (xu4 forgets next visit).
 	_city_guards_alerted = false
+	_city_skull_wiped = false
 	_city_map = cmap
 	_apply_remembered_city_chests(cmap)
 	var start := Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 15)))
@@ -11718,8 +11732,6 @@ func _use_city_floor_portal(action: int) -> void:
 	_stash_emptied_city_chests()
 	_city_map = cmap
 	_apply_remembered_city_chests(cmap)
-	## Same stay (e.g. LCB 1↔2): re-apply alertGuards to newly loaded NPCs.
-	_apply_city_guards_alerted()
 	_tile_pos = start
 	## Keep world exit tile; rim plains still from original Enter spawn.
 	var world_portal := _WorldPortals.portal_at(_city_return_pos)
@@ -11733,8 +11745,22 @@ func _use_city_floor_portal(action: int) -> void:
 		_map.enter_city(cmap, start, _city_return_pos, spawn)
 		_map.set_transport_tile(-1)
 		_map.clear_moongate()
+	## Same stay (e.g. LCB 1↔2): keep skull wipe and re-apply alertGuards.
+	_apply_city_skull_wipe()
+	_apply_city_guards_alerted()
 	_refresh_locate_hud()
 	_finish_party_turn()
+
+
+func _apply_city_skull_wipe() -> void:
+	## Town/castle stay empty (LB only in LCB) until the party leaves to the world.
+	if not _city_skull_wiped or not _is_in_city() or _city_map == null:
+		return
+	_city_map.destroy_all_except_lord_british()
+	_city_map.alert_guards()
+	_city_guards_alerted = true
+	if _map != null and not _combat_active:
+		_map.refresh()
 
 
 func _apply_city_guards_alerted() -> void:
@@ -11940,6 +11966,8 @@ func _exit_dungeon_to_surface() -> void:
 			_tile_pos = Vector2i(7, 2)
 			if _map != null:
 				_map.enter_city(cmap, _tile_pos, _city_return_pos)
+			_apply_city_skull_wipe()
+			_apply_city_guards_alerted()
 			_sync_music()
 			_refresh_locate_hud()
 			return
@@ -13298,6 +13326,7 @@ func _exit_city() -> void:
 	_stash_emptied_city_chests()
 	## Leaving the place forgets anger (xu4 City::addPerson next visit).
 	_city_guards_alerted = false
+	_city_skull_wiped = false
 	_city_map = null
 	_tile_pos = _city_return_pos
 	if _map != null:
@@ -14202,6 +14231,7 @@ func _death_revive() -> void:
 	if _is_in_city():
 		_stash_emptied_city_chests()
 		_city_guards_alerted = false
+		_city_skull_wiped = false
 		_city_map = null
 		if _map != null:
 			_map.exit_city()
@@ -14226,6 +14256,7 @@ func _death_revive() -> void:
 	var entered := false
 	if not path.is_empty() and cmap.load_from_path(path):
 		_city_guards_alerted = false
+		_city_skull_wiped = false
 		_city_map = cmap
 		_apply_remembered_city_chests(cmap)
 		var start := DEATH_REVIVE_CASTLE
