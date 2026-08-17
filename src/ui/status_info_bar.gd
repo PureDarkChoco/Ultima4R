@@ -45,6 +45,12 @@ var _wind_tex: Array[Texture2D] = [] ## 8 tip-TO icons (display index after +4 f
 var _tram: TextureRect
 var _fel: TextureRect
 var _wind: TextureRect
+var _world_sky_balance: Control
+var _world_moons: HBoxContainer
+var _dungeon_level_lab: Label
+var _dungeon_active := false
+var _dungeon_level := 1
+var _dungeon_dir := 0
 var _gold_lab: Label
 var _food_lab: Label
 var _keys_lab: Label
@@ -303,13 +309,13 @@ func _make_sky_cluster() -> HBoxContainer:
 	cluster.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	cluster.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
-	var moons := HBoxContainer.new()
-	moons.add_theme_constant_override("separation", 2)
-	moons.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_world_moons = HBoxContainer.new()
+	_world_moons.add_theme_constant_override("separation", 2)
+	_world_moons.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_tram = _moon_icon()
 	_fel = _moon_icon()
-	moons.add_child(_tram)
-	moons.add_child(_fel)
+	_world_moons.add_child(_tram)
+	_world_moons.add_child(_fel)
 
 	_wind = TextureRect.new()
 	_wind.custom_minimum_size = Vector2(ICON_SZ, ICON_SZ)
@@ -321,15 +327,37 @@ func _make_sky_cluster() -> HBoxContainer:
 	_wind.rotation_degrees = 0.0
 	_wind.pivot_offset = Vector2.ZERO
 
-	var wind_balance := Control.new()
-	wind_balance.custom_minimum_size = _wind.custom_minimum_size
-	wind_balance.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wind_balance.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_world_sky_balance = Control.new()
+	_world_sky_balance.custom_minimum_size = _wind.custom_minimum_size
+	_world_sky_balance.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_world_sky_balance.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
-	cluster.add_child(wind_balance)
-	cluster.add_child(moons)
+	cluster.add_child(_world_sky_balance)
+	cluster.add_child(_world_moons)
+	_dungeon_level_lab = _sky_text_label(30.0)
+	cluster.add_child(_dungeon_level_lab)
 	cluster.add_child(_wind)
 	return cluster
+
+
+func _sky_text_label(width: float) -> Label:
+	var lab := Label.new()
+	lab.custom_minimum_size = Vector2(width, ICON_SZ)
+	lab.add_theme_font_size_override("font_size", 11)
+	lab.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55, 1))
+	UiTheme.apply_font(lab)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return lab
+
+
+func set_dungeon_status(active: bool, level: int = 1, direction: int = 0) -> void:
+	_dungeon_active = active
+	_dungeon_level = clampi(level, 1, 8)
+	_dungeon_dir = posmod(direction, 4)
+	refresh()
 
 
 func _make_inventory_cluster() -> HBoxContainer:
@@ -416,12 +444,24 @@ func refresh() -> void:
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
 	## Display reverse of GameState.wind_dir (FROM → TO) so tip matches balloon_drift_dir.
 	var wd := posmod(wind_dir + 4, 8)
+	if _dungeon_active:
+		## Dungeon headings directly use the cardinal N/E/S/W arrow textures.
+		wd = _dungeon_dir * 2
 	if _wind != null and _wind_tex.size() >= 8:
 		var tex: Texture2D = _wind_tex[wd]
 		if tex != null and (wd != _last_drawn_wind or _wind.texture != tex):
 			_wind.texture = tex
 			_wind.rotation_degrees = 0.0
 			_last_drawn_wind = wd
+	if _world_sky_balance != null:
+		_world_sky_balance.visible = not _dungeon_active
+	if _world_moons != null:
+		_world_moons.visible = not _dungeon_active
+	if _wind != null:
+		_wind.visible = true
+	if _dungeon_level_lab != null:
+		_dungeon_level_lab.visible = _dungeon_active
+		_dungeon_level_lab.text = Locale.t("hud_dungeon_level", [_dungeon_level])
 	if _gold_lab:
 		_gold_lab.text = "%d" % mini(gold, GOLD_FOOD_MAX)
 	if _food_lab:

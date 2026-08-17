@@ -2061,6 +2061,11 @@ const _T := {
 		"en_us": "Locate: Off",
 		"ko": "위치 확인: 꺼짐",
 	},
+	"hud_dungeon_level": {
+		"en_u4": "L%d",
+		"en_us": "L%d",
+		"ko": "L%d",
+	},
 	"dir_north": {
 		"en_u4": "North",
 		"en_us": "North",

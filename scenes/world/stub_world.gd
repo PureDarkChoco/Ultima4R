@@ -11012,6 +11012,7 @@ func _open_sides_for_dungeon() -> void:
 	_sides_open = true
 	_refresh_party()
 	_layout_side_panels(false)
+	_sync_dungeon_hud()
 
 
 func _restore_sides_after_dungeon() -> void:
@@ -11536,6 +11537,17 @@ func _refresh_dungeon_view() -> void:
 	if _map == null or not _is_in_dungeon():
 		return
 	_map.set_dungeon_pose(_tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_sync_dungeon_hud()
+
+
+func _sync_dungeon_hud() -> void:
+	if _top_bar == null or not _top_bar.has_method("set_dungeon_status"):
+		return
+	_top_bar.set_dungeon_status(
+		_is_in_dungeon(),
+		_dungeon_z + 1,
+		_dungeon_dir
+	)
 
 
 func _clear_dungeon_state() -> void:
@@ -11550,6 +11562,7 @@ func _clear_dungeon_state() -> void:
 	_dungeon_last_flee_dir = Vector2i.ZERO
 	if _map != null and _map.is_in_dungeon():
 		_map.exit_dungeon()
+	_sync_dungeon_hud()
 	if was_in:
 		_restore_sides_after_dungeon()
 
@@ -12219,6 +12232,7 @@ func _enter_connected_dungeon(id: String, z: int) -> void:
 		_refresh_journal_panel()
 	if _map != null:
 		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	_sync_dungeon_hud()
 	_sync_music()
 
 
