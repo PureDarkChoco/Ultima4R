@@ -322,12 +322,13 @@ func _parse_room(block: PackedByteArray, index: int) -> Dictionary:
 			continue
 		triggers.append({
 			"tile": b0,
-			"x": b1 & 0x0F,
-			"y": (b1 >> 4) & 0x0F,
-			"cx1": b2 & 0x0F,
-			"cy1": (b2 >> 4) & 0x0F,
-			"cx2": b3 & 0x0F,
-			"cy2": (b3 >> 4) & 0x0F,
+			## xu4 DNG room trigger bytes: high nibble X, low nibble Y.
+			"x": (b1 >> 4) & 0x0F,
+			"y": b1 & 0x0F,
+			"cx1": (b2 >> 4) & 0x0F,
+			"cy1": b2 & 0x0F,
+			"cx2": (b3 >> 4) & 0x0F,
+			"cy2": b3 & 0x0F,
 		})
 	var monsters: Array[Dictionary] = []
 	for i in AREA_CREATURES:
@@ -492,9 +493,15 @@ func apply_room_trigger_at(index: int, pos: Vector2i, cmap) -> bool:
 		var tid := int(t.get("tile", 0))
 		if tid <= 0:
 			continue
-		cmap.set_tile(int(t.get("cx1", 0)), int(t.get("cy1", 0)), tid)
-		cmap.set_tile(int(t.get("cx2", 0)), int(t.get("cy2", 0)), tid)
-		changed = true
+		var change1 := Vector2i(int(t.get("cx1", 0)), int(t.get("cy1", 0)))
+		var change2 := Vector2i(int(t.get("cx2", 0)), int(t.get("cy2", 0)))
+		## xu4 treats packed 0x00 as "no target", not room coordinate (0, 0).
+		if change1 != Vector2i.ZERO:
+			cmap.set_tile(change1.x, change1.y, tid)
+			changed = true
+		if change2 != Vector2i.ZERO:
+			cmap.set_tile(change2.x, change2.y, tid)
+			changed = true
 	return changed
 
 

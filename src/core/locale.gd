@@ -2673,10 +2673,30 @@ const _T := {
 		"en_us": "The altar is silent.",
 		"ko": "제단은 고요하다.",
 	},
+	"cmd_use_stones_generic": {
+		"en_u4": "Stones",
+		"en_us": "Stones",
+		"ko": "돌",
+	},
+	"cmd_use_abyss_virtue_question": {
+		"en_u4": "As thou dost approach, a voice rings out:\nWhat virtue doth stem from %s?",
+		"en_us": "As you approach, a voice rings out:\nWhat virtue stems from %s?",
+		"ko": "다가서자 음성이 울려 퍼진다:\n%s에서 비롯되는 미덕은 무엇인가?",
+	},
+	"cmd_use_abyss_virtue_independent": {
+		"en_u4": "A voice rings out:\nWhat virtue exists independently of Truth, Love, and Courage?",
+		"en_us": "A voice rings out:\nWhat virtue exists independently of Truth, Love, and Courage?",
+		"ko": "음성이 울려 퍼진다:\n진리, 사랑, 용기와 독립적으로 존재하는 미덕은 무엇인가?",
+	},
+	"cmd_use_abyss_stone_prompt": {
+		"en_u4": "The Voice says: Use thy Stone.\nColor:",
+		"en_us": "The Voice says: Use your Stone.\nColor:",
+		"ko": "음성이 말한다: 그대의 돌을 사용하라.\n색상:",
+	},
 	"cmd_use_abyss_stone": {
-		"en_u4": "The stone settles upon the altar.",
-		"en_us": "The stone settles upon the altar.",
-		"ko": "돌이 제단 위에 놓인다.",
+		"en_u4": "The altar changes before thine eyes!",
+		"en_us": "The altar changes before your eyes!",
+		"ko": "눈앞에서 제단이 변한다!",
 	},
 	"cmd_use_abyss_stone_wrong": {
 		"en_u4": "That stone doth not belong here.",
@@ -2737,6 +2757,26 @@ const _T := {
 		"en_u4": "Courage",
 		"en_us": "Courage",
 		"ko": "용기",
+	},
+	"cmd_principle_truth_love": {
+		"en_u4": "Truth and Love",
+		"en_us": "Truth and Love",
+		"ko": "진리와 사랑",
+	},
+	"cmd_principle_love_courage": {
+		"en_u4": "Love and Courage",
+		"en_us": "Love and Courage",
+		"ko": "사랑과 용기",
+	},
+	"cmd_principle_truth_courage": {
+		"en_u4": "Truth and Courage",
+		"en_us": "Truth and Courage",
+		"ko": "진리와 용기",
+	},
+	"cmd_principle_all": {
+		"en_u4": "Truth, Love, and Courage",
+		"en_us": "Truth, Love, and Courage",
+		"ko": "진리, 사랑, 용기",
 	},
 }
 

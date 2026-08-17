@@ -227,6 +227,15 @@ var _cast_field_tid := -1
 var _cast_cursor := 0
 ## Use (U): 0 = idle, 1 = pick item from list.
 var _use_stage := 0
+var _use_buffer := ""
+## Abyss corridor altar: 0 idle, 1 answer virtue, 2 choose stone color.
+var _abyss_altar_stage := 0
+var _abyss_altar_buffer := ""
+## -1 means generic keyboard "stone(s)"; otherwise a preselected stone flag.
+var _abyss_altar_stone_flag := -1
+var _abyss_altar_choice_active := false
+var _abyss_altar_choice_cursor := 0
+var _abyss_altar_choice_items: Array[Dictionary] = []
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
@@ -1331,6 +1340,9 @@ func _command_menu_scroll_metrics() -> Dictionary:
 		total = _city_warp_items.size()
 		scroll = _city_warp_scroll
 		vis = _city_warp_visible_count()
+	elif _abyss_altar_choice_active:
+		total = _abyss_altar_choice_items.size()
+		vis = mini(MSG_OPEN_LINES, total)
 	elif _talk_keyword_menu_active:
 		total = _talk_keyword_menu_items.size()
 		scroll = _talk_keyword_menu_scroll
@@ -1364,6 +1376,9 @@ func _rebuild_command_menu_rows() -> void:
 			if abs_i < 0 or abs_i >= _city_warp_items.size():
 				continue
 			row_texts.append(str(_city_warp_items[abs_i].get("label", "")))
+	elif _abyss_altar_choice_active:
+		for item in _abyss_altar_choice_items:
+			row_texts.append(str(item.get("label", "")))
 	elif _talk_keyword_menu_active:
 		var vis := _talk_keyword_visible_count()
 		for i in vis:
@@ -1488,6 +1503,8 @@ func _layout_command_menu_layer() -> void:
 	var selected_cursor := _command_menu_cursor
 	if _city_warp_open:
 		selected_cursor = _city_warp_cursor - _city_warp_scroll
+	elif _abyss_altar_choice_active:
+		selected_cursor = _abyss_altar_choice_cursor
 	elif _talk_keyword_menu_active:
 		selected_cursor = _talk_keyword_menu_cursor - _talk_keyword_menu_scroll
 	for i in count:
@@ -1765,7 +1782,11 @@ func _prompt_row_text() -> String:
 	if _cast_stage == 7:
 		return Locale.t("cast_phase")
 	if _use_stage == 1:
-		return Locale.t("cmd_use_which")
+		return Locale.t("cmd_use_which") + (
+			" " + _use_buffer if not _use_buffer.is_empty() else ""
+		)
+	if _abyss_altar_stage > 0:
+		return _abyss_altar_buffer
 	if _ztats_stage == 1:
 		return Locale.t("cmd_ztats_for")
 	if _camp_stage == 2:
@@ -2703,7 +2724,7 @@ func _process(delta: float) -> void:
 	if _cast_stage == 4:
 		_tick_cast_dir()
 		return
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _abyss_altar_choice_active or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
@@ -2718,7 +2739,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -2984,6 +3005,8 @@ func _tick_select_cursor() -> void:
 		_nudge_cast_party_cursor(step, true)
 	elif _use_stage == 1:
 		_nudge_use_cursor(step)
+	elif _abyss_altar_choice_active:
+		_nudge_abyss_altar_choice(step)
 	elif _camp_stage == 3:
 		_nudge_camp_guard_cursor(step)
 	elif _fountain_drink_stage == 1:
@@ -3572,6 +3595,7 @@ func _can_open_command_menu() -> bool:
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
 		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0
 		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
+		or _abyss_altar_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
 		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
 		or _esc_menu_is_open() or _options_panel_is_open()
@@ -5681,6 +5705,9 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 	if _wear_stage != 0:
 		_close_wear(true)
 		return
+	if _abyss_altar_stage != 0:
+		_cancel_abyss_altar_use()
+		return
 	if _use_stage != 0:
 		_close_use(true)
 		return
@@ -5793,6 +5820,7 @@ func _handle_panel_toggle() -> void:
 		or _mix_stage != 0
 		or _cast_stage != 0
 		or _use_stage != 0
+		or _abyss_altar_stage != 0
 		or _shrine_session
 		or _shrine_stage != 0
 		or _shrine_busy
@@ -5846,6 +5874,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _handle_enter_prompt_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _abyss_altar_stage > 0:
+		if _handle_abyss_altar_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed() or event is InputEventJoypadMotion:
 			get_viewport().set_input_as_handled()
 		return
 	if _codex_stage > 0:
@@ -6354,6 +6388,15 @@ func _is_option_alt_key(event: InputEvent) -> bool:
 
 
 func _try_toggle_pad_select_ui(event: InputEvent) -> bool:
+	var altar_toggle: bool = _is_option_alt_key(event) or (
+		event is InputEventMouseButton
+		and event.pressed
+		and not event.is_echo()
+		and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT
+	)
+	if _abyss_altar_stage != 0 and altar_toggle:
+		_toggle_abyss_altar_choice_menu()
+		return true
 	if not _is_option_alt_key(event):
 		return false
 	if _talk_stage != 0:
@@ -6466,6 +6509,7 @@ func _can_open_city_warp() -> bool:
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
 		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0
 		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
+		or _abyss_altar_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
 		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
 		or _esc_menu_is_open() or _options_panel_is_open()
@@ -10522,6 +10566,7 @@ func _do_use() -> void:
 	if _ztats_panel:
 		_ztats_panel.close_panel()
 	_use_stage = 1
+	_use_buffer = ""
 	_reset_hold_state()
 	if _use_panel:
 		_use_panel.open_list()
@@ -10544,6 +10589,11 @@ func _handle_use_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			return true
+		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+			if not _use_buffer.is_empty():
+				_use_buffer = _use_buffer.substr(0, _use_buffer.length() - 1)
+				_layout_prompt_row()
+			return true
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
 		_close_use(true)
 		return true
@@ -10551,12 +10601,22 @@ func _handle_use_input(event: InputEvent) -> bool:
 		_close_use(true)
 		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_confirm_use_cursor()
+		if _use_buffer.strip_edges().is_empty():
+			_confirm_use_cursor()
+		else:
+			_confirm_typed_use()
 		return true
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
 		_confirm_use_cursor()
 		return true
 	if event is InputEventKey and _is_direction_key(event as InputEventKey):
+		return true
+	if event is InputEventKey:
+		var typed_key := event as InputEventKey
+		var ch := _shrine_char_from_key(typed_key)
+		if not ch.is_empty() and _use_buffer.length() < 24:
+			_use_buffer += ch
+			_layout_prompt_row()
 		return true
 	return true
 
@@ -10567,11 +10627,45 @@ func _confirm_use_cursor() -> void:
 	var kind: int = int(_use_panel.cursor_kind())
 	if kind < 0:
 		return
+	_confirm_use_kind(kind)
+
+
+func _confirm_use_kind(kind: int) -> void:
 	var item_name := _UseItems.display_name(kind)
 	_close_use(false)
 	_push_message(item_name, false)
 	## Run async use effects without turning the key handler into a coroutine.
 	_run_use_item.call_deferred(kind)
+
+
+func _confirm_typed_use() -> void:
+	var typed := _use_buffer.strip_edges().to_lower()
+	if typed in ["stone", "stones"]:
+		_close_use(false)
+		_push_message(Locale.t("cmd_use_stones_generic"), false)
+		_begin_abyss_altar_use(-1, false)
+		return
+	var kind := _typed_use_kind(typed)
+	if kind >= 0:
+		_confirm_use_kind(kind)
+		return
+	_close_use(false)
+	_push_message(Locale.t("cmd_use_no_effect"), false)
+	_finish_use_command()
+
+
+func _typed_use_kind(typed: String) -> int:
+	var colors := ["blue", "yellow", "red", "green", "orange", "purple", "white", "black"]
+	for kind in _UseItems.owned_kinds():
+		var k := int(kind)
+		var display := _UseItems.display_name(k).strip_edges().to_lower()
+		if typed == display:
+			return k
+		if k >= _UseItems.Kind.STONE_BLUE and k <= _UseItems.Kind.STONE_BLACK:
+			var color: String = str(colors[k - _UseItems.Kind.STONE_BLUE])
+			if typed == color or typed == color + " stone":
+				return k
+	return -1
 
 
 func _run_use_item(kind: int) -> void:
@@ -10718,6 +10812,7 @@ func _close_use(show_none: bool) -> void:
 			_use_panel.close_panel()
 		return
 	_use_stage = 0
+	_use_buffer = ""
 	if _use_panel:
 		_use_panel.close_panel()
 	if _roster:
@@ -12327,18 +12422,7 @@ func _use_virtue_stone(kind: int) -> void:
 		await _finish_use_command()
 		return
 	if _dungeon_id == _DungeonPortals.ID_ABYSS:
-		var need := _DungeonPortals.abyss_stone_for_level(_dungeon_z)
-		if flag != need:
-			_push_message(Locale.t("cmd_use_abyss_stone_wrong"), false)
-			await _finish_use_command()
-			return
-		if (GameState.abyss_stones_used & flag) != 0:
-			_push_message(Locale.t("cmd_use_altar_have_key"), false)
-			await _finish_use_command()
-			return
-		GameState.abyss_stones_used |= flag
-		_push_message(Locale.t("cmd_use_abyss_stone"), false)
-		await _finish_use_command()
+		_begin_abyss_altar_use(flag, true)
 		return
 	if _dungeon_room_index != _DungeonPortals.ALTAR_ROOM_INDEX and not _dungeon_in_altar_room_cell():
 		_push_message(Locale.t("cmd_use_no_place"), false)
@@ -12364,6 +12448,294 @@ func _use_virtue_stone(kind: int) -> void:
 	_push_message(Locale.t("cmd_use_altar_key", [Locale.t(_DungeonPortals.key_name_key(key_flag))]), false)
 	_refresh_inventory_bars()
 	await _finish_use_command()
+
+
+func _begin_abyss_altar_use(stone_flag: int, show_choices: bool) -> void:
+	if (
+		not _is_in_dungeon()
+		or _dungeon_id != _DungeonPortals.ID_ABYSS
+		or _dungeon_map == null
+		or _dungeon_token() != _DungeonMapData.TOK_ALTAR
+	):
+		_push_message(Locale.t("cmd_use_no_place"), false)
+		_finish_use_command()
+		return
+	var need := _DungeonPortals.abyss_stone_for_level(_dungeon_z)
+	if _dungeon_z < 7 and (GameState.abyss_stones_used & need) != 0:
+		## Repair saves made before altar annotations were persisted.
+		if _dungeon_z < 7:
+			_dungeon_map.add_annotation(
+				_tile_pos.x, _tile_pos.y, _dungeon_z, _DungeonMapData.TOK_LADDER_DOWN, -1
+			)
+			_refresh_dungeon_view()
+		_push_message(Locale.t("cmd_use_altar_have_key"), false)
+		_finish_use_command()
+		return
+	_abyss_altar_stage = 1
+	_abyss_altar_buffer = ""
+	_abyss_altar_stone_flag = stone_flag
+	_push_message(_abyss_altar_virtue_question(), false)
+	_layout_prompt_row()
+	if show_choices:
+		_open_abyss_altar_choice_menu()
+
+
+func _abyss_altar_virtue_question() -> String:
+	var principle_keys := [
+		"cmd_principle_truth",
+		"cmd_principle_love",
+		"cmd_principle_courage",
+		"cmd_principle_truth_love",
+		"cmd_principle_love_courage",
+		"cmd_principle_truth_courage",
+		"cmd_principle_all",
+	]
+	if _dungeon_z >= 7:
+		return Locale.t("cmd_use_abyss_virtue_independent")
+	return Locale.t(
+		"cmd_use_abyss_virtue_question",
+		[Locale.t(str(principle_keys[clampi(_dungeon_z, 0, principle_keys.size() - 1)]))]
+	)
+
+
+func _abyss_altar_choice_list() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if _abyss_altar_stage == 1:
+		var known := _JournalScript.known_virtue_mask(GameState)
+		for virtue in 8:
+			if (known & (1 << virtue)) == 0:
+				continue
+			out.append({
+				"label": Virtues.name_of(virtue, GameState.lang_short()),
+				"input": Virtues.name_of(
+					virtue, "ko" if GameState.lang_short() == "ko" else "en"
+				),
+			})
+	elif _abyss_altar_stage == 2:
+		for i in 8:
+			var flag := 1 << i
+			if not GameState.has_stone(flag):
+				continue
+			var kind := _UseItems.Kind.STONE_BLUE + i
+			out.append({
+				"label": _UseItems.display_name(kind),
+				"input": _abyss_stone_input_name(flag),
+			})
+	return out
+
+
+func _open_abyss_altar_choice_menu() -> void:
+	if _abyss_altar_stage == 0:
+		return
+	_abyss_altar_choice_items = _abyss_altar_choice_list()
+	if _abyss_altar_choice_items.is_empty():
+		return
+	_abyss_altar_choice_active = true
+	_abyss_altar_choice_cursor = 0
+	_abyss_altar_buffer = ""
+	_reset_hold_state()
+	_rebuild_command_menu_rows()
+	if _command_menu_layer != null:
+		_command_menu_layer.visible = true
+		_command_menu_layer.move_to_front()
+	_layout_command_menu_layer()
+	_layout_prompt_row()
+
+
+func _close_abyss_altar_choice_menu() -> void:
+	_abyss_altar_choice_active = false
+	_abyss_altar_choice_cursor = 0
+	_abyss_altar_choice_items.clear()
+	_reset_hold_state()
+	if (
+		_command_menu_layer != null
+		and not _command_menu_open
+		and not _talk_keyword_menu_active
+		and not _city_warp_open
+	):
+		_command_menu_layer.visible = false
+
+
+func _toggle_abyss_altar_choice_menu() -> void:
+	if _abyss_altar_choice_active:
+		_close_abyss_altar_choice_menu()
+	else:
+		_open_abyss_altar_choice_menu()
+	_layout_prompt_row()
+
+
+func _nudge_abyss_altar_choice(step: int) -> void:
+	if not _abyss_altar_choice_active or _abyss_altar_choice_items.is_empty() or step == 0:
+		return
+	_abyss_altar_buffer = ""
+	_abyss_altar_choice_cursor = posmod(
+		_abyss_altar_choice_cursor + step, _abyss_altar_choice_items.size()
+	)
+	_layout_command_menu_layer()
+	_layout_prompt_row()
+
+
+func _choose_abyss_altar_choice() -> void:
+	if (
+		not _abyss_altar_choice_active
+		or _abyss_altar_choice_cursor < 0
+		or _abyss_altar_choice_cursor >= _abyss_altar_choice_items.size()
+	):
+		return
+	var item: Dictionary = _abyss_altar_choice_items[_abyss_altar_choice_cursor]
+	_abyss_altar_buffer = str(item.get("input", ""))
+	_submit_abyss_altar_answer()
+
+
+func _handle_abyss_altar_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadMotion:
+		if not _abyss_altar_choice_active:
+			var motion_dir := _GameInput.dir_from_event(event)
+			if motion_dir.y != 0:
+				_open_abyss_altar_choice_menu()
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventJoypadButton:
+		var button := event as InputEventJoypadButton
+		if button.button_index == JOY_BUTTON_B or button.is_action_pressed("cancel"):
+			_cancel_abyss_altar_use()
+			return true
+		if button.button_index == JOY_BUTTON_A or button.is_action_pressed("confirm"):
+			if not _abyss_altar_choice_active:
+				_open_abyss_altar_choice_menu()
+			else:
+				_choose_abyss_altar_choice()
+			return true
+		return true
+	if not (event is InputEventKey):
+		return true
+	var k := event as InputEventKey
+	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+		_cancel_abyss_altar_use()
+		return true
+	if _is_direction_key(k):
+		if not _abyss_altar_choice_active:
+			_open_abyss_altar_choice_menu()
+		return true
+	if _is_order_confirm_key(k):
+		if _abyss_altar_buffer.strip_edges().is_empty() and _abyss_altar_choice_active:
+			_choose_abyss_altar_choice()
+		else:
+			_submit_abyss_altar_answer()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _abyss_altar_buffer.is_empty():
+			_abyss_altar_buffer = _abyss_altar_buffer.substr(
+				0, _abyss_altar_buffer.length() - 1
+			)
+			_layout_prompt_row()
+		return true
+	var ch := _shrine_char_from_key(k)
+	if not ch.is_empty() and _abyss_altar_buffer.length() < 24:
+		_abyss_altar_buffer += ch
+		_layout_prompt_row()
+	return true
+
+
+func _submit_abyss_altar_answer() -> void:
+	var typed := _abyss_altar_buffer.strip_edges()
+	_abyss_altar_buffer = ""
+	if not typed.is_empty():
+		_push_message(typed, false)
+	if _abyss_altar_stage == 1:
+		if not _ShrineMantras.virtue_input_matches(_dungeon_z, typed):
+			_fail_abyss_altar_use()
+			return
+		if _abyss_altar_stone_flag >= 0:
+			_complete_abyss_altar_stone(_abyss_altar_stone_flag)
+			return
+		_abyss_altar_stage = 2
+		_close_abyss_altar_choice_menu()
+		_push_message(Locale.t("cmd_use_abyss_stone_prompt"), false)
+		_layout_prompt_row()
+		return
+	if _abyss_altar_stage == 2:
+		var flag := _abyss_stone_flag_from_input(typed)
+		if flag <= 0 or not GameState.has_stone(flag):
+			_fail_abyss_altar_use()
+			return
+		_complete_abyss_altar_stone(flag)
+
+
+func _abyss_stone_input_name(flag: int) -> String:
+	var names := ["blue", "yellow", "red", "green", "orange", "purple", "white", "black"]
+	var index := _stone_flag_index(flag)
+	if index < 0:
+		return ""
+	if GameState.lang_short() == "ko":
+		return _UseItems.display_name(_UseItems.Kind.STONE_BLUE + index)
+	return str(names[index])
+
+
+func _abyss_stone_flag_from_input(typed: String) -> int:
+	var got := typed.strip_edges().to_lower()
+	var names := ["blue", "yellow", "red", "green", "orange", "purple", "white", "black"]
+	for i in 8:
+		var flag := 1 << i
+		var color := str(names[i])
+		var localized := _UseItems.display_name(_UseItems.Kind.STONE_BLUE + i).strip_edges().to_lower()
+		if got == color or got == color + " stone" or got == localized:
+			return flag
+	return 0
+
+
+func _stone_flag_index(flag: int) -> int:
+	for i in 8:
+		if flag == (1 << i):
+			return i
+	return -1
+
+
+func _complete_abyss_altar_stone(flag: int) -> void:
+	var need := _DungeonPortals.abyss_stone_for_level(_dungeon_z)
+	if flag != need:
+		_push_message(Locale.t("cmd_use_abyss_stone_wrong"), false)
+		_end_abyss_altar_use()
+		_finish_use_command()
+		return
+	_push_message(Locale.t("cmd_use_abyss_stone"), false)
+	if _dungeon_z < 7:
+		GameState.abyss_stones_used |= flag
+		_dungeon_map.add_annotation(
+			_tile_pos.x, _tile_pos.y, _dungeon_z, _DungeonMapData.TOK_LADDER_DOWN, -1
+		)
+		_refresh_dungeon_view()
+		_end_abyss_altar_use()
+		_finish_use_command()
+		return
+	_end_abyss_altar_use()
+	if not _DungeonPortals.has_three_keys():
+		_push_message(Locale.t("cmd_abyss_need_keys"), false)
+		_finish_use_command()
+		return
+	_push_message(Locale.t("cmd_use_abyss_keys"), false)
+	_begin_codex()
+
+
+func _fail_abyss_altar_use() -> void:
+	_push_message(Locale.t("cmd_use_no_effect"), false)
+	_end_abyss_altar_use()
+	_finish_use_command()
+
+
+func _cancel_abyss_altar_use() -> void:
+	_end_abyss_altar_use()
+	_push_message(Locale.t("cmd_none"), false)
+	_finish_use_command()
+
+
+func _end_abyss_altar_use() -> void:
+	_abyss_altar_stage = 0
+	_abyss_altar_buffer = ""
+	_abyss_altar_stone_flag = -1
+	_close_abyss_altar_choice_menu()
+	_layout_prompt_row()
 
 
 func _dungeon_in_altar_room_cell() -> bool:
@@ -13492,8 +13864,13 @@ func _close_ui_for_death() -> void:
 	if _cast_panel:
 		_cast_panel.close_panel()
 	_use_stage = 0
+	_use_buffer = ""
 	if _use_panel:
 		_use_panel.close_panel()
+	_abyss_altar_stage = 0
+	_abyss_altar_buffer = ""
+	_abyss_altar_stone_flag = -1
+	_close_abyss_altar_choice_menu()
 	if _save_stage != 0:
 		_close_save(false)
 	if _esc_menu_is_open():
@@ -13665,7 +14042,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -16242,6 +16619,7 @@ func _tick_combat_victory_move() -> void:
 		or _ready_stage != 0
 		or _cast_stage != 0
 		or _use_stage != 0
+		or _abyss_altar_stage != 0
 		or _chest_open_stage != 0
 		or _fountain_drink_stage != 0
 		or _combat_exit_prompt
@@ -18087,6 +18465,7 @@ func _can_open_journal_focus() -> bool:
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
 		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0
 		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
+		or _abyss_altar_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
 		or _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir
 		or _esc_menu_is_open() or _options_panel_is_open()
