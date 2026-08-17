@@ -20,6 +20,8 @@ const WORLD_RANGED_RANGE := 3
 const TILE_PIRATE := 128
 const TILE_NIXIE := 132
 const TILE_SEA_SERPENT := 136
+const TILE_WHIRLPOOL := 140
+const TILE_TWISTER := 142
 const TILE_ORC := 192
 const TILE_LAVA_LIZARD := 232
 const TILE_HYDRA := 244
@@ -799,16 +801,18 @@ func move_all(
 	avatar: Vector2i,
 	blocked: Callable = Callable(),
 	on_pirate_fire: Callable = Callable(),
-	on_world_ranged: Callable = Callable()
+	on_world_ranged: Callable = Callable(),
+	on_nature: Callable = Callable()
 ) -> Dictionary:
-	## xu4 Map::moveObjects — specialAction then move.
+	## xu4 Map::moveObjects — specialEffect, specialAction, then move + specialEffect.
 	## Returns { "changed": bool, "attacker": Dictionary } — attacker still on map.
 	var out := {"changed": false, "attacker": {}}
 	if world == null or not world.loaded:
 		return out
 	var changed := false
 	var attacker: Dictionary = {}
-	for i in creatures.size():
+	var i := 0
+	while i < creatures.size():
 		var c: Dictionary = creatures[i]
 		var pos := Vector2i(int(c["x"]), int(c["y"]))
 		## xu4: orthogonally adjacent attackers become combatant — skip action+move.
@@ -818,15 +822,29 @@ func move_all(
 		):
 			if attacker.is_empty():
 				attacker = c.duplicate(true)
+			i += 1
 			continue
+		## xu4: storms eat objects / hit the party before the creature steps.
+		var before_n := creatures.size()
+		i = _apply_twister_effect(i, avatar, on_nature)
+		if creatures.size() != before_n:
+			changed = true
+		if i < 0 or i >= creatures.size():
+			break
 		## Pirate cannon consumes turn (useAction true). World ranged does not.
 		if _try_pirate_cannon(i, avatar, on_pirate_fire):
 			changed = true
+			i += 1
 			continue
 		if _try_world_ranged(i, avatar, on_world_ranged):
 			changed = true
 		if _move_one(i, world, avatar, blocked):
 			changed = true
+			before_n = creatures.size()
+			i = _apply_twister_effect(i, avatar, on_nature)
+			if creatures.size() != before_n:
+				changed = true
+		i += 1
 	out["changed"] = changed
 	out["attacker"] = attacker
 	return out
@@ -1118,11 +1136,13 @@ func _move_one(
 		posmod(pos.x + dir.x, _WorldMapDataScript.WIDTH),
 		posmod(pos.y + dir.y, _WorldMapDataScript.HEIGHT)
 	)
-	if next == avatar:
+	var species := _base_tile(base)
+	if next == avatar and not _can_move_onto_avatar(species):
 		return false
 	if blocked.is_valid() and bool(blocked.call(next)):
-		return false
-	if creature_at(next) >= 0:
+		if not _can_move_onto_creatures(species):
+			return false
+	if creature_at(next) >= 0 and not _can_move_onto_creatures(species):
 		return false
 
 	## xu4 slowedByTile on destination terrain.
@@ -1263,12 +1283,43 @@ static func _incorporeal(base: int) -> bool:
 	return base == 156 or base == 236 ## ghost, zorn
 
 
+func _apply_twister_effect(keep_i: int, avatar: Vector2i, on_nature: Callable) -> int:
+	## xu4 Creature::specialEffect STORM_ID. Returns the (possibly shifted) index.
+	if keep_i < 0 or keep_i >= creatures.size():
+		return keep_i
+	var c: Dictionary = creatures[keep_i]
+	if _base_tile(int(c.get("tile", 0))) != TILE_TWISTER:
+		return keep_i
+	var pos := Vector2i(int(c["x"]), int(c["y"]))
+	## On the party: damage only (xu4 returns before the object sweep).
+	if pos == avatar:
+		if on_nature.is_valid():
+			on_nature.call({"pos": pos, "on_party": true, "ate": false})
+		return keep_i
+	var ate := false
+	var j := creatures.size() - 1
+	while j >= 0:
+		if j != keep_i:
+			var other: Dictionary = creatures[j]
+			if int(other["x"]) == pos.x and int(other["y"]) == pos.y:
+				creatures.remove_at(j)
+				ate = true
+				if j < keep_i:
+					keep_i -= 1
+		j -= 1
+	if on_nature.is_valid():
+		on_nature.call({"pos": pos, "on_party": false, "ate": ate})
+	return keep_i
+
+
 static func _can_move_onto_avatar(base: int) -> bool:
-	return base == 140 or base == 142 ## whirlpool, twister
+	var species := _base_tile(base)
+	return species == TILE_WHIRLPOOL or species == TILE_TWISTER
 
 
 static func _can_move_onto_creatures(base: int) -> bool:
-	return base == 140 or base == 142
+	var species := _base_tile(base)
+	return species == TILE_WHIRLPOOL or species == TILE_TWISTER
 
 
 static func _dir_to_facing(dir: Vector2i) -> int:

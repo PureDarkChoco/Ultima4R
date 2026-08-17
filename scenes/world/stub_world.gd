@@ -7670,6 +7670,54 @@ func _on_world_ranged_fire(from: Vector2i, dir: Vector2i) -> void:
 	_pending_world_ranged.append({"from": from, "dir": dir})
 
 
+func _on_force_of_nature(info: Dictionary) -> void:
+	## xu4 Creature::specialEffect STORM_ID — party hit or destroy stacked objects.
+	var pos: Vector2i = info.get("pos", Vector2i.ZERO)
+	if bool(info.get("on_party", false)):
+		_apply_twister_hit_on_party()
+		return
+	var ate := bool(info.get("ate", false))
+	if _map != null:
+		var ov := _map.overlay_at(pos)
+		if ov >= 0:
+			if MapView.is_ship_tile(ov):
+				_ship_hulls.erase(_ship_hull_key(pos))
+			_map.remove_overlay_at(pos)
+			ate = true
+	if ate:
+		if _map != null:
+			_map.shake_ship()
+		_sync_creatures_to_map()
+
+
+func _apply_twister_hit_on_party() -> void:
+	## xu4 STORM_ID: balloon immune; ship 10 hull ×4; else gameDamageParty(0, 75).
+	if _transport == Transport.BALLOON:
+		return
+	if _map != null:
+		_map.shake_ship()
+	if _transport == Transport.SHIP:
+		for _n in 4:
+			var sunk := GameState.damage_ship(10)
+			_refresh_ship_hull_hud()
+			if _roster and _roster.has_method("flash_players"):
+				_roster.flash_players(-1)
+			if _compact_roster and _compact_roster.has_method("flash_players"):
+				_compact_roster.flash_players(-1)
+			if sunk:
+				_push_message(Locale.t("cmd_ship_sinks"), false)
+				GameState.kill_party()
+				_refresh_party()
+				_start_death_sequence(DEATH_PAUSE_SEC)
+				return
+		return
+	var flash := GameState.damage_party_cannon(0, 75)
+	_refresh_party()
+	_flash_party_damage(flash)
+	if GameState.is_party_dead():
+		_start_death_sequence(0.0)
+
+
 func _do_fire_cannon(dir: Vector2i) -> String:
 	## Sync probe for broadsides-only; flight is awaited in _finish_directed_command.
 	if _transport != Transport.SHIP or _is_in_city():
@@ -7876,7 +7924,8 @@ func _update_world_creatures() -> void:
 		_tile_pos,
 		_creature_spawn_blocked,
 		_on_pirate_cannon_fire,
-		_on_world_ranged_fire
+		_on_world_ranged_fire,
+		_on_force_of_nature
 	)
 	var changed := bool(moved.get("changed", false))
 	## Fire each broadside in order; abort if the party is wiped mid-queue.
