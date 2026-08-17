@@ -1648,14 +1648,12 @@ func _lowest_party_level() -> int:
 
 
 func _scale_companion_to_party(klass: int) -> void:
-	## Join at (lowest current party level − 1), never below CLASS_START_LEVEL.
-	## XP becomes the minimum for that level when raised.
+	## Join at (lowest current party level − 1). Class start level is the floor.
+	## Always apply on join — do not keep a higher stored level.
 	if klass < 0 or klass >= CLASS_START_LEVEL.size():
 		return
 	var start_lv := clampi(int(CLASS_START_LEVEL[klass]), 1, 8)
 	var target := clampi(maxi(start_lv, _lowest_party_level() - 1), 1, 8)
-	if target <= level_of_class(klass):
-		return
 	if klass < member_xp.size():
 		member_xp[klass] = xp_min_for_level(target)
 	if klass < member_max_hp.size():
