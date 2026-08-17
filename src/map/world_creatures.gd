@@ -23,6 +23,10 @@ const TILE_SEA_SERPENT := 136
 const TILE_WHIRLPOOL := 140
 const TILE_TWISTER := 142
 const TILE_ORC := 192
+## xu4 maps.b world label `lockelake`.
+const LOCKE_LAKE := Vector2i(127, 78)
+## xu4 STORM/WHIRLPOOL specialEffect — send the whirlpool to (0,0) after a swallow.
+const WHIRLPOOL_BANISH := Vector2i(0, 0)
 const TILE_LAVA_LIZARD := 232
 const TILE_HYDRA := 244
 const TILE_DRAGON := 248
@@ -824,10 +828,10 @@ func move_all(
 				attacker = c.duplicate(true)
 			i += 1
 			continue
-		## xu4: storms eat objects / hit the party before the creature steps.
-		var before_n := creatures.size()
-		i = _apply_twister_effect(i, avatar, on_nature)
-		if creatures.size() != before_n:
+		## xu4: storms / whirlpools hit before the creature steps.
+		var nature := _apply_nature_effect(i, avatar, on_nature)
+		i = int(nature.get("i", i))
+		if bool(nature.get("changed", false)):
 			changed = true
 		if i < 0 or i >= creatures.size():
 			break
@@ -840,9 +844,9 @@ func move_all(
 			changed = true
 		if _move_one(i, world, avatar, blocked):
 			changed = true
-			before_n = creatures.size()
-			i = _apply_twister_effect(i, avatar, on_nature)
-			if creatures.size() != before_n:
+			nature = _apply_nature_effect(i, avatar, on_nature)
+			i = int(nature.get("i", i))
+			if bool(nature.get("changed", false)):
 				changed = true
 		i += 1
 	out["changed"] = changed
@@ -1283,33 +1287,56 @@ static func _incorporeal(base: int) -> bool:
 	return base == 156 or base == 236 ## ghost, zorn
 
 
-func _apply_twister_effect(keep_i: int, avatar: Vector2i, on_nature: Callable) -> int:
-	## xu4 Creature::specialEffect STORM_ID. Returns the (possibly shifted) index.
+func _apply_nature_effect(keep_i: int, avatar: Vector2i, on_nature: Callable) -> Dictionary:
+	## xu4 Creature::specialEffect STORM_ID / WHIRLPOOL_ID.
+	## Returns { "i": index, "changed": bool }.
+	var out := {"i": keep_i, "changed": false}
 	if keep_i < 0 or keep_i >= creatures.size():
-		return keep_i
+		return out
 	var c: Dictionary = creatures[keep_i]
-	if _base_tile(int(c.get("tile", 0))) != TILE_TWISTER:
-		return keep_i
+	var species := _base_tile(int(c.get("tile", 0)))
+	if species != TILE_TWISTER and species != TILE_WHIRLPOOL:
+		return out
+	var kind := "twister" if species == TILE_TWISTER else "whirlpool"
 	var pos := Vector2i(int(c["x"]), int(c["y"]))
-	## On the party: damage only (xu4 returns before the object sweep).
+	## On the party: twister always hits; whirlpool swallows only a ship (callback).
 	if pos == avatar:
+		var swallowed := false
 		if on_nature.is_valid():
-			on_nature.call({"pos": pos, "on_party": true, "ate": false})
-		return keep_i
+			swallowed = bool(on_nature.call({
+				"pos": pos, "on_party": true, "ate": false, "kind": kind
+			}))
+		if swallowed and species == TILE_WHIRLPOOL:
+			c["x"] = WHIRLPOOL_BANISH.x
+			c["y"] = WHIRLPOOL_BANISH.y
+			creatures[keep_i] = c
+			out["changed"] = true
+		out["i"] = keep_i
+		return out
 	var ate := false
 	var j := creatures.size() - 1
 	while j >= 0:
 		if j != keep_i:
 			var other: Dictionary = creatures[j]
 			if int(other["x"]) == pos.x and int(other["y"]) == pos.y:
-				creatures.remove_at(j)
-				ate = true
-				if j < keep_i:
-					keep_i -= 1
+				var other_base := _base_tile(int(other.get("tile", 0)))
+				if species == TILE_TWISTER or _whirlpool_can_eat(other_base):
+					creatures.remove_at(j)
+					ate = true
+					if j < keep_i:
+						keep_i -= 1
 		j -= 1
 	if on_nature.is_valid():
-		on_nature.call({"pos": pos, "on_party": false, "ate": ate})
-	return keep_i
+		on_nature.call({"pos": pos, "on_party": false, "ate": ate, "kind": kind})
+	out["i"] = keep_i
+	out["changed"] = ate
+	return out
+
+
+static func _whirlpool_can_eat(other_base: int) -> bool:
+	## xu4: destroy swimmers/sailors, never flyers or walkers.
+	var base := _base_tile(other_base)
+	return (_swims(base) or _sails(base)) and not _flies(base)
 
 
 static func _can_move_onto_avatar(base: int) -> bool:

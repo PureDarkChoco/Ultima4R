@@ -7670,12 +7670,16 @@ func _on_world_ranged_fire(from: Vector2i, dir: Vector2i) -> void:
 	_pending_world_ranged.append({"from": from, "dir": dir})
 
 
-func _on_force_of_nature(info: Dictionary) -> void:
-	## xu4 Creature::specialEffect STORM_ID — party hit or destroy stacked objects.
+func _on_force_of_nature(info: Dictionary) -> bool:
+	## xu4 Creature::specialEffect STORM_ID / WHIRLPOOL_ID.
+	## True when a whirlpool swallowed the ship (caller banishes it to 0,0).
 	var pos: Vector2i = info.get("pos", Vector2i.ZERO)
+	var kind := str(info.get("kind", "twister"))
 	if bool(info.get("on_party", false)):
+		if kind == "whirlpool":
+			return _apply_whirlpool_hit_on_party()
 		_apply_twister_hit_on_party()
-		return
+		return false
 	var ate := bool(info.get("ate", false))
 	if _map != null:
 		var ov := _map.overlay_at(pos)
@@ -7688,6 +7692,7 @@ func _on_force_of_nature(info: Dictionary) -> void:
 		if _map != null:
 			_map.shake_ship()
 		_sync_creatures_to_map()
+	return false
 
 
 func _apply_twister_hit_on_party() -> void:
@@ -7716,6 +7721,43 @@ func _apply_twister_hit_on_party() -> void:
 	_flash_party_damage(flash)
 	if GameState.is_party_dead():
 		_start_death_sequence(0.0)
+
+
+func _apply_whirlpool_hit_on_party() -> bool:
+	## xu4 WHIRLPOOL_ID: ship only — 10 hull, then Locke Lake facing west.
+	if _transport != Transport.SHIP:
+		return false
+	if _map != null:
+		_map.shake_ship()
+	var sunk := GameState.damage_ship(10)
+	_refresh_ship_hull_hud()
+	if _roster and _roster.has_method("flash_players"):
+		_roster.flash_players(-1)
+	if _compact_roster and _compact_roster.has_method("flash_players"):
+		_compact_roster.flash_players(-1)
+	_teleport_party_to_locke_lake()
+	if sunk:
+		_push_message(Locale.t("cmd_ship_sinks"), false)
+		GameState.kill_party()
+		_refresh_party()
+		_start_death_sequence(DEATH_PAUSE_SEC)
+	return true
+
+
+func _teleport_party_to_locke_lake() -> void:
+	## xu4 maps.b `lockelake` + party.setDirection(DIR_WEST).
+	_stop_ship_cruise()
+	_clear_ship_yell_await()
+	_tile_pos = _WorldCreaturesScript.LOCKE_LAKE
+	_clear_enter_prompt_decline_if_left()
+	_update_transport_facing(Vector2i(-1, 0))
+	if _map != null:
+		_map.set_center(_tile_pos, false)
+		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+	_refresh_locate_hud()
+	_sync_creatures_to_map()
+	_sync_moongate(true)
+	_maybe_offer_enter_prompt()
 
 
 func _do_fire_cannon(dir: Vector2i) -> String:
