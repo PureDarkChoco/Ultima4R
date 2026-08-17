@@ -19,7 +19,7 @@ const FOUNTAIN_VIEW_SCALE := 2.0
 const ORB_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 23
+const PIECE_CACHE_REV := 30
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -415,7 +415,8 @@ func _blit_hband_quad(
 	dim: float,
 	flip_v: bool,
 	clip_x0: int = -0x3fffffff,
-	clip_x1: int = 0x3fffffff
+	clip_x1: int = 0x3fffffff,
+	vertical_fog: bool = false
 ) -> void:
 	if src == null:
 		return
@@ -451,7 +452,14 @@ func _blit_hband_quad(
 				int((float(x - xl) + 0.5) / dw * float(sw - 1)), 0, sw - 1
 			)
 			var c := src.get_pixel(sx, sy)
-			var d := dim * _dim_lut[row + x]
+			var fog := _dim_lut[row + x]
+			if vertical_fog:
+				## A side passage recedes horizontally, so its fog bands stay vertical.
+				var side_depth := mini(x, bw - 1 - x)
+				var inner_x := maxi(_ring(bw, MAX_DEPTH), 1)
+				var depth_t := clampf(float(side_depth) / float(inner_x), 0.0, 1.0)
+				fog = lerpf(1.0, DIM_FAR, depth_t)
+			var d := dim * fog
 			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
 
 
@@ -483,7 +491,7 @@ func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: flo
 			x_near_outer, x_near_inner, y_near,
 			x_far_outer, x_far_inner, y_far,
 			dim, true,
-			int(geom["x0"]), int(geom["nx0"])
+			int(geom["x0"]), int(geom["nx0"]), true
 		)
 	else:
 		var x_far_inner := float(geom["nx1"])
@@ -495,7 +503,7 @@ func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: flo
 			x_near_inner, x_near_outer, y_near,
 			x_far_inner, x_far_outer, y_far,
 			dim, true,
-			int(geom["nx1"]), int(geom["x1"])
+			int(geom["nx1"]), int(geom["x1"]), true
 		)
 
 
@@ -524,7 +532,7 @@ func _paint_open_side_floor(buf: Image, geom: Dictionary, left: bool, dim: float
 			x_near_outer, x_near_inner, y_near,
 			x_far_outer, x_far_inner, y_far,
 			floor_dim, flip_v,
-			int(geom["x0"]), int(geom["nx0"])
+			int(geom["x0"]), int(geom["nx0"]), true
 		)
 	else:
 		var x_far_inner := float(geom["nx1"])
@@ -536,7 +544,7 @@ func _paint_open_side_floor(buf: Image, geom: Dictionary, left: bool, dim: float
 			x_near_inner, x_near_outer, y_near,
 			x_far_inner, x_far_outer, y_far,
 			floor_dim, flip_v,
-			int(geom["nx1"]), int(geom["x1"])
+			int(geom["nx1"]), int(geom["x1"]), true
 		)
 
 
@@ -556,6 +564,11 @@ func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, 
 	var bw := buf.get_width()
 	var bh := buf.get_height()
 	var fog := _lut_at(int(geom["nx0"]), y0, bw, bh)
+	if depth == MAX_DEPTH - 1:
+		## The red-box end panels sit behind the last rendered side openings.
+		## Match the back quarter of the innermost ceiling: darkest, but still legible.
+		var near_fog := _lut_at(int(geom["x0"]), int(geom["y0"]), bw, bh)
+		fog = lerpf(near_fog, DIM_FAR, 0.75)
 	_blit_scaled(
 		buf,
 		_tex_front(mini(depth + 1, MAX_DEPTH)),
