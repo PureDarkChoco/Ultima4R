@@ -2589,9 +2589,29 @@ const _T := {
 		"ko": "샘이 말라 있다.",
 	},
 	"cmd_dungeon_orb": {
-		"en_u4": "You find a Magical Ball... Pain!",
-		"en_us": "You find a magical orb... Pain!",
-		"ko": "마법의 구를 만진다... 고통!",
+		"en_u4": "You find a Magical Ball...",
+		"en_us": "You find a magical orb...",
+		"ko": "마법의 구를 발견했다...",
+	},
+	"cmd_dungeon_orb_who": {
+		"en_u4": "Who touches?",
+		"en_us": "Who touches?",
+		"ko": "누가 만질까?",
+	},
+	"cmd_dungeon_orb_str": {
+		"en_u4": "Strength + 5",
+		"en_us": "Strength + 5",
+		"ko": "힘 + 5",
+	},
+	"cmd_dungeon_orb_dex": {
+		"en_u4": "Dexterity + 5",
+		"en_us": "Dexterity + 5",
+		"ko": "민첩 + 5",
+	},
+	"cmd_dungeon_orb_int": {
+		"en_u4": "Intelligence + 5",
+		"en_us": "Intelligence + 5",
+		"ko": "지성 + 5",
 	},
 	"cmd_dungeon_orb_spent": {
 		"en_u4": "The Magical Ball is spent.",

@@ -271,6 +271,9 @@ var _chest_open_cursor := 0
 ## Dungeon fountain Search: 0 = idle, 1 = Who drinks? (digit / list Enter).
 var _fountain_drink_stage := 0
 var _fountain_drink_cursor := 0
+## Dungeon orb Search: 0 = idle, 1 = Who touches? (digit / list Enter).
+var _orb_touch_stage := 0
+var _orb_touch_cursor := 0
 ## xu4 telescope Use via Search — wait for A–P city choice.
 var _telescope_stage := 0
 ## True while xu4 immobilized (all asleep) auto-turns are queued.
@@ -1806,6 +1809,8 @@ func _prompt_row_text() -> String:
 		return ""
 	if _fountain_drink_stage == 1:
 		return Locale.t("cmd_dungeon_fountain_who")
+	if _orb_touch_stage == 1:
+		return Locale.t("cmd_dungeon_orb_who")
 	if _chest_open_stage == 1:
 		return Locale.t("cmd_chest_who_opens")
 	if _telescope_stage == 1:
@@ -2669,7 +2674,7 @@ func _process(delta: float) -> void:
 			_tick_dialogue_choice_nav()
 		elif _cast_stage == 6:
 			_tick_combat_aim_move()
-		elif _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1 or _fountain_drink_stage == 1:
+		elif _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _orb_touch_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
@@ -2725,7 +2730,7 @@ func _process(delta: float) -> void:
 	if _cast_stage == 4:
 		_tick_cast_dir()
 		return
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _abyss_altar_choice_active or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _abyss_altar_choice_active or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _orb_touch_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
@@ -2740,7 +2745,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -3012,6 +3017,8 @@ func _tick_select_cursor() -> void:
 		_nudge_camp_guard_cursor(step)
 	elif _fountain_drink_stage == 1:
 		_nudge_fountain_drink_cursor(step)
+	elif _orb_touch_stage == 1:
+		_nudge_orb_touch_cursor(step)
 	elif _chest_open_stage == 1:
 		_nudge_chest_open_cursor(step)
 	elif _save_stage == 1 or _save_stage == 2:
@@ -3594,7 +3601,7 @@ func _can_open_command_menu() -> bool:
 		return false
 	if (
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
-		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0
+		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0
 		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
 		or _abyss_altar_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
@@ -5697,6 +5704,9 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 	if _fountain_drink_stage != 0:
 		_cancel_fountain_drink(true)
 		return
+	if _orb_touch_stage != 0:
+		_cancel_orb_touch(true)
+		return
 	if _telescope_stage != 0:
 		_cancel_telescope(true)
 		return
@@ -5829,7 +5839,7 @@ func _handle_panel_toggle() -> void:
 		or _camp_stage == 2
 		or _camp_stage == 3
 		or _chest_open_stage != 0
-		or _fountain_drink_stage != 0
+		or _fountain_drink_stage != 0 or _orb_touch_stage != 0
 		or _telescope_stage != 0
 		or _save_stage != 0
 		or _esc_menu_is_open()
@@ -6069,6 +6079,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _fountain_drink_stage != 0:
 		if _handle_fountain_drink_input(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_pressed():
+			get_viewport().set_input_as_handled()
+		return
+	if _orb_touch_stage != 0:
+		if _handle_orb_touch_input(event):
 			get_viewport().set_input_as_handled()
 		elif event.is_pressed():
 			get_viewport().set_input_as_handled()
@@ -6509,7 +6525,7 @@ func _can_open_city_warp() -> bool:
 		return false
 	if (
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
-		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0
+		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0
 		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
 		or _abyss_altar_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0
@@ -11917,8 +11933,6 @@ func _dungeon_trigger_cell() -> void:
 	match tok:
 		_DungeonMapData.TOK_TRAP:
 			_dungeon_spring_trap()
-		_DungeonMapData.TOK_ORB:
-			_dungeon_touch_orb()
 		_DungeonMapData.TOK_FLOOR_HOLE:
 			_dungeon_change_level(1, false)
 		_:
@@ -11953,18 +11967,136 @@ func _dungeon_spring_trap() -> void:
 				_refresh_dungeon_view()
 
 
-func _dungeon_touch_orb() -> void:
-	if _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z):
-		_push_message(Locale.t("cmd_dungeon_orb_spent"), false)
-		return
-	_dungeon_map.mark_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+func _begin_orb_touch() -> void:
+	## xu4 dungeonTouchOrb — Search finds the ball, then Who touches?
 	_push_message(Locale.t("cmd_dungeon_orb"), false)
-	var flash := GameState.apply_orb_touch(
-		_DungeonPortals.orb_stat_mask(_dungeon_id),
-		_DungeonPortals.ORB_DAMAGE
-	)
+	_orb_touch_cursor = 0
+	if GameState.party_size() <= 1:
+		_push_message(Locale.t("cmd_dungeon_orb_who"), false)
+		_push_message(GameState.party_member_display_name(_orb_touch_cursor), false)
+		var only_member := GameState.party_member_at(_orb_touch_cursor)
+		if only_member < 0 or GameState.is_member_disabled(only_member):
+			_push_message(Locale.t("cmd_disabled"), false)
+			_finish_party_turn()
+			return
+		_complete_orb_touch(_orb_touch_cursor)
+		return
+	_orb_touch_stage = 1
+	_open_order_roster()
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_sync_orb_touch_selection()
+	_layout_prompt_row()
+
+
+func _handle_orb_touch_input(event: InputEvent) -> bool:
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
+			_cancel_orb_touch(true)
+			return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		_cancel_orb_touch(true)
+		return true
+	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
+		_cancel_orb_touch(true)
+		return true
+	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
+		_accept_orb_touch_slot(_orb_touch_cursor)
+		return true
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+		_accept_orb_touch_slot(_orb_touch_cursor)
+		return true
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		var digit := _player_digit_index_from_key(key_event)
+		if digit >= 0:
+			if digit >= GameState.party_size():
+				_push_message(Locale.t("cmd_who"), false)
+				_layout_prompt_row()
+				return true
+			_orb_touch_cursor = digit
+			_sync_orb_touch_selection()
+			_accept_orb_touch_slot(digit)
+			return true
+		if _is_digit_key(key_event):
+			_push_message(Locale.t("cmd_who"), false)
+			_layout_prompt_row()
+			return true
+	return true
+
+
+func _nudge_orb_touch_cursor(delta: int) -> void:
+	var n := maxi(GameState.party_size(), 1)
+	_orb_touch_cursor = posmod(_orb_touch_cursor + delta, n)
+	_sync_orb_touch_selection()
+
+
+func _sync_orb_touch_selection() -> void:
+	if _roster:
+		_roster.set_order_selection(_orb_touch_cursor, -1)
+
+
+func _accept_orb_touch_slot(slot: int) -> void:
+	if slot < 0 or slot >= GameState.party_size():
+		_push_message(Locale.t("cmd_who"), false)
+		_layout_prompt_row()
+		return
+	_push_message(GameState.party_member_display_name(slot), false)
+	var member := GameState.party_member_at(slot)
+	if member < 0 or GameState.is_member_disabled(member):
+		_clear_orb_touch_ui()
+		_push_message(Locale.t("cmd_disabled"), false)
+		_finish_party_turn()
+		return
+	_complete_orb_touch(slot)
+
+
+func _complete_orb_touch(slot: int) -> void:
+	_clear_orb_touch_ui()
+	if (
+		_dungeon_map == null
+		or _dungeon_token() != _DungeonMapData.TOK_ORB
+		or _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	):
+		_push_message(Locale.t("cmd_search_nothing"), false)
+		_finish_party_turn()
+		return
+	var mask := _DungeonPortals.orb_stat_mask(_dungeon_id)
+	if (mask & 4) != 0:
+		_push_message(Locale.t("cmd_dungeon_orb_str"), false)
+	if (mask & 2) != 0:
+		_push_message(Locale.t("cmd_dungeon_orb_dex"), false)
+	if (mask & 1) != 0:
+		_push_message(Locale.t("cmd_dungeon_orb_int"), false)
+	_dungeon_map.mark_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	var flash := GameState.apply_orb_touch(slot, mask)
 	_refresh_party()
-	_flash_party_damage(flash)
+	if flash != 0:
+		_flash_party_damage(flash)
+	_refresh_dungeon_view()
+	_finish_party_turn()
+
+
+func _cancel_orb_touch(show_none: bool) -> void:
+	var was_active := _orb_touch_stage != 0
+	_clear_orb_touch_ui()
+	if show_none and was_active:
+		_push_message(Locale.t("cmd_none"), false)
+	if was_active:
+		_finish_party_turn()
+
+
+func _clear_orb_touch_ui() -> void:
+	_orb_touch_stage = 0
+	_orb_touch_cursor = 0
+	_clear_order_selection()
+	if not _sides_open:
+		_close_order_roster()
+	_layout_prompt_row()
 
 
 func _dungeon_change_level(delta: int, announce: bool) -> bool:
@@ -12038,6 +12170,12 @@ func _dungeon_search() -> void:
 	_push_message(Locale.t("cmd_searching"), false)
 	if _dungeon_token() == _DungeonMapData.TOK_FOUNTAIN:
 		_begin_fountain_drink()
+		return
+	if (
+		_dungeon_token() == _DungeonMapData.TOK_ORB
+		and not _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	):
+		_begin_orb_touch()
 		return
 	var found := false
 	if _dungeon_map.reveal_secret(_tile_pos.x, _tile_pos.y, _dungeon_z):
@@ -13938,6 +14076,7 @@ func _close_ui_for_death() -> void:
 		_foe_roster.clear()
 	_chest_open_stage = 0
 	_fountain_drink_stage = 0
+	_orb_touch_stage = 0
 	_telescope_stage = 0
 	_order_stage = 0
 	_ready_stage = 0
@@ -14092,7 +14231,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
 		return false
-	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
+	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return false
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
 		return false
@@ -16680,7 +16819,7 @@ func _tick_combat_victory_move() -> void:
 		or _use_stage != 0
 		or _abyss_altar_stage != 0
 		or _chest_open_stage != 0
-		or _fountain_drink_stage != 0
+		or _fountain_drink_stage != 0 or _orb_touch_stage != 0
 		or _combat_exit_prompt
 		or _enter_prompt_stage != 0
 		or _esc_menu_is_open()
@@ -18527,7 +18666,7 @@ func _can_open_journal_focus() -> bool:
 		return false
 	if (
 		_talk_stage != 0 or _mix_stage != 0 or _save_stage != 0
-		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _telescope_stage != 0
+		or _camp_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0
 		or _ready_stage != 0 or _wear_stage != 0 or _cast_stage != 0 or _use_stage != 0
 		or _abyss_altar_stage != 0
 		or _ztats_stage != 0 or _order_stage != 0

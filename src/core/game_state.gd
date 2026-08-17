@@ -1734,25 +1734,27 @@ func is_member_disabled(klass: int) -> bool:
 	)
 
 
-func apply_orb_touch(stat_mask: int, damage: int) -> int:
-	## Dungeon orb: hurt every living member, then raise STR/DEX/INT bits (cap 50).
-	var flash := 0
-	for i in party_size():
-		var mid := party_member_at(i)
-		if mid < 0 or is_class_dead(mid):
-			continue
-		if apply_member_damage(mid, maxi(0, damage)):
-			flash |= 1 << i
-		if (stat_mask & 4) != 0 and mid < member_str.size():
-			member_str[mid] = mini(50, int(member_str[mid]) + 5)
-		if (stat_mask & 2) != 0 and mid < member_dex.size():
-			member_dex[mid] = mini(50, int(member_dex[mid]) + 5)
-		if (stat_mask & 1) != 0 and mid < member_int.size():
-			member_int[mid] = mini(50, int(member_int[mid]) + 5)
-			var mmax := max_mp_for_stats(mid, int(member_int[mid]))
-			if mid < member_mp.size() and int(member_mp[mid]) > mmax:
-				member_mp[mid] = mmax
-	return flash
+func apply_orb_touch(party_slot: int, stat_mask: int) -> int:
+	## xu4 dungeonTouchOrb — one member, +5 per stat bit (cap 50), 200 damage each.
+	var klass := party_member_at(party_slot)
+	if klass < 0 or is_class_dead(klass):
+		return 0
+	var damage := 0
+	if (stat_mask & 4) != 0 and klass < member_str.size():
+		member_str[klass] = mini(50, int(member_str[klass]) + 5)
+		damage += 200
+	if (stat_mask & 2) != 0 and klass < member_dex.size():
+		member_dex[klass] = mini(50, int(member_dex[klass]) + 5)
+		damage += 200
+	if (stat_mask & 1) != 0 and klass < member_int.size():
+		member_int[klass] = mini(50, int(member_int[klass]) + 5)
+		damage += 200
+		var mmax := max_mp_for_stats(klass, int(member_int[klass]))
+		if klass < member_mp.size() and int(member_mp[klass]) > mmax:
+			member_mp[klass] = mmax
+	if apply_member_damage(klass, damage):
+		return 1 << party_slot
+	return 0
 
 
 func apply_member_damage(klass: int, damage: int) -> bool:

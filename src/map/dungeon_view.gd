@@ -1248,7 +1248,8 @@ func _paint_tile_object(
 	var img: Image
 	if tid == TILE_FOUNTAIN and not _fountain_frames.is_empty():
 		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
-	elif tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST:
+	elif tid == TILE_ORB or (tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST):
+		## Orb / monster PNGs keep an opaque black plate; key it out like fields.
 		if _keyed_monster_cache.has(tid):
 			img = _keyed_monster_cache[tid] as Image
 		else:
