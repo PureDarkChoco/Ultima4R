@@ -19,8 +19,10 @@ const FOUNTAIN_VIEW_SCALE := 2.0
 const ORB_VIEW_SCALE := 2.0
 const MONSTER_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
+const FLOOR_SURFACE_DIM := 0.85
+const OPEN_SIDE_FLOOR_DIM := 0.72
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 30
+const PIECE_CACHE_REV := 32
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -409,7 +411,7 @@ func _paint_floor_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> 
 		## Earthen caves have no visible floor beyond the torch-lit walls.
 		return
 	var src := _tex_floor(depth)
-	var floor_dim := dim
+	var floor_dim := dim * FLOOR_SURFACE_DIM
 	var flip_v := false
 	if theme_id == "brick" or theme_id == "grey_stone":
 		## Masonry floors use the same material as the ceiling.
@@ -541,7 +543,9 @@ func _paint_open_side_floor(buf: Image, geom: Dictionary, left: bool, dim: float
 	if theme_id == "dirt":
 		return
 	var src := _tex_floor(depth)
-	var floor_dim := dim
+	## The side passage uses its own vertical fog, whose bright outer edge makes
+	## the same multiplier look lighter than the front floor.
+	var floor_dim := dim * OPEN_SIDE_FLOOR_DIM
 	var flip_v := false
 	if theme_id == "brick" or theme_id == "grey_stone":
 		src = _tex_front(depth)
