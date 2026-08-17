@@ -108,6 +108,7 @@ func paint(
 		var cell := _ahead(dmap, pos, dir, depth)
 		var left := _left_of(dmap, cell, dir)
 		var right := _right_of(dmap, cell, dir)
+		var front := _ahead(dmap, cell, dir, 1)
 		var dim := 1.0
 		var tok: int = dmap.token_at(cell.x, cell.y, z)
 		var geom := _depth_geom(w, h, depth)
@@ -169,6 +170,10 @@ func paint(
 					"right_surface": (
 						dmap.looks_like_wall(right.x, right.y, z)
 						or _is_side_entrance(dmap, right, z)
+					),
+					"front_surface": (
+						_is_blocking_wall(dmap, front, z)
+						or _is_side_entrance(dmap, front, z)
 					),
 				})
 		var left_field_tid := _cell_field_tile_id(dmap, left, z)
@@ -264,7 +269,8 @@ func paint(
 				anim_frame,
 				int(object["view_dir"]),
 				bool(object["left_surface"]),
-				bool(object["right_surface"])
+				bool(object["right_surface"]),
+				bool(object["front_surface"])
 			)
 		elif int(object["kind"]) == VIEW_OBJECT_SIDE_FIELD:
 			_paint_side_field(
@@ -977,7 +983,8 @@ func _paint_floor_field(
 	anim_frame: int,
 	view_dir: int,
 	left_surface: bool,
-	right_surface: bool
+	right_surface: bool,
+	front_surface: bool
 ) -> void:
 	var img: Image = _U4TileBank.image(tid)
 	if img == null:
@@ -989,12 +996,13 @@ func _paint_floor_field(
 		return
 	var scroll := posmod(anim_frame * 2, sh)
 	var walls_only := tid == TILE_FIELD_ENERGY
-	if walls_only:
-		## Energy is impassable: four walls (far / left / right / near), no lid.
+	if walls_only or front_surface:
+		## Energy always has a far wall. Other fields project onto a blocking
+		## wall / entrance at this corridor cell's far boundary.
 		_paint_field_front_mask(
 			buf, img, _front_rect(depth + 1, field_w, field_h), dim, scroll
 		)
-	else:
+	if not walls_only:
 		_paint_field_hband_mask(
 			buf, img,
 			float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
@@ -1121,9 +1129,10 @@ func _paint_field_hband_mask(
 			var near_factor := 1.0 - t
 			var world_uv := _field_world_uv(u, near_factor, view_dir)
 			var sx := clampi(int(floor(world_uv.x * float(sw))), 0, sw - 1)
-			## Negative sampling offset makes the pattern travel north → south.
+			## Positive sampling offset makes the projected pattern travel
+			## bottom → top, matching the 2D field tiles.
 			var sy := posmod(
-				int(floor(world_uv.y * float(sh))) - scroll,
+				int(floor(world_uv.y * float(sh))) + scroll,
 				sh
 			)
 			var color := img.get_pixel(sx, sy)
@@ -1189,8 +1198,8 @@ func _paint_field_side_mask(
 			if y < 0 or y >= field_h:
 				continue
 			var v := (float(y - y0) + 0.5) / wall_h
-			## Wall masks always travel from screen top to bottom.
-			var sy := posmod(int(floor(v * float(sh))) - scroll, sh)
+			## Match 2D fields: the mask travels from screen bottom to top.
+			var sy := posmod(int(floor(v * float(sh))) + scroll, sh)
 			var color := img.get_pixel(sx, sy)
 			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
 				continue
@@ -1218,8 +1227,8 @@ func _paint_field_front_mask(
 		if y < 0 or y >= field_h:
 			continue
 		var v := (float(y - rect.position.y) + 0.5) / float(rect.size.y)
-		## Match side walls: the energy pattern travels from top to bottom.
-		var sy := posmod(int(floor(v * float(sh))) - scroll, sh)
+		## Match side walls and 2D fields: screen bottom to top.
+		var sy := posmod(int(floor(v * float(sh))) + scroll, sh)
 		for x in range(rect.position.x, rect.end.x):
 			if x < 0 or x >= field_w:
 				continue
