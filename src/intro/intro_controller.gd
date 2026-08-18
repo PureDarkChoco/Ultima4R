@@ -65,6 +65,7 @@ const MOONGATE_SUCK_PERIOD := 0.06
 ## TITLE.EXE intro object base 12 = shape 077 (missile). Match wilderness ship fire art.
 const TILE_MISSILE := 77
 const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
+const _ResImage := preload("res://src/core/res_image.gd")
 
 const _IntroBinData := preload("res://src/intro/intro_bin_data.gd")
 const _U4Lzw := preload("res://src/intro/u4_lzw_image.gd")
@@ -707,11 +708,9 @@ func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 
 func _load_cannonball_image() -> Image:
 	## MapView::CANNONBALL_PATH — opaque black → transparent so water shows under.
-	var img := Image.new()
-	if img.load(CANNONBALL_PATH) != OK:
+	var img := _ResImage.load_rgba8(CANNONBALL_PATH)
+	if img == null:
 		return null
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
 	if img.get_width() != TILE_PX or img.get_height() != TILE_PX:
 		img.resize(TILE_PX, TILE_PX, Image.INTERPOLATE_NEAREST)
 	for y in img.get_height():

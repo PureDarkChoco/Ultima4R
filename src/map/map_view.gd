@@ -151,6 +151,7 @@ const HORSE_RIDER_W_PATH := "res://assets/tiles/horse_rider_w.png"
 const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
 ## Cannonball: black_pearl ~12×12, centered on transparent 32×32.
 const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
+const _ResImage := preload("res://src/core/res_image.gd")
 ## Sling stone — source art scaled to 1/4 (8×8 from 32×32).
 const SLING_MISSILE_PATH := "res://assets/ui/weapons/sling_missile.png"
 ## Thrown dagger — inventory icon flies, rotated to flight direction.
@@ -793,8 +794,7 @@ func await_combat_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_S
 	_scene_trans_busy = true
 	## Hold explore until the first combat tile lands.
 	_buf.blit_rect(from, Rect2i(0, 0, w, h), Vector2i.ZERO)
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	queue_redraw()
 	var cell: int = TILE_SRC
 	var gw: int = int(ceili(float(w) / float(cell)))
@@ -813,15 +813,13 @@ func await_combat_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_S
 		while last_d < d_now:
 			last_d += 1
 			_blit_wipe_diagonal(to, last_d, gw, gh, cell, w, h)
-		_tex.set_image(_buf)
-		texture = _tex
+			_upload_buffer()
 		queue_redraw()
 		if t >= 1.0:
 			break
 		await get_tree().process_frame
 	_buf.blit_rect(to, Rect2i(0, 0, w, h), Vector2i.ZERO)
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	_scene_trans_busy = false
 	queue_redraw()
 
@@ -3043,12 +3041,7 @@ func _tick_npc_frames(delta: float) -> bool:
 
 
 func _load_image_path(path: String) -> Image:
-	var img := Image.new()
-	if img.load(path) != OK:
-		return null
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
-	return img
+	return _ResImage.load_rgba8(path)
 
 
 func _avatar_tile_pair() -> Vector2i:
@@ -3249,6 +3242,17 @@ func _ensure_buffers() -> void:
 		_tex = ImageTexture.new()
 
 
+func _upload_buffer() -> void:
+	## Preserve the RenderingDevice texture RID after its first upload. Replacing
+	## an in-use ImageTexture with set_image() can race Metal frame submission
+	## during scene changes; update() only uploads pixels into the existing RID.
+	if _tex == null or _tex.get_width() != _buf.get_width() or _tex.get_height() != _buf.get_height():
+		_tex = ImageTexture.create_from_image(_buf)
+	else:
+		_tex.update(_buf)
+	texture = _tex
+
+
 func _cam_tile() -> Vector2:
 	if _scroll_frames_left <= 0:
 		return Vector2(center)
@@ -3266,8 +3270,7 @@ func _rebuild() -> void:
 	_buf.fill(Color(0.05, 0.08, 0.07, 1))
 
 	if not tiles_ready:
-		_tex.set_image(_buf)
-		texture = _tex
+		_upload_buffer()
 		queue_redraw()
 		return
 
@@ -3288,8 +3291,7 @@ func _rebuild() -> void:
 		return
 
 	if world == null or not world.loaded:
-		_tex.set_image(_buf)
-		texture = _tex
+		_upload_buffer()
 		queue_redraw()
 		return
 
@@ -3329,8 +3331,7 @@ func _rebuild() -> void:
 	_paint_cannon_proj(cam)
 	_paint_tile_flashes(cam)
 
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	queue_redraw()
 
 
@@ -3362,8 +3363,7 @@ func _rebuild_dungeon() -> void:
 		((view_h - CAMP_H) / 2) * TILE_SRC
 	)
 	_buf.blit_rect(_dungeon_field, Rect2i(0, 0, field_w, field_h), origin)
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	queue_redraw()
 
 
@@ -3411,8 +3411,7 @@ func _rebuild_city() -> void:
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
 	_paint_tile_flashes(cam)
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	queue_redraw()
 
 
@@ -3974,8 +3973,7 @@ func _rebuild_camp() -> void:
 	_paint_camp_guard(origin_x, origin_y)
 	_paint_shrine_walker(origin_x, origin_y)
 	_paint_combat_tile_flashes(origin_x, origin_y)
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	queue_redraw()
 
 
@@ -4019,8 +4017,7 @@ func _rebuild_combat() -> void:
 	_paint_combat_tile_flashes(origin_x, origin_y)
 	_paint_combat_projectile(origin_x, origin_y)
 	_paint_combat_aim_cursor(origin_x, origin_y)
-	_tex.set_image(_buf)
-	texture = _tex
+	_upload_buffer()
 	queue_redraw()
 
 
@@ -5103,24 +5100,11 @@ func _load_shore_land_ref(ref_name: String) -> Image:
 	if _shore_land_cache.has(ref_name):
 		return _shore_land_cache[ref_name] as Image
 	var path := "%s/shore_land_%s.png" % [SHORE_MASK_DIR, ref_name]
-	var img: Image = null
-	var abs_path := ProjectSettings.globalize_path(path)
-	if FileAccess.file_exists(abs_path):
-		img = Image.load_from_file(abs_path)
-	elif ResourceLoader.exists(path):
-		var res = load(path)
-		if res is Texture2D:
-			img = (res as Texture2D).get_image()
-			if img != null and img.is_compressed():
-				img.decompress()
-		elif res is Image:
-			img = res as Image
+	var img := _ResImage.load_rgba8(path)
 	if img == null or img.is_empty():
 		push_warning("MapView: missing shore land %s" % path)
 		_shore_land_cache[ref_name] = null
 		return null
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
 	_shore_land_cache[ref_name] = img
 	return img
 

@@ -41,6 +41,7 @@ const _JournalScript := preload("res://src/core/journal.gd")
 const _DungeonMapData := preload("res://src/map/dungeon_map_data.gd")
 const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
 const _ShrineMantras := preload("res://src/core/shrine.gd")
+const _ResImage := preload("res://src/core/res_image.gd")
 
 @onready var _top_bar: Control = %TopBar
 @onready var _bottom_bar: Control = %BottomBar
@@ -1608,15 +1609,9 @@ func _load_msg_charset_glyphs() -> void:
 	## Extract xu4 CHARSET_PROMPT and spinning-cursor frames from charset.png.
 	_cursor_frames.clear()
 	_prompt_tex = null
-	var img := Image.new()
-	if img.load(CHARSET_PATH) != OK:
-		var tex := load(CHARSET_PATH) as Texture2D
-		if tex:
-			img = tex.get_image()
+	var img := _ResImage.load_rgba8(CHARSET_PATH)
 	if img == null or img.is_empty():
 		return
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
 	_prompt_tex = _charset_glyph_tex(img, PROMPT_CHAR, true)
 	for frame in CURSOR_FRAME_COUNT:
 		_cursor_frames.append(_charset_glyph_tex(img, CURSOR_CHAR0 + frame, true))
@@ -5764,6 +5759,14 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 		_open_esc_menu()
 
 
+func _mark_input_handled() -> void:
+	## Scene-changing input handlers can detach this node before returning.
+	## Avoid invoking Viewport methods through a null optimized GDScript call.
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.set_input_as_handled()
+
+
 func _input(event: InputEvent) -> void:
 	## L2 opens journal browse (left pane only if sides are closed).
 	## R2 mirrors Tab — open/close the side panels.
@@ -5778,7 +5781,7 @@ func _input(event: InputEvent) -> void:
 				_open_journal_focus()
 			elif not down:
 				_left_trigger_held = false
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if motion.axis == JOY_AXIS_TRIGGER_RIGHT:
 			var down_r := motion.axis_value > 0.5
@@ -5787,13 +5790,13 @@ func _input(event: InputEvent) -> void:
 				_handle_panel_toggle()
 			elif not down_r:
 				_right_trigger_held = false
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 	if _death_busy:
-		get_viewport().set_input_as_handled()
+		_mark_input_handled()
 		return
 	if _try_toggle_pad_select_ui(event):
-		get_viewport().set_input_as_handled()
+		_mark_input_handled()
 		return
 	if (
 		_command_menu_open
@@ -5804,14 +5807,14 @@ func _input(event: InputEvent) -> void:
 		var menu_key := event as InputEventKey
 		if menu_key.keycode == KEY_TAB or menu_key.physical_keycode == KEY_TAB:
 			_handle_panel_toggle()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 	if _combat_active:
 		## Combat keys handled in _unhandled_input; block Tab panel toggle.
 		if event is InputEventKey and event.pressed and not event.echo:
 			var ck := event as InputEventKey
 			if ck.keycode == KEY_TAB or ck.physical_keycode == KEY_TAB:
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
@@ -5819,11 +5822,11 @@ func _input(event: InputEvent) -> void:
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_peer_dismiss_key(k):
 				_close_peer_overlay()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
 			_handle_panel_toggle()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 
 
@@ -5875,55 +5878,55 @@ func _handle_panel_toggle() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
-		get_viewport().set_input_as_handled()
+		_mark_input_handled()
 		return
 	if _city_warp_open:
 		if _handle_city_warp_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _journal_focus_active:
 		if _handle_journal_focus_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed() or event is InputEventJoypadMotion:
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _command_menu_open:
 		if _handle_command_menu_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _combat_exit_prompt:
 		if _handle_enter_prompt_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _enter_prompt_stage == 1:
 		if _handle_enter_prompt_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _abyss_altar_stage > 0:
 		if _handle_abyss_altar_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed() or event is InputEventJoypadMotion:
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _codex_stage > 0:
 		if _handle_codex_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _shrine_stage != 0:
 		if _handle_shrine_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _talk_stage != 0:
 		if (
@@ -5945,32 +5948,32 @@ func _unhandled_input(event: InputEvent) -> void:
 			## Mouse left click or the gamepad confirm button (A) advances
 			## the "Press any key" pause to its follow-up question.
 			_talk_ask_question()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _binary_prompt_active() and _enter_prompt_stage != 1:
 			if _handle_enter_prompt_input(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed():
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _handle_shop_number_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_talk_give_number_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_shop_sell_pick_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_shop_item_menu_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_talk_keyword_menu_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _talk_native_hangul_active() and event is InputEventKey:
 			if _handle_talk_native_hangul(event as InputEventKey):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		## GUI input already updated the focused LineEdit. Do not also send the
 		## same key through the legacy terminal path (double type/backspace).
@@ -5983,14 +5986,14 @@ func _unhandled_input(event: InputEvent) -> void:
 					and (ime_key.keycode == KEY_ESCAPE or ime_key.physical_keycode == KEY_ESCAPE)
 				):
 					_handle_talk_input(ime_key)
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif _is_cancel_event(event):
 				if _talk_stage == 10 and _shop != null:
 					_shop.on_escape()
 					_flush_shop_output()
 				elif not _talk_blocks_cancel_bye():
 					_end_talk(true)
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _is_cancel_event(event):
 			if _talk_stage == 10 and _shop != null:
@@ -5998,44 +6001,44 @@ func _unhandled_input(event: InputEvent) -> void:
 				_flush_shop_output()
 			elif not _talk_blocks_cancel_bye():
 				_end_talk(true)
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_talk_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _combat_active:
 		## Nested UIs opened from combat (Ready / Use / Ztats / Open Who) before arena keys.
 		if _ready_stage != 0:
 			if _handle_ready_input(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed():
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _cast_stage != 0:
 			if _handle_cast_input(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed():
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _use_stage != 0:
 			if _handle_use_input(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed():
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _ztats_stage != 0:
 			if _handle_ztats_input(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed():
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _chest_open_stage != 0:
 			if _handle_chest_open_input(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed():
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _pending_cmd != U4Commands.Id.NONE:
 			## JoypadMotion must pass when released (clears stick latch / Dir?).
@@ -6043,166 +6046,166 @@ func _unhandled_input(event: InputEvent) -> void:
 				(event is InputEventJoypadMotion or (event.is_pressed() and not event.is_echo()))
 				and _handle_combat_pending_dir_event(event)
 			):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			elif event.is_pressed() or event is InputEventJoypadMotion:
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _is_command_menu_pad_event(event) and _can_open_command_menu():
 			_open_command_menu()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_combat_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed() or event is InputEventJoypadMotion:
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _save_stage != 0:
 		if _handle_save_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _options_panel_is_open():
 		if event is InputEventKey and event.pressed and not event.echo and _is_fullscreen_key(event as InputEventKey):
 			## Mode is toggled by DisplaySettings (input/poll); refresh label now.
 			if _options_panel != null:
 				_options_panel.refresh()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _handle_options_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _esc_menu_is_open():
 		if _handle_esc_menu_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _camp_stage != 0:
 		if _handle_camp_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _inn_stage == 1:
 		## xu4 InnController wait — swallow input while sleeping.
 		if event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _telescope_stage != 0:
 		if _handle_telescope_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _fountain_drink_stage != 0:
 		if _handle_fountain_drink_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _orb_touch_stage != 0:
 		if _handle_orb_touch_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _chest_open_stage != 0:
 		if _handle_chest_open_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _mix_stage != 0:
 		if _handle_mix_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _cast_stage != 0:
 		if _handle_cast_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _use_stage != 0:
 		if _handle_use_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _ready_stage != 0:
 		if _handle_ready_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _wear_stage != 0:
 		if _handle_wear_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _ztats_stage != 0:
 		if _handle_ztats_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _order_stage != 0:
 		if _handle_order_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		elif event.is_pressed():
 			## Swallow other pads/keys so explore move/commands don't leak through.
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_peer_dismiss_key(event):
 				_close_peer_overlay()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE:
 			_on_escape()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## ⌘S / Ctrl+S — quick save to loaded/last slot (or open picker on new game).
 		if _is_quick_save_key(event):
 			_do_quick_save()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## ⌘F / Ctrl+F — toggle fullscreen (before F=Fire). Match ⌘S detection style.
 		if _is_fullscreen_key(event):
 			DisplaySettings.toggle_fullscreen()
 			if _options_panel_is_open() and _options_panel != null:
 				_options_panel.refresh()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## xu4 immobilized (all asleep): no commands until someone wakes.
 		if _is_party_asleep_locked():
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## Ctrl/⌘+J: open the left pane and browse the journal.
 		if _is_mod_chord_key(event) and _is_journal_key(event):
 			_open_journal_focus()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## Ctrl/⌘+L: toggle persistent Locate HUD (sextant required).
 		if _is_mod_chord_key(event) and _is_locate_key(event):
 			_toggle_locate_hud()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## Ctrl/⌘+K: dump current virtue karma to the message log.
 		if _is_mod_chord_key(event) and _is_karma_key(event):
 			_do_show_karma()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## LOCAL CHEAT: Ctrl/⌘+P — warp to a city entrance on the world map.
 		if _is_mod_chord_key(event) and _is_city_warp_key(event):
 			_open_city_warp()
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		## Waiting for a direction (A/G/J/O/T or ship Yell) — same line as "Attack: Dir?".
 		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
@@ -6210,13 +6213,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			## Space is Pass only — ignore it while Dir? is waiting.
 			if _is_space_key(event):
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 				return
 			## Any other key → classic grey "What?" (no prompt), abort Dir?.
 			_clear_pending_dir()
 			_clear_ship_yell_await()
 			_push_message(Locale.t("cmd_what"), false)
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		var cmd := U4Commands.from_event(event)
 		if cmd != U4Commands.Id.NONE:
@@ -6224,7 +6227,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if cmd != U4Commands.Id.YELL and _ship_yell_await_dir:
 				_clear_ship_yell_await()
 			_handle_command(cmd)
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	## Gamepad while idle: X passes, B opens the contextual A–Z palette,
 	## and Start opens/closes the system menu.
@@ -6232,21 +6235,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_cancel_event(event) or _GameInput.is_select(event):
 				_close_peer_overlay()
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if (
 			event is InputEventJoypadButton
 			and (event as InputEventJoypadButton).button_index == JOY_BUTTON_START
 		):
 			_on_escape(true)
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _is_cancel_event(event):
 			if _can_open_command_menu():
 				_open_command_menu()
 			else:
 				_on_escape(false)
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 		if _pending_cmd != U4Commands.Id.NONE or _ship_yell_await_dir:
 			if _GameInput.dir_from_event(event) != Vector2i.ZERO:
@@ -6255,19 +6258,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
 				_clear_pending_dir()
 				_clear_ship_yell_await()
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 				return
 			if event is InputEventJoypadButton:
 				_clear_pending_dir()
 				_clear_ship_yell_await()
 				_push_message(Locale.t("cmd_what"), false)
-				get_viewport().set_input_as_handled()
+				_mark_input_handled()
 			return
 		if _GameInput.is_pass(event):
 			## Idle X mirrors the keyboard Space/Pass command.
 			if not _is_party_asleep_locked():
 				_handle_command(U4Commands.Id.PASS)
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 
 
@@ -7496,7 +7499,10 @@ func _confirm_load_slot(slot_index: int) -> void:
 	_SaveGame.set_last_loaded_slot(slot_n)
 	_close_save(false)
 	_slot_from_esc = false
-	SceneRouter.to_world()
+	## Defer the scene swap until this input callback has returned. Otherwise
+	## _unhandled_input continues by marking the event handled after this node
+	## has already lost its Viewport, which crashes in Viewport::set_input_as_handled.
+	SceneRouter.call_deferred("to_world")
 
 
 func _world_save_dict() -> Dictionary:

@@ -6,6 +6,7 @@ extends RefCounted
 
 const _DungeonMap := preload("res://src/map/dungeon_map_data.gd")
 const _U4TileBank := preload("res://src/map/u4_tile_bank.gd")
+const _ResImage := preload("res://src/core/res_image.gd")
 
 const ASSET_ROOT := "res://assets/dungeon"
 const MAX_DEPTH := 4
@@ -1315,22 +1316,4 @@ func _paint_tile_object(
 
 
 func _load_png(path: String) -> Image:
-	## In editor/dev runs, read the source PNG first so replacing an asset cannot
-	## be hidden by a stale imported texture. Exported builds use Texture2D.
-	if OS.has_feature("editor") and FileAccess.file_exists(path):
-		var bytes := FileAccess.get_file_as_bytes(path)
-		var source := Image.new()
-		if not bytes.is_empty() and source.load_png_from_buffer(bytes) == OK:
-			return source
-	if ResourceLoader.exists(path):
-		var resource := ResourceLoader.load(path)
-		if resource is Texture2D:
-			var imported := (resource as Texture2D).get_image()
-			if imported != null and not imported.is_empty():
-				return imported
-	if not FileAccess.file_exists(path):
-		return null
-	var img := Image.new()
-	if img.load(path) != OK:
-		return null
-	return img
+	return _ResImage.load_rgba8(path)

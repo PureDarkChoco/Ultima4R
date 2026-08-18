@@ -13,7 +13,7 @@ const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
 const ROWS := 25.0
-const APP_DISPLAY_VERSION := "0.6.0"
+const APP_DISPLAY_VERSION := "0.6.1"
 
 @onready var _tagline: Label = %Tagline
 @onready var _options_head: Label = %OptionsHead
@@ -385,19 +385,26 @@ func _process(delta: float) -> void:
 		_hold_arm = HOLD_DELAY
 
 
+func _mark_input_handled() -> void:
+	## Loading a slot can detach this menu before _input returns.
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.set_input_as_handled()
+
+
 func _input(event: InputEvent) -> void:
 	## Cancel/confirm on load/options list — use _input so Esc is not lost to GUI.
 	if _load_open:
 		if _handle_load_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _options_open:
 		if _handle_options_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _licenses_open:
 		if _handle_licenses_input(event):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 		return
 	if _create_open:
 		return
@@ -409,7 +416,7 @@ func _input(event: InputEvent) -> void:
 			(event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_X
 			or (event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_Y
 		):
-			get_viewport().set_input_as_handled()
+			_mark_input_handled()
 			return
 	## Main Journey list: A / Enter activate the focused line (do not rely on
 	## BaseButton ui_accept alone — gamepad often never fires pressed).
@@ -423,7 +430,7 @@ func _input(event: InputEvent) -> void:
 		)
 		and _activate_focused_menu_button()
 	):
-		get_viewport().set_input_as_handled()
+		_mark_input_handled()
 
 
 func _activate_focused_menu_button() -> bool:
@@ -877,7 +884,8 @@ func _confirm_load(slot_index: int) -> void:
 	GameState.is_new_game = false
 	_SaveGame.set_last_loaded_slot(slot_n)
 	_close_load()
-	SceneRouter.to_world()
+	## Let the current input callback finish before replacing this menu scene.
+	SceneRouter.call_deferred("to_world")
 
 
 func _close_load() -> void:

@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Ultima IV++"
 config/description="Modernized Ultima IV remake (Godot)"
-config/version="0.6.0"
+config/version="0.6.1"
 run/main_scene="res://scenes/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.png"
@@ -120,3 +120,4 @@ move_right={
 textures/canvas_textures/default_texture_filter=0
 textures/vram_compression/import_etc2_astc=true
 rendering_device/driver.windows="d3d12"
+rendering_device/driver.macos="metal"

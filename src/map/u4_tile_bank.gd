@@ -13,8 +13,12 @@ extends RefCounted
 
 const SHAPES_DIR := "res://assets/tiles/u4graphics/shapes"
 const FALLBACK_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
+const SHAPES_PACK := "res://assets/tiles/u4graphics/shapes.u4pack"
+const SHAPES_PACK_MAGIC := "U4SP"
+const SHAPES_PACK_VERSION := 1
 const TILE_SIZE := 32
 const COUNT := 256
+const _ResImage := preload("res://src/core/res_image.gd")
 
 ## Array[Array] — outer = tile id, inner = frame Images (at least 1 when ready).
 static var _frames: Array = []
@@ -172,29 +176,69 @@ static func stacked_atlas() -> Image:
 
 
 static func _scan_dir() -> void:
-	var dir := DirAccess.open(SHAPES_DIR)
-	if dir == null:
-		push_warning("U4TileBank: cannot open %s" % SHAPES_DIR)
-		return
 	## id → Dictionary frame_index → path (best name wins)
 	var found: Array = []
 	found.resize(COUNT)
 	for i in COUNT:
 		found[i] = {}
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".png"):
-			var parsed := _parse_filename(fname)
-			var id: int = parsed.x
-			var frame: int = parsed.y
-			if id >= 0 and id < COUNT and frame >= 0:
-				var full := "%s/%s" % [SHAPES_DIR, fname]
-				var slot: Dictionary = found[id]
-				if not slot.has(frame) or fname.length() > String(slot[frame]).get_file().length():
-					slot[frame] = full
-		fname = dir.get_next()
-	dir.list_dir_end()
+	if _scan_pack(found):
+		_commit_found(found)
+		return
+	var names := _ResImage.list_png_names(SHAPES_DIR)
+	if names.is_empty():
+		push_warning("U4TileBank: no PNGs under %s" % SHAPES_DIR)
+		return
+	for fname in names:
+		var parsed := _parse_filename(fname)
+		var id: int = parsed.x
+		var frame: int = parsed.y
+		if id >= 0 and id < COUNT and frame >= 0:
+			var full := "%s/%s" % [SHAPES_DIR, fname]
+			var slot: Dictionary = found[id]
+			if not slot.has(frame) or fname.length() > String(slot[frame]).get_file().length():
+				slot[frame] = full
+	_commit_found(found)
+
+
+static func _scan_pack(found: Array) -> bool:
+	var file := FileAccess.open(SHAPES_PACK, FileAccess.READ)
+	if file == null:
+		return false
+	if file.get_buffer(4).get_string_from_ascii() != SHAPES_PACK_MAGIC:
+		push_warning("U4TileBank: bad shape pack magic")
+		return false
+	if file.get_32() != SHAPES_PACK_VERSION:
+		push_warning("U4TileBank: unsupported shape pack version")
+		return false
+	var entry_count := file.get_32()
+	for _entry in entry_count:
+		var name_size := file.get_16()
+		var data_size := file.get_32()
+		if name_size <= 0 or data_size <= 0:
+			return false
+		var fname := file.get_buffer(name_size).get_string_from_utf8()
+		var png := file.get_buffer(data_size)
+		var parsed := _parse_filename(fname)
+		var id: int = parsed.x
+		var frame: int = parsed.y
+		if id < 0 or id >= COUNT or frame < 0:
+			continue
+		var img := Image.new()
+		if img.load_png_from_buffer(png) != OK:
+			push_warning("U4TileBank: bad packed PNG %s" % fname)
+			return false
+		if img.get_format() != Image.FORMAT_RGBA8:
+			img.convert(Image.FORMAT_RGBA8)
+		var slot: Dictionary = found[id]
+		if not slot.has(frame) or fname.length() > str(slot[frame]["path"]).get_file().length():
+			slot[frame] = {
+				"image": img,
+				"path": "%s/%s" % [SHAPES_DIR, fname],
+			}
+	return true
+
+
+static func _commit_found(found: Array) -> void:
 	for i in COUNT:
 		var slot: Dictionary = found[i]
 		if slot.is_empty():
@@ -210,7 +254,7 @@ static func _scan_dir() -> void:
 				## Sparse frames — require contiguous 0..n
 				ok = false
 				break
-			var img := _load_path(String(slot[f]))
+			var img := _image_from_found(slot[f])
 			if img == null:
 				ok = false
 				break
@@ -218,13 +262,25 @@ static func _scan_dir() -> void:
 		if not ok:
 			## Fall back to frame 0 only if present.
 			if slot.has(0):
-				var img0 := _load_path(String(slot[0]))
+				var img0 := _image_from_found(slot[0])
 				if img0 != null:
 					_frames[i] = [img0]
-					_paths[i] = String(slot[0])
+					_paths[i] = _path_from_found(slot[0])
 			continue
 		_frames[i] = arr
-		_paths[i] = String(slot[0])
+		_paths[i] = _path_from_found(slot[0])
+
+
+static func _image_from_found(value: Variant) -> Image:
+	if value is Dictionary:
+		return value.get("image") as Image
+	return _load_path(str(value))
+
+
+static func _path_from_found(value: Variant) -> String:
+	if value is Dictionary:
+		return str(value.get("path", ""))
+	return str(value)
 
 
 static func _parse_filename(fname: String) -> Vector2i:
@@ -269,19 +325,4 @@ static func _fill_missing_from_atlas() -> void:
 
 
 static func _load_path(path: String) -> Image:
-	if path.is_empty():
-		return null
-	var img := Image.new()
-	if img.load(path) == OK:
-		if img.get_format() != Image.FORMAT_RGBA8:
-			img.convert(Image.FORMAT_RGBA8)
-		return img
-	var tex := load(path) as Texture2D
-	if tex == null:
-		return null
-	img = tex.get_image()
-	if img == null or img.is_empty():
-		return null
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
-	return img
+	return _ResImage.load_rgba8(path)
