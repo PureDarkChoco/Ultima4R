@@ -426,6 +426,8 @@ var _talk_turn_away := 0
 var _talk_pending_ask := false
 ## Reply kind (REPLY_TOPIC1/2 …) that triggered the pending Y/N question.
 var _talk_ask_kind := 0
+## Swindrik: after the reagent question, the keyword list is the eight reagents.
+var _talk_reagent_pick := false
 ## True after this NPC has spoken their name (random intro or player asked).
 var _talk_npc_gave_name := false
 ## Skara Ankh: OM stays hidden until the "Mantra?" / "만트라?" line.
@@ -3946,6 +3948,9 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 		return
 	_talk_gamepad_requested = false
 	_talk_keyword_menu_active = true
+	if _talk_reagent_pick:
+		_show_talk_reagent_keyword_menu()
+		return
 	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
 	## Hawkwind / LB keep the first row. City NPCs: Name until they give it,
 	## then Job (or a journal shortcut). Do not assume Job on first contact.
@@ -4106,6 +4111,62 @@ func _end_talk_keyword_menu() -> void:
 		_command_menu_layer.visible = false
 
 
+func _talk_reagent_keyword_items() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in 8:
+		var label := Locale.reagent_name(i)
+		if label.is_empty() or label == "?":
+			continue
+		out.append({
+			"key": "reag_%d" % i,
+			"label": label,
+			"input": label,
+			"revealed": true,
+		})
+	return out
+
+
+func _begin_talk_reagent_keyword_menu() -> void:
+	## After Swindrik asks the reagent question, pick from the known eight.
+	_talk_reagent_pick = true
+	if not _talk_keyword_menu_active:
+		return
+	_show_talk_reagent_keyword_menu()
+
+
+func _show_talk_reagent_keyword_menu() -> void:
+	_talk_keyword_menu_active = true
+	_talk_keyword_menu_items = _talk_reagent_keyword_items()
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
+	_talk_keyword_menu_seen.clear()
+	_sync_talk_keyword_menu_scroll()
+	_talk_keyword_menu_await_neutral = true
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
+	_layout_prompt_row()
+
+
+func _finish_talk_reagent_keyword_menu() -> void:
+	_talk_reagent_pick = false
+	if not _talk_keyword_menu_active:
+		return
+	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
+	_talk_keyword_menu_seen.clear()
+	for item in _talk_keyword_menu_items:
+		_remember_talk_keyword_menu_word(str(item.get("key", "")))
+		_remember_talk_keyword_menu_word(str(item.get("input", "")))
+	_seed_talk_latent_keywords()
+	_restore_talk_known_keywords()
+	if _talk_npc_gave_name:
+		_offer_named_npc_journal_keywords()
+	_sync_talk_keyword_menu_scroll()
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
+
+
 func _talk_keyword_menu_can_select() -> bool:
 	if not _talk_keyword_menu_active:
 		return false
@@ -4127,6 +4188,9 @@ func _tavern_topic_unlocked(en_name: String) -> bool:
 			return true
 	if want == "white stone":
 		if GameState.journal_has_id("skara.mitre.trinsic-tap-stone"):
+			return true
+	if want == "mandrake":
+		if GameState.journal_has_id("trinsic.swindrik.folley-mandrake"):
 			return true
 	for alias in _tavern_topic_aliases(en_name):
 		if GameState.talk_has_heard_word(str(alias)):
@@ -4882,12 +4946,26 @@ func _maybe_offer_jhelom_chain_keyword() -> void:
 
 
 func _maybe_offer_yew_chain_keyword() -> void:
-	## Yew name-directed tips: Talfourd (rune) / Silent (mantra via job).
+	## Yew name-directed tips: Talfourd (rune) / Silent (mantra via job) /
+	## Calumny (mandrake after Folley tavern rumor).
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
 	var korean := GameState.lang_short() == "ko"
 	if (
+		npc == "calumny"
+		and GameState.journal_has_id("paws.greg.calumny-mandrake")
+	):
+		## Greg 'n Rob: ask Calumny about mandrake — unlock after his name.
+		var mand_key := _talk_keyword_stable_key(
+			"맨드레이크" if korean else "mandrake"
+		)
+		_offer_talk_keyword_item(
+			mand_key,
+			"맨드레이크" if korean else "Mandrake",
+			"맨드레이크" if korean else "mandrake"
+		)
+	elif (
 		npc == "talfourd"
 		and GameState.journal_has_id("yew.druid.talfourd-rune")
 	):
@@ -15299,6 +15377,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_turn_away = int(entry.turn_away)
 	_talk_pending_ask = false
 	_talk_ask_kind = 0
+	_talk_reagent_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
 	_talk_keywords = entry.highlight_keywords(_talk_city_id())
@@ -16058,6 +16137,8 @@ func _key_printable_char(k: InputEventKey) -> String:
 
 
 func _talk_process_keyword(input: String) -> void:
+	if _talk_reagent_pick:
+		_finish_talk_reagent_keyword_menu()
 	var e := _talk_entry
 	if e == null:
 		_end_talk(false)
@@ -16503,8 +16584,14 @@ func _talk_answer_yn(yes: bool) -> void:
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
+	var ask_kind := _talk_ask_kind
 	_talk_ask_kind = 0
 	_talk_prompt_interest()
+	if (
+		_TalkTlk._speaker_key(e) == "swindrik"
+		and ask_kind == _TalkTlk.REPLY_TOPIC1
+	):
+		_begin_talk_reagent_keyword_menu()
 
 
 func _talk_person_is_child() -> bool:
@@ -16640,6 +16727,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_turn_away = 0
 	_talk_pending_ask = false
 	_talk_ask_kind = 0
+	_talk_reagent_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
 	_talk_is_hawkwind = false
@@ -19402,7 +19490,16 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 		if GameState.journal_mark_goal("ask:silent-mantra"):
 			refresh = true
+	## Yew: Calumny's Mandrake answer completes the Folley tavern tip.
+	if place == "yew" and npc_key == "calumny" and topic == "MAND":
+		if GameState.journal_mark_id("paws.greg.calumny-mandrake"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:calumny-mandrake"):
+			refresh = true
 	## Trinsic: Winthrop / Terrin complete prior honor-rune tips.
+	if place == "trinsic" and npc_key == "swindrik" and topic == "MAND":
+		GameState.talk_remember_heard_word("mandrake")
+		GameState.talk_remember_heard_word("맨드레이크")
 	if place == "trinsic" and npc_key == "winthrop" and topic == "RUNE":
 		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
 			refresh = true

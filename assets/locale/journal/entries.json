@@ -742,6 +742,19 @@
       "ko": "정의의 만트라: BEH"
     },
     {
+      "id": "yew.calumny.mandrake",
+      "place": "yew",
+      "npc": "Calumny",
+      "topic": "MAND",
+      "goal": "",
+      "speaker_en": "Calumny",
+      "speaker_ko": "칼럼니",
+      "en": "Mandrake: in the Fens of the Dead and the Bloody Plains, where the ground is always damp.",
+      "ko": "맨드레이크: 죽은 자의 습지와 피의 평원, 땅이 항상 축축한 곳.",
+      "en_u4": "Mandrake root is found only in the Fens of the Dead and in the Bloody Plains, where the ground is always damp.",
+      "en_us": "Mandrake: in the Fens of the Dead and the Bloody Plains, where the ground is always damp."
+    },
+    {
       "id": "trinsic.kline.winthrop-rune",
       "place": "trinsic",
       "npc": "Kline",
@@ -793,6 +806,22 @@
       "know": "mantra:honor",
       "en": "Honor mantra: SUMM.",
       "ko": "명예의 만트라: SUMM."
+    },
+    {
+      "id": "trinsic.swindrik.folley-mandrake",
+      "place": "trinsic",
+      "npc": "Swindrik",
+      "topic": "MAND",
+      "chain": "trinsic.mandrake",
+      "chain_order": 10,
+      "goal": "ask:folley-mandrake",
+      "complete_if_recorded": "paws.greg.calumny-mandrake",
+      "speaker_en": "Swindrik",
+      "speaker_ko": "스윈드릭",
+      "en": "Ask at the Folley tavern about mandrake.",
+      "ko": "폴리 선술집에서 맨드레이크에 대해 묻기",
+      "en_u4": "Ask at the Folley tavern of mandrake.",
+      "en_us": "Ask at the Folley tavern about mandrake."
     },
     {
       "id": "trinsic.terran.sloven-white-stone",
@@ -1141,6 +1170,22 @@
       "ko": "{serpent} 훈련장에서 찾기",
       "en_u4": "Search in the training room of {serpent}.",
       "en_us": "Search in the training room of {serpent}."
+    },
+    {
+      "id": "paws.greg.calumny-mandrake",
+      "place": "paws",
+      "npc": "Greg 'n Rob",
+      "topic": "MANDRAKE",
+      "chain": "paws.mandrake",
+      "chain_order": 10,
+      "goal": "ask:calumny-mandrake",
+      "complete_if_recorded": "yew.calumny.mandrake",
+      "speaker_en": "Greg 'n Rob",
+      "speaker_ko": "그렉과 롭",
+      "en": "Ask Calumny the alchemist about mandrake.",
+      "ko": "연금술사 칼럼니에게 맨드레이크에 대해 묻기",
+      "en_u4": "Ask Calumny the alchemist of mandrake.",
+      "en_us": "Ask Calumny the alchemist about mandrake."
     },
     {
       "id": "paws.zair.brother-word",
