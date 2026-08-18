@@ -22,6 +22,14 @@ EXACT_SOURCES = (
     "assets/ui/weapons/magic_arrow_missile.png",
     "assets/ui/combat/target_cursor.png",
     "assets/ui/combat/thrown_rocks.png",
+    "assets/ui/special_items/stone_blue.png",
+    "assets/ui/special_items/stone_yellow.png",
+    "assets/ui/special_items/stone_red.png",
+    "assets/ui/special_items/stone_green.png",
+    "assets/ui/special_items/stone_orange.png",
+    "assets/ui/special_items/stone_purple.png",
+    "assets/ui/special_items/stone_white.png",
+    "assets/ui/special_items/stone_black.png",
 )
 
 

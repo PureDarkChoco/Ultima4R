@@ -9744,15 +9744,31 @@ func _begin_cast_open() -> void:
 
 
 func _begin_cast_dir() -> void:
-	## xu4 PARAM_DIR — "Dir: " then NESW (Blink / Dispel). Cancel spends no mix/MP.
+	## xu4 PARAM_DIR — outdoors/combat: "Dir: " then NESW.
+	## xu4 dungeon corridor: no prompt; cast toward current facing (Dispell / E-Field).
 	if _cast_panel:
 		_cast_panel.close_panel()
+	if _dungeon_cast_uses_facing_dir():
+		_finish_cast_dir_spell(_DungeonPortals.vec_from_dir(_dungeon_dir))
+		return
 	_cast_stage = 4
 	_reset_hold_state()
 	if _roster:
 		_roster.visible = true
 	_close_order_roster()
 	_layout_prompt_row()
+
+
+func _dungeon_cast_uses_facing_dir() -> bool:
+	## xu4 game.cpp PARAM_DIR / PARAM_TYPEDIR in CTX_DUNGEON use saveGame->orientation.
+	if not _is_in_dungeon() or _combat_active:
+		return false
+	var sid := _cast_spell_id
+	return (
+		sid == Spells.DISPEL
+		or sid == Spells.ENERGY_FIELD
+		or sid == Spells.BLINK
+	)
 
 
 func _begin_cast_aim() -> void:

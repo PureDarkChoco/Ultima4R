@@ -5,8 +5,10 @@ extends RefCounted
 ## Draw current + 4 cells ahead. Cell +5 is wall/not-wall only.
 
 const _DungeonMap := preload("res://src/map/dungeon_map_data.gd")
+const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
 const _U4TileBank := preload("res://src/map/u4_tile_bank.gd")
 const _ResImage := preload("res://src/core/res_image.gd")
+const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 
 const ASSET_ROOT := "res://assets/dungeon"
 const MAX_DEPTH := 4
@@ -17,6 +19,11 @@ const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
 const OBJ_VIEW_RATIO := 0.28
 const CHEST_VIEW_SCALE := 2.0
 const FOUNTAIN_VIEW_SCALE := 2.0
+const ALTAR_VIEW_SCALE := 2.0
+## Search stone resting on an unclaimed altar (fraction of the altar span).
+const ALTAR_STONE_VIEW_SCALE := 0.21
+## Sit the stone on the altar's top slab (0 = top of altar box, 1 = floor).
+const ALTAR_STONE_TOP_T := 0.46
 const ORB_VIEW_SCALE := 2.0
 const MONSTER_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
@@ -66,6 +73,7 @@ var _piece_cache: Dictionary = {}
 var _piece_cache_w := 0
 var _piece_cache_h := 0
 var _keyed_monster_cache: Dictionary = {}
+var _keyed_stone_cache: Dictionary = {} ## bit_index → keyed Image
 
 
 func set_theme(id: String) -> void:
@@ -172,6 +180,8 @@ func paint(
 					),
 					"depth": depth,
 					"tile_id": tile_id,
+					"cell_x": cell.x,
+					"cell_y": cell.y,
 					"view_dir": dir,
 					"left_surface": (
 						dmap.looks_like_wall(left.x, left.y, z)
@@ -296,7 +306,16 @@ func paint(
 			)
 		else:
 			_paint_tile_object(
-				buf, int(object["tile_id"]), int(object["depth"]), w, h, 1.0, anim_frame
+				buf,
+				int(object["tile_id"]),
+				int(object["depth"]),
+				w,
+				h,
+				1.0,
+				anim_frame,
+				str(dmap.dungeon_id),
+				Vector2i(int(object.get("cell_x", -1)), int(object.get("cell_y", -1))),
+				z
 			)
 
 
@@ -1380,15 +1399,22 @@ func _paint_tile_object(
 	field_w: int,
 	field_h: int,
 	dim: float,
-	anim_frame: int
+	anim_frame: int,
+	dungeon_id: String = "",
+	cell: Vector2i = Vector2i(-1, -1),
+	z: int = 0
 ) -> void:
 	if tid < 0:
 		return
 	var img: Image
 	if tid == TILE_FOUNTAIN and not _fountain_frames.is_empty():
 		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
-	elif tid == TILE_ORB or (tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST):
-		## Orb / monster PNGs keep an opaque black plate; key it out like fields.
+	elif (
+		tid == TILE_ORB
+		or tid == TILE_ALTAR
+		or (tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST)
+	):
+		## Orb / altar / monster PNGs keep an opaque black plate; key it out.
 		if _keyed_monster_cache.has(tid):
 			img = _keyed_monster_cache[tid] as Image
 		else:
@@ -1404,6 +1430,8 @@ func _paint_tile_object(
 		object_scale = CHEST_VIEW_SCALE
 	elif tid == TILE_FOUNTAIN:
 		object_scale = FOUNTAIN_VIEW_SCALE
+	elif tid == TILE_ALTAR:
+		object_scale = ALTAR_VIEW_SCALE
 	elif tid == TILE_ORB:
 		object_scale = ORB_VIEW_SCALE
 	elif tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST:
@@ -1440,6 +1468,76 @@ func _paint_tile_object(
 		mid_x - span / 2, obj_y0, mid_x + span / 2, obj_y1,
 		object_light, false, 0.0, 1.0, false, false
 	)
+	if tid == TILE_ALTAR:
+		_paint_unclaimed_altar_stone(
+			buf, dungeon_id, cell, z, mid_x, obj_y0, span, object_light
+		)
+
+
+func _paint_unclaimed_altar_stone(
+	buf: Image,
+	dungeon_id: String,
+	cell: Vector2i,
+	z: int,
+	altar_mid_x: int,
+	altar_y0: int,
+	altar_span: int,
+	light: float
+) -> void:
+	## Search-on-altar stones remain visible until the party has found them.
+	if dungeon_id.is_empty() or cell.x < 0 or cell.y < 0:
+		return
+	var flag := _DungeonPortals.stone_at(dungeon_id, cell, z)
+	if flag == 0 or GameState.has_stone(flag):
+		return
+	var bit := -1
+	for i in 8:
+		if flag == (1 << i):
+			bit = i
+			break
+	if bit < 0:
+		return
+	var stone := _keyed_stone_image(bit)
+	if stone == null or stone.is_empty():
+		return
+	var stone_span := maxi(4, int(round(float(altar_span) * ALTAR_STONE_VIEW_SCALE)))
+	var stone_y1 := clampi(
+		altar_y0 + int(round(float(altar_span) * ALTAR_STONE_TOP_T)),
+		stone_span,
+		buf.get_height()
+	)
+	var stone_y0 := stone_y1 - stone_span
+	_blit_scaled(
+		buf, stone,
+		altar_mid_x - stone_span / 2, stone_y0,
+		altar_mid_x + stone_span / 2, stone_y1,
+		light, false, 0.0, 1.0, false, false
+	)
+
+
+func _keyed_stone_image(bit_index: int) -> Image:
+	if _keyed_stone_cache.has(bit_index):
+		return _keyed_stone_cache[bit_index] as Image
+	var path := _SpecialItemIcons.stone_path(bit_index)
+	if path.is_empty():
+		return null
+	var src := _ResImage.load_rgba8(path)
+	if src == null or src.is_empty():
+		return null
+	var tw := src.get_width()
+	var th := src.get_height()
+	var img := Image.create(tw, th, false, Image.FORMAT_RGBA8)
+	img.blit_rect(src, Rect2i(0, 0, tw, th), Vector2i.ZERO)
+	for y in th:
+		for x in tw:
+			var c := img.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	var used := img.get_used_rect()
+	if used.size.x > 0 and used.size.y > 0:
+		img = img.get_region(used)
+	_keyed_stone_cache[bit_index] = img
+	return img
 
 
 func _load_png(path: String) -> Image:
