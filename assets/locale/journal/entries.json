@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -295,8 +295,10 @@
       "chain_order": 30,
       "goal": "",
       "know": "mantra:sacrifice",
-      "en": "Sacrifice mantra: CAH, hidden in the raven's song.",
-      "ko": "희생의 만트라: 까마귀 노래에 숨은 ‘카아(CAH)’."
+      "en": "Sacrifice mantra: CAH, hidden in the raven's song",
+      "ko": "희생의 만트라: 까마귀 노래에 숨은 ‘카아(CAH)’",
+      "en_u4": "Sacrifice mantra: CAH, hidden in the raven's song",
+      "en_us": "Sacrifice mantra: CAH, hidden in the raven's song"
     },
     {
       "id": "britain.sprite.pepper-rune",
@@ -350,8 +352,10 @@
       "chain_order": 20,
       "goal": "",
       "know": "mantra:compassion",
-      "en": "Compassion mantra: MU.",
-      "ko": "연민의 만트라: MU."
+      "en": "Compassion mantra: MU",
+      "ko": "연민의 만트라: MU",
+      "en_u4": "Compassion mantra: MU",
+      "en_us": "Compassion mantra: MU"
     },
     {
       "id": "britain.shapero.julio-compassion",
@@ -430,14 +434,39 @@
       "en_us": "Search by Mariah's gold."
     },
     {
+      "id": "moonglow.cromwell.honesty",
+      "place": "moonglow",
+      "npc": "Cromwell",
+      "topic": "JOB",
+      "goal": "",
+      "know": "virtue:honesty",
+      "skip_if_recorded": "moonglow.tyrone.honesty-virtue",
+      "speaker_en": "Cromwell",
+      "speaker_ko": "크롬웰",
+      "en": "Virtue: Honesty",
+      "ko": "미덕: 정직",
+      "en_u4": "Virtue: Honesty",
+      "en_us": "Virtue: Honesty"
+    },
+    {
       "id": "moonglow.cromwell.honesty-mantra",
       "place": "moonglow",
       "npc": "Cromwell",
       "topic": "MANT",
       "goal": "",
       "know": "mantra:honesty",
-      "en": "Honesty mantra: AHM.",
-      "ko": "정직의 만트라: AHM."
+      "en": "Honesty mantra: AHM",
+      "ko": "정직의 만트라: AHM",
+      "en_u4": "Honesty mantra: AHM",
+      "en_us": "Honesty mantra: AHM"
+    },
+    {
+      "id": "moonglow.tyrone.blue-stone",
+      "place": "moonglow",
+      "npc": "Tyrone",
+      "topic": "JOB",
+      "codex_only": true,
+      "know": "stone:blue"
     },
     {
       "id": "moonglow.tyrone.honesty-stone",
@@ -445,6 +474,7 @@
       "npc": "Tyrone",
       "topic": "STON",
       "goal": "stone:blue",
+      "know": ["stone:blue", "dungeon:deceit", "virtue:honesty"],
       "en": "Search on an altar in the dungeon of {deceit}.",
       "ko": "{deceit}의 던전 제단에서 찾기",
       "en_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
@@ -453,6 +483,21 @@
       "en_us": "Search on an altar in the dungeon of {deceit}.",
       "en_u4_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
       "en_us_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}."
+    },
+    {
+      "id": "moonglow.tyrone.honesty-virtue",
+      "place": "moonglow",
+      "npc": "Tyrone",
+      "topic": "STON",
+      "goal": "",
+      "know": "virtue:honesty",
+      "skip_if_recorded": "moonglow.cromwell.honesty",
+      "speaker_en": "Tyrone",
+      "speaker_ko": "타이론",
+      "en": "Virtue: Honesty",
+      "ko": "미덕: 정직",
+      "en_u4": "Virtue: Honesty",
+      "en_us": "Virtue: Honesty"
     },
     {
       "id": "moonglow.tyrone.honesty-stone",
@@ -541,8 +586,10 @@
       "chain_order": 20,
       "goal": "",
       "know": "mantra:valor",
-      "en": "Valor mantra: RA.",
-      "ko": "용맹의 만트라: RA."
+      "en": "Valor mantra: RA",
+      "ko": "용맹의 만트라: RA",
+      "en_u4": "Valor mantra: RA",
+      "en_us": "Valor mantra: RA"
     },
     {
       "id": "jhelom.senora.sextant",
@@ -739,7 +786,9 @@
       "requires_recorded": "yew.pinrod.druids-mantra",
       "know": "mantra:justice",
       "en": "Justice mantra: BEH",
-      "ko": "정의의 만트라: BEH"
+      "ko": "정의의 만트라: BEH",
+      "en_u4": "Justice mantra: BEH",
+      "en_us": "Justice mantra: BEH"
     },
     {
       "id": "yew.calumny.mandrake",
@@ -804,8 +853,10 @@
       "topic": "MANT",
       "goal": "",
       "know": "mantra:honor",
-      "en": "Honor mantra: SUMM.",
-      "ko": "명예의 만트라: SUMM."
+      "en": "Honor mantra: SUMM",
+      "ko": "명예의 만트라: SUMM",
+      "en_u4": "Honor mantra: SUMM",
+      "en_us": "Honor mantra: SUMM"
     },
     {
       "id": "trinsic.swindrik.folley-mandrake",
@@ -938,8 +989,10 @@
       "chain_order": 30,
       "goal": "",
       "know": "mantra:spirituality",
-      "en": "Spirituality mantra: OM.",
-      "ko": "영성의 만트라: OM."
+      "en": "Spirituality mantra: OM",
+      "ko": "영성의 만트라: OM",
+      "en_u4": "Spirituality mantra: OM",
+      "en_us": "Spirituality mantra: OM"
     },
     {
       "id": "skara.mitre.trinsic-tap-stone",
@@ -1022,8 +1075,10 @@
       "chain_order": 30,
       "goal": "",
       "know": "mantra:humility",
-      "en": "Humility mantra: MUL.",
-      "ko": "겸손의 만트라: MUL."
+      "en": "Humility mantra: MUL",
+      "ko": "겸손의 만트라: MUL",
+      "en_u4": "Humility mantra: MUL",
+      "en_us": "Humility mantra: MUL"
     },
     {
       "id": "magincia.banter.wierdrum-shrine",
@@ -1210,8 +1265,10 @@
       "topic": "MANT",
       "goal": "",
       "know": "mantra:humility",
-      "en": "Humility mantra: reverse the mantra of Pride.",
-      "ko": "겸손의 만트라: 자만의 만트라를 거꾸로."
+      "en": "Humility mantra: reverse the mantra of Pride",
+      "ko": "겸손의 만트라: 자만의 만트라를 거꾸로",
+      "en_u4": "Humility mantra: reverse the mantra of Pride",
+      "en_us": "Humility mantra: reverse the mantra of Pride"
     },
     {
       "id": "vesper.simple.humility-shrine",

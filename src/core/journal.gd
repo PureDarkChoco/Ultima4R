@@ -141,8 +141,12 @@ static func _append_catalog_capture(
 	## Same id + upgrade: expand an existing clue in place (e.g. Tyrone stone → use).
 	if bool(cat.get("upgrade", false)):
 		return _upgrade_catalog_capture(gs, cat, place, npc, id)
+	## Collection-page facts only (no travel-log row). Re-hearing still fills gaps.
+	if bool(cat.get("codex_only", false)):
+		return _apply_know(gs, cat.get("know", ""))
 	if has_entry_id(gs, id):
-		return false
+		## Page-1 row already exists — still reveal any new collection facts.
+		return _apply_know(gs, cat.get("know", ""))
 	if _catalog_skip_if_recorded(gs, cat):
 		return false
 	if not _catalog_requires_recorded_met(gs, cat):
@@ -788,14 +792,16 @@ static func known_stone_mask(gs: Node) -> int:
 	return int(gs.stones) | int(gs.journal_known_stones)
 
 
-static func _apply_know(gs: Node, raw: Variant) -> void:
+static func _apply_know(gs: Node, raw: Variant) -> bool:
 	if gs == null:
-		return
+		return false
 	if typeof(raw) == TYPE_ARRAY:
+		var any := false
 		for item in raw:
-			_apply_know_token(gs, str(item))
-		return
-	_apply_know_token(gs, str(raw))
+			if _apply_know_token(gs, str(item)):
+				any = true
+		return any
+	return _apply_know_token(gs, str(raw))
 
 
 static func mark_known_virtue(gs: Node, virtue: int) -> void:
@@ -881,22 +887,44 @@ static func _link_virtue_sets(gs: Node) -> void:
 	)
 
 
-static func _apply_know_token(gs: Node, raw: String) -> void:
+static func _apply_know_token(gs: Node, raw: String) -> bool:
 	if gs == null:
-		return
+		return false
 	var k := raw.strip_edges().to_lower()
 	if k.begins_with("virtue:"):
-		mark_known_virtue(gs, _virtue_from_token(k.substr(7)))
-	elif k.begins_with("mantra:"):
-		mark_known_mantra(gs, _virtue_from_token(k.substr(7)))
-	elif k.begins_with("dungeon:"):
-		var d := _dungeon_from_token(k.substr(8))
-		if d >= 0:
-			gs.journal_known_dungeons = int(gs.journal_known_dungeons) | (1 << d)
-	elif k.begins_with("stone:"):
+		var virtue := _virtue_from_token(k.substr(7))
+		if virtue < 0:
+			return false
+		var bit := 1 << virtue
+		if (int(gs.journal_known_virtues) & bit) != 0:
+			return false
+		mark_known_virtue(gs, virtue)
+		return true
+	if k.begins_with("mantra:"):
+		var virtue := _virtue_from_token(k.substr(7))
+		if virtue < 0:
+			return false
+		var before_m := int(gs.journal_known_mantras)
+		var before_v := int(gs.journal_known_virtues)
+		mark_known_mantra(gs, virtue)
+		return (
+			int(gs.journal_known_mantras) != before_m
+			or int(gs.journal_known_virtues) != before_v
+		)
+	if k.begins_with("dungeon:"):
+		return mark_known_dungeon(gs, k.substr(8))
+	if k.begins_with("stone:"):
 		var flag := _stone_flag_from_token(k.substr(6))
-		if flag != 0:
-			mark_known_stone(gs, flag)
+		if flag == 0:
+			return false
+		var before_s := int(gs.journal_known_stones)
+		var before_v := int(gs.journal_known_virtues)
+		mark_known_stone(gs, flag)
+		return (
+			int(gs.journal_known_stones) != before_s
+			or int(gs.journal_known_virtues) != before_v
+		)
+	return false
 
 
 static func _virtue_from_token(token: String) -> int:
