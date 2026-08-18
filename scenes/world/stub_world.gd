@@ -151,6 +151,8 @@ var _block_dir_until_keyup := false
 var _moongate_busy := false
 ## True while a cannonball is in flight (blocks move/commands).
 var _cannon_busy := false
+## True while a dungeon falling-rock trap animation plays.
+var _dungeon_trap_busy := false
 ## True while Search is pausing on "Searching..." (blocks move/commands).
 var _search_busy := false
 ## True while xu4 death sequence runs (blocks move/commands).
@@ -2665,7 +2667,7 @@ func _process(delta: float) -> void:
 	## xu4 timerFired still runs during menus; remake freezes the clock on gem view.
 	if _peer_overlay == null or not _peer_overlay.is_open():
 		_tick_world_clock(delta)
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy:
 		return
 	## Combat arena: no world cruise / auto-pass.
 	## Aim + victory free-roam poll held dirs (walk cadence). Turn move stays
@@ -3608,7 +3610,7 @@ func _can_open_command_menu() -> bool:
 	if _command_menu_open or _city_warp_open or _journal_focus_active or _enter_prompt_stage != 0:
 		return false
 	if (
-		_death_busy or _moongate_busy or _cannon_busy or _search_busy
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy
 		or _shrine_busy or _shrine_stage != 0 or _inn_stage != 0 or _codex_stage > 0
 	):
 		return false
@@ -5877,7 +5879,7 @@ func _handle_panel_toggle() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy:
 		_mark_input_handled()
 		return
 	if _city_warp_open:
@@ -6542,7 +6544,7 @@ func _can_open_city_warp() -> bool:
 	if _city_warp_open or _command_menu_open or _journal_focus_active or _enter_prompt_stage != 0:
 		return false
 	if (
-		_death_busy or _moongate_busy or _cannon_busy or _search_busy
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy
 		or _shrine_busy or _shrine_stage != 0 or _shrine_session or _inn_stage != 0
 	):
 		return false
@@ -12048,6 +12050,9 @@ func _dungeon_step(sign: int) -> void:
 	if _dungeon_enter_room_if_needed(posmod(move_dir + 2, 4)):
 		_arm_hold_after_step(true)
 		return
+	if _dungeon_is_rocks_trap():
+		_dungeon_rocks_trap_async()
+		return
 	_dungeon_trigger_cell()
 	_finish_party_turn()
 	_arm_hold_after_step(true)
@@ -12064,6 +12069,37 @@ func _dungeon_enter_room_if_needed(entry_from_dir: int) -> bool:
 		return false
 	_begin_dungeon_room_combat(idx, entry_from_dir)
 	return true
+
+
+func _dungeon_is_rocks_trap() -> bool:
+	if not _is_in_dungeon() or _dungeon_map == null:
+		return false
+	if _dungeon_token() != _DungeonMapData.TOK_TRAP:
+		return false
+	var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(_tile_pos.x, _tile_pos.y, _dungeon_z))
+	return sub == _DungeonMapData.TRAP_ROCKS
+
+
+func _dungeon_rocks_trap_async() -> void:
+	## Falling rocks: animate impact, then apply damage when they hit the floor.
+	_dungeon_trap_busy = true
+	_push_message(Locale.t("cmd_dungeon_trap_rocks"), false)
+	if _map != null and _map.has_method("await_dungeon_falling_rocks_fall"):
+		await _map.await_dungeon_falling_rocks_fall()
+	var flash := 0
+	for i in GameState.party_size():
+		var mid := GameState.party_member_at(i)
+		if mid < 0 or GameState.is_class_dead(mid):
+			continue
+		if GameState.apply_member_damage(mid, 16 + (randi() % 16)):
+			flash |= 1 << i
+	_refresh_party()
+	_flash_party_damage(flash)
+	if _map != null and _map.has_method("await_dungeon_falling_rocks_settle"):
+		await _map.await_dungeon_falling_rocks_settle()
+	_finish_party_turn()
+	_arm_hold_after_step(true)
+	_dungeon_trap_busy = false
 
 
 func _dungeon_trigger_cell() -> void:
@@ -12083,16 +12119,8 @@ func _dungeon_spring_trap() -> void:
 	var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(_tile_pos.x, _tile_pos.y, _dungeon_z))
 	match sub:
 		_DungeonMapData.TRAP_ROCKS:
-			_push_message(Locale.t("cmd_dungeon_trap_rocks"), false)
-			var flash := 0
-			for i in GameState.party_size():
-				var mid := GameState.party_member_at(i)
-				if mid < 0 or GameState.is_class_dead(mid):
-					continue
-				if GameState.apply_member_damage(mid, 16 + (randi() % 16)):
-					flash |= 1 << i
-			_refresh_party()
-			_flash_party_damage(flash)
+			## Animated path goes through `_dungeon_rocks_trap_async`.
+			pass
 		_DungeonMapData.TRAP_PIT:
 			_push_message(Locale.t("cmd_dungeon_trap_pit"), false)
 			_dungeon_change_level(1, false)
@@ -14382,7 +14410,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return false
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active or _dungeon_trap_busy:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false
@@ -18965,7 +18993,7 @@ func _can_open_journal_focus() -> bool:
 	if _journal_focus_active or _command_menu_open or _city_warp_open or _enter_prompt_stage != 0:
 		return false
 	if (
-		_death_busy or _moongate_busy or _cannon_busy or _search_busy
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy
 		or _shrine_busy or _shrine_stage != 0 or _shrine_session or _inn_stage != 0
 	):
 		return false

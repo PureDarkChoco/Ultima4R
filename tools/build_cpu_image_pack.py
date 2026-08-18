@@ -21,6 +21,7 @@ EXACT_SOURCES = (
     "assets/ui/weapons/arrow_missile.png",
     "assets/ui/weapons/magic_arrow_missile.png",
     "assets/ui/combat/target_cursor.png",
+    "assets/ui/combat/thrown_rocks.png",
 )
 
 

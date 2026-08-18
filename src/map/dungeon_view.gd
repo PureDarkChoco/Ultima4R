@@ -36,6 +36,14 @@ const TILE_FIELD_FIRE := 70
 const TILE_FIELD_SLEEP := 71
 const TILE_MONSTER_FIRST := 144
 const TILE_MONSTER_LAST := 252
+## Per-chunk size when three rocks stack in a triangle.
+const FALLING_ROCK_CHUNK_SCALE := 1.53
+## Base gap as a fraction of chunk span (randomized per trap).
+const FALLING_ROCK_BASE_GAP_MIN := 0.34
+const FALLING_ROCK_BASE_GAP_MAX := 0.44
+## Apex bottom above floor Y — keep high enough that it rests on the two below.
+const FALLING_ROCK_STACK_LIFT_MIN := 0.48
+const FALLING_ROCK_STACK_LIFT_MAX := 0.56
 const LADDER_UP := 1
 const LADDER_DOWN := 2
 const VIEW_OBJECT_TILE := 0
@@ -1244,6 +1252,125 @@ func _paint_field_front_mask(
 				x, y,
 				Color(color.r * light, color.g * light, color.b * light, color.a)
 			)
+
+
+func falling_rock_sprite() -> Image:
+	## Dedicated combat/trap rock art — black plate keyed out, then trimmed
+	## so the stone pixels sit on the bottom of the draw box (true floor contact).
+	var src := _ResImage.load_rgba8("res://assets/ui/combat/thrown_rocks.png")
+	if src == null:
+		return null
+	var tw := src.get_width()
+	var th := src.get_height()
+	var img := Image.create(tw, th, false, Image.FORMAT_RGBA8)
+	img.blit_rect(src, Rect2i(0, 0, tw, th), Vector2i.ZERO)
+	for y in th:
+		for x in tw:
+			var c := img.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	var used := img.get_used_rect()
+	if used.size.x > 0 and used.size.y > 0:
+		img = img.get_region(used)
+	return img
+
+
+func falling_rock_layout(field_w: int, field_h: int) -> Dictionary:
+	## Triangle pile: two rocks on the true floor, one stacked above them in Y.
+	var nscale: int = OBJ_NSCALE[0]
+	var span := maxi(
+		8,
+		int(round(
+			float(nscale) / 12.0
+			* float(field_w)
+			* OBJ_VIEW_RATIO
+			* FALLING_ROCK_CHUNK_SCALE
+		))
+	)
+	var fr := _front_rect(0, field_w, field_h)
+	var mid_x := fr.position.x + fr.size.x / 2
+	## Base rocks land on the bottom edge of the dungeon field.
+	var floor_y := field_h
+	## Start near the ceiling so the drop to the floor reads clearly.
+	var start_y := clampi(span, span, maxi(span, floor_y - 8))
+	var gap := maxi(
+		6,
+		int(round(float(span) * randf_range(FALLING_ROCK_BASE_GAP_MIN, FALLING_ROCK_BASE_GAP_MAX)))
+	)
+	## Slight random lean so the pile is not perfectly centered every time.
+	var bias := int(round(float(span) * randf_range(-0.06, 0.06)))
+	var left_x := mid_x - gap + bias
+	var right_x := mid_x + gap + bias
+	var base_a := {"mid_x": left_x, "end_y": floor_y}
+	var base_b := {"mid_x": right_x, "end_y": floor_y}
+	var bases: Array = [base_a, base_b]
+	if randf() < 0.5:
+		bases = [base_b, base_a]
+	## Apex bottom Y is above the base tops so it reads as stacked, not coplanar.
+	var stack_lift := maxi(
+		maxi(8, span * 2 / 5),
+		int(round(float(span) * randf_range(FALLING_ROCK_STACK_LIFT_MIN, FALLING_ROCK_STACK_LIFT_MAX)))
+	)
+	var stack_y := mini(floor_y - stack_lift, floor_y - maxi(8, span * 2 / 5))
+	var apex_x := mid_x + bias
+	return {
+		"span": span,
+		"start_y": start_y,
+		"start_x": mid_x + bias,
+		## Fall order: one base, other base, then apex (always last / on top).
+		"slots": [
+			bases[0],
+			bases[1],
+			{"mid_x": apex_x, "end_y": stack_y, "on_top": true},
+		],
+	}
+
+
+func paint_falling_rock(
+	buf: Image,
+	img: Image,
+	mid_x: int,
+	bottom_y: int,
+	span: int
+) -> void:
+	if buf == null or img == null or span <= 0:
+		return
+	## Allow the box bottom on the last field row so rocks sit on the true floor.
+	var y1 := clampi(bottom_y, 1, buf.get_height())
+	var y0 := y1 - span
+	_blit_scaled(
+		buf, img,
+		mid_x - span / 2, y0, mid_x + span / 2, y1,
+		1.0, false, 0.0, 1.0, false, false
+	)
+
+
+func paint_falling_rock_pieces(buf: Image, pieces: Array) -> void:
+	## Draw floor rocks first, then any on-top chunk so the apex stays visible.
+	var top_piece: Dictionary = {}
+	for piece in pieces:
+		if typeof(piece) != TYPE_DICTIONARY:
+			continue
+		if bool(piece.get("on_top", false)):
+			top_piece = piece
+			continue
+		var img: Image = piece.get("img", null) as Image
+		paint_falling_rock(
+			buf,
+			img,
+			int(piece.get("mid_x", 0)),
+			int(round(float(piece.get("y", 0.0)))),
+			int(piece.get("span", 0))
+		)
+	if not top_piece.is_empty():
+		var top_img: Image = top_piece.get("img", null) as Image
+		paint_falling_rock(
+			buf,
+			top_img,
+			int(top_piece.get("mid_x", 0)),
+			int(round(float(top_piece.get("y", 0.0)))),
+			int(top_piece.get("span", 0))
+		)
 
 
 func _paint_tile_object(

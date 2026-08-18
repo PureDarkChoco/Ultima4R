@@ -154,6 +154,8 @@ const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
 const _ResImage := preload("res://src/core/res_image.gd")
 ## Sling stone — source art scaled to 1/4 (8×8 from 32×32).
 const SLING_MISSILE_PATH := "res://assets/ui/weapons/sling_missile.png"
+## Ettin / Cyclops / dungeon falling-rock trap — grey stones, black keyed out.
+const THROWN_ROCKS_PATH := "res://assets/ui/combat/thrown_rocks.png"
 ## Thrown dagger — inventory icon flies, rotated to flight direction.
 const DAGGER_MISSILE_PATH := "res://assets/ui/weapons/dagger.png"
 ## Source art points tip toward top-right (image +x, −y) ≈ −45°.
@@ -238,6 +240,8 @@ var _tile_flashes: Array[Dictionary] = []
 var _cannon_proj: Dictionary = {}
 var _cannonball_img: Image
 var _sling_missile_img: Image
+## Keyed Ettin/Cyclops rock (also dungeon falling-rock trap).
+var _thrown_rocks_img: Image
 ## Keyed + scaled dagger; rotated per throw into _combat_proj["img"].
 var _dagger_missile_img: Image
 ## Keyed + scaled magic axe (spin base; frames via _magic_axe_rot_cache).
@@ -379,6 +383,14 @@ var _dungeon_field: Image
 var _dungeon_z := 0
 var _dungeon_dir := 2
 var _dungeon_lit := false
+## Falling-rock trap overlay: keyed sprite chunks in dungeon-field pixels.
+var _dungeon_rock_fx: Dictionary = {}
+var _dungeon_rock_img: Image
+const DUNGEON_ROCK_FALL_SEC := 0.2
+## Start the next chunk before the previous finishes so they overlap.
+const DUNGEON_ROCK_STAGGER_SEC := 0.08
+const DUNGEON_ROCK_LINGER_SEC := 0.5
+const DUNGEON_ROCK_COUNT := 3
 ## City / castle / village (.ULT) — replaces world tiles while set.
 var _city_map # CityMapData
 ## Outside the .ULT grid: baked from the 8 world tiles around the portal (camp-style).
@@ -417,6 +429,7 @@ func _ready() -> void:
 	_load_horse_rider_assets()
 	_cannonball_img = _load_image_path(CANNONBALL_PATH)
 	_sling_missile_img = _load_image_path(SLING_MISSILE_PATH)
+	_thrown_rocks_img = _key_black_plate(_load_image_path(THROWN_ROCKS_PATH))
 	_dagger_missile_img = _prepare_dagger_missile(_load_image_path(DAGGER_MISSILE_PATH))
 	_magic_axe_missile_img = _prepare_sized_missile(
 		_load_image_path(MAGIC_AXE_MISSILE_PATH), MAGIC_AXE_MISSILE_DRAW
@@ -591,8 +604,114 @@ func exit_dungeon() -> void:
 	_dungeon_z = 0
 	_dungeon_dir = 2
 	_dungeon_lit = false
+	_dungeon_rock_fx.clear()
 	_scroll_frames_left = 0
 	_rebuild()
+
+
+func await_dungeon_falling_rocks_fall() -> void:
+	## Drop three pre-rotated rock chunks into a triangle stack (overlap stagger).
+	if not is_in_dungeon():
+		return
+	if _dungeon_view == null:
+		_dungeon_view = _DungeonViewScript.new()
+		_dungeon_view.set_theme(_DungeonPortalsScript.theme_for(str(_dungeon_map.dungeon_id)))
+	_dungeon_rock_img = _dungeon_view.falling_rock_sprite()
+	if _dungeon_rock_img == null or _dungeon_rock_img.is_empty():
+		return
+	var field_w := CAMP_W * TILE_SRC
+	var field_h := CAMP_H * TILE_SRC
+	var layout: Dictionary = _dungeon_view.falling_rock_layout(field_w, field_h)
+	var span := int(layout.get("span", 24))
+	var start_y := float(layout.get("start_y", 0))
+	var start_x := float(layout.get("start_x", field_w / 2))
+	var slots: Array = layout.get("slots", []) as Array
+	var pieces: Array = []
+	for i in mini(DUNGEON_ROCK_COUNT, slots.size()):
+		var slot: Dictionary = slots[i] as Dictionary
+		var angle := randf() * TAU
+		var rotated := _rotate_image_nearest(_dungeon_rock_img, angle)
+		if rotated == null or rotated.is_empty():
+			rotated = _dungeon_rock_img
+		var end_y := float(slot.get("end_y", field_h))
+		## Guarantee downward travel even if layout clamp squeezes the path.
+		if end_y <= start_y + 1.0:
+			end_y = start_y + float(maxi(span, 48))
+		pieces.append({
+			"img": rotated,
+			"mid_x": start_x,
+			"start_x": start_x,
+			"end_x": float(slot.get("mid_x", start_x)),
+			"span": span,
+			"y": start_y,
+			"start_y": start_y,
+			"end_y": end_y,
+			"on_top": bool(slot.get("on_top", false)),
+		})
+	if pieces.is_empty():
+		return
+	_dungeon_rock_fx = {"pieces": pieces}
+	_rebuild_dungeon()
+	## Drive all chunks from one progress clock — avoids parallel tween bind quirks.
+	var total_sec := (
+		DUNGEON_ROCK_FALL_SEC
+		+ float(maxi(pieces.size() - 1, 0)) * DUNGEON_ROCK_STAGGER_SEC
+	)
+	var tw := create_tween()
+	tw.tween_method(_tick_dungeon_rock_fall, 0.0, total_sec, total_sec)
+	await tw.finished
+	## Snap every chunk to its floor slot before damage resolves.
+	for i in pieces.size():
+		var piece: Dictionary = (_dungeon_rock_fx.get("pieces", []) as Array)[i]
+		piece["y"] = float(piece.get("end_y", field_h))
+		piece["mid_x"] = int(round(float(piece.get("end_x", piece.get("mid_x", 0)))))
+		(_dungeon_rock_fx["pieces"] as Array)[i] = piece
+	_rebuild_dungeon()
+
+
+func await_dungeon_falling_rocks_settle() -> void:
+	## Hold the stacked rocks briefly, then clear the overlay.
+	if _dungeon_rock_fx.is_empty():
+		return
+	var tree := get_tree()
+	if tree != null:
+		await tree.create_timer(DUNGEON_ROCK_LINGER_SEC).timeout
+	_dungeon_rock_fx.clear()
+	if is_in_dungeon():
+		_rebuild_dungeon()
+
+
+func _tick_dungeon_rock_fall(elapsed: float) -> void:
+	if _dungeon_rock_fx.is_empty():
+		return
+	var pieces: Array = _dungeon_rock_fx.get("pieces", []) as Array
+	var dirty := false
+	for i in pieces.size():
+		var piece: Dictionary = pieces[i] as Dictionary
+		var local_t := clampf(
+			(elapsed - float(i) * DUNGEON_ROCK_STAGGER_SEC) / DUNGEON_ROCK_FALL_SEC,
+			0.0,
+			1.0
+		)
+		## Ease-in fall; spread sideways into the triangle as each chunk drops.
+		var eased := local_t * local_t
+		var y0 := float(piece.get("start_y", 0.0))
+		var y1 := float(piece.get("end_y", y0))
+		var x0 := float(piece.get("start_x", piece.get("mid_x", 0.0)))
+		var x1 := float(piece.get("end_x", x0))
+		var y := lerpf(y0, y1, eased)
+		var x := lerpf(x0, x1, eased)
+		var prev_y := float(piece.get("y", y0))
+		var prev_x := float(piece.get("mid_x", x0))
+		if not is_equal_approx(prev_y, y) or not is_equal_approx(prev_x, x):
+			piece["y"] = y
+			piece["mid_x"] = int(round(x))
+			pieces[i] = piece
+			dirty = true
+	if dirty:
+		_dungeon_rock_fx["pieces"] = pieces
+		if is_in_dungeon():
+			_rebuild_dungeon()
 
 
 func is_in_city() -> bool:
@@ -3044,6 +3163,22 @@ func _load_image_path(path: String) -> Image:
 	return _ResImage.load_rgba8(path)
 
 
+func _key_black_plate(src: Image) -> Image:
+	## Opaque black margins → transparent (thrown rocks, keyed sprites).
+	if src == null or src.is_empty():
+		return null
+	var tw := src.get_width()
+	var th := src.get_height()
+	var img := Image.create(tw, th, false, Image.FORMAT_RGBA8)
+	img.blit_rect(src, Rect2i(0, 0, tw, th), Vector2i.ZERO)
+	for y in th:
+		for x in tw:
+			var c := img.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return img
+
+
 func _avatar_tile_pair() -> Vector2i:
 	## Map walker is always party #1 (formation order).
 	var cls := GameState.party_leader_class()
@@ -3358,6 +3493,20 @@ func _rebuild_dungeon() -> void:
 		_dungeon_lit,
 		_tile_anim_frame
 	)
+	if not _dungeon_rock_fx.is_empty():
+		var pieces: Array = _dungeon_rock_fx.get("pieces", []) as Array
+		if not pieces.is_empty():
+			_dungeon_view.paint_falling_rock_pieces(_dungeon_field, pieces)
+		else:
+			## Legacy single-rock shape (should not appear after the stack rewrite).
+			var rock_img: Image = _dungeon_rock_fx.get("img", null) as Image
+			_dungeon_view.paint_falling_rock(
+				_dungeon_field,
+				rock_img,
+				int(_dungeon_rock_fx.get("mid_x", field_w / 2)),
+				int(round(float(_dungeon_rock_fx.get("y", 0.0)))),
+				int(_dungeon_rock_fx.get("span", 24))
+			)
 	var origin := Vector2i(
 		((view_w - CAMP_W) / 2) * TILE_SRC,
 		((view_h - CAMP_H) / 2) * TILE_SRC
@@ -5845,6 +5994,10 @@ func _paint_bridge_near_rails(cam: Vector2) -> void:
 
 
 func _overlay_slice(tile_id: int) -> Image:
+	## Ettin / Cyclops rocks use dedicated art (not shapes/055 with floor speckles).
+	if tile_id == _WorldCreaturesScript.TILE_ROCKS:
+		if _thrown_rocks_img != null and not _thrown_rocks_img.is_empty():
+			return _thrown_rocks_img
 	if is_horse_tile(tile_id):
 		return _U4TileBankScript.keyed_copy(tile_id, _horse_stand_frame_id(tile_id))
 	if _overlay_slices.has(tile_id):
