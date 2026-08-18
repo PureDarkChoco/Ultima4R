@@ -374,6 +374,8 @@ var _msg_pitch := 0.0
 var _command_menu_open := false
 var _command_menu_cursor := 0
 var _command_menu_last_cmd := U4Commands.Id.NONE
+## Last Klimb/Descend used in this dungeon visit (dual-ladder default).
+var _dungeon_last_ladder_cmd := U4Commands.Id.NONE
 var _command_menu_items: Array[int] = []
 var _command_menu_layer: Control
 var _command_menu_backdrop: ColorRect
@@ -3559,6 +3561,8 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 		if items.has(U4Commands.Id.ATTACK):
 			return U4Commands.Id.ATTACK
 		return items[0]
+	if _is_in_dungeon():
+		return _command_menu_default_cmd_dungeon(items)
 	## Context priority is intentionally ordered to match the gamepad UX spec.
 	var priority: Array[int] = []
 	if _command_menu_can_show(U4Commands.Id.TALK):
@@ -3604,6 +3608,63 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 	if items.has(_command_menu_last_cmd):
 		return _command_menu_last_cmd
 	return items[0]
+
+
+func _command_menu_default_cmd_dungeon(items: Array[int]) -> int:
+	## Dungeon gamepad B defaults — location actions beat light/cast fallbacks.
+	var can_up := items.has(U4Commands.Id.KLIMB) and _dungeon_can_klimb()
+	var can_down := items.has(U4Commands.Id.DESCEND) and _dungeon_can_descend()
+	if can_up and can_down:
+		if (
+			_dungeon_last_ladder_cmd == U4Commands.Id.DESCEND
+			and items.has(U4Commands.Id.DESCEND)
+		):
+			return U4Commands.Id.DESCEND
+		if items.has(U4Commands.Id.KLIMB):
+			return U4Commands.Id.KLIMB
+		return U4Commands.Id.DESCEND
+	if can_up:
+		return U4Commands.Id.KLIMB
+	if can_down:
+		return U4Commands.Id.DESCEND
+	if _dungeon_search_focus() and items.has(U4Commands.Id.SEARCH):
+		return U4Commands.Id.SEARCH
+	if _dungeon_on_chest() and items.has(U4Commands.Id.GET_CHEST):
+		return U4Commands.Id.GET_CHEST
+	if _dungeon_front_is_field() and items.has(U4Commands.Id.CAST):
+		return U4Commands.Id.CAST
+	if not _dungeon_is_lit():
+		if GameState.torches > 0 and items.has(U4Commands.Id.IGNITE):
+			return U4Commands.Id.IGNITE
+		if items.has(U4Commands.Id.CAST):
+			return U4Commands.Id.CAST
+	if GameState.torches <= 0 and items.has(U4Commands.Id.CAST):
+		return U4Commands.Id.CAST
+	if items.has(_command_menu_last_cmd):
+		return _command_menu_last_cmd
+	return items[0]
+
+
+func _dungeon_search_focus() -> bool:
+	## Altar / fountain / unconsumed orb underfoot — Search is the contextual action.
+	if not _is_in_dungeon() or _dungeon_map == null:
+		return false
+	var tok := _dungeon_token()
+	if tok == _DungeonMapData.TOK_ALTAR or tok == _DungeonMapData.TOK_FOUNTAIN:
+		return true
+	if tok == _DungeonMapData.TOK_ORB:
+		return not _dungeon_map.is_consumed(_tile_pos.x, _tile_pos.y, _dungeon_z)
+	return false
+
+
+func _dungeon_front_is_field() -> bool:
+	if not _is_in_dungeon() or _dungeon_map == null:
+		return false
+	var front: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, _dungeon_dir)
+	return (
+		_dungeon_map.token_at(front.x, front.y, _dungeon_z)
+		== _DungeonMapData.TOK_FIELD
+	)
 
 
 func _can_open_command_menu() -> bool:
@@ -11843,6 +11904,7 @@ func _clear_dungeon_state() -> void:
 	_dungeon_room_index = -1
 	_dungeon_skip_room = false
 	_dungeon_last_flee_dir = Vector2i.ZERO
+	_dungeon_last_ladder_cmd = U4Commands.Id.NONE
 	if _map != null and _map.is_in_dungeon():
 		_map.exit_dungeon()
 	_sync_dungeon_hud()
@@ -12303,6 +12365,7 @@ func _dungeon_klimb() -> void:
 		_push_message(Locale.t("cmd_klimb_what"), false)
 		_finish_party_turn()
 		return
+	_dungeon_last_ladder_cmd = U4Commands.Id.KLIMB
 	_push_message(Locale.t("cmd_dungeon_klimb"), false)
 	_dungeon_change_level(-1, true)
 	_finish_party_turn()
@@ -12313,6 +12376,7 @@ func _dungeon_descend() -> void:
 		_push_message(Locale.t("cmd_descend_what"), false)
 		_finish_party_turn()
 		return
+	_dungeon_last_ladder_cmd = U4Commands.Id.DESCEND
 	_push_message(Locale.t("cmd_dungeon_descend"), false)
 	_dungeon_change_level(1, true)
 	_finish_party_turn()
