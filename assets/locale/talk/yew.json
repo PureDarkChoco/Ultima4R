@@ -230,24 +230,24 @@
       "question": "A",
       "yes": "A",
       "no": "A",
-      "topic1": "BEH.",
+      "topic1": "BEH",
       "topic2": "BEH",
       "ko": {
         "name": "사일런트",
         "pronoun": "그",
         "look": "염원하는 드루이드다.",
-        "job": "베… 베…",
-        "health": "베… 베…",
-        "response1": "베… 베…",
-        "response2": "베… 베…",
+        "job": "BEH… BEH…",
+        "health": "BEH… BEH…",
+        "response1": "BEH… BEH…",
+        "response2": "BEH… BEH…",
         "question": "A",
         "yes": "A",
         "no": "A",
-        "topic1": "베",
+        "topic1": "BEH",
         "topic1_aliases": [
           "beh"
         ],
-        "topic2": "베",
+        "topic2": "BEH",
         "topic2_aliases": [
           "beh"
         ]
@@ -309,7 +309,7 @@
         "health": "잘 대우받소.",
         "response1": "마을에서 상자를\n가져가고 악하지\n않은 생물을\n죽였소.",
         "response2": "못되고 더럽고\n추한 악당이오!",
-        "question": "중죄인과\n한패여야 하오?",
+        "question": "중죄인과\n한방에 있어야\n하오?",
         "yes": "방이 틀렸소.",
         "no": "좋소.",
         "topic1": "죄",
@@ -558,9 +558,9 @@
         "job": "정의를 구하오.",
         "health": "좋습니다.",
         "response1": "사원에서\n배우시오!",
-        "response2": "사원은 동쪽으로\n가 북쪽에!",
+        "response2": "동쪽으로 가서\n북쪽에!",
         "question": "룬이 있소?",
-        "yes": "이제 만트라를\n배우고 {wrong}의\n던전에서 녹색 돌을\n찾으시오!",
+        "yes": "이제 만트라를\n배우고 {wrong}의\n던전에서 초록 돌을\n찾으시오!",
         "no": "탈푸르드에게\n룬을 물으시오.",
         "topic1": "정의",
         "topic1_aliases": [

@@ -438,6 +438,11 @@ static func _trim_keyword(raw: String) -> String:
 		s = s.substr(0, s.length() - 1)
 	if s == "A" or s.is_empty():
 		return ""
+	## Original Yew Silent stores "BEH." in the 4-letter slot.
+	if s.ends_with("."):
+		s = s.substr(0, s.length() - 1).strip_edges()
+		if s.is_empty() or s == "A":
+			return ""
 	return s
 
 
@@ -600,7 +605,7 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 			if lower.substr(i, kl.length()) != kl:
 				continue
 			var hangul_kw := _is_hangul_code(kl.unicode_at(0))
-			if not _keyword_before_ok(text, i, hangul_kw):
+			if not _keyword_before_ok(text, i, hangul_kw, kl.length()):
 				continue
 			if hangul_kw:
 				## Exact keyword only — never pull in 조사 / conjugations after it.
@@ -648,7 +653,7 @@ static func keyword_first_index(text: String, keyword: String) -> int:
 		if lower.substr(i, kl.length()) != kl:
 			continue
 		var hangul_kw := _is_hangul_code(kl.unicode_at(0))
-		if not _keyword_before_ok(text, i, hangul_kw):
+		if not _keyword_before_ok(text, i, hangul_kw, kl.length()):
 			continue
 		if hangul_kw:
 			return i
@@ -662,14 +667,17 @@ static func keyword_first_index(text: String, keyword: String) -> int:
 	return -1
 
 
-static func _keyword_before_ok(text: String, i: int, hangul_kw: bool) -> bool:
+static func _keyword_before_ok(text: String, i: int, hangul_kw: bool, kw_len: int) -> bool:
 	## Word start, or Hangul compound prefix (은뿔 → tint 뿔 only).
 	if i <= 0:
 		return true
 	var prev := text.unicode_at(i - 1)
 	if not _is_word_char(prev):
 		return true
-	return hangul_kw and _is_hangul_code(prev)
+	## Multi-syllable Hangul topics must not match inside another word (부정의 → 정의).
+	if hangul_kw and _is_hangul_code(prev) and kw_len <= 1:
+		return true
+	return false
 
 
 static func _colorize_key_ok(s: String) -> bool:

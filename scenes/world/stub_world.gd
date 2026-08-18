@@ -424,6 +424,8 @@ var _talk_hangul_preedit := ""
 var _talk_keywords: Array = []
 var _talk_turn_away := 0
 var _talk_pending_ask := false
+## Reply kind (REPLY_TOPIC1/2 …) that triggered the pending Y/N question.
+var _talk_ask_kind := 0
 ## True after this NPC has spoken their name (random intro or player asked).
 var _talk_npc_gave_name := false
 ## Skara Ankh: OM stays hidden until the "Mantra?" / "만트라?" line.
@@ -15296,6 +15298,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_reset_talk_hangul()
 	_talk_turn_away = int(entry.turn_away)
 	_talk_pending_ask = false
+	_talk_ask_kind = 0
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
 	_talk_keywords = entry.highlight_keywords(_talk_city_id())
@@ -16100,6 +16103,7 @@ func _talk_process_keyword(input: String) -> void:
 		if _TalkTlk.should_ask_after(e, kind):
 			_talk_stage = 2
 			_talk_pending_ask = true
+			_talk_ask_kind = kind
 			_layout_prompt_row()
 			return
 		_talk_prompt_interest()
@@ -16267,16 +16271,16 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Druid (Yew): No after Shrine points to Talfourd and the justice rune.
 	if (
 		not yes
-		and npc_key == "druid"
-		and str(e.topic2).strip_edges().to_upper() == "SHRI"
+		and _TalkTlk._speaker_key(e) == "druid"
+		and _talk_ask_kind == _TalkTlk.REPLY_TOPIC2
 	):
 		if GameState.journal_try_capture_talk("yew", "Druid", "SHRI_NO"):
 			journal_changed = true
 	## Druid (Yew): Yes after the rune — learn the mantra and seek Wrong's green stone.
 	if (
 		yes
-		and npc_key == "druid"
-		and str(e.topic2).strip_edges().to_upper() == "SHRI"
+		and _TalkTlk._speaker_key(e) == "druid"
+		and _talk_ask_kind == _TalkTlk.REPLY_TOPIC2
 	):
 		if GameState.journal_try_capture_talk("yew", "Druid", "SHRI_YES"):
 			journal_changed = true
@@ -16499,6 +16503,7 @@ func _talk_answer_yn(yes: bool) -> void:
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
+	_talk_ask_kind = 0
 	_talk_prompt_interest()
 
 
@@ -16634,6 +16639,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_keywords.clear()
 	_talk_turn_away = 0
 	_talk_pending_ask = false
+	_talk_ask_kind = 0
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
 	_talk_is_hawkwind = false
@@ -19383,12 +19389,12 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if place == "jhelom" and npc_key == "luke" and topic == "YEW":
 		if GameState.journal_try_capture_talk("yew", "Luke", "YEW"):
 			refresh = true
-	## Yew: Silent's Job/Beh chant completes Pinrod's mantra tip.
-	## Catalog key is JOB; Beh.* replies also reveal the same mantra.
+	## Yew: Silent's Job/Beh chant only counts after Pinrod's druids-mantra tip.
 	if (
 		place == "yew"
 		and npc_key == "silent"
 		and topic in ["JOB", "HEAL", "BEH", "BEH."]
+		and GameState.journal_has_id("yew.pinrod.druids-mantra")
 	):
 		if GameState.journal_try_capture_talk("yew", "Silent", "JOB"):
 			refresh = true

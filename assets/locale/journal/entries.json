@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -209,7 +209,7 @@
       "chain_order": 20,
       "goal": "rune:sacrifice",
       "en": "Search in the fires of the forge.",
-      "ko": "대장간 불꽃 속에서 찾기",
+      "ko": "대장간 불꽃 속에서 룬 찾기",
       "en_u4": "Search within the fires of the forge.",
       "en_us": "Search in the fires of the forge."
     },
@@ -425,7 +425,7 @@
       "chain_order": 20,
       "goal": "rune:honesty",
       "en": "Search by Mariah's gold.",
-      "ko": "머라이어 옆에 있는 골드에서 찾기",
+      "ko": "머라이어 옆에 있는 골드에서 룬 찾기",
       "en_u4": "Search by Mariah's gold.",
       "en_us": "Search by Mariah's gold."
     },
@@ -689,11 +689,14 @@
       "place": "yew",
       "npc": "Druid",
       "topic": "SHRI_YES",
+      "chain": "yew.justice-rune",
+      "chain_order": 30,
       "goal": "stone:green",
+      "know": ["stone:green", "dungeon:wrong"],
       "speaker_en": "Druid",
       "speaker_ko": "드루이드",
       "en": "Learn the mantra, and seek the green stone in {wrong}.",
-      "ko": "만트라를 배우고 {wrong}의 던전에서 녹색 돌을 찾아라.",
+      "ko": "만트라를 배우고 {wrong}의 던전에서 초록 돌을 찾아라.",
       "en_u4": "Learn the mantra, and seek the green stone in {wrong}.",
       "en_us": "Learn the mantra, and seek the green stone in {wrong}."
     },
@@ -706,7 +709,7 @@
       "chain_order": 20,
       "goal": "rune:justice",
       "en": "Search well in a jail cell with the felon.",
-      "ko": "중죄인이 있는 감옥 감방에서 찾기",
+      "ko": "중죄인이 있는 감방에서 룬 찾기",
       "en_u4": "Search well in a jail cell with the felon.",
       "en_us": "Search well in a jail cell with the felon."
     },
@@ -733,9 +736,10 @@
       "chain": "yew.justice-mantra",
       "chain_order": 20,
       "goal": "",
+      "requires_recorded": "yew.pinrod.druids-mantra",
       "know": "mantra:justice",
-      "en": "Justice mantra: BEH.",
-      "ko": "정의의 만트라: BEH."
+      "en": "Justice mantra: BEH",
+      "ko": "정의의 만트라: BEH"
     },
     {
       "id": "trinsic.kline.winthrop-rune",
@@ -776,7 +780,7 @@
       "chain_order": 30,
       "goal": "rune:honor",
       "en": "Search in the southwest corner of town.",
-      "ko": "마을 남서쪽 모서리에서 찾기",
+      "ko": "마을 남서쪽 구석에서 룬 찾기",
       "en_u4": "Search in the southwest corner of towne.",
       "en_us": "Search in the southwest corner of town."
     },
@@ -1101,7 +1105,7 @@
       "chain_order": 10,
       "goal": "rune:humility",
       "en": "Search the hills in the southeast corner of town.",
-      "ko": "마을 남동쪽 언덕에서 찾기",
+      "ko": "마을 남동쪽 언덕에서 룬 찾기",
       "en_u4": "Search the hills in the south-east corner of town.",
       "en_us": "Search the hills in the southeast corner of town."
     },
@@ -1114,7 +1118,7 @@
       "chain_order": 20,
       "goal": "rune:humility",
       "en": "Search in the nook of the mountains.",
-      "ko": "산자락 구석에서 찾기",
+      "ko": "산자락 구석에서 룬 찾기",
       "en_u4": "Search in the nook of the mountains.",
       "en_us": "Search in the nook of the mountains."
     },

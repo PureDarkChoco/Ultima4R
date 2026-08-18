@@ -145,6 +145,8 @@ static func _append_catalog_capture(
 		return false
 	if _catalog_skip_if_recorded(gs, cat):
 		return false
+	if not _catalog_requires_recorded_met(gs, cat):
+		return false
 	var goal := str(cat.get("goal", "")).strip_edges()
 	var complete_on_goal := str(cat.get("complete_on_goal", "")).strip_edges()
 	var done := (
@@ -303,6 +305,20 @@ static func _catalog_skip_if_recorded(gs: Node, cat: Dictionary) -> bool:
 		return false
 	var sid := str(raw).strip_edges()
 	return not sid.is_empty() and has_entry_id(gs, sid)
+
+
+static func _catalog_requires_recorded_met(gs: Node, cat: Dictionary) -> bool:
+	## Chain gate: do not record this fact until a prior tip id exists.
+	var raw: Variant = cat.get("requires_recorded", "")
+	if typeof(raw) == TYPE_ARRAY:
+		if raw.is_empty():
+			return true
+		for sid in raw:
+			if not has_entry_id(gs, str(sid)):
+				return false
+		return true
+	var sid := str(raw).strip_edges()
+	return sid.is_empty() or has_entry_id(gs, sid)
 
 
 static func _catalog_has_complete_if_recorded(cat: Dictionary) -> bool:
