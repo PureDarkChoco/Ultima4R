@@ -1338,10 +1338,11 @@ func attempt_elevation(virtue: int) -> bool:
 
 func swap_party_members(a: int, b: int) -> bool:
 	## xu4 Party::swapPlayers — exchange two roster slots (0-based).
+	## Slot 0 is the avatar and must keep leading.
 	if party_order.is_empty():
 		refresh_party_order()
 	var n := party_order.size()
-	if a < 0 or b < 0 or a >= n or b >= n or a == b:
+	if a < 0 or b < 0 or a >= n or b >= n or a == b or a == 0 or b == 0:
 		return false
 	var tmp: int = party_order[a]
 	party_order[a] = party_order[b]
@@ -3198,8 +3199,7 @@ func apply_save_dict(d: Dictionary) -> void:
 		apply_session_language(str(d.get("language")))
 		commit_live_options()
 	is_new_game = false
-	if party_order.is_empty():
-		refresh_party_order()
+	refresh_party_order()
 	## Ensure pack / equipped gear are marked (also migrates pre-known saves).
 	_mark_gear_known_from_stock_and_party()
 	_Journal.mark_goals_for_inventory(self)

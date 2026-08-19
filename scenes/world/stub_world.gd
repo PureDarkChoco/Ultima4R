@@ -474,8 +474,8 @@ func _ready() -> void:
 	if _roster:
 		_roster.set_compact(false)
 	## Keep saved / created party as-is (xu4: new game is solo).
-	if GameState.party_order.is_empty():
-		GameState.refresh_party_order()
+	## Always pin the avatar at party #1 after older saves that allowed a swap.
+	GameState.refresh_party_order()
 
 	var path := _resolve_world_map_path()
 	var loading_save := not GameState.pending_world_save.is_empty()
@@ -14034,6 +14034,11 @@ func _player_slot_from_key(event: InputEventKey) -> int:
 
 
 func _accept_order_slot(slot: int) -> void:
+	## xu4 newOrder: party #1 (the avatar) cannot be exchanged.
+	if slot == 0:
+		_push_message(Locale.t("cmd_must_lead", [GameState.party_member_display_name(0)]), false)
+		_clear_pending_order(false)
+		return
 	var name := GameState.party_member_display_name(slot)
 	if _order_stage == 1:
 		_push_message(Locale.t("cmd_exchange_done", [name]), false)

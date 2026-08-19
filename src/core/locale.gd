@@ -1700,7 +1700,7 @@ const _T := {
 	"cmd_must_lead": {
 		"en_u4": "%s, You must lead!",
 		"en_us": "%s, You must lead!",
-		"ko": "%s, 네가 앞장서라!",
+		"ko": "%s, 당신이 앞장서야 됩니다!",
 	},
 	## xu4 ztatsFor()
 	"cmd_ztats_for": {
