@@ -22,10 +22,10 @@
       "goal": "combat:first",
       "speaker_en": "The Quest of the Avatar",
       "speaker_ko": "아바타의 여정",
-      "en": "Fight battles to gain experience.",
-      "ko": "전투를 해서 경험치 획득하기",
-      "en_u4": "Do battle, and gain in experience.",
-      "en_us": "Fight battles to gain experience."
+      "en": "Gain experience through combat.",
+      "ko": "전투를 통해서 경험치 획득하기",
+      "en_u4": "Gain experience through battle.",
+      "en_us": "Gain experience through combat."
     },
     {
       "id": "britannia.start.companions",
@@ -48,10 +48,10 @@
       "goal": "ask:zorin",
       "speaker_en": "The Way of the Avatar",
       "speaker_ko": "아바타의 길",
-      "en": "Meet Zorin in this castle.",
-      "ko": "이 성에서 조린 만나기",
-      "en_u4": "Seek Zorin in this castle.",
-      "en_us": "Meet Zorin in this castle."
+      "en": "Meet Zorin inside the castle.",
+      "ko": "성 안에서 조린 만나기",
+      "en_u4": "Seek Zorin within the castle.",
+      "en_us": "Meet Zorin inside the castle."
     },
     {
       "id": "lcb.zorin.antos-book",
