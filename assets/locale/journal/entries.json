@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|shrine:<virtue> = pending until action (use:stone at an altar room or matching abyss altar). Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|shrine:<virtue> = pending until action (use:stone at an altar room or matching abyss altar). Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -329,6 +329,25 @@
       "en_us": "Search for the rune at the end of a hall in this town."
     },
     {
+      "id": "britain.pepper.compassion-virtue",
+      "place": "britain",
+      "npc": "Pepper",
+      "topic": "RUNE",
+      "goal": "",
+      "know": "virtue:compassion",
+      "skip_if_recorded": [
+        "britain.julio.compassion-virtue",
+        "britain.cricket.compassion-virtue",
+        "britain.gweno.compassion-virtue"
+      ],
+      "speaker_en": "Pepper",
+      "speaker_ko": "페퍼",
+      "en": "Virtue: Compassion",
+      "ko": "미덕: 연민",
+      "en_u4": "Virtue: Compassion",
+      "en_us": "Virtue: Compassion"
+    },
+    {
       "id": "britain.child.cricket-mantra",
       "place": "britain",
       "npc": "a child",
@@ -358,6 +377,25 @@
       "en_us": "Compassion mantra: MU"
     },
     {
+      "id": "britain.cricket.compassion-virtue",
+      "place": "britain",
+      "npc": "Cricket",
+      "topic": "MANT",
+      "goal": "",
+      "know": "virtue:compassion",
+      "skip_if_recorded": [
+        "britain.julio.compassion-virtue",
+        "britain.pepper.compassion-virtue",
+        "britain.gweno.compassion-virtue"
+      ],
+      "speaker_en": "Cricket",
+      "speaker_ko": "크리켓",
+      "en": "Virtue: Compassion",
+      "ko": "미덕: 연민",
+      "en_u4": "Virtue: Compassion",
+      "en_us": "Virtue: Compassion"
+    },
+    {
       "id": "britain.shapero.julio-compassion",
       "place": "britain",
       "npc": "Shapero",
@@ -379,8 +417,49 @@
       "chain": "britain.julio-compassion",
       "chain_order": 20,
       "goal": "",
+      "know": "principle:love",
       "en": "Compassion derives itself from unending love.",
-      "ko": "연민은 끝없는 사랑에서 우러나온다."
+      "ko": "연민은 끝없는 사랑에서 우러나온다.",
+      "en_u4": "Compassion derives itself from unending love.",
+      "en_us": "Compassion derives itself from unending love."
+    },
+    {
+      "id": "britain.julio.compassion-virtue",
+      "place": "britain",
+      "npc": "Julio",
+      "topic": "COMP",
+      "goal": "",
+      "know": "virtue:compassion",
+      "skip_if_recorded": [
+        "britain.pepper.compassion-virtue",
+        "britain.cricket.compassion-virtue",
+        "britain.gweno.compassion-virtue"
+      ],
+      "speaker_en": "Julio",
+      "speaker_ko": "훌리오",
+      "en": "Virtue: Compassion",
+      "ko": "미덕: 연민",
+      "en_u4": "Virtue: Compassion",
+      "en_us": "Virtue: Compassion"
+    },
+    {
+      "id": "britain.gweno.compassion-virtue",
+      "place": "britain",
+      "npc": "Gweno",
+      "topic": "BEGG",
+      "goal": "",
+      "know": "virtue:compassion",
+      "skip_if_recorded": [
+        "britain.julio.compassion-virtue",
+        "britain.pepper.compassion-virtue",
+        "britain.cricket.compassion-virtue"
+      ],
+      "speaker_en": "Gweno",
+      "speaker_ko": "그웨노",
+      "en": "Virtue: Compassion",
+      "ko": "미덕: 연민",
+      "en_u4": "Virtue: Compassion",
+      "en_us": "Virtue: Compassion"
     },
     {
       "id": "britain.joe.yellow-stone",
@@ -1477,6 +1556,7 @@
       "place": "cove",
       "npc": "Circe",
       "topic": "PART",
+      "know": ["principle:love", "principle:courage", "principle:truth"],
       "en": "Axiom parts: unending love, limitless courage, truth that encompasses all.",
       "ko": "공리의 부분: 끝없는 사랑, 무한 용기, 만물을 감싸는 진리."
     },
@@ -1623,6 +1703,7 @@
       "place": "empath",
       "npc": "Benjamin",
       "topic": "COMP",
+      "know": "principle:love",
       "en": "Compassion: derived from love alone among the eight Avatar virtues.",
       "ko": "연민: 아바타 여덟 미덕 중 사랑만에서 나온다."
     },

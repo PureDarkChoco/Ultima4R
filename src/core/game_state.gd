@@ -174,6 +174,8 @@ var journal_known_stones: int = 0
 ## Bitmasks (1 << moon/town index 0..7): entered virtue towns / moongate arrivals.
 var journal_known_cities: int = 0
 var journal_known_city_moons: int = 0
+## Bitmasks (1 << 0 truth, 1 love, 2 courage) learned from talk.
+var journal_known_principles: int = 0
 ## Spoken NPC interests: "city/d{discourse}" → Array of stable keyword keys.
 ## Legacy saves may still use "city/npc-name".
 var talk_known_keywords: Dictionary = {}
@@ -435,6 +437,7 @@ func reset_party() -> void:
 	journal_known_stones = 0
 	journal_known_cities = 0
 	journal_known_city_moons = 0
+	journal_known_principles = 0
 	talk_known_keywords.clear()
 	talk_heard_words.clear()
 	clear_aura()
@@ -858,6 +861,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	journal_known_stones = 0
 	journal_known_cities = 0
 	journal_known_city_moons = 0
+	journal_known_principles = 0
 	_Journal.seed_new_game(self)
 
 
@@ -3009,6 +3013,7 @@ func to_save_dict() -> Dictionary:
 		"journal_known_stones": journal_known_stones,
 		"journal_known_cities": journal_known_cities,
 		"journal_known_city_moons": journal_known_city_moons,
+		"journal_known_principles": journal_known_principles,
 		"talk_known_keywords": talk_known_keywords.duplicate(true),
 		"talk_heard_words": talk_heard_words.duplicate(),
 		"lastreagent": lastreagent,
@@ -3105,6 +3110,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	journal_known_stones = int(d.get("journal_known_stones", 0))
 	journal_known_cities = int(d.get("journal_known_cities", 0))
 	journal_known_city_moons = int(d.get("journal_known_city_moons", 0))
+	journal_known_principles = int(d.get("journal_known_principles", 0))
 	_Journal.sync_known(self)
 	talk_known_keywords.clear()
 	var talk_raw: Variant = d.get("talk_known_keywords", {})

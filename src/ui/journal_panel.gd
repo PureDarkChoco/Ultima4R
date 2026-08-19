@@ -832,6 +832,9 @@ func _rebuild_codex() -> void:
 		_codex_add_section("journal_codex_cities", _codex_city_block(gs, city_cols))
 	if virtues != 0:
 		_codex_add_section("journal_codex_virtues", _codex_virtue_row(virtues, gs))
+	var principles := _Journal.known_principle_mask(gs)
+	if principles != 0:
+		_codex_add_section("journal_codex_principles", _codex_principle_row(principles))
 	if dungeons != 0:
 		_codex_add_section("journal_codex_dungeons", _codex_dungeon_row(dungeons))
 	if mantras != 0:
@@ -954,6 +957,17 @@ func _codex_city_block(gs: Node, show_mask: int) -> Control:
 	wrap.add_child(moons)
 	wrap.add_child(names)
 	return wrap
+
+
+func _codex_principle_row(mask: int) -> HBoxContainer:
+	var row := _codex_slot_row()
+	const KEYS := ["journal_codex_truth", "journal_codex_love", "journal_codex_courage"]
+	for i in KEYS.size():
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+		else:
+			row.add_child(_codex_text_cell(Locale.t(str(KEYS[i]))))
+	return row
 
 
 func _codex_virtue_row(mask: int, gs: Node) -> HBoxContainer:

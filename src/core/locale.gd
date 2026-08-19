@@ -929,6 +929,11 @@ const _T := {
 		"en_us": "Virtues",
 		"ko": "미덕",
 	},
+	"journal_codex_principles": {
+		"en_u4": "Principles",
+		"en_us": "Principles",
+		"ko": "원리",
+	},
 	"journal_codex_dungeons": {
 		"en_u4": "Dungeons",
 		"en_us": "Dungeons",

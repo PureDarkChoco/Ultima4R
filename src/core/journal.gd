@@ -460,6 +460,8 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		changed = true
 	if _migrate_yew_druid_mantra(gs):
 		changed = true
+	if _migrate_britain_compassion_virtue(gs):
+		changed = true
 	return changed
 
 
@@ -505,6 +507,32 @@ static func _migrate_yew_druid_mantra(gs: Node) -> bool:
 	if cat.is_empty():
 		return false
 	return _append_catalog_capture(gs, cat, "yew", "Druid", false)
+
+
+static func _migrate_britain_compassion_virtue(gs: Node) -> bool:
+	## Old Britain talks had no page-1 Virtue: Compassion row.
+	if gs == null:
+		return false
+	if (
+		has_entry_id(gs, "britain.julio.compassion-virtue")
+		or has_entry_id(gs, "britain.pepper.compassion-virtue")
+		or has_entry_id(gs, "britain.cricket.compassion-virtue")
+		or has_entry_id(gs, "britain.gweno.compassion-virtue")
+	):
+		return false
+	const PAIRS: Array[Array] = [
+		["britain.julio.compassion", "britain.julio.compassion-virtue", "Julio"],
+		["britain.pepper.compassion-rune", "britain.pepper.compassion-virtue", "Pepper"],
+		["britain.cricket.compassion-mantra", "britain.cricket.compassion-virtue", "Cricket"],
+	]
+	for pair in PAIRS:
+		if not has_entry_id(gs, str(pair[0])):
+			continue
+		var cat := find_catalog_by_id(str(pair[1]))
+		if cat.is_empty():
+			return false
+		return _append_catalog_capture(gs, cat, "britain", str(pair[2]), false)
+	return false
 
 
 static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dictionary) -> bool:
@@ -843,6 +871,13 @@ static func known_stone_mask(gs: Node) -> int:
 	return int(gs.stones) | int(gs.journal_known_stones)
 
 
+static func known_principle_mask(gs: Node) -> int:
+	sync_known(gs)
+	if gs == null:
+		return 0
+	return int(gs.journal_known_principles)
+
+
 static func _apply_know(gs: Node, raw: Variant) -> bool:
 	if gs == null:
 		return false
@@ -975,7 +1010,29 @@ static func _apply_know_token(gs: Node, raw: String) -> bool:
 			int(gs.journal_known_stones) != before_s
 			or int(gs.journal_known_virtues) != before_v
 		)
+	if k.begins_with("principle:"):
+		return mark_known_principle(gs, k.substr(10))
 	return false
+
+
+static func mark_known_principle(gs: Node, token: String) -> bool:
+	## Truth / Love / Courage — Codex principles (not the three-part keys).
+	if gs == null:
+		return false
+	var bit := 0
+	match token.strip_edges().to_lower():
+		"truth", "0":
+			bit = 1
+		"love", "1":
+			bit = 2
+		"courage", "2":
+			bit = 4
+		_:
+			return false
+	if (int(gs.journal_known_principles) & bit) != 0:
+		return false
+	gs.journal_known_principles = int(gs.journal_known_principles) | bit
+	return true
 
 
 static func _virtue_from_token(token: String) -> int:
