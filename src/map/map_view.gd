@@ -329,6 +329,9 @@ var _camp_guard_b: Image
 var _corpse_slice: Image
 ## Shrine enter/exit walker on the .CON (camp paint path). Off-map = (-1,-1).
 var _shrine_walker := Vector2i(-1, -1)
+## xu4 enhancedSequence: kneel at the altar as the beggar (praying) tile.
+var _shrine_walker_kneel := false
+const TILE_BEGGAR := 88
 ## Spirituality (moongate): side voids force grass, not moongate/world neighbours.
 var _shrine_plain_margins := false
 ## Cached BRIDGE.CON for camp/combat side margins (not the active arena).
@@ -802,6 +805,7 @@ func enter_shrine(map, plain_margins: bool = false) -> void:
 	_camp_guard_a = null
 	_camp_guard_b = null
 	_shrine_walker = Vector2i(-1, -1)
+	_shrine_walker_kneel = false
 	_shrine_plain_margins = plain_margins
 	## xu4 enhancedSequence annotations: static Avatar tile → grass.
 	if _camp_map != null:
@@ -822,13 +826,24 @@ func set_shrine_walker(pos: Vector2i) -> void:
 		_rebuild()
 
 
+func set_shrine_kneel(kneel: bool) -> void:
+	## Avatar walk sprite ↔ beggar (praying) while at the altar.
+	if _shrine_walker_kneel == kneel:
+		return
+	_shrine_walker_kneel = kneel
+	if _camp_map != null:
+		_rebuild()
+
+
 func clear_shrine_walker() -> void:
+	_shrine_walker_kneel = false
 	set_shrine_walker(Vector2i(-1, -1))
 
 
 func exit_shrine() -> void:
 	## Same teardown as camp view (shared _camp_map).
 	_shrine_walker = Vector2i(-1, -1)
+	_shrine_walker_kneel = false
 	_shrine_plain_margins = false
 	exit_camp()
 
@@ -851,6 +866,7 @@ func exit_camp() -> void:
 	_camp_guard_a = null
 	_camp_guard_b = null
 	_shrine_walker = Vector2i(-1, -1)
+	_shrine_walker_kneel = false
 	_shrine_plain_margins = false
 	_rebuild()
 
@@ -5571,16 +5587,23 @@ func _paint_shrine_walker(origin_x: int, origin_y: int) -> void:
 	## Approach / kneel / leave — leader class sprite over the shrine .CON.
 	if _shrine_walker.x < 0 or _shrine_walker.y < 0:
 		return
-	if _avatar_a == null or _cached_leader_class != GameState.party_leader_class():
-		_cache_avatar_icons()
-	var img := _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
-	if img == null or img.is_empty():
-		return
 	var sx := origin_x + _shrine_walker.x
 	var sy := origin_y + _shrine_walker.y
 	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 		return
 	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
+	if _shrine_walker_kneel:
+		var n := _U4TileBankScript.frame_count(TILE_BEGGAR)
+		var f := 0 if n <= 1 else posmod(_tile_anim_frame, n)
+		var kneel := _U4TileBankScript.keyed_copy(TILE_BEGGAR, f)
+		if kneel != null and not kneel.is_empty():
+			_buf.blend_rect(kneel, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+		return
+	if _avatar_a == null or _cached_leader_class != GameState.party_leader_class():
+		_cache_avatar_icons()
+	var img := _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
+	if img == null or img.is_empty():
+		return
 	_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
 
 

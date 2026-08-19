@@ -11531,6 +11531,9 @@ func _shrine_approach_async() -> void:
 	if _shrine_ejecting:
 		_shrine_busy = false
 		return
+	## xu4: swap the walker to the beggar tile and kneel at the altar.
+	if _map != null:
+		_map.set_shrine_kneel(true)
 	_push_message(Locale.t("cmd_shrine_kneel"), false)
 	await get_tree().create_timer(SHRINE_WALK_STEP_SEC).timeout
 	if _shrine_ejecting:
@@ -11779,11 +11782,12 @@ func _shrine_eject_async() -> void:
 	_shrine_busy = true
 	_shrine_buffer = ""
 	_layout_prompt_row()
-	## Walk south from altar (or current walker) to south edge, then off-map.
+	## Stand from the beggar kneel, then walk south to the edge and off-map.
 	var start_y := SHRINE_WALK_ALTAR.y
 	if _map != null:
-		## Ensure walker is visible at altar before reverse walk.
+		_map.set_shrine_kneel(false)
 		_map.set_shrine_walker(SHRINE_WALK_ALTAR)
+	await get_tree().create_timer(SHRINE_WALK_STEP_SEC).timeout
 	for step in range(start_y + 1, SHRINE_WALK_START.y + 1):
 		if _map != null:
 			_map.set_shrine_walker(Vector2i(SHRINE_WALK_START.x, step))
