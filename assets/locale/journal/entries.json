@@ -417,7 +417,6 @@
       "chain": "britain.julio-compassion",
       "chain_order": 20,
       "goal": "",
-      "know": "principle:love",
       "en": "Compassion derives itself from unending love.",
       "ko": "연민은 끝없는 사랑에서 우러나온다.",
       "en_u4": "Compassion derives itself from unending love.",
@@ -467,10 +466,11 @@
       "npc": "Joe",
       "topic": "STON",
       "goal": "stone:yellow",
-      "en": "Yellow stone: in the dungeon of {despise}.",
-      "ko": "노란 돌: {despise}의 던전에 있다.",
-      "en_u4": "Yellow stone: in the dungeon of {despise}.",
-      "en_us": "Yellow stone: in the dungeon of {despise}."
+      "know": ["stone:yellow", "dungeon:despise"],
+      "en": "Search for the yellow stone in the dungeon of {despise}.",
+      "ko": "{despise}의 던전에서 노란 돌 찾기",
+      "en_u4": "Search for the yellow stone in the dungeon of {despise}.",
+      "en_us": "Search for the yellow stone in the dungeon of {despise}."
     },
     {
       "id": "britain.thevel.roderick-orbs",
@@ -558,10 +558,10 @@
       "know": ["stone:blue", "dungeon:deceit", "virtue:honesty"],
       "speaker_en": "Tyrone",
       "speaker_ko": "타이론",
-      "en": "Search for the blue stone on an altar in the dungeon of {deceit}.",
-      "ko": "{deceit}의 던전 제단에서 푸른 돌 찾기",
-      "en_u4": "Search for the blue stone on an altar in the dungeon of {deceit}.",
-      "en_us": "Search for the blue stone on an altar in the dungeon of {deceit}."
+      "en": "Search for the blue stone in the dungeon of {deceit}.",
+      "ko": "{deceit}의 던전에서 푸른 돌 찾기",
+      "en_u4": "Search for the blue stone in the dungeon of {deceit}.",
+      "en_us": "Search for the blue stone in the dungeon of {deceit}."
     },
     {
       "id": "moonglow.tyrone.honesty-virtue",
@@ -711,10 +711,10 @@
       "topic": "STON_NO",
       "goal": "stone:red",
       "know": ["stone:red", "dungeon:destard"],
-      "en": "Red stone: in the dungeon of {destard}.",
-      "ko": "붉은 돌: {destard}의 던전에 있다.",
-      "en_u4": "Red stone: in the dungeon of {destard}.",
-      "en_us": "Red stone: in the dungeon of {destard}."
+      "en": "Search for the red stone in the dungeon of {destard}.",
+      "ko": "{destard}의 던전에서 붉은 돌 찾기",
+      "en_u4": "Search for the red stone in the dungeon of {destard}.",
+      "en_us": "Search for the red stone in the dungeon of {destard}."
     },
     {
       "id": "jhelom.x.red-stone-altar",
@@ -840,10 +840,10 @@
       "know": ["stone:green", "dungeon:wrong"],
       "speaker_en": "Druid",
       "speaker_ko": "드루이드",
-      "en": "Search for the green stone on an altar in the dungeon of {wrong}.",
-      "ko": "{wrong}의 던전 제단에서 초록 돌 찾기",
-      "en_u4": "Search for the green stone on an altar in the dungeon of {wrong}.",
-      "en_us": "Search for the green stone on an altar in the dungeon of {wrong}."
+      "en": "Search for the green stone in the dungeon of {wrong}.",
+      "ko": "{wrong}의 던전에서 초록 돌 찾기",
+      "en_u4": "Search for the green stone in the dungeon of {wrong}.",
+      "en_us": "Search for the green stone in the dungeon of {wrong}."
     },
     {
       "id": "yew.talfourd.justice-rune",
@@ -1703,7 +1703,6 @@
       "place": "empath",
       "npc": "Benjamin",
       "topic": "COMP",
-      "know": "principle:love",
       "en": "Compassion: derived from love alone among the eight Avatar virtues.",
       "ko": "연민: 아바타 여덟 미덕 중 사랑만에서 나온다."
     },

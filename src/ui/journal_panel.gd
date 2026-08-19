@@ -33,6 +33,7 @@ const COL_EMPTY := Color(0.55, 0.62, 0.58, 1)
 const COL_SEL_IDLE := Color(0.95, 0.88, 0.55, 0.14)
 const COL_SEL_FOCUS := Color(0.98, 0.9, 0.5, 0.28)
 const COL_PLACE_SEL := Color(0.98, 0.92, 0.62, 1)
+const COL_PAGE_NEW := Color(0.98, 0.86, 0.28, 1)
 const PLACE_PREFIX := "place:"
 const SWEEP_SEC := 0.62
 const PAGE_COUNT := 2
@@ -57,7 +58,10 @@ const CODEX_DUNGEONS := [
 ]
 
 var _title: Label
-var _page_mark: Label
+var _page_mark: HBoxContainer
+var _page_num_1: Label
+var _page_sep: Label
+var _page_num_2: Label
 var _pages: Control
 var _page1: VBoxContainer
 var _page2: ScrollContainer
@@ -186,12 +190,16 @@ func _ready() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(_title, true)
 	add_child(_title)
-	_page_mark = Label.new()
-	_page_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_page_mark.add_theme_font_size_override("font_size", META_SIZE)
-	_page_mark.add_theme_color_override("font_color", COL_META)
+	_page_mark = HBoxContainer.new()
+	_page_mark.alignment = BoxContainer.ALIGNMENT_CENTER
+	_page_mark.add_theme_constant_override("separation", 0)
 	_page_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	UiTheme.apply_font(_page_mark)
+	_page_num_1 = _make_page_mark_label("1")
+	_page_sep = _make_page_mark_label(" / ")
+	_page_num_2 = _make_page_mark_label("2")
+	_page_mark.add_child(_page_num_1)
+	_page_mark.add_child(_page_sep)
+	_page_mark.add_child(_page_num_2)
 	add_child(_page_mark)
 	_pages = Control.new()
 	_pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1135,6 +1143,8 @@ func _set_page(page: int) -> void:
 	var next := clampi(page, 0, PAGE_COUNT - 1)
 	if gs != null:
 		gs.journal_page = next
+		if next == 1:
+			_Journal.clear_codex_unseen(gs)
 	_apply_page()
 	if next == 0:
 		_schedule_center()
@@ -1149,10 +1159,31 @@ func _apply_page() -> void:
 	_refresh_page_mark()
 
 
+func _make_page_mark_label(text: String) -> Label:
+	var lab := Label.new()
+	lab.text = text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.add_theme_font_size_override("font_size", META_SIZE)
+	lab.add_theme_color_override("font_color", COL_META)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(lab)
+	return lab
+
+
 func _refresh_page_mark() -> void:
-	if _page_mark == null:
+	if _page_num_1 == null or _page_num_2 == null:
 		return
-	_page_mark.text = Locale.t("journal_page_mark", [_current_page() + 1, PAGE_COUNT])
+	var gs = _game_state()
+	var page := _current_page()
+	if page == 1:
+		_Journal.clear_codex_unseen(gs)
+	var unseen := gs != null and bool(gs.journal_codex_unseen)
+	_page_num_1.add_theme_color_override("font_color", COL_TITLE if page == 0 else COL_META)
+	_page_sep.add_theme_color_override("font_color", COL_META)
+	if unseen and page != 1:
+		_page_num_2.add_theme_color_override("font_color", COL_PAGE_NEW)
+	else:
+		_page_num_2.add_theme_color_override("font_color", COL_TITLE if page == 1 else COL_META)
 
 
 func _selected_id() -> String:

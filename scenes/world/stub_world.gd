@@ -235,12 +235,15 @@ var _cast_cursor := 0
 ## Use (U): 0 = idle, 1 = pick item from list.
 var _use_stage := 0
 var _use_buffer := ""
+## Use opened from gamepad command menu (Abyss altar skips typing "stone").
+var _use_gamepad_requested := false
 ## Abyss corridor altar: 0 idle, 1 answer virtue, 2 choose stone color.
 var _abyss_altar_stage := 0
 var _abyss_altar_buffer := ""
 ## -1 means generic keyboard "stone(s)"; otherwise a preselected stone flag.
 var _abyss_altar_stone_flag := -1
 var _abyss_altar_choice_active := false
+var _abyss_altar_show_choices := false
 var _abyss_altar_choice_cursor := 0
 var _abyss_altar_choice_items: Array[Dictionary] = []
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
@@ -3631,6 +3634,8 @@ func _command_menu_default_cmd_dungeon(items: Array[int]) -> int:
 		return U4Commands.Id.KLIMB
 	if can_down:
 		return U4Commands.Id.DESCEND
+	if _dungeon_unclaimed_altar_stone() != 0 and items.has(U4Commands.Id.GET_CHEST):
+		return U4Commands.Id.GET_CHEST
 	if _dungeon_search_focus() and items.has(U4Commands.Id.SEARCH):
 		return U4Commands.Id.SEARCH
 	if _dungeon_on_chest() and items.has(U4Commands.Id.GET_CHEST):
@@ -3756,6 +3761,7 @@ func _choose_command_menu_item(from_gamepad: bool = false) -> void:
 	var cmd := _command_menu_items[_command_menu_cursor]
 	_talk_gamepad_requested = cmd == U4Commands.Id.TALK and from_gamepad
 	_mix_gamepad_requested = cmd == U4Commands.Id.MIX and from_gamepad
+	_use_gamepad_requested = cmd == U4Commands.Id.USE and from_gamepad
 	var needs_dir := bool(U4Commands.NEEDS_DIRECTION.get(cmd, false))
 	_close_command_menu()
 	if needs_dir:
@@ -10855,12 +10861,18 @@ func _ensure_use_panel() -> void:
 
 func _do_use() -> void:
 	## List-based Use. No owned quest items → message and end (remake).
+	## Gamepad Use on an Abyss altar skips typing "stone" and asks the virtue.
+	var from_pad := _use_gamepad_requested
+	_use_gamepad_requested = false
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_ready(false)
 	_close_wear(false)
 	_close_mix(false)
 	_close_cast(false, false)
+	if from_pad and _is_on_abyss_altar():
+		_begin_abyss_altar_use(-1, true)
+		return
 	if not _UseItems.has_any():
 		_push_message(Locale.t("cmd_use_none"), false)
 		if _combat_active and not _combat_resolving:
@@ -12518,15 +12530,7 @@ func _dungeon_search() -> void:
 		if _dungeon_map.reveal_secret(n.x, n.y, _dungeon_z):
 			_push_message(Locale.t("cmd_dungeon_secret"), false)
 			found = true
-	var stone := _DungeonPortals.stone_at(_dungeon_id, _tile_pos, _dungeon_z)
-	if stone != 0:
-		if GameState.has_stone(stone):
-			_push_message(Locale.t("cmd_dungeon_stone_already"), false)
-		else:
-			GameState.grant_stone(stone)
-			_push_message(Locale.t("cmd_dungeon_stone", [Locale.t(_DungeonPortals.stone_name_key(stone))]), false)
-			_refresh_inventory_bars()
-			_refresh_journal_panel()
+	if _dungeon_try_take_altar_stone():
 		found = true
 	if not found:
 		_push_message(Locale.t("cmd_search_nothing"), false)
@@ -12677,7 +12681,36 @@ func _clear_fountain_drink_ui() -> void:
 	_layout_prompt_row()
 
 
+func _dungeon_unclaimed_altar_stone() -> int:
+	## Visible corridor-altar stone not yet taken. 0 if none / already owned.
+	if not _is_in_dungeon():
+		return 0
+	var stone := _DungeonPortals.stone_at(_dungeon_id, _tile_pos, _dungeon_z)
+	if stone == 0 or GameState.has_stone(stone):
+		return 0
+	return stone
+
+
+func _dungeon_try_take_altar_stone() -> bool:
+	## Search/Get on a stone altar. True if this tile has a stone slot.
+	var stone := _DungeonPortals.stone_at(_dungeon_id, _tile_pos, _dungeon_z)
+	if stone == 0:
+		return false
+	if GameState.has_stone(stone):
+		_push_message(Locale.t("cmd_dungeon_stone_already"), false)
+	else:
+		GameState.grant_stone(stone)
+		_push_message(Locale.t("cmd_dungeon_stone", [Locale.t(_DungeonPortals.stone_name_key(stone))]), false)
+		_refresh_inventory_bars()
+		_refresh_journal_panel()
+	return true
+
+
 func _dungeon_get_chest() -> void:
+	if _dungeon_try_take_altar_stone():
+		_refresh_dungeon_view()
+		_finish_party_turn()
+		return
 	if not _dungeon_on_chest():
 		_push_message(Locale.t("cmd_not_here"), false)
 		_finish_party_turn()
@@ -12999,6 +13032,7 @@ func _begin_abyss_altar_use(stone_flag: int, show_choices: bool) -> void:
 	_abyss_altar_stage = 1
 	_abyss_altar_buffer = ""
 	_abyss_altar_stone_flag = stone_flag
+	_abyss_altar_show_choices = show_choices
 	_push_message(_abyss_altar_virtue_question(), false)
 	_layout_prompt_row()
 	if show_choices:
@@ -13179,6 +13213,9 @@ func _submit_abyss_altar_answer() -> void:
 		_close_abyss_altar_choice_menu()
 		_push_message(Locale.t("cmd_use_abyss_stone_prompt"), false)
 		_layout_prompt_row()
+		## Gamepad Use skipped "stone" and still needs a color pick from owned stones.
+		if _abyss_altar_show_choices:
+			_open_abyss_altar_choice_menu()
 		return
 	if _abyss_altar_stage == 2:
 		var flag := _abyss_stone_flag_from_input(typed)
@@ -13264,8 +13301,18 @@ func _end_abyss_altar_use() -> void:
 	_abyss_altar_stage = 0
 	_abyss_altar_buffer = ""
 	_abyss_altar_stone_flag = -1
+	_abyss_altar_show_choices = false
 	_close_abyss_altar_choice_menu()
 	_layout_prompt_row()
+
+
+func _is_on_abyss_altar() -> bool:
+	return (
+		_is_in_dungeon()
+		and _dungeon_id == _DungeonPortals.ID_ABYSS
+		and _dungeon_map != null
+		and _dungeon_token() == _DungeonMapData.TOK_ALTAR
+	)
 
 
 func _dungeon_in_altar_room_cell() -> bool:

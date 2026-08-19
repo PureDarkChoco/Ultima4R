@@ -143,10 +143,10 @@ static func _append_catalog_capture(
 		return _upgrade_catalog_capture(gs, cat, place, npc, id)
 	## Collection-page facts only (no travel-log row). Re-hearing still fills gaps.
 	if bool(cat.get("codex_only", false)):
-		return _apply_know(gs, cat.get("know", ""))
+		return _capture_know(gs, cat.get("know", ""))
 	if has_entry_id(gs, id):
 		## Page-1 row already exists — still reveal any new collection facts.
-		return _apply_know(gs, cat.get("know", ""))
+		return _capture_know(gs, cat.get("know", ""))
 	if _catalog_skip_if_recorded(gs, cat):
 		return false
 	if not _catalog_requires_recorded_met(gs, cat):
@@ -181,7 +181,7 @@ static func _append_catalog_capture(
 	var rows: Array = gs.journal_entries
 	_insert_in_chain_order(rows, entry)
 	gs.journal_entries = rows
-	_apply_know(gs, cat.get("know", ""))
+	_capture_know(gs, cat.get("know", ""))
 	if note_new:
 		_note_new_entry(gs, id, place)
 	return true
@@ -876,6 +876,26 @@ static func known_principle_mask(gs: Node) -> int:
 	if gs == null:
 		return 0
 	return int(gs.journal_known_principles)
+
+
+static func _capture_know(gs: Node, raw: Variant) -> bool:
+	## Live talk/loot facts. Marks the collection page unread when something new lands.
+	var added := _apply_know(gs, raw)
+	if added:
+		mark_codex_unseen(gs)
+	return added
+
+
+static func mark_codex_unseen(gs: Node) -> void:
+	if gs == null:
+		return
+	gs.journal_codex_unseen = true
+
+
+static func clear_codex_unseen(gs: Node) -> void:
+	if gs == null:
+		return
+	gs.journal_codex_unseen = false
 
 
 static func _apply_know(gs: Node, raw: Variant) -> bool:
