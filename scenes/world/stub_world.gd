@@ -12963,6 +12963,11 @@ func _use_virtue_stone(kind: int) -> void:
 	_push_message(Locale.t("cmd_use_altar_stones"), false)
 	_push_message(Locale.t("cmd_use_altar_key", [Locale.t(_DungeonPortals.key_name_key(key_flag))]), false)
 	_refresh_inventory_bars()
+	if (
+		key_flag == GameState.ITEM_KEY_T
+		and GameState.journal_mark_goal("use:stone:blue")
+	):
+		_refresh_journal_panel()
 	await _finish_use_command()
 
 
@@ -13222,6 +13227,11 @@ func _complete_abyss_altar_stone(flag: int) -> void:
 			_tile_pos.x, _tile_pos.y, _dungeon_z, _DungeonMapData.TOK_LADDER_DOWN, -1
 		)
 		_refresh_dungeon_view()
+		if (
+			flag == GameState.STONE_BLUE
+			and GameState.journal_mark_goal("use:stone:blue")
+		):
+			_refresh_journal_panel()
 		_end_abyss_altar_use()
 		_finish_use_command()
 		return

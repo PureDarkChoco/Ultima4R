@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|shrine:<virtue> = pending until action. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|shrine:<virtue> = pending until action (use:stone at an altar room or matching abyss altar). Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name> fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -473,16 +473,16 @@
       "place": "moonglow",
       "npc": "Tyrone",
       "topic": "STON",
+      "chain": "moonglow.honesty-stone",
+      "chain_order": 10,
       "goal": "stone:blue",
       "know": ["stone:blue", "dungeon:deceit", "virtue:honesty"],
-      "en": "Search on an altar in the dungeon of {deceit}.",
-      "ko": "{deceit}의 던전 제단에서 찾기",
-      "en_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
-      "ko_upgraded": "{deceit}의 던전 제단에서 찾기. 던전 제단실과 {abyss}에서 쓰인다.",
-      "en_u4": "Search on an altar in the dungeon of {deceit}.",
-      "en_us": "Search on an altar in the dungeon of {deceit}.",
-      "en_u4_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
-      "en_us_upgraded": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}."
+      "speaker_en": "Tyrone",
+      "speaker_ko": "타이론",
+      "en": "Search for the blue stone on an altar in the dungeon of {deceit}.",
+      "ko": "{deceit}의 던전 제단에서 푸른 돌 찾기",
+      "en_u4": "Search for the blue stone on an altar in the dungeon of {deceit}.",
+      "en_us": "Search for the blue stone on an altar in the dungeon of {deceit}."
     },
     {
       "id": "moonglow.tyrone.honesty-virtue",
@@ -500,16 +500,20 @@
       "en_us": "Virtue: Honesty"
     },
     {
-      "id": "moonglow.tyrone.honesty-stone",
+      "id": "moonglow.tyrone.honesty-stone-use",
       "place": "moonglow",
       "npc": "Tyrone",
       "topic": "USE",
-      "upgrade": true,
-      "goal": "stone:blue",
-      "en": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
-      "ko": "{deceit}의 던전 제단에서 찾기. 던전 제단실과 {abyss}에서 쓰인다.",
-      "en_u4": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}.",
-      "en_us": "Search on an altar in the dungeon of {deceit}; used in dungeon altar rooms and {abyss}."
+      "chain": "moonglow.honesty-stone",
+      "chain_order": 20,
+      "goal": "use:stone:blue",
+      "requires_recorded": "moonglow.tyrone.honesty-stone",
+      "speaker_en": "Tyrone",
+      "speaker_ko": "타이론",
+      "en": "Used in dungeon altar rooms and {abyss}.",
+      "ko": "던전 제단실과 {abyss}에서 쓰인다",
+      "en_u4": "It is used within the dungeon altar rooms and in {abyss}.",
+      "en_us": "Used in dungeon altar rooms and {abyss}."
     },
     {
       "id": "moonglow.shazom.nigel-recall",
@@ -732,20 +736,35 @@
       "en_us": "Ask Talfourd about the rune."
     },
     {
+      "id": "yew.druid.learn-mantra",
+      "place": "yew",
+      "npc": "Druid",
+      "topic": "SHRI_YES",
+      "chain": "yew.justice-mantra",
+      "chain_order": 10,
+      "goal": "ask:pinrod-mantra",
+      "complete_if_recorded": "yew.pinrod.druids-mantra",
+      "complete_on_goal": "mantra:justice",
+      "speaker_en": "Druid",
+      "speaker_ko": "드루이드",
+      "en": "Learn the mantra.",
+      "ko": "만트라를 배우기",
+      "en_u4": "Learn the mantra.",
+      "en_us": "Learn the mantra."
+    },
+    {
       "id": "yew.druid.green-stone",
       "place": "yew",
       "npc": "Druid",
       "topic": "SHRI_YES",
-      "chain": "yew.justice-rune",
-      "chain_order": 30,
       "goal": "stone:green",
       "know": ["stone:green", "dungeon:wrong"],
       "speaker_en": "Druid",
       "speaker_ko": "드루이드",
-      "en": "Learn the mantra, and seek the green stone in {wrong}.",
-      "ko": "만트라를 배우고 {wrong}의 던전에서 초록 돌을 찾아라.",
-      "en_u4": "Learn the mantra, and seek the green stone in {wrong}.",
-      "en_us": "Learn the mantra, and seek the green stone in {wrong}."
+      "en": "Search for the green stone on an altar in the dungeon of {wrong}.",
+      "ko": "{wrong}의 던전 제단에서 초록 돌 찾기",
+      "en_u4": "Search for the green stone on an altar in the dungeon of {wrong}.",
+      "en_us": "Search for the green stone on an altar in the dungeon of {wrong}."
     },
     {
       "id": "yew.talfourd.justice-rune",
@@ -766,14 +785,14 @@
       "npc": "Pinrod",
       "topic": "COUN_YES",
       "chain": "yew.justice-mantra",
-      "chain_order": 10,
+      "chain_order": 20,
       "goal": "ask:silent-mantra",
       "complete_if_recorded": "yew.silent.justice-mantra",
       "complete_on_goal": "mantra:justice",
-      "en": "Ask the chanting druids about the mantra of Justice.",
-      "ko": "염원하는 드루이드에게 정의의 만트라에 대해 묻기",
-      "en_u4": "Ask the chanting druids of the mantra of Justice.",
-      "en_us": "Ask the chanting druids about the mantra of Justice."
+      "en": "Ask the druids; they chant the mantra.",
+      "ko": "만트라를 외우는 드루이드에게 묻기",
+      "en_u4": "Ask the druids; they chant the mantra.",
+      "en_us": "Ask the druids; they chant the mantra."
     },
     {
       "id": "yew.silent.justice-mantra",
@@ -781,7 +800,7 @@
       "npc": "Silent",
       "topic": "JOB",
       "chain": "yew.justice-mantra",
-      "chain_order": 20,
+      "chain_order": 30,
       "goal": "",
       "requires_recorded": "yew.pinrod.druids-mantra",
       "know": "mantra:justice",

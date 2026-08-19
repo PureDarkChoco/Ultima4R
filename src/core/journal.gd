@@ -138,7 +138,7 @@ static func _append_catalog_capture(
 			npc.strip_edges().to_lower(),
 			str(cat.get("topic", "")).strip_edges().to_lower(),
 		]
-	## Same id + upgrade: expand an existing clue in place (e.g. Tyrone stone → use).
+	## Same id + upgrade: expand an existing clue in place.
 	if bool(cat.get("upgrade", false)):
 		return _upgrade_catalog_capture(gs, cat, place, npc, id)
 	## Collection-page facts only (no travel-log row). Re-hearing still fills gaps.
@@ -456,7 +456,55 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 			changed = true
 	if changed:
 		gs.journal_entries = rows
+	if _migrate_tyrone_stone_use(gs):
+		changed = true
+	if _migrate_yew_druid_mantra(gs):
+		changed = true
 	return changed
+
+
+static func _migrate_tyrone_stone_use(gs: Node) -> bool:
+	## Old Tyrone USE tip upgraded one row; split it into the follow-up chain.
+	if gs == null:
+		return false
+	if has_entry_id(gs, "moonglow.tyrone.honesty-stone-use"):
+		return false
+	var heard_use := false
+	var rows: Array = gs.journal_entries
+	for i in rows.size():
+		var row: Variant = rows[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		if str(d.get("id", "")).strip_edges() != "moonglow.tyrone.honesty-stone":
+			continue
+		if not bool(d.get("upgraded", false)):
+			break
+		heard_use = true
+		d["upgraded"] = false
+		rows[i] = d
+		gs.journal_entries = rows
+		break
+	if not heard_use:
+		return false
+	var cat := find_catalog_by_id("moonglow.tyrone.honesty-stone-use")
+	if cat.is_empty():
+		return false
+	return _append_catalog_capture(gs, cat, "moonglow", "Tyrone", false)
+
+
+static func _migrate_yew_druid_mantra(gs: Node) -> bool:
+	## Old Druid YES mixed mantra + stone on the rune chain; split the mantra tip.
+	if gs == null:
+		return false
+	if has_entry_id(gs, "yew.druid.learn-mantra"):
+		return false
+	if not has_entry_id(gs, "yew.druid.green-stone"):
+		return false
+	var cat := find_catalog_by_id("yew.druid.learn-mantra")
+	if cat.is_empty():
+		return false
+	return _append_catalog_capture(gs, cat, "yew", "Druid", false)
 
 
 static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dictionary) -> bool:
@@ -479,6 +527,7 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 	if (
 		catalog_goal.begins_with("rune:")
 		or catalog_goal.begins_with("stone:")
+		or catalog_goal.begins_with("use:stone:")
 	):
 		if bool(row.get("done", false)) != inventory_done:
 			row["done"] = inventory_done
@@ -515,6 +564,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g.begins_with("stone:"):
 		var flag := _stone_flag_from_token(g.substr(6))
 		return flag != 0 and gs.has_stone(flag)
+	if g.begins_with("use:stone:"):
+		return _stone_use_already_met(gs, _stone_flag_from_token(g.substr(10)))
 	if g == "key:courage":
 		## Courage altar stones used → third part of the key.
 		return gs.has_item_flag(gs.ITEM_KEY_C)
@@ -994,3 +1045,14 @@ static func _stone_flag_from_token(token: String) -> int:
 			return 0x80
 		_:
 			return 0
+
+
+static func _stone_use_already_met(gs: Node, flag: int) -> bool:
+	## Altar-room use (Truth key for blue) or the matching abyss altar.
+	if gs == null or flag == 0:
+		return false
+	if (int(gs.abyss_stones_used) & flag) != 0:
+		return true
+	if flag == 0x01:
+		return gs.has_item_flag(gs.ITEM_KEY_T)
+	return false
