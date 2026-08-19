@@ -848,7 +848,7 @@ func _rebuild_codex() -> void:
 	if mantras != 0:
 		_codex_add_section("journal_codex_mantras", _codex_mantra_row(mantras))
 	if stones != 0:
-		_codex_add_section("journal_codex_stones", _codex_stone_row(stones))
+		_codex_add_section("journal_codex_stones", _codex_stone_row(gs, stones))
 	if runes != 0:
 		_codex_add_section("journal_codex_runes", _codex_rune_row(runes, gs))
 	var relic_flags := [gs.ITEM_BELL, gs.ITEM_BOOK, gs.ITEM_CANDLE]
@@ -1038,16 +1038,20 @@ func _codex_rune_row(mask: int, gs: Node) -> HBoxContainer:
 	return row
 
 
-func _codex_stone_row(mask: int) -> HBoxContainer:
+func _codex_stone_row(gs: Node, mask: int) -> HBoxContainer:
 	var row := _codex_slot_row()
+	var owned := 0
+	if gs != null:
+		owned = int(gs.stones)
 	for i in 8:
 		if (mask & (1 << i)) == 0:
 			row.add_child(_codex_empty_cell())
 			continue
-		row.add_child(_codex_labeled_icon_cell(
-			_SpecialItemIcons.stone_path(i),
-			Locale.t(str(CODEX_STONE_KEYS[i]))
-		))
+		var label := Locale.t(str(CODEX_STONE_KEYS[i]))
+		var path := ""
+		if (owned & (1 << i)) != 0:
+			path = _SpecialItemIcons.stone_path(i)
+		row.add_child(_codex_labeled_icon_cell(path, label))
 	return row
 
 
