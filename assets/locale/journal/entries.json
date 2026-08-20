@@ -387,12 +387,14 @@
       "id": "minoc.shentis.sacrifice",
       "place": "minoc",
       "npc": "Shentis",
-      "topic": "SACR",
+      "topic": "JOB",
       "goal": "",
       "know": "virtue:sacrifice",
       "skip_if_recorded": "minoc.lord-british.sacrifice-virtue",
       "en": "Virtue: Sacrifice",
-      "ko": "미덕: 희생"
+      "ko": "미덕: 희생",
+      "en_u4": "Virtue: Sacrifice",
+      "en_us": "Virtue: Sacrifice"
     },
     {
       "id": "minoc.gimble.azure-rune",
@@ -522,10 +524,10 @@
       "chain_order": 30,
       "goal": "",
       "know": "mantra:sacrifice",
-      "en": "Sacrifice mantra: CAH, hidden in the raven's song",
-      "ko": "희생의 만트라: 까마귀 노래에 숨은 ‘카아(CAH)’",
-      "en_u4": "Sacrifice mantra: CAH, hidden in the raven's song",
-      "en_us": "Sacrifice mantra: CAH, hidden in the raven's song"
+      "en": "Sacrifice mantra: CAH",
+      "ko": "희생의 만트라: CAH",
+      "en_u4": "Sacrifice mantra: CAH",
+      "en_us": "Sacrifice mantra: CAH"
     },
     {
       "id": "britain.sprite.pepper-rune",
