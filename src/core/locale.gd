@@ -982,42 +982,42 @@ const _T := {
 	"journal_codex_stone_blue": {
 		"en_u4": "Blue",
 		"en_us": "Blue",
-		"ko": "파랑",
+		"ko": "파란 돌",
 	},
 	"journal_codex_stone_yellow": {
 		"en_u4": "Yellow",
 		"en_us": "Yellow",
-		"ko": "노랑",
+		"ko": "노란 돌",
 	},
 	"journal_codex_stone_red": {
 		"en_u4": "Red",
 		"en_us": "Red",
-		"ko": "빨강",
+		"ko": "빨간 돌",
 	},
 	"journal_codex_stone_green": {
 		"en_u4": "Green",
 		"en_us": "Green",
-		"ko": "초록",
+		"ko": "초록 돌",
 	},
 	"journal_codex_stone_orange": {
 		"en_u4": "Orange",
 		"en_us": "Orange",
-		"ko": "주황",
+		"ko": "주황 돌",
 	},
 	"journal_codex_stone_purple": {
 		"en_u4": "Purple",
 		"en_us": "Purple",
-		"ko": "보라",
+		"ko": "보라 돌",
 	},
 	"journal_codex_stone_white": {
 		"en_u4": "White",
 		"en_us": "White",
-		"ko": "하양",
+		"ko": "하얀 돌",
 	},
 	"journal_codex_stone_black": {
 		"en_u4": "Black",
 		"en_us": "Black",
-		"ko": "검정",
+		"ko": "검은 돌",
 	},
 	"journal_codex_truth": {
 		"en_u4": "Truth",
@@ -1474,7 +1474,7 @@ const _T := {
 	"search_item_stone_red": {
 		"en_u4": "the Red Stone",
 		"en_us": "the Red Stone",
-		"ko": "붉은 돌",
+		"ko": "빨간 돌",
 	},
 	"search_item_stone_orange": {
 		"en_u4": "the Orange Stone",
@@ -1509,7 +1509,7 @@ const _T := {
 	"search_item_stone_white": {
 		"en_u4": "the White Stone",
 		"en_us": "the White Stone",
-		"ko": "흰 돌",
+		"ko": "하얀 돌",
 	},
 	"search_item_mystic_armor": {
 		"en_u4": "Mystic Armor",
@@ -2411,42 +2411,42 @@ const _T := {
 	"ztats_item_stone_blue": {
 		"en_u4": "Blue",
 		"en_us": "Blue",
-		"ko": "파랑",
+		"ko": "파란 돌",
 	},
 	"ztats_item_stone_yellow": {
 		"en_u4": "Yellow",
 		"en_us": "Yellow",
-		"ko": "노랑",
+		"ko": "노란 돌",
 	},
 	"ztats_item_stone_red": {
 		"en_u4": "Red",
 		"en_us": "Red",
-		"ko": "빨강",
+		"ko": "빨간 돌",
 	},
 	"ztats_item_stone_green": {
 		"en_u4": "Green",
 		"en_us": "Green",
-		"ko": "초록",
+		"ko": "초록 돌",
 	},
 	"ztats_item_stone_orange": {
 		"en_u4": "Orange",
 		"en_us": "Orange",
-		"ko": "주황",
+		"ko": "주황 돌",
 	},
 	"ztats_item_stone_purple": {
 		"en_u4": "Purple",
 		"en_us": "Purple",
-		"ko": "보라",
+		"ko": "보라 돌",
 	},
 	"ztats_item_stone_white": {
 		"en_u4": "White",
 		"en_us": "White",
-		"ko": "하양",
+		"ko": "하얀 돌",
 	},
 	"ztats_item_stone_black": {
 		"en_u4": "Black",
 		"en_us": "Black",
-		"ko": "검정",
+		"ko": "검은 돌",
 	},
 	"ztats_col_name": {
 		"en_u4": "Name",

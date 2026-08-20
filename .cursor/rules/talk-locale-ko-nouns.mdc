@@ -11,10 +11,13 @@ When adding or editing `assets/locale/talk/<city>.json` (or any town dialogue KO
 ## Topics and aliases
 
 - `topic1` / `topic2` must be **short Korean nouns** that appear in the spoken lines
-  (interest highlight / discovery / input all use this label).
-- `topicN_aliases` keep **Latin classic stems only** (`food`, `rune`, `writ`, `smok`…).
-  Do **not** add extra Korean synonyms there — players cannot guess words that never
-  appear in dialogue, and gray/debug menus would list them falsely.
+  (interest highlight / discovery / the keyword-row label).
+- `topicN_aliases` keep **Latin classic stems** (`food`, `rune`, `writ`, `smok`…).
+  Extra Korean type-in synonyms are allowed when players would type a close form
+  (`없다` for `없음`); those match keyboard input only and must **not** be the
+  primary label — they are not tinted and must not appear on the keyword row.
+- Do **not** add extra Korean synonyms that never appear in dialogue just to
+  guess what a player might invent.
 - Do **not** use:
   - verb stems (`먹`, `도와`, `돌보`, `죽`, `부르`, `듣`)
   - conjugations (`먹었어`, `도와주세요`)

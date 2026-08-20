@@ -503,6 +503,9 @@ func _ready() -> void:
 	if not GameState.language_changed.is_connected(_on_language_changed):
 		GameState.language_changed.connect(_on_language_changed)
 	_JournalScript.ensure_catalog()
+	if _journal_panel != null and _journal_panel.has_method("prepare_session_selection"):
+		var place := _talk_city_id() if _is_in_city() else ""
+		_journal_panel.prepare_session_selection(place)
 	_sync_left_panel_mode()
 	if not _load_error.is_empty():
 		_push_message(_load_error)
@@ -4999,6 +5002,18 @@ func _maybe_offer_yew_chain_keyword() -> void:
 	):
 		## Frida: "Jaana may join thee!" — Join after her name is spoken.
 		_offer_talk_join_keyword()
+
+
+func _maybe_offer_publius_nothing_keyword() -> void:
+	## Honor riddle never says "nothing" / "없음". Unlock the topic when asked.
+	if _talk_entry == null:
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "publius":
+		return
+	var korean := GameState.lang_short() == "ko"
+	var word := "없음" if korean else "nothing"
+	var key := _talk_keyword_stable_key(word)
+	_offer_talk_keyword_item(key, word if korean else "Nothing", word)
 
 
 func _maybe_offer_trinsic_chain_keyword() -> void:
@@ -16244,7 +16259,7 @@ func _talk_process_keyword(input: String) -> void:
 					_city_map.person_move[_talk_person_i] = _CityMapData.MOVE_ATTACK
 			_end_talk(false)
 			return
-	var hit: Dictionary = _TalkTlk.match_keyword(e, in_s)
+	var hit: Dictionary = _TalkTlk.match_keyword(e, in_s, _talk_city_id())
 	if not hit.is_empty():
 		var kind := int(hit.get("kind", 0))
 		var reply := str(hit.get("text", ""))
@@ -16263,6 +16278,11 @@ func _talk_process_keyword(input: String) -> void:
 			and kind == _TalkTlk.REPLY_TOPIC1
 		):
 			_unlock_skara_ankh_om_keyword()
+		if (
+			str(e.name).strip_edges().to_lower() == "publius"
+			and kind == _TalkTlk.REPLY_TOPIC1
+		):
+			_maybe_offer_publius_nothing_keyword()
 		if _TalkTlk.should_ask_after(e, kind):
 			_talk_stage = 2
 			_talk_pending_ask = true
@@ -16490,9 +16510,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		if GameState.journal_try_capture_talk("skara", "Mitre", "STON_YES"):
 			journal_changed = true
 		GameState.talk_remember_heard_word("white stone")
-		GameState.talk_remember_heard_word("흰 돌")
-		GameState.talk_remember_heard_word("흰돌")
-		GameState.talk_remember_heard_word("백석")
+		GameState.talk_remember_heard_word("하얀 돌")
 	## Granted (Skara): Yes after Money points to the Ankh (rune) and Ambule (mantra).
 	if yes and npc_key == "granted":
 		if GameState.journal_try_capture_talk("skara", "Granted", "MONE_YES"):

@@ -262,6 +262,8 @@ class Entry:
 		var out: Array[String] = []
 		var seen: Dictionary = {}
 		for t: String in [topic1, topic2]:
+			if _TalkLocale.topic_omitted(t, name, city_id):
+				continue
 			_add_kw(out, seen, t)
 			var tl := t.strip_edges().to_lower()
 			if tl == "comp":
@@ -492,19 +494,19 @@ static func _fix_look(desc: String, name: String) -> String:
 	return s
 
 
-static func match_keyword(entry: Entry, input: String) -> Dictionary:
+static func match_keyword(entry: Entry, input: String, city_id: String = "") -> Dictionary:
 	## Returns { "kind": REPLY_*, "text": String } or empty if engine builtins handle it.
 	var in_s := input.strip_edges()
 	if in_s.is_empty():
 		return {}
-	if not entry.topic1.is_empty() and (
+	if not entry.topic1.is_empty() and not _TalkLocale.topic_omitted(entry.topic1, entry.name, city_id) and (
 		_prefix_ci(entry.topic1, in_s)
-		or _TalkLocale.match_topic_alias(entry.topic1, in_s, entry.name)
+		or _TalkLocale.match_topic_alias(entry.topic1, in_s, entry.name, city_id)
 	):
 		return {"kind": REPLY_TOPIC1, "text": entry.response1}
-	if not entry.topic2.is_empty() and (
+	if not entry.topic2.is_empty() and not _TalkLocale.topic_omitted(entry.topic2, entry.name, city_id) and (
 		_prefix_ci(entry.topic2, in_s)
-		or _TalkLocale.match_topic_alias(entry.topic2, in_s, entry.name)
+		or _TalkLocale.match_topic_alias(entry.topic2, in_s, entry.name, city_id)
 	):
 		return {"kind": REPLY_TOPIC2, "text": entry.response2}
 	## Builtins: Latin + Hangul (language-independent so 직업/이름 always work).

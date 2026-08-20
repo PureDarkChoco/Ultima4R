@@ -147,9 +147,9 @@ const HEAL_DESC := {
 }
 
 const TOPIC_ALIAS := {
-	"black stone": ["흑석", "검은 돌", "검은돌", "black stone"],
+	"black stone": ["검은 돌", "black stone"],
 	"sextant": ["육분의", "sextant"],
-	"white stone": ["백석", "흰 돌", "흰돌", "white stone"],
+	"white stone": ["하얀 돌", "white stone"],
 	"mandrake": ["맨드레이크", "mandrake"],
 	"skull": ["해골", "skull"],
 	"nightshade": ["밤그늘", "나이트셰이드", "nightshade"],
@@ -157,7 +157,7 @@ const TOPIC_ALIAS := {
 
 const RUMOR := {
 	"% says: Ah, the Black Stone. Yes I've heard of it. But, the only one who knows where it lies is the wizard Merlin.":
-		"% 말하길: 아, 흑석 말인가. 들었지. 다만 그 소재를 아는 이는 마법사 멀린뿐이라네.",
+		"% 말하길: 아, 검은 돌 말인가. 들었지. 다만 그 소재를 아는 이는 마법사 멀린뿐이라네.",
 	"% says: For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!":
 		"% 말하길: 항해엔 육분의가 필수라네… 길드 상점에서 물건 \"D\"를 청해 보게!",
 	"Now let me see... Yes it was the old Hermit... Sloven! He is tough to find, lives near Lock Lake I hear.":

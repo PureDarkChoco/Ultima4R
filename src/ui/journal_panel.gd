@@ -263,6 +263,25 @@ func begin_browse(current_place: String) -> void:
 	refresh(true)
 
 
+func prepare_session_selection(current_place: String) -> void:
+	## First world load: current city's first note, else the top of the log.
+	var gs = _game_state()
+	if gs == null:
+		return
+	_set_page(0)
+	_set_unseen_id(gs, "")
+	var place := current_place.strip_edges().to_lower()
+	var pick := ""
+	if not place.is_empty():
+		pick = _Journal.first_id_for_place(gs, place)
+		if not pick.is_empty():
+			_set_place_collapsed(gs, place, false)
+	if pick.is_empty():
+		pick = _Journal.first_place_key(gs)
+	if not pick.is_empty():
+		_set_selected_id(pick)
+
+
 func end_browse() -> void:
 	_browsing = false
 	_apply_selection_visuals()

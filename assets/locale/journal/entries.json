@@ -484,7 +484,7 @@
       "chain_order": 50,
       "goal": "stone:orange",
       "en": "Sacrifice stone: orange; used in the altar rooms of Love and Courage.",
-      "ko": "희생의 돌: 주황색이며 사랑과 용기의 제단 방에서 사용한다."
+      "ko": "희생의 주황 돌: 사랑과 용기의 제단 방에서 사용한다."
     },
     {
       "id": "minoc.merida.damon-mantra",
@@ -796,7 +796,7 @@
       "speaker_en": "Tyrone",
       "speaker_ko": "타이론",
       "en": "Search for the blue stone in the dungeon of {deceit}.",
-      "ko": "{deceit}의 던전에서 푸른 돌 찾기",
+      "ko": "{deceit}의 던전에서 파란 돌 찾기",
       "en_u4": "Search for the blue stone in the dungeon of {deceit}.",
       "en_us": "Search for the blue stone in the dungeon of {deceit}."
     },
@@ -952,7 +952,7 @@
       "goal": "stone:red",
       "know": ["stone:red", "dungeon:destard"],
       "en": "Search for the red stone in the dungeon of {destard}.",
-      "ko": "{destard}의 던전에서 붉은 돌 찾기",
+      "ko": "{destard}의 던전에서 빨간 돌 찾기",
       "en_u4": "Search for the red stone in the dungeon of {destard}.",
       "en_us": "Search for the red stone in the dungeon of {destard}."
     },
@@ -966,7 +966,7 @@
       "speaker_en": "X",
       "speaker_ko": "엑스",
       "en": "Red stone: needed in an altar room for the third part of a key.",
-      "ko": "빨강 돌: 제단 방에서 열쇠 세 번째 조각에 필요하다.",
+      "ko": "빨간 돌: 제단 방에서 열쇠 세 번째 조각에 필요하다.",
       "en_u4": "Red stone: needed in an altar room for the third part of a key.",
       "en_us": "Red stone: needed in an altar room for the third part of a key."
     },
@@ -1176,6 +1176,34 @@
       "en_us": "Virtue: Honor"
     },
     {
+      "id": "trinsic.skitle.shame",
+      "place": "trinsic",
+      "npc": "Skitle",
+      "topic": "DUNG",
+      "goal": "",
+      "know": "dungeon:shame",
+      "speaker_en": "Skitle",
+      "speaker_ko": "스키틀",
+      "en": "Dungeon: Shame",
+      "ko": "던전: {shame}",
+      "en_u4": "Dungeon: Shame",
+      "en_us": "Dungeon: Shame"
+    },
+    {
+      "id": "trinsic.quix.purple-stone",
+      "place": "trinsic",
+      "npc": "Quix",
+      "topic": "SECR",
+      "goal": "",
+      "know": ["stone:purple", "virtue:honor"],
+      "speaker_en": "Quix",
+      "speaker_ko": "퀵스",
+      "en": "Purple stone of Honor",
+      "ko": "명예의 보라 돌",
+      "en_u4": "the purple stone of Honor",
+      "en_us": "Purple stone of Honor"
+    },
+    {
       "id": "trinsic.kline.winthrop-rune",
       "place": "trinsic",
       "npc": "Kline",
@@ -1378,7 +1406,7 @@
       "complete_if_recorded": "trinsic.terran.sloven-white-stone",
       "complete_on_goal": "stone:white",
       "en": "Ask about the white stone at the Tap in {trinsic}.",
-      "ko": "{trinsic}의 탭에서 흰 돌에 대해 묻기",
+      "ko": "{trinsic}의 탭에서 하얀 돌에 대해 묻기",
       "en_u4": "Ask of the white stone at the Tap in {trinsic}.",
       "en_us": "Ask about the white stone at the Tap in {trinsic}."
     },
@@ -1391,7 +1419,7 @@
       "chain_order": 20,
       "goal": "stone:white",
       "en": "White stone: atop the Serpent's Spine; reach it by floating in the clouds.",
-      "ko": "흰 돌: 뱀의 등뼈 꼭대기. 구름 속에 떠야 닿는다.",
+      "ko": "하얀 돌: 뱀의 등뼈 꼭대기. 구름 속에 떠야 닿는다.",
       "en_u4": "White stone: atop the Serpent's Spine; reach it by one who floats within the clouds.",
       "en_us": "White stone: atop the Serpent's Spine; reach it by floating in the clouds."
     },
@@ -1798,7 +1826,7 @@
       "complete_if_recorded": "skara.isaac.white-stone",
       "complete_on_goal": "stone:white",
       "en": "Ask Isaac at the inn in {skara} about the white stone.",
-      "ko": "{skara} 여관의 아이작에게 흰 돌에 대해 묻기",
+      "ko": "{skara} 여관의 아이작에게 하얀 돌에 대해 묻기",
       "en_u4": "Ask Isaac at the inn in {skara} of the white stone.",
       "en_us": "Ask Isaac at the inn in {skara} about the white stone."
     },
@@ -2198,7 +2226,7 @@
       "chain_order": 20,
       "goal": "",
       "en": "Altar of Courage: use the red, orange, purple, and white stones.",
-      "ko": "용기 제단: 빨강·주황·자주·흰 돌을 쓰라."
+      "ko": "용기 제단: 빨간·주황·보라·하얀 돌을 쓰라."
     },
     {
       "id": "serpent.treasure-guard.durham",

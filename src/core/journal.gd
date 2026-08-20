@@ -749,6 +749,39 @@ static func grouped_for_ui(gs: Node) -> Array[Dictionary]:
 	return out
 
 
+static func first_id_for_place(gs: Node, place: String) -> String:
+	## First displayed note under a settlement (same order as the travel log).
+	if gs == null:
+		return ""
+	var want := place.strip_edges().to_lower()
+	if want.is_empty():
+		return ""
+	for group in grouped_for_ui(gs):
+		if str(group.get("place", "")).strip_edges().to_lower() != want:
+			continue
+		var rows: Array = group.get("entries", [])
+		for row in rows:
+			if typeof(row) != TYPE_DICTIONARY:
+				continue
+			var id := str((row as Dictionary).get("id", "")).strip_edges()
+			if not id.is_empty():
+				return id
+		return ""
+	return ""
+
+
+static func first_place_key(gs: Node) -> String:
+	## Top of the travel log (first settlement header that has notes).
+	if gs == null:
+		return ""
+	for group in grouped_for_ui(gs):
+		var host := str(group.get("place", "")).strip_edges().to_lower()
+		if host.is_empty():
+			continue
+		return "place:" + host
+	return ""
+
+
 static func latest_id_for_place(gs: Node, place: String) -> String:
 	## Most recently acquired row for a settlement (highest `at`, then later in list).
 	if gs == null:

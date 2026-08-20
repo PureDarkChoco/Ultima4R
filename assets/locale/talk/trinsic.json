@@ -21,14 +21,14 @@
         "name": "듀프리",
         "pronoun": "그",
         "look": "잘생긴 전사다.",
-        "job": "도시의 지도자요.",
+        "job": "이 도시의\n지도자요.",
         "health": "매우 좋습니다.",
         "response1": "영광이오!",
         "response2": "삶에 의미를\n주오!",
         "question": "명예롭게 살려고\n하오?",
         "yes": "끊임없는 퀘스트요.\n명예는 잘 닦은\n갑옷 같으니 돌보지\n않으면 곧 녹슬지!",
         "no": "어리석은 자!",
-        "topic1": "지도",
+        "topic1": "지도자",
         "topic1_aliases": [
           "leader",
           "lead"
@@ -61,7 +61,7 @@
         "health": "건강하오.",
         "response1": "독이 제\n취향이오.",
         "response2": "나이트셰이드는\n위도 J'F\"\n경도 C'O\" 근처\n가장 어두운 밤에만!",
-        "question": "네 것이오?",
+        "question": "그대 취향도\n같소?",
         "yes": "브라보!",
         "no": "관심 없소!",
         "topic1": "장",
@@ -95,7 +95,7 @@
         "look": "졸린 전사다.",
         "job": "명예에 건배!",
         "health": "피곤하오.",
-        "response1": "명예를 잃으면\n무엇이 남소?",
+        "response1": "명예를 잃으면\n남는 게 뭐요?",
         "response2": "맞소. 명예를 빼면\n내 삶은 끝이오!",
         "question": "명예로운 삶을\n살려고 하오?",
         "yes": "명예는 위대함을\n주오.",
@@ -105,10 +105,11 @@
           "honor",
           "hono"
         ],
-        "topic2": "무",
+        "topic2": "없음",
         "topic2_aliases": [
           "nothing",
-          "noth"
+          "noth",
+          "없다"
         ]
       }
     },
@@ -131,8 +132,8 @@
         "look": "뼈대 해골이다.",
         "job": "깊은 던전에서\n왔소.",
         "health": "무슨 뜻이오?",
-        "response1": "던전 ‘{shame}’에서\n왔소!",
-        "response2": "진리와 용기의\n제단에 쓰인\n자색 돌을 봤소!",
+        "response1": "{shame}의 던전에서\n왔소!",
+        "response2": "진리와 용기의\n제단에 쓰인\n보라 돌을 봤소!",
         "question": "가 본 적 있소?",
         "yes": "좋소.",
         "no": "필요한 물건이\n있소.",
@@ -449,7 +450,7 @@
         "name": "더긴",
         "pronoun": "그",
         "look": "애틋한 전사다.",
-        "job": "쉴 곳을\n찾소.",
+        "job": "휴식할 곳을\n찾소.",
         "health": "피곤하오.",
         "response1": "길고 힘든\n퀘스트를 했소.",
         "response2": "명예 사원에서\n깨달음을 구하오!",
@@ -458,7 +459,9 @@
         "no": "사원은 남서,\n늪 너머에!",
         "topic1": "휴식",
         "topic1_aliases": [
-          "rest"
+          "rest",
+          "쉴곳",
+          "쉴 곳"
         ],
         "topic2": "퀘스트",
         "topic2_aliases": [
@@ -522,8 +525,8 @@
         "job": "해골을\n찾소!",
         "health": "그럭저럭.",
         "response1": "큰 비밀을\n알고 있소.",
-        "response2": "명예의 자색 돌에\n대해!",
-        "question": "자색 돌이\n있소?",
+        "response2": "명예의 보라 돌에\n대해!",
+        "question": "보라 돌이\n있소?",
         "yes": "지혜롭게 쓰시오!",
         "no": "매우 쓸모 있으니\n찾으시오!",
         "topic1": "해골",
@@ -567,11 +570,7 @@
           "guard",
           "guar"
         ],
-        "topic2": "강함",
-        "topic2_aliases": [
-          "strong",
-          "stro"
-        ]
+        "topic2": ""
       }
     }
   ]

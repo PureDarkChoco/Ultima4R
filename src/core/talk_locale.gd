@@ -31,6 +31,7 @@ static var _hl: Dictionary = {} ## "CARE" -> highlight words
 ## "magic" (Thevel) and "Magincia" (Mentor); do not merge those lists.
 static var _npc_aliases: Dictionary = {} ## "britain/thevel" / "thevel" -> { "MAGI": [...] }
 static var _npc_hl: Dictionary = {}
+static var _npc_omit: Dictionary = {} ## "trinsic/a guard" -> { "STRO": true }
 static var _extra_npcs: Array = [] ## Pack rows with extra:true (spawn + discourse).
 static var _ingest_city := ""
 
@@ -196,6 +197,15 @@ static func _npc_topic_map(store: Dictionary, npc_name: String, city_id: String 
 	return {}
 
 
+static func topic_omitted(stem: String, npc_name: String = "", city_id: String = "") -> bool:
+	## Pack set ko.topicN to "" to drop a dummy TLK keyword from that NPC.
+	var s := stem.strip_edges().to_upper()
+	if s.is_empty() or s == "A":
+		return false
+	var pack := _npc_topic_map(_npc_omit, npc_name, city_id)
+	return bool(pack.get(s, false))
+
+
 static func match_topic_alias(
 	topic: String, input: String, npc_name: String = "", city_id: String = ""
 ) -> bool:
@@ -203,6 +213,8 @@ static func match_topic_alias(
 		return false
 	var stem := topic.strip_edges().to_upper()
 	if stem.is_empty() or stem == "A":
+		return false
+	if topic_omitted(stem, npc_name, city_id):
 		return false
 	var h := normalize_interest(input)
 	var n := stem.to_lower()
@@ -227,6 +239,8 @@ static func highlight_extras(
 	var seen: Dictionary = {}
 	var pack := _npc_topic_map(_npc_hl, npc_name, city_id)
 	for t in [topic1, topic2]:
+		if topic_omitted(str(t), npc_name, city_id):
+			continue
 		var stem := str(t).strip_edges().to_upper()
 		if stem.is_empty():
 			continue
@@ -347,6 +361,10 @@ static func _ingest_npc(npc: Dictionary) -> void:
 		var stem := str(npc.get(ti, "")).strip_edges().to_upper()
 		if stem.is_empty() or stem == "A":
 			continue
+		## Empty KO topic drops a dummy TLK stem (no highlight, no match).
+		if ko_d.has(ti) and str(ko_d[ti]).strip_edges().is_empty():
+			_mark_topic_omitted(str(npc.get("name", "")), stem)
+			continue
 		var als: Array = [stem.to_lower()]
 		var akey: String = ti + "_aliases"
 		if ko_d.has(akey) and typeof(ko_d[akey]) == TYPE_ARRAY:
@@ -358,15 +376,18 @@ static func _ingest_npc(npc: Dictionary) -> void:
 			primary_ko = _fill_places(str(ko_d[ti]).strip_edges())
 			als.append(primary_ko.to_lower())
 		_merge_alias(stem, als)
-		## Latin mantra labels (OM) stay OM on the menu. Hangul aliases (옴)
-		## still match typed input but must not win the gray/white keyword row.
+		## Latin mantra labels (OM) stay OM on the menu. Extra Hangul type-in
+		## synonyms (없다 for 없음, 옴 for OM) still match typed input but
+		## must not tint speech or win the keyword row.
 		var latin_topic := not primary_ko.is_empty() and not word_has_hangul(primary_ko)
+		var primary_ko_l := primary_ko.to_lower()
 		var hls: Array = []
 		for a in als:
 			if str(a).is_empty():
 				continue
-			if latin_topic and word_has_hangul(str(a)):
-				continue
+			if word_has_hangul(str(a)):
+				if latin_topic or str(a) != primary_ko_l:
+					continue
 			hls.append(str(a))
 		_merge_hl(stem, hls)
 		_store_npc_topic(str(npc.get("name", "")), stem, als, hls)
@@ -416,6 +437,20 @@ static func _store_npc_topic(npc_name: String, stem: String, als: Array, hls: Ar
 		hl_pack[stem] = hls.duplicate()
 		_npc_aliases[key] = al_pack
 		_npc_hl[key] = hl_pack
+
+
+static func _mark_topic_omitted(npc_name: String, stem: String) -> void:
+	var n := npc_name.strip_edges().to_lower()
+	var s := stem.strip_edges().to_upper()
+	if n.is_empty() or s.is_empty():
+		return
+	var keys: Array[String] = [n]
+	if not _ingest_city.is_empty():
+		keys.append("%s/%s" % [_ingest_city, n])
+	for key in keys:
+		var pack: Dictionary = _npc_omit.get(key, {})
+		pack[s] = true
+		_npc_omit[key] = pack
 
 
 static func _translate_line(en: String) -> String:
