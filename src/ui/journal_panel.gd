@@ -584,7 +584,7 @@ func _make_entry_row(
 	col.add_theme_constant_override("separation", 2)
 	inner.add_child(col)
 	var body := Label.new()
-	body.text = _Journal.entry_text(row, lang)
+	body.text = _Journal.entry_text(row, lang, _game_state())
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_theme_font_size_override("font_size", BODY_SIZE)

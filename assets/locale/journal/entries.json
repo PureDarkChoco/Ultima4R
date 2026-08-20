@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|shrine:<virtue> = pending until action (use:stone at an altar room or matching abyss altar). Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|shrine:<virtue>|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -39,6 +39,32 @@
       "ko": "동료 7명 모으기",
       "en_u4": "Gather seven companions.",
       "en_us": "Gather 7 companions."
+    },
+    {
+      "id": "britannia.start.runes",
+      "place": "britannia",
+      "npc": "The Quest of the Avatar",
+      "topic": "RUNES",
+      "goal": "runes:8",
+      "speaker_en": "The Quest of the Avatar",
+      "speaker_ko": "아바타의 여정",
+      "en": "Find the runes.",
+      "ko": "룬 찾기",
+      "en_u4": "Seek the runes.",
+      "en_us": "Find the runes."
+    },
+    {
+      "id": "britannia.start.stones",
+      "place": "britannia",
+      "npc": "The Quest of the Avatar",
+      "topic": "STONES",
+      "goal": "stones:8",
+      "speaker_en": "The Quest of the Avatar",
+      "speaker_ko": "아바타의 여정",
+      "en": "Find the stones.",
+      "ko": "돌 찾기",
+      "en_u4": "Seek the stones.",
+      "en_us": "Find the stones."
     },
     {
       "id": "lcb.manual.zorin",

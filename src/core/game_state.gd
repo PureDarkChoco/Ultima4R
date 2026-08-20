@@ -971,6 +971,7 @@ func add_party_member(klass: int) -> bool:
 	party_order.append(klass)
 	mark_weapon_known(weapon_of_class(klass))
 	mark_armor_known(armor_of_class(klass))
+	_Journal.ensure_progress_goals(self, true)
 	if party_order.size() >= 8:
 		journal_mark_goal("companions:7")
 	if companion_class_by_name("Jaana") == klass:
@@ -3479,6 +3480,9 @@ func _journal_mark_rune_flag(flag: int) -> void:
 		if flag == (1 << v):
 			_Journal.mark_known_rune(self, v)
 			journal_mark_goal("rune:%s" % Virtues.NAMES_EN[v].to_lower())
+			_Journal.ensure_progress_goals(self, true)
+			if _Journal.goal_already_met(self, "runes:8"):
+				journal_mark_goal("runes:8")
 			return
 
 
@@ -3489,4 +3493,7 @@ func _journal_mark_stone_flag(flag: int) -> void:
 	for i in NAMES.size():
 		if flag == (1 << i):
 			journal_mark_goal("stone:%s" % NAMES[i])
+			_Journal.ensure_progress_goals(self, true)
+			if _Journal.goal_already_met(self, "stones:8"):
+				journal_mark_goal("stones:8")
 			return

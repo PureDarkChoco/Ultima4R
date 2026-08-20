@@ -88,7 +88,6 @@ static func seed_new_game(gs: Node) -> void:
 	const IDS: Array[String] = [
 		"britannia.start.talk",
 		"britannia.start.combat",
-		"britannia.start.companions",
 	]
 	for id in IDS:
 		var cat := find_catalog_by_id(id)
@@ -97,6 +96,80 @@ static func seed_new_game(gs: Node) -> void:
 		_append_catalog_capture(
 			gs, cat, "britannia", str(cat.get("npc", "The Quest of the Avatar")), false
 		)
+
+
+static func ensure_progress_goals(gs: Node, note_new: bool = false) -> bool:
+	## Companions / runes / stones appear after the first recruit or find.
+	if gs == null:
+		return false
+	ensure_catalog()
+	var changed := false
+	var companions := maxi(0, gs.party_size() - 1)
+	if companions <= 0:
+		if _remove_entry_id(gs, "britannia.start.companions"):
+			changed = true
+	elif _ensure_catalog_row(gs, "britannia.start.companions", note_new):
+		changed = true
+	if _mask_count(int(gs.runes)) > 0:
+		if _ensure_catalog_row(gs, "britannia.start.runes", note_new):
+			changed = true
+	if _mask_count(int(gs.stones)) > 0:
+		if _ensure_catalog_row(gs, "britannia.start.stones", note_new):
+			changed = true
+	return changed
+
+
+static func _ensure_catalog_row(gs: Node, id: String, note_new: bool) -> bool:
+	if has_entry_id(gs, id):
+		return false
+	var cat := find_catalog_by_id(id)
+	if cat.is_empty():
+		return false
+	return _append_catalog_capture(
+		gs, cat, "britannia", str(cat.get("npc", "The Quest of the Avatar")), note_new
+	)
+
+
+static func _remove_entry_id(gs: Node, id: String) -> bool:
+	if gs == null or id.is_empty():
+		return false
+	var want := id.strip_edges()
+	var rows: Array = gs.journal_entries
+	for i in rows.size():
+		var row: Variant = rows[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		if str((row as Dictionary).get("id", "")).strip_edges() != want:
+			continue
+		rows.remove_at(i)
+		gs.journal_entries = rows
+		if str(gs.journal_unseen_id) == want:
+			gs.journal_unseen_id = ""
+		return true
+	return false
+
+
+static func _mask_count(mask: int, bits: int = 8) -> int:
+	var n := 0
+	for i in bits:
+		if (mask & (1 << i)) != 0:
+			n += 1
+	return n
+
+
+static func _progress_suffix(row: Dictionary, cat: Dictionary, gs: Node) -> String:
+	if gs == null:
+		return ""
+	var goal := str(row.get("goal", "")).strip_edges().to_lower()
+	if goal.is_empty() and not cat.is_empty():
+		goal = str(cat.get("goal", "")).strip_edges().to_lower()
+	if goal == "companions:7":
+		return "%d/7" % clampi(gs.party_size() - 1, 0, 7)
+	if goal == "runes:8":
+		return "%d/8" % clampi(_mask_count(int(gs.runes)), 0, 8)
+	if goal == "stones:8":
+		return "%d/8" % clampi(_mask_count(int(gs.stones)), 0, 8)
+	return ""
 
 
 static func try_capture(gs: Node, place: String, npc: String, topic: String) -> bool:
@@ -427,7 +500,7 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 	## After load / loot: complete any pending goals already satisfied.
 	if gs == null:
 		return false
-	var changed := false
+	var changed := ensure_progress_goals(gs, false)
 	var rows: Array = gs.journal_entries
 	for i in rows.size():
 		var row: Variant = rows[i]
@@ -600,6 +673,10 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "companions:7":
 		## Avatar + 7 companions.
 		return gs.party_size() >= 8
+	if g == "runes:8":
+		return _mask_count(int(gs.runes)) >= 8
+	if g == "stones:8":
+		return _mask_count(int(gs.stones)) >= 8
 	if g == "join:jaana":
 		## Recruited Jaana. Same-class refusal is marked at the join attempt.
 		return gs.is_person_joined("Jaana")
@@ -778,7 +855,7 @@ static func _rows_with_chains_grouped(rows: Array) -> Array:
 	return out
 
 
-static func entry_text(row: Dictionary, lang: String) -> String:
+static func entry_text(row: Dictionary, lang: String, gs: Node = null) -> String:
 	## Catalog wording is authoritative so corrected clues also update old saves.
 	## Upgraded rows use *_upgraded keys when present.
 	var cat := find_catalog_by_id(str(row.get("id", "")))
@@ -796,13 +873,21 @@ static func entry_text(row: Dictionary, lang: String) -> String:
 		if upgraded:
 			keys.append_array(["en_us_upgraded", "en_upgraded"])
 		keys.append_array(["en_us", "en"])
+	var text := ""
 	for k in keys:
 		var s := str(cat.get(k, "")).strip_edges()
 		if s.is_empty():
 			s = str(row.get(k, "")).strip_edges()
 		if not s.is_empty():
-			return Locale.fill_places(s)
-	return Locale.fill_places(str(cat.get("ko", row.get("ko", ""))))
+			text = s
+			break
+	if text.is_empty():
+		text = str(cat.get("ko", row.get("ko", "")))
+	text = Locale.fill_places(text)
+	var suffix := _progress_suffix(row, cat, gs)
+	if suffix.is_empty():
+		return text
+	return "%s (%s)" % [text, suffix]
 
 
 static func entry_speaker(row: Dictionary, lang: String) -> String:
