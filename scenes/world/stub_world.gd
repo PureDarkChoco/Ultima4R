@@ -5042,6 +5042,16 @@ func _maybe_offer_trinsic_chain_keyword() -> void:
 			"룬" if korean else "Rune",
 			"룬" if korean else "rune"
 		)
+	elif (
+		npc == "skitle"
+		and GameState.journal_has_id("trinsic.quix.skitle-secret")
+	):
+		var stone_key := _talk_keyword_stable_key("돌" if korean else "stone")
+		_offer_talk_keyword_item(
+			stone_key,
+			"돌" if korean else "Stone",
+			"돌" if korean else "stone"
+		)
 
 
 func _talk_npc_is_skara_ankh(npc_name: String) -> bool:
@@ -19636,6 +19646,12 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("trinsic.winthrop.terrin-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:terrin-rune"):
+			refresh = true
+	## Quix → Skitle: asking the skeleton about the stone completes the secret tip.
+	if place == "trinsic" and npc_key == "skitle" and topic == "STON":
+		if GameState.journal_mark_id("trinsic.quix.skitle-secret"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:skitle-stone"):
 			refresh = true
 	## Skara: Ambule / Barren / Ankh complete prior spirituality tips.
 	if place == "skara" and npc_key == "ambule" and topic == "MANT":
