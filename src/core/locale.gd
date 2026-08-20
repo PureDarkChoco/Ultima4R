@@ -982,42 +982,42 @@ const _T := {
 	"journal_codex_stone_blue": {
 		"en_u4": "Blue",
 		"en_us": "Blue",
-		"ko": "파란 돌",
+		"ko": "파란",
 	},
 	"journal_codex_stone_yellow": {
 		"en_u4": "Yellow",
 		"en_us": "Yellow",
-		"ko": "노란 돌",
+		"ko": "노란",
 	},
 	"journal_codex_stone_red": {
 		"en_u4": "Red",
 		"en_us": "Red",
-		"ko": "빨간 돌",
+		"ko": "빨간",
 	},
 	"journal_codex_stone_green": {
 		"en_u4": "Green",
 		"en_us": "Green",
-		"ko": "초록 돌",
+		"ko": "초록",
 	},
 	"journal_codex_stone_orange": {
 		"en_u4": "Orange",
 		"en_us": "Orange",
-		"ko": "주황 돌",
+		"ko": "주황",
 	},
 	"journal_codex_stone_purple": {
 		"en_u4": "Purple",
 		"en_us": "Purple",
-		"ko": "보라 돌",
+		"ko": "보라",
 	},
 	"journal_codex_stone_white": {
 		"en_u4": "White",
 		"en_us": "White",
-		"ko": "하얀 돌",
+		"ko": "하얀",
 	},
 	"journal_codex_stone_black": {
 		"en_u4": "Black",
 		"en_us": "Black",
-		"ko": "검은 돌",
+		"ko": "검은",
 	},
 	"journal_codex_truth": {
 		"en_u4": "Truth",
