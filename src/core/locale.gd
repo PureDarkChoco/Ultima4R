@@ -2046,6 +2046,11 @@ const _T := {
 		"en_us": "You have learned a new reagent mixture.",
 		"ko": "새로운 시약 조합법을 익혔습니다.",
 	},
+	"talk_learned_all_reagent_mix": {
+		"en_u4": "Thou hast learned every reagent mixture.",
+		"en_us": "You have learned every reagent mixture.",
+		"ko": "모든 마법 시약 조합을 익혔습니다.",
+	},
 	"cmd_locate": {
 		"en_u4": "%s  %s %s",
 		"en_us": "%s  %s %s",

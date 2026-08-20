@@ -74,6 +74,43 @@
       }
     },
     {
+      "extra": true,
+      "maps": ["lcb_2.ult"],
+      "x": 21,
+      "y": 8,
+      "tile": 32,
+      "movement": 0,
+      "ask_after": 5,
+      "name": "Nystul",
+      "pronoun": "He",
+      "look": "a grand court mage.",
+      "job": "I study the magic of Britannia.",
+      "health": "Well.",
+      "response1": "All magic needs the proper reagents.\nThe Book of Mystic Wisdom\nholds all.",
+      "response2": "",
+      "question": "Hast thou the book?",
+      "yes": "Very good.",
+      "no": "I shall give thee a copy.\nGuard it well.",
+      "topic1": "MAGI",
+      "topic2": "A",
+      "ko": {
+        "name": "니스툴",
+        "pronoun": "그",
+        "look": "궁중의 대마법사다.",
+        "job": "브리타니아의 마법을\n연구하오.",
+        "health": "건강하오.",
+        "response1": "모든 마법에는 알맞은\n시약이 필요하오.\n신비한 지혜의 서 안에\n모든 것이 담겨 있소.",
+        "question": "그 책을 가지고\n있소?",
+        "yes": "좋습니다.",
+        "no": "한 권 드릴 테니\n소중히 간직하시오.",
+        "topic1": "마법",
+        "topic1_aliases": [
+          "magic",
+          "magi"
+        ]
+      }
+    },
+    {
       "name": "Jester Twin",
       "pronoun": "He",
       "look": "a dancing jester.",

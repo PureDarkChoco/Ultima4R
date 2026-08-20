@@ -15593,7 +15593,15 @@ func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
 
 func _push_talk_learned_reagent_mix() -> void:
 	## One-line system notice after dialogue teaches a previously unknown recipe.
-	var line := Locale.t("talk_learned_reagent_mix").strip_edges()
+	_push_talk_learned_mix_line(Locale.t("talk_learned_reagent_mix"))
+
+
+func _push_talk_learned_all_reagent_mix() -> void:
+	_push_talk_learned_mix_line(Locale.t("talk_learned_all_reagent_mix"))
+
+
+func _push_talk_learned_mix_line(raw: String) -> void:
+	var line := raw.strip_edges()
 	if line.is_empty():
 		return
 	_msg_lines.append("[color=#7ec8ff]%s[/color]" % line)
@@ -16336,7 +16344,10 @@ func _talk_answer_yn(yes: bool) -> void:
 		_maybe_offer_azure_sacrifice_keyword()
 		_maybe_offer_den_prompt_keywords()
 	if _TalkTlk.apply_yesno_rewards(e, yes):
-		_push_talk_learned_reagent_mix()
+		if GameState.all_spells_known():
+			_push_talk_learned_all_reagent_mix()
+		else:
+			_push_talk_learned_reagent_mix()
 	var npc_key := str(e.name).strip_edges().to_lower()
 	var journal_changed := false
 	## Gimble's gold question: Yes points the party to Azure and the rune.

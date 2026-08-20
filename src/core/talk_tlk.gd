@@ -389,6 +389,27 @@ static func load_file(path: String) -> Array:
 	return out
 
 
+static func entry_from_dict(d: Dictionary) -> Entry:
+	## Extra city NPCs not stored in the 16-slot .TLK.
+	var e := Entry.new()
+	e.ask_after = int(d.get("ask_after", QT_NONE))
+	e.question_humility = bool(d.get("question_humility", false))
+	e.turn_away = int(d.get("turn_away", 0))
+	e.name = str(d.get("name", ""))
+	e.pronoun = str(d.get("pronoun", "He"))
+	e.look = str(d.get("look", ""))
+	e.job = str(d.get("job", ""))
+	e.health = str(d.get("health", ""))
+	e.response1 = str(d.get("response1", ""))
+	e.response2 = str(d.get("response2", ""))
+	e.question = str(d.get("question", ""))
+	e.yes = str(d.get("yes", ""))
+	e.no = str(d.get("no", ""))
+	e.topic1 = _trim_keyword(str(d.get("topic1", "")))
+	e.topic2 = _trim_keyword(str(d.get("topic2", "")))
+	return e
+
+
 static func _parse_record(buf: PackedByteArray) -> Entry:
 	if buf.size() < RECORD_SIZE:
 		return null
@@ -538,11 +559,16 @@ static func apply_keyword_rewards(entry: Entry, kind: int) -> bool:
 
 
 static func apply_yesno_rewards(entry: Entry, yes: bool) -> bool:
-	## Recipe corrections that live on the Y answer after a follow-up question.
+	## Recipe corrections that live on the Y/N answer after a follow-up question.
 	## Returns true if a new spell recipe was learned this answer.
-	if entry == null or not yes:
+	if entry == null:
 		return false
 	var nm := _speaker_key(entry)
+	if not yes:
+		if nm == "nystul":
+			## LCB court mage — gift of The Book of Mystic Wisdom.
+			return GameState.mark_all_spells_known()
+		return false
 	match nm:
 		"carlyle":
 			## Magic Missile — need but 1 part ash (after “believe in magic?”).

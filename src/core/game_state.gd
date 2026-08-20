@@ -545,6 +545,24 @@ func mark_spell_known(spell_id: int) -> bool:
 	return true
 
 
+func mark_all_spells_known() -> bool:
+	## True if at least one recipe was newly recorded.
+	var learned := false
+	for i in Spells.COUNT:
+		if mark_spell_known(i):
+			learned = true
+	return learned
+
+
+func all_spells_known() -> bool:
+	if spell_known.size() < Spells.COUNT:
+		_seed_spell_known_from_mixtures()
+	for i in Spells.COUNT:
+		if not bool(spell_known[i]):
+			return false
+	return true
+
+
 func is_weapon_known(weapon_id: int) -> bool:
 	if weapon_id <= 0 or weapon_id >= weapon_known.size():
 		return false

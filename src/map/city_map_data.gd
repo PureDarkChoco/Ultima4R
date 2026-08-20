@@ -479,6 +479,7 @@ func load_from_path(path: String) -> bool:
 	_load_persons(bytes)
 	_apply_file_roles(path)
 	_load_tlk(path)
+	_append_extra_people(path)
 	## xu4 City::addPeople — omit companions already in the party.
 	strip_joined_companions()
 	loaded = true
@@ -566,6 +567,33 @@ func pause_follow(person_i: int) -> void:
 		return
 	if person_move[person_i] == MOVE_FOLLOW:
 		person_move[person_i] = MOVE_FOLLOW_PAUSE
+
+
+func _append_extra_people(ult_path: String) -> void:
+	## Locale-pack NPCs beyond the classic 16 .TLK slots.
+	for spec_v in _TalkLocale.extra_npcs_for_map(ult_path):
+		if typeof(spec_v) != TYPE_DICTIONARY:
+			continue
+		var spec: Dictionary = spec_v
+		var nm := str(spec.get("name", "")).strip_edges()
+		if nm.is_empty() or discourse_index_by_name(nm) >= 0:
+			continue
+		var x := clampi(int(spec.get("x", 0)), 0, WIDTH - 1)
+		var y := clampi(int(spec.get("y", 0)), 0, HEIGHT - 1)
+		if person_index_at(x, y) >= 0:
+			continue
+		var tile_id := int(spec.get("tile", 32))
+		if tile_id <= 0:
+			tile_id = 32
+		var movement := int(spec.get("movement", MOVE_FIXED))
+		var di := discourses.size()
+		discourses.append(_TalkTlk.entry_from_dict(spec))
+		persons.append(Vector3i(x, y, tile_id))
+		person_prev.append(-1)
+		person_move.append(movement)
+		person_conv.append(di)
+		person_file_slot.append(-1)
+		person_role.append(_CityNpcRoles.Role.NONE)
 
 
 func _load_tlk(ult_path: String) -> void:

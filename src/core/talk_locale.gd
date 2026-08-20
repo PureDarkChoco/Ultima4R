@@ -31,6 +31,7 @@ static var _hl: Dictionary = {} ## "CARE" -> highlight words
 ## "magic" (Thevel) and "Magincia" (Mentor); do not merge those lists.
 static var _npc_aliases: Dictionary = {} ## "britain/thevel" / "thevel" -> { "MAGI": [...] }
 static var _npc_hl: Dictionary = {}
+static var _extra_npcs: Array = [] ## Pack rows with extra:true (spawn + discourse).
 static var _ingest_city := ""
 
 
@@ -306,7 +307,29 @@ static func latent_menu_words(highlight_words: Array) -> Array[String]:
 	return out
 
 
+static func extra_npcs_for_map(ult_path: String) -> Array:
+	## Extra talk NPCs to spawn on this .ULT (not in the 16-slot .TLK).
+	ensure_city_for_path(ult_path)
+	var fname := ult_path.get_file().to_lower()
+	if fname.is_empty():
+		return []
+	var out: Array = []
+	for item in _extra_npcs:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var maps: Variant = (item as Dictionary).get("maps", [])
+		if typeof(maps) != TYPE_ARRAY:
+			continue
+		for m in maps:
+			if str(m).strip_edges().to_lower() == fname:
+				out.append(item)
+				break
+	return out
+
+
 static func _ingest_npc(npc: Dictionary) -> void:
+	if bool(npc.get("extra", false)):
+		_extra_npcs.append(npc)
 	var ko: Variant = npc.get("ko", {})
 	if typeof(ko) != TYPE_DICTIONARY:
 		return
