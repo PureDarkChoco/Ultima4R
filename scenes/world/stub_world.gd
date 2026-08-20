@@ -16404,6 +16404,14 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes and npc_key == "lord robert":
 		if GameState.journal_try_capture_talk("jhelom", "Lord Robert", "JOB_YES"):
 			journal_changed = true
+	## Gate guard (Trinsic): Yes after Guard names Dupre as a companion.
+	if (
+		yes
+		and npc_key == "a guard"
+		and str(e.topic1).strip_edges().to_upper() == "GATE"
+	):
+		if GameState.journal_try_capture_talk("trinsic", "a guard", "GUAR_YES"):
+			journal_changed = true
 	## Senora (Jhelom): Yes after Crime points to the barkeep and sextant.
 	if yes and npc_key == "senora":
 		if GameState.journal_try_capture_talk("jhelom", "Senora", "CRIM_YES"):
@@ -16764,16 +16772,23 @@ func _talk_do_join() -> void:
 			_push_talk_script("%s says: I cannot go with thee." % str(e.pronoun))
 		else:
 			_push_talk_script("%s says: I cannot join thee." % str(e.pronoun))
-		## Same class as the Avatar: the refusal finishes Frida's Jaana tip.
+		## Same class as the Avatar: the refusal finishes the join tip.
 		var avatar_cls := (
 			GameState.player_class
 			if GameState.player_class >= 0
 			else GameState.party_leader_class()
 		)
+		var join_name := name.strip_edges().to_lower()
 		if (
-			name.strip_edges().to_lower() == "jaana"
+			join_name == "jaana"
 			and GameState.companion_class_by_name(name) == avatar_cls
 			and GameState.journal_mark_goal("join:jaana")
+		):
+			_refresh_journal_panel()
+		if (
+			join_name == "dupre"
+			and GameState.companion_class_by_name(name) == avatar_cls
+			and GameState.journal_mark_goal("join:dupre")
 		):
 			_refresh_journal_panel()
 	_talk_prompt_interest()

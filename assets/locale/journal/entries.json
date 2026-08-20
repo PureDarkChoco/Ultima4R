@@ -334,6 +334,7 @@
       "topic": "HONO",
       "goal": "",
       "know": "virtue:honor",
+      "skip_if_recorded": "trinsic.rigmore.honor",
       "speaker_en": "Lord British",
       "speaker_ko": "로드 브리티시",
       "en": "Virtue: Honor",
@@ -1145,6 +1146,34 @@
       "ko": "맨드레이크: 죽은 자의 습지와 피의 평원, 땅이 항상 축축한 곳.",
       "en_u4": "Mandrake root is found only in the Fens of the Dead and in the Bloody Plains, where the ground is always damp.",
       "en_us": "Mandrake: in the Fens of the Dead and the Bloody Plains, where the ground is always damp."
+    },
+    {
+      "id": "trinsic.guard.dupre-join",
+      "place": "trinsic",
+      "npc": "a guard",
+      "topic": "GUAR_YES",
+      "goal": "join:dupre",
+      "speaker_en": "a guard",
+      "speaker_ko": "경비병",
+      "en": "Dupre may join thee.",
+      "ko": "듀프리가 모험에 합류할 수 있다.",
+      "en_u4": "Dupre may join thee.",
+      "en_us": "Dupre may join thee."
+    },
+    {
+      "id": "trinsic.rigmore.honor",
+      "place": "trinsic",
+      "npc": "Rigmore",
+      "topic": "WELC",
+      "goal": "",
+      "know": "virtue:honor",
+      "skip_if_recorded": "trinsic.lord-british.honor-virtue",
+      "speaker_en": "Rigmore",
+      "speaker_ko": "리그모어",
+      "en": "Virtue: Honor",
+      "ko": "미덕: 명예",
+      "en_u4": "Virtue: Honor",
+      "en_us": "Virtue: Honor"
     },
     {
       "id": "trinsic.kline.winthrop-rune",

@@ -994,6 +994,8 @@ func add_party_member(klass: int) -> bool:
 		journal_mark_goal("companions:7")
 	if companion_class_by_name("Jaana") == klass:
 		journal_mark_goal("join:jaana")
+	if companion_class_by_name("Dupre") == klass:
+		journal_mark_goal("join:dupre")
 	return true
 
 

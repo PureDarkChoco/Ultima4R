@@ -680,6 +680,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "join:jaana":
 		## Recruited Jaana. Same-class refusal is marked at the join attempt.
 		return gs.is_person_joined("Jaana")
+	if g == "join:dupre":
+		return gs.is_person_joined("Dupre")
 	if g == "item:sextant" or g == "sextant":
 		return bool(gs.has_sextant)
 	## talk:first-note / combat:first / shrine:* complete only when the event fires.
