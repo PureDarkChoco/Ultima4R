@@ -5,6 +5,8 @@ extends RefCounted
 ## help = quest-progress dynamic; heal = art-thou-well confirm + party heal;
 ## return visits run ADVANCELEVELS (XP→max HP/stats).
 
+const MEMORY_NPC_ID := "lcb/lord_british"
+
 const KEYWORDS: Array[String] = [
 	"name", "look", "job", "truth", "love", "courage", "honesty", "compassion",
 	"valor", "justice", "sacrifice", "honor", "spirituality", "humility",
@@ -28,12 +30,12 @@ const KEYWORDS_KO: Array = [
 	["명예"],
 	["영성"],
 	["겸손"],
-	["자만", "오만"],
+	["자만"],
 	["아바타"],
-	["퀘스트", "임무"],
+	["퀘스트"],
 	["브리타니아"],
 	["앙크"],
-	["심연", "어비스"],
+	["심연"],
 	["몬데인"],
 	["미낙스"],
 	["엑소더스"],
@@ -474,6 +476,46 @@ static func match_keyword(typed: String) -> int:
 				if got.length() >= ks.length() and got.substr(0, ks.length()) == ks:
 					return i
 	return -1
+
+
+static func journal_topic(typed: String) -> String:
+	## Catalog stem: first four letters of the English keyword (HONE, VIRT, …).
+	var idx := match_keyword(typed)
+	if idx < 0 or idx >= KEYWORDS.size():
+		return ""
+	var w := KEYWORDS[idx]
+	return w.substr(0, mini(4, w.length())).to_upper()
+
+
+static func journal_place(typed: String) -> String:
+	## Individual virtues record under their town; the eight-virtue list stays castle-only.
+	match journal_topic(typed):
+		"HONE":
+			return "moonglow"
+		"COMP":
+			return "britain"
+		"VALO":
+			return "jhelom"
+		"JUST":
+			return "yew"
+		"SACR":
+			return "minoc"
+		"HONO":
+			return "trinsic"
+		"SPIR":
+			return "skara"
+		"HUMI":
+			return "magincia"
+		"TRUT":
+			return "lycaeum"
+		"LOVE":
+			return "empath"
+		"COUR":
+			return "serpent"
+		"VIRT", "PRID":
+			return "lcb"
+		_:
+			return ""
 
 
 ## Reply kinds for the world talk state machine.

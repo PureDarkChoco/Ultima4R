@@ -171,6 +171,206 @@
       "en_us": "Ask Zircon about the weapons in {minoc}."
     },
     {
+      "id": "lcb.lord-british.eight-virtues",
+      "place": "lcb",
+      "npc": "Lord British",
+      "topic": "VIRT",
+      "codex_only": true,
+      "know": [
+        "virtue:honesty",
+        "virtue:compassion",
+        "virtue:valor",
+        "virtue:justice",
+        "virtue:sacrifice",
+        "virtue:honor",
+        "virtue:spirituality",
+        "virtue:humility"
+      ]
+    },
+    {
+      "id": "lcb.lord-british.pride",
+      "place": "lcb",
+      "npc": "Lord British",
+      "topic": "PRID",
+      "codex_only": true,
+      "know": [
+        "virtue:humility",
+        "principle:truth",
+        "principle:love",
+        "principle:courage"
+      ]
+    },
+    {
+      "id": "lycaeum.lord-british.truth-principle",
+      "place": "lycaeum",
+      "npc": "Lord British",
+      "topic": "TRUT",
+      "goal": "",
+      "know": "principle:truth",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Principle: Truth",
+      "ko": "원리: 진리",
+      "en_u4": "Principle: Truth",
+      "en_us": "Principle: Truth"
+    },
+    {
+      "id": "empath.lord-british.love-principle",
+      "place": "empath",
+      "npc": "Lord British",
+      "topic": "LOVE",
+      "goal": "",
+      "know": "principle:love",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Principle: Love",
+      "ko": "원리: 사랑",
+      "en_u4": "Principle: Love",
+      "en_us": "Principle: Love"
+    },
+    {
+      "id": "serpent.lord-british.courage-principle",
+      "place": "serpent",
+      "npc": "Lord British",
+      "topic": "COUR",
+      "goal": "",
+      "know": "principle:courage",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Principle: Courage",
+      "ko": "원리: 용기",
+      "en_u4": "Principle: Courage",
+      "en_us": "Principle: Courage"
+    },
+    {
+      "id": "moonglow.lord-british.honesty-virtue",
+      "place": "moonglow",
+      "npc": "Lord British",
+      "topic": "HONE",
+      "goal": "",
+      "know": "virtue:honesty",
+      "skip_if_recorded": [
+        "moonglow.cromwell.honesty",
+        "moonglow.tyrone.honesty-virtue"
+      ],
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Honesty",
+      "ko": "미덕: 정직",
+      "en_u4": "Virtue: Honesty",
+      "en_us": "Virtue: Honesty"
+    },
+    {
+      "id": "britain.lord-british.compassion-virtue",
+      "place": "britain",
+      "npc": "Lord British",
+      "topic": "COMP",
+      "goal": "",
+      "know": "virtue:compassion",
+      "skip_if_recorded": [
+        "britain.pepper.compassion-virtue",
+        "britain.cricket.compassion-virtue",
+        "britain.julio.compassion-virtue",
+        "britain.gweno.compassion-virtue"
+      ],
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Compassion",
+      "ko": "미덕: 연민",
+      "en_u4": "Virtue: Compassion",
+      "en_us": "Virtue: Compassion"
+    },
+    {
+      "id": "jhelom.lord-british.valor-virtue",
+      "place": "jhelom",
+      "npc": "Lord British",
+      "topic": "VALO",
+      "goal": "",
+      "know": "virtue:valor",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Valor",
+      "ko": "미덕: 용맹",
+      "en_u4": "Virtue: Valor",
+      "en_us": "Virtue: Valor"
+    },
+    {
+      "id": "yew.lord-british.justice-virtue",
+      "place": "yew",
+      "npc": "Lord British",
+      "topic": "JUST",
+      "goal": "",
+      "know": "virtue:justice",
+      "skip_if_recorded": [
+        "yew.luke.justice",
+        "yew.dwp.justice"
+      ],
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Justice",
+      "ko": "미덕: 정의",
+      "en_u4": "Virtue: Justice",
+      "en_us": "Virtue: Justice"
+    },
+    {
+      "id": "minoc.lord-british.sacrifice-virtue",
+      "place": "minoc",
+      "npc": "Lord British",
+      "topic": "SACR",
+      "goal": "",
+      "know": "virtue:sacrifice",
+      "skip_if_recorded": "minoc.shentis.sacrifice",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Sacrifice",
+      "ko": "미덕: 희생",
+      "en_u4": "Virtue: Sacrifice",
+      "en_us": "Virtue: Sacrifice"
+    },
+    {
+      "id": "trinsic.lord-british.honor-virtue",
+      "place": "trinsic",
+      "npc": "Lord British",
+      "topic": "HONO",
+      "goal": "",
+      "know": "virtue:honor",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Honor",
+      "ko": "미덕: 명예",
+      "en_u4": "Virtue: Honor",
+      "en_us": "Virtue: Honor"
+    },
+    {
+      "id": "skara.lord-british.spirituality-virtue",
+      "place": "skara",
+      "npc": "Lord British",
+      "topic": "SPIR",
+      "goal": "",
+      "know": "virtue:spirituality",
+      "skip_if_recorded": "skara.luke.spirituality",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Spirituality",
+      "ko": "미덕: 영성",
+      "en_u4": "Virtue: Spirituality",
+      "en_us": "Virtue: Spirituality"
+    },
+    {
+      "id": "magincia.lord-british.humility-virtue",
+      "place": "magincia",
+      "npc": "Lord British",
+      "topic": "HUMI",
+      "goal": "",
+      "know": "virtue:humility",
+      "speaker_en": "Lord British",
+      "speaker_ko": "로드 브리티시",
+      "en": "Virtue: Humility",
+      "ko": "미덕: 겸손",
+      "en_u4": "Virtue: Humility",
+      "en_us": "Virtue: Humility"
+    },
+    {
       "id": "minoc.zircon.mystic-arms",
       "place": "minoc",
       "npc": "Zircon",
@@ -190,6 +390,7 @@
       "topic": "SACR",
       "goal": "",
       "know": "virtue:sacrifice",
+      "skip_if_recorded": "minoc.lord-british.sacrifice-virtue",
       "en": "Virtue: Sacrifice",
       "ko": "미덕: 희생"
     },
@@ -364,7 +565,8 @@
       "skip_if_recorded": [
         "britain.julio.compassion-virtue",
         "britain.cricket.compassion-virtue",
-        "britain.gweno.compassion-virtue"
+        "britain.gweno.compassion-virtue",
+        "britain.lord-british.compassion-virtue"
       ],
       "speaker_en": "Pepper",
       "speaker_ko": "페퍼",
@@ -412,7 +614,8 @@
       "skip_if_recorded": [
         "britain.julio.compassion-virtue",
         "britain.pepper.compassion-virtue",
-        "britain.gweno.compassion-virtue"
+        "britain.gweno.compassion-virtue",
+        "britain.lord-british.compassion-virtue"
       ],
       "speaker_en": "Cricket",
       "speaker_ko": "크리켓",
@@ -458,7 +661,8 @@
       "skip_if_recorded": [
         "britain.pepper.compassion-virtue",
         "britain.cricket.compassion-virtue",
-        "britain.gweno.compassion-virtue"
+        "britain.gweno.compassion-virtue",
+        "britain.lord-british.compassion-virtue"
       ],
       "speaker_en": "Julio",
       "speaker_ko": "훌리오",
@@ -477,7 +681,8 @@
       "skip_if_recorded": [
         "britain.julio.compassion-virtue",
         "britain.pepper.compassion-virtue",
-        "britain.cricket.compassion-virtue"
+        "britain.cricket.compassion-virtue",
+        "britain.lord-british.compassion-virtue"
       ],
       "speaker_en": "Gweno",
       "speaker_ko": "그웨노",
@@ -545,7 +750,10 @@
       "topic": "JOB",
       "goal": "",
       "know": "virtue:honesty",
-      "skip_if_recorded": "moonglow.tyrone.honesty-virtue",
+      "skip_if_recorded": [
+        "moonglow.tyrone.honesty-virtue",
+        "moonglow.lord-british.honesty-virtue"
+      ],
       "speaker_en": "Cromwell",
       "speaker_ko": "크롬웰",
       "en": "Virtue: Honesty",
@@ -596,7 +804,10 @@
       "topic": "STON",
       "goal": "",
       "know": "virtue:honesty",
-      "skip_if_recorded": "moonglow.cromwell.honesty",
+      "skip_if_recorded": [
+        "moonglow.cromwell.honesty",
+        "moonglow.lord-british.honesty-virtue"
+      ],
       "speaker_en": "Tyrone",
       "speaker_ko": "타이론",
       "en": "Virtue: Honesty",
@@ -789,7 +1000,10 @@
       "topic": "YEW",
       "goal": "",
       "know": "virtue:justice",
-      "skip_if_recorded": "yew.dwp.justice",
+      "skip_if_recorded": [
+        "yew.dwp.justice",
+        "yew.lord-british.justice-virtue"
+      ],
       "speaker_en": "Luke",
       "speaker_ko": "루크",
       "en": "Virtue: Justice",
@@ -804,7 +1018,10 @@
       "topic": "JOB",
       "goal": "",
       "know": "virtue:justice",
-      "skip_if_recorded": "yew.luke.justice",
+      "skip_if_recorded": [
+        "yew.luke.justice",
+        "yew.lord-british.justice-virtue"
+      ],
       "speaker_en": "Dwp",
       "speaker_ko": "드웁",
       "en": "Virtue: Justice",
@@ -1022,6 +1239,7 @@
       "topic": "LIGH_NO",
       "goal": "",
       "know": "virtue:spirituality",
+      "skip_if_recorded": "skara.lord-british.spirituality-virtue",
       "speaker_en": "Luke",
       "speaker_ko": "루크",
       "en": "Virtue: Spirituality",

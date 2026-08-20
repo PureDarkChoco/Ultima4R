@@ -5206,7 +5206,9 @@ func _talk_discourse_index() -> int:
 func _talk_memory_npc_id() -> String:
 	## Persist by discourse slot, not display name — "a child" / "a guard"
 	## can be several different scripts in one town.
-	if _talk_is_hawkwind or _talk_is_lb or _talk_entry == null:
+	if _talk_is_lb:
+		return _LordBritish.MEMORY_NPC_ID
+	if _talk_is_hawkwind or _talk_entry == null:
 		return ""
 	var city := _talk_city_id()
 	if city.is_empty():
@@ -5252,6 +5254,11 @@ func _talk_stored_key_matches(stored: String, item_key: String) -> bool:
 		return true
 	if _TalkLocale.normalize_interest(stored) == _TalkLocale.normalize_interest(item_key):
 		return true
+	if _talk_is_lb:
+		var lb_a := _LordBritish.match_keyword(stored)
+		var lb_b := _LordBritish.match_keyword(item_key)
+		if lb_a >= 0 and lb_a == lb_b:
+			return true
 	var npc := str(_talk_entry.name).strip_edges() if _talk_entry != null else ""
 	var city := _talk_city_id()
 	return (
@@ -5268,21 +5275,21 @@ func _talk_words_are_same_topic(a: String, b: String) -> bool:
 
 
 func _persist_talk_known_word(word: String) -> void:
-	var npc_id := _talk_memory_npc_id()
-	if npc_id.is_empty():
-		return
 	var raw := word.strip_edges()
 	if raw.is_empty():
 		return
+	var npc_id := _talk_memory_npc_id()
 	var seen: Dictionary = {}
-	_persist_talk_known_one(npc_id, raw, seen)
+	if not npc_id.is_empty():
+		_persist_talk_known_one(npc_id, raw, seen)
 	_persist_talk_heard_word(raw)
 	for extra in _talk_keywords:
 		var other := str(extra).strip_edges()
 		if other.is_empty() or other == raw:
 			continue
 		if _talk_words_are_same_topic(raw, other):
-			_persist_talk_known_one(npc_id, other, seen)
+			if not npc_id.is_empty():
+				_persist_talk_known_one(npc_id, other, seen)
 			_persist_talk_heard_word(other)
 
 
@@ -15820,6 +15827,7 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 			_layout_prompt_row()
 			return true
 		_push_talk_script(_LordBritish.reply_text(match_input))
+		_try_journal_lord_british_capture(match_input)
 		_push_talk_script(_LordBritish.prompt())
 		_layout_prompt_row()
 		return true
@@ -19412,6 +19420,15 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 			return true
 		return true
 	return true
+
+
+func _try_journal_lord_british_capture(typed: String) -> void:
+	var topic := _LordBritish.journal_topic(typed)
+	var place := _LordBritish.journal_place(typed)
+	if topic.is_empty() or place.is_empty():
+		return
+	if GameState.journal_try_capture_talk(place, "Lord British", topic):
+		_refresh_journal_panel()
 
 
 func _try_journal_talk_capture(entry: Variant, kind: int) -> void:

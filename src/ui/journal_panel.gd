@@ -830,7 +830,6 @@ func _rebuild_codex() -> void:
 	var city_cols := (
 		int(gs.journal_known_cities)
 		| int(gs.journal_known_city_moons)
-		| virtues
 		| dungeons
 		| mantras
 		| stones
