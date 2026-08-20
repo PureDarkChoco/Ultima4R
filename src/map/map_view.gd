@@ -5149,6 +5149,10 @@ func _blit_terrain_to(
 	elif tid == TILE_CHEST:
 		## xu4 chest uses replacement floor under transparent margins.
 		_blit_chest_tile(target, dst, 0, _city_map != null)
+	elif tid == TILE_CORPSE:
+		## Some city maps place the lying-down person directly in the terrain
+		## layer. Draw its floor first so the keyed background is transparent.
+		_blit_corpse_tile(target, dst, _city_map != null)
 	elif is_horse_tile(tid):
 		## Parked / terrain horses stay on the standing frame.
 		_U4TileBankScript.blit_to(target, tid, dst, _horse_stand_frame_id(tid))
@@ -5446,6 +5450,22 @@ func _blit_chest_tile(target: Image, dst: Vector2i, frame: int, city_floor: bool
 		target.blend_rect(
 			chest_img,
 			Rect2i(0, 0, chest_img.get_width(), chest_img.get_height()),
+			dst
+		)
+
+
+func _blit_corpse_tile(target: Image, dst: Vector2i, city_floor: bool) -> void:
+	## Floor underlay + border-keyed lying person.
+	var under := TILE_GRASS
+	if city_floor or is_in_dungeon():
+		under = TILE_BRICK_FLOOR
+	_U4TileBankScript.blit_to(target, under, dst, 0)
+	if _corpse_slice == null:
+		_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
+	if _corpse_slice != null:
+		target.blend_rect(
+			_corpse_slice,
+			Rect2i(0, 0, _corpse_slice.get_width(), _corpse_slice.get_height()),
 			dst
 		)
 

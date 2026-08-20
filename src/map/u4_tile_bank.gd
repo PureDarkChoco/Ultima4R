@@ -151,18 +151,42 @@ static func _is_fixed_stone_pixel(c: Color) -> bool:
 
 
 static func keyed_copy(tile_id: int, frame: int = 0) -> Image:
-	## Opaque black → transparent (sprites over terrain).
+	## Only black connected to the tile border is background. Enclosed black
+	## pixels belong to the sprite (eyes, neck gaps, clothing outlines, etc.).
 	var src := image(tile_id, frame)
 	if src == null:
 		return null
 	var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
 	img.blit_rect(src, Rect2i(0, 0, TILE_SIZE, TILE_SIZE), Vector2i.ZERO)
-	for y in TILE_SIZE:
-		for x in TILE_SIZE:
-			var c := img.get_pixel(x, y)
-			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	var queued := PackedByteArray()
+	queued.resize(TILE_SIZE * TILE_SIZE)
+	var pending: Array[Vector2i] = []
+	for x in TILE_SIZE:
+		_queue_border_black(img, Vector2i(x, 0), queued, pending)
+		_queue_border_black(img, Vector2i(x, TILE_SIZE - 1), queued, pending)
+	for y in range(1, TILE_SIZE - 1):
+		_queue_border_black(img, Vector2i(0, y), queued, pending)
+		_queue_border_black(img, Vector2i(TILE_SIZE - 1, y), queued, pending)
+	while not pending.is_empty():
+		var p: Vector2i = pending.pop_back()
+		img.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
+		for step in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			_queue_border_black(img, p + step, queued, pending)
 	return img
+
+
+static func _queue_border_black(
+	img: Image, p: Vector2i, queued: PackedByteArray, pending: Array[Vector2i]
+) -> void:
+	if p.x < 0 or p.y < 0 or p.x >= TILE_SIZE or p.y >= TILE_SIZE:
+		return
+	var i := p.x + p.y * TILE_SIZE
+	if queued[i] != 0:
+		return
+	queued[i] = 1
+	var c := img.get_pixel(p.x, p.y)
+	if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+		pending.append(p)
 
 
 static func stacked_atlas() -> Image:
