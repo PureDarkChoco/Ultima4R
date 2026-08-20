@@ -13,7 +13,8 @@ const GEM_VIEW_H := 33
 const GEM_VIEW_W := 59
 ## Explore tiles are slightly tall (MapView.TILE_ASPECT 9:10).
 const TILE_ASPECT := 9.0 / 10.0
-const GEM_CELL := 8
+## Native gem.png / dungeon glyph cell.
+const GEM_CHIP := 8
 ## xu4's dungeon_gem layout is a 22×22 character map.
 const DUNGEON_VIEW_W := 22
 const DUNGEON_VIEW_H := 22
@@ -30,13 +31,11 @@ const DNG_ALTAR := 0xB0
 const DNG_DOOR := 0xC0
 const DNG_ROOM := 0xD0
 const DNG_SECRET := 0xE0
-## Fallback avatar gem id (party #1 class tile preferred when < 128).
+## Fallback avatar id (party #1 class tile preferred).
 const AVATAR_GEM_TILE := 31
 const CLASS_TILE_EVEN := [32, 34, 36, 38, 40, 42, 44, 46]
-## Gem sheet only has 0–127; ghosts etc. still need a visible person chip.
+## Bank miss + id ≥ 128: gem sheet only has 0–127.
 const TILE_CITIZEN := 82
-const TILE_SHIP_WEST := 16
-const TILE_PIRATE := 128
 const WORLD_W := 256
 const WORLD_H := 256
 const INNER_PAD := 6
@@ -60,6 +59,11 @@ var _tex: ImageTexture
 var _open := false
 var _view_w := GEM_VIEW_W
 var _view_h := GEM_VIEW_H
+## Buffer pixels per map cell (game tile aspect; window/Retina density).
+var _cell_w := GEM_CHIP
+var _cell_h := GEM_CHIP
+var _scaled_chips: Array = []
+var _scaled_chip_size := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -83,9 +87,8 @@ func open_peer(
 ) -> void:
 	if world == null or not world.loaded:
 		return
-	_ensure_buffers(GEM_VIEW_W, GEM_VIEW_H)
+	_begin_view(GEM_VIEW_W, GEM_VIEW_H, tile_size)
 	_blit_gem_map(world, center, map_view)
-	_layout_panel(tile_size)
 	_set_loc_text(loc_text)
 	_open = true
 	visible = true
@@ -101,9 +104,8 @@ func open_peer_city(
 	## Town gem: terrain + residents. Party chip when `party_pos` is set.
 	if city == null or not city.loaded:
 		return
-	_ensure_buffers(GEM_VIEW_W, GEM_VIEW_H)
+	_begin_view(GEM_VIEW_W, GEM_VIEW_H, tile_size)
 	_blit_gem_city(city, party_pos)
-	_layout_panel(tile_size)
 	_set_loc_text(loc_text)
 	_open = true
 	visible = true
@@ -120,9 +122,8 @@ func open_peer_dungeon(
 	## walls are drawn at its edge, but the search never continues through them.
 	if dungeon == null or not dungeon.loaded:
 		return
-	_ensure_buffers(DUNGEON_VIEW_W, DUNGEON_VIEW_H)
+	_begin_view(DUNGEON_VIEW_W, DUNGEON_VIEW_H, tile_size)
 	_blit_gem_dungeon(dungeon, center, level)
-	_layout_panel(tile_size)
 	_set_loc_text("")
 	_open = true
 	visible = true
@@ -201,11 +202,18 @@ func _load_gem_sheet() -> void:
 		_gem_sheet.convert(Image.FORMAT_RGBA8)
 
 
+func _begin_view(view_w: int, view_h: int, tile_size: Vector2) -> void:
+	_view_w = view_w
+	_view_h = view_h
+	_layout_panel(tile_size)
+	_ensure_buffers(view_w, view_h)
+
+
 func _ensure_buffers(view_w: int, view_h: int) -> void:
 	_view_w = view_w
 	_view_h = view_h
-	var px_w := view_w * GEM_CELL
-	var px_h := view_h * GEM_CELL
+	var px_w := view_w * _cell_w
+	var px_h := view_h * _cell_h
 	if _buf != null and _buf.get_width() == px_w and _buf.get_height() == px_h:
 		return
 	_buf = Image.create(px_w, px_h, false, Image.FORMAT_RGBA8)
@@ -215,7 +223,7 @@ func _ensure_buffers(view_w: int, view_h: int) -> void:
 
 
 func _party_gem_tile() -> int:
-	## Party #1 walk sprite on the gem sheet when available.
+	## Party #1 walk sprite (in-game shape, downscaled onto the gem).
 	var klass := GameState.party_leader_class()
 	if klass >= 0 and klass < CLASS_TILE_EVEN.size():
 		var tid: int = CLASS_TILE_EVEN[klass]
@@ -247,7 +255,7 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i, map_view = null) -> vo
 		if map_view.has_method("get_creatures"):
 			for c in map_view.get_creatures():
 				_blit_world_object(Vector2i(int(c.x), int(c.y)), int(c.tid), center)
-	_blit_gem_cell(half_x, half_y, _party_gem_tile())
+	_blit_gem_actor(half_x, half_y, _party_gem_tile())
 	_tex.update(_buf)
 
 
@@ -295,7 +303,7 @@ func _blit_dungeon_cell(
 	level: int,
 	is_avatar: bool
 ) -> void:
-	var origin := Vector2i(gx * GEM_CELL, gy * GEM_CELL)
+	var origin := Vector2i(gx * _cell_w, gy * _cell_h)
 	var tok: int = dungeon.token_at(map_x, map_y, level)
 	var consumed: bool = dungeon.is_consumed(map_x, map_y, level)
 	if dungeon.looks_like_wall(map_x, map_y, level):
@@ -328,58 +336,78 @@ func _blit_dungeon_cell(
 		_draw_dungeon_avatar(origin)
 
 
+func _dsx(n: int) -> int:
+	return (n * _cell_w) / GEM_CHIP
+
+
+func _dsy(n: int) -> int:
+	return (n * _cell_h) / GEM_CHIP
+
+
+func _dpt(origin: Vector2i, x: int, y: int) -> Vector2i:
+	return origin + Vector2i(_dsx(x), _dsy(y))
+
+
+func _drect(origin: Vector2i, x: int, y: int, w: int, h: int) -> Rect2i:
+	return Rect2i(_dpt(origin, x, y), Vector2i(_dsx(w), _dsy(h)))
+
+
+func _dset(origin: Vector2i, x: int, y: int, c: Color) -> void:
+	_buf.fill_rect(_drect(origin, x, y, 1, 1), c)
+
+
 func _draw_dungeon_floor(origin: Vector2i) -> void:
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 3), Vector2i(2, 2)), Color(0.18, 0.22, 0.28, 1))
+	_buf.fill_rect(_drect(origin, 3, 3, 2, 2), Color(0.18, 0.22, 0.28, 1))
 
 
 func _draw_dungeon_wall(origin: Vector2i) -> void:
-	_buf.fill_rect(Rect2i(origin, Vector2i(8, 8)), Color(0.16, 0.18, 0.22, 1))
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 1), Vector2i(6, 6)), Color(0.48, 0.5, 0.54, 1))
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 1), Vector2i(6, 1)), Color(0.7, 0.72, 0.76, 1))
+	_buf.fill_rect(_drect(origin, 0, 0, 8, 8), Color(0.16, 0.18, 0.22, 1))
+	_buf.fill_rect(_drect(origin, 1, 1, 6, 6), Color(0.48, 0.5, 0.54, 1))
+	_buf.fill_rect(_drect(origin, 1, 1, 6, 1), Color(0.7, 0.72, 0.76, 1))
 
 
 func _draw_dungeon_arrow(origin: Vector2i, up: bool, down: bool) -> void:
 	var c := Color(0.72, 0.9, 1.0, 1)
 	if up:
-		_buf.set_pixelv(origin + Vector2i(3, 1), c)
-		_buf.set_pixelv(origin + Vector2i(4, 1), c)
-		_buf.fill_rect(Rect2i(origin + Vector2i(2, 2), Vector2i(4, 1)), c)
-		_buf.fill_rect(Rect2i(origin + Vector2i(3, 3), Vector2i(2, 2)), c)
+		_dset(origin, 3, 1, c)
+		_dset(origin, 4, 1, c)
+		_buf.fill_rect(_drect(origin, 2, 2, 4, 1), c)
+		_buf.fill_rect(_drect(origin, 3, 3, 2, 2), c)
 	if down:
-		_buf.fill_rect(Rect2i(origin + Vector2i(3, 3 if up else 2), Vector2i(2, 2)), c)
-		_buf.fill_rect(Rect2i(origin + Vector2i(2, 5), Vector2i(4, 1)), c)
-		_buf.set_pixelv(origin + Vector2i(3, 6), c)
-		_buf.set_pixelv(origin + Vector2i(4, 6), c)
+		_buf.fill_rect(_drect(origin, 3, 3 if up else 2, 2, 2), c)
+		_buf.fill_rect(_drect(origin, 2, 5, 4, 1), c)
+		_dset(origin, 3, 6, c)
+		_dset(origin, 4, 6, c)
 
 
 func _draw_dungeon_chest(origin: Vector2i) -> void:
 	var c := Color(0.92, 0.66, 0.18, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 3), Vector2i(6, 4)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(2, 1), Vector2i(4, 2)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 4), Vector2i(2, 2)), Color(0.18, 0.12, 0.05, 1))
+	_buf.fill_rect(_drect(origin, 1, 3, 6, 4), c)
+	_buf.fill_rect(_drect(origin, 2, 1, 4, 2), c)
+	_buf.fill_rect(_drect(origin, 3, 4, 2, 2), Color(0.18, 0.12, 0.05, 1))
 
 
 func _draw_dungeon_hole(origin: Vector2i) -> void:
 	var c := Color(0.66, 0.48, 0.82, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 2), Vector2i(6, 1)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 3), Vector2i(2, 4)), c)
+	_buf.fill_rect(_drect(origin, 1, 2, 6, 1), c)
+	_buf.fill_rect(_drect(origin, 3, 3, 2, 4), c)
 
 
 func _draw_dungeon_orb(origin: Vector2i) -> void:
 	var c := Color(0.66, 0.94, 1.0, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(2, 1), Vector2i(4, 6)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 2), Vector2i(6, 4)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 2), Vector2i(2, 2)), Color.WHITE)
+	_buf.fill_rect(_drect(origin, 2, 1, 4, 6), c)
+	_buf.fill_rect(_drect(origin, 1, 2, 6, 4), c)
+	_buf.fill_rect(_drect(origin, 3, 2, 2, 2), Color.WHITE)
 
 
 func _draw_dungeon_fountain(origin: Vector2i) -> void:
 	var stone := Color(0.62, 0.64, 0.66, 1)
 	var water := Color(0.15, 0.82, 0.95, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 5), Vector2i(6, 2)), stone)
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 2), Vector2i(2, 4)), stone)
-	_buf.set_pixelv(origin + Vector2i(2, 2), water)
-	_buf.set_pixelv(origin + Vector2i(5, 2), water)
-	_buf.fill_rect(Rect2i(origin + Vector2i(2, 4), Vector2i(4, 1)), water)
+	_buf.fill_rect(_drect(origin, 1, 5, 6, 2), stone)
+	_buf.fill_rect(_drect(origin, 3, 2, 2, 4), stone)
+	_dset(origin, 2, 2, water)
+	_dset(origin, 5, 2, water)
+	_buf.fill_rect(_drect(origin, 2, 4, 4, 1), water)
 
 
 func _draw_dungeon_field(origin: Vector2i, subtype: int) -> void:
@@ -392,35 +420,35 @@ func _draw_dungeon_field(origin: Vector2i, subtype: int) -> void:
 	var c: Color = colors[clampi(subtype, 0, colors.size() - 1)]
 	for x in range(1, 7):
 		var y := 5 - absi(x - 3)
-		_buf.set_pixelv(origin + Vector2i(x, y), c)
-		_buf.set_pixelv(origin + Vector2i(x, y + 1), c)
+		_dset(origin, x, y, c)
+		_dset(origin, x, y + 1, c)
 
 
 func _draw_dungeon_altar(origin: Vector2i) -> void:
 	var c := Color(0.92, 0.9, 0.72, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 1), Vector2i(2, 6)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 3), Vector2i(6, 2)), c)
+	_buf.fill_rect(_drect(origin, 3, 1, 2, 6), c)
+	_buf.fill_rect(_drect(origin, 1, 3, 6, 2), c)
 
 
 func _draw_dungeon_door(origin: Vector2i) -> void:
 	var c := Color(0.68, 0.4, 0.2, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 1), Vector2i(6, 1)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(1, 2), Vector2i(1, 6)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(6, 2), Vector2i(1, 6)), c)
+	_buf.fill_rect(_drect(origin, 1, 1, 6, 1), c)
+	_buf.fill_rect(_drect(origin, 1, 2, 1, 6), c)
+	_buf.fill_rect(_drect(origin, 6, 2, 1, 6), c)
 
 
 func _draw_dungeon_secret(origin: Vector2i) -> void:
 	var c := Color(0.75, 0.5, 0.78, 1)
 	for y in range(1, 7, 2):
-		_buf.set_pixelv(origin + Vector2i(1, y), c)
-		_buf.set_pixelv(origin + Vector2i(6, y), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(2, 1), Vector2i(4, 1)), c)
+		_dset(origin, 1, y, c)
+		_dset(origin, 6, y, c)
+	_buf.fill_rect(_drect(origin, 2, 1, 4, 1), c)
 
 
 func _draw_dungeon_avatar(origin: Vector2i) -> void:
 	var c := Color(1.0, 0.16, 0.12, 1)
-	_buf.fill_rect(Rect2i(origin + Vector2i(2, 2), Vector2i(4, 4)), c)
-	_buf.fill_rect(Rect2i(origin + Vector2i(3, 1), Vector2i(2, 6)), Color(1.0, 0.42, 0.26, 1))
+	_buf.fill_rect(_drect(origin, 2, 2, 4, 4), c)
+	_buf.fill_rect(_drect(origin, 3, 1, 2, 6), Color(1.0, 0.42, 0.26, 1))
 
 
 func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
@@ -477,45 +505,64 @@ func _blit_world_object(pos: Vector2i, tile_id: int, center: Vector2i) -> void:
 
 
 func _blit_gem_object(gx: int, gy: int, tile_id: int) -> void:
-	## Wilderness objects: gem chips when possible; else downscale the shape.
-	if tile_id < 0:
-		return
-	if tile_id >= TILE_PIRATE and tile_id < TILE_PIRATE + 4:
-		_blit_gem_cell(gx, gy, TILE_SHIP_WEST + (tile_id - TILE_PIRATE))
-		return
-	if tile_id < 128:
-		_blit_gem_cell(gx, gy, tile_id)
-		return
-	if not U4TileBank.ensure_loaded():
-		_blit_gem_cell(gx, gy, TILE_CITIZEN)
-		return
+	## Wilderness overlays and creatures: same shapes as the explore map.
+	_blit_gem_actor(gx, gy, tile_id)
+
+
+func _blit_bank_chip(gx: int, gy: int, tile_id: int) -> bool:
+	if tile_id < 0 or not U4TileBank.ensure_loaded():
+		return false
 	var img := U4TileBank.keyed_copy(tile_id)
 	if img == null:
-		_blit_gem_cell(gx, gy, TILE_CITIZEN)
-		return
-	img.resize(GEM_CELL, GEM_CELL, Image.INTERPOLATE_NEAREST)
-	_buf.blend_rect(img, Rect2i(0, 0, GEM_CELL, GEM_CELL), Vector2i(gx * GEM_CELL, gy * GEM_CELL))
+		return false
+	img.resize(_cell_w, _cell_h, Image.INTERPOLATE_NEAREST)
+	_buf.blend_rect(
+		img, Rect2i(0, 0, _cell_w, _cell_h), Vector2i(gx * _cell_w, gy * _cell_h)
+	)
+	return true
 
 
 func _blit_gem_actor(gx: int, gy: int, tile_id: int) -> void:
+	## People and party: downscale the in-game shape, not the DOS gem sheet.
+	if tile_id < 0:
+		return
+	if _blit_bank_chip(gx, gy, tile_id):
+		return
 	var tid := tile_id
 	if tid >= 128:
 		tid = TILE_CITIZEN
-	if tid < 0:
-		return
 	_blit_gem_cell(gx, gy, tid)
 
 
 func _blit_gem_cell(gx: int, gy: int, tile_id: int) -> void:
+	var dest := Vector2i(gx * _cell_w, gy * _cell_h)
 	if tile_id < 0 or tile_id >= 128:
 		## xu4: ids ≥ 128 are drawn black on the gem.
-		_buf.fill_rect(
-			Rect2i(gx * GEM_CELL, gy * GEM_CELL, GEM_CELL, GEM_CELL),
-			Color(0, 0, 0, 1)
-		)
+		_buf.fill_rect(Rect2i(dest, Vector2i(_cell_w, _cell_h)), Color(0, 0, 0, 1))
 		return
-	var src := Rect2i(0, tile_id * GEM_CELL, GEM_CELL, GEM_CELL)
-	_buf.blit_rect(_gem_sheet, src, Vector2i(gx * GEM_CELL, gy * GEM_CELL))
+	var chip := _scaled_gem_chip(tile_id)
+	if chip == null:
+		return
+	_buf.blit_rect(chip, Rect2i(0, 0, _cell_w, _cell_h), dest)
+
+
+func _scaled_gem_chip(tile_id: int) -> Image:
+	if _gem_sheet == null or _gem_sheet.is_empty():
+		return null
+	var want := Vector2i(_cell_w, _cell_h)
+	if _scaled_chip_size != want or _scaled_chips.size() != 128:
+		_scaled_chips.clear()
+		_scaled_chips.resize(128)
+		_scaled_chip_size = want
+	if _scaled_chips[tile_id] != null:
+		return _scaled_chips[tile_id]
+	var src := Rect2i(0, tile_id * GEM_CHIP, GEM_CHIP, GEM_CHIP)
+	var chip := Image.create(GEM_CHIP, GEM_CHIP, false, Image.FORMAT_RGBA8)
+	chip.blit_rect(_gem_sheet, src, Vector2i.ZERO)
+	if want.x != GEM_CHIP or want.y != GEM_CHIP:
+		chip.resize(want.x, want.y, Image.INTERPOLATE_NEAREST)
+	_scaled_chips[tile_id] = chip
+	return chip
 
 
 func _set_loc_text(loc_text: String) -> void:
@@ -549,6 +596,25 @@ func _layout_loc_label() -> void:
 	_loc_plate.z_index = 1
 
 
+func _pixel_scale() -> Vector2:
+	## Canvas → screen pixels. UI layout stays 1280×720; the gem buffer uses
+	## the window / Retina density so it is not a 720p bitmap stretched up.
+	var sx := 1.0
+	var sy := 1.0
+	var vp := get_viewport()
+	if vp:
+		var xf := vp.get_screen_transform()
+		sx = absf(xf.x.x)
+		sy = absf(xf.y.y)
+	var win := get_window()
+	if win and (sx < 1.05 and sy < 1.05):
+		var dw := float(maxi(win.content_scale_size.x, 1))
+		var dh := float(maxi(win.content_scale_size.y, 1))
+		sx = maxf(sx, float(maxi(win.size.x, 1)) / dw)
+		sy = maxf(sy, float(maxi(win.size.y, 1)) / dh)
+	return Vector2(maxf(sx, 1.0), maxf(sy, 1.0))
+
+
 func _layout_panel(tile_size: Vector2) -> void:
 	## Fit in the explore pane (one tile margin). Cell aspect matches play tiles.
 	var pane := size
@@ -580,4 +646,7 @@ func _layout_panel(tile_size: Vector2) -> void:
 	inner_h = maxf(inner_h, 8.0)
 	_tex_rect.position = Vector2(BORDER_W + INNER_PAD, BORDER_W + INNER_PAD)
 	_tex_rect.size = Vector2(inner_w, inner_h)
+	var px := _pixel_scale()
+	_cell_w = maxi(1, int(round((inner_w / float(_view_w)) * px.x)))
+	_cell_h = maxi(1, int(round((inner_h / float(_view_h)) * px.y)))
 	_layout_loc_label()

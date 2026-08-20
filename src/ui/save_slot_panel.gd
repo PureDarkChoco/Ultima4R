@@ -63,11 +63,14 @@ var _e_comp := EMBED_COMP_BASE
 var _e_name_w := EMBED_NAME_W_BASE
 var _e_font := EMBED_FONT
 var _e_font_sub := EMBED_FONT_SUB
+## Map-tile width/height (same stretch as explore / roster).
+var _tile_aspect := 9.0 / 10.0
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_tile_aspect = MapView.TILE_ASPECT
 	_build()
 	visible = false
 
@@ -168,6 +171,13 @@ func _snap_rect(r: Rect2) -> Rect2:
 	return Rect2(Vector2(px, py), Vector2(sx, sy))
 
 
+func _icon_size(height: float) -> Vector2:
+	## Explore tile look: 9:10 (slightly tall), not the 25×11 pane stretch.
+	var h := maxf(float(int(round(height))), 8.0)
+	var w := maxf(float(int(round(h * _tile_aspect))), 4.0)
+	return Vector2(w, h)
+
+
 func _apply_presentation() -> void:
 	if _backdrop == null or _panel == null or _center == null:
 		return
@@ -246,12 +256,14 @@ func _embed_content_size() -> Vector2:
 	_e_font_sub = FONT_SIZE_SUB
 
 	var max_comps := EMBED_MAX_PARTY - 1
-	var comps_w := float(max_comps) * _e_comp + float(maxi(0, max_comps - 1)) * EMBED_COMP_SEP
+	var face_sz := _icon_size(_e_face)
+	var comp_sz := _icon_size(_e_comp)
+	var comps_w := float(max_comps) * comp_sz.x + float(maxi(0, max_comps - 1)) * EMBED_COMP_SEP
 	var w := (
 		EMBED_PAD_L
 		+ EMBED_NUM_W
 		+ EMBED_COL_SEP
-		+ _e_face
+		+ face_sz.x
 		+ EMBED_COL_SEP
 		+ _e_name_w
 		+ EMBED_COL_SEP
@@ -280,9 +292,11 @@ func _scale_metrics(embed: bool) -> void:
 		comp = float(int(round(_e_comp)))
 		font = _e_font
 		font_sub = _e_font_sub
+	var face_sz := _icon_size(face)
+	var comp_sz := _icon_size(comp)
 	var max_comps := EMBED_MAX_PARTY - 1
 	var comp_sep := EMBED_COMP_SEP if embed else 3.0
-	var comps_w := float(max_comps) * comp + float(maxi(0, max_comps - 1)) * comp_sep
+	var comps_w := float(max_comps) * comp_sz.x + float(maxi(0, max_comps - 1)) * comp_sep
 	_title.add_theme_font_size_override("font_size", font + 2)
 	if _col:
 		_col.add_theme_constant_override("separation", 0 if embed else 10)
@@ -296,7 +310,8 @@ func _scale_metrics(embed: bool) -> void:
 		else:
 			_rows[i].custom_minimum_size = Vector2(0, row_h)
 			_rows[i].size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		_face_rects[i].custom_minimum_size = Vector2(face, face)
+		_face_rects[i].custom_minimum_size = face_sz
+		_face_rects[i].stretch_mode = TextureRect.STRETCH_SCALE
 		_num_labs[i].custom_minimum_size = Vector2(EMBED_NUM_W if embed else 24.0, 0)
 		_num_labs[i].add_theme_font_size_override("font_size", font)
 		_name_labs[i].add_theme_font_size_override("font_size", font)
@@ -315,7 +330,8 @@ func _scale_metrics(embed: bool) -> void:
 			_comp_wraps[i].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		for ch in _comp_rows[i].get_children():
 			if ch is TextureRect:
-				(ch as TextureRect).custom_minimum_size = Vector2(comp, comp)
+				(ch as TextureRect).custom_minimum_size = comp_sz
+				(ch as TextureRect).stretch_mode = TextureRect.STRETCH_SCALE
 
 
 func _build() -> void:
@@ -430,9 +446,9 @@ func _build() -> void:
 		content.add_child(top)
 
 		var face := TextureRect.new()
-		face.custom_minimum_size = Vector2(FACE_SZ, FACE_SZ)
+		face.custom_minimum_size = _icon_size(FACE_SZ)
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.stretch_mode = TextureRect.STRETCH_SCALE
 		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		top.add_child(face)
@@ -538,7 +554,8 @@ func _fill_companions(index: int, meta: Dictionary) -> void:
 	if typeof(order) != TYPE_ARRAY:
 		return
 	var avatar_klass := int(meta.get("class", -1))
-	var comp_sz := _e_comp if _embedded else COMP_SZ
+	var comp_h := _e_comp if _embedded else COMP_SZ
+	var icon_sz := _icon_size(comp_h)
 	for raw in order as Array:
 		var mid := int(raw)
 		if mid < 0 or mid > 7:
@@ -546,9 +563,9 @@ func _fill_companions(index: int, meta: Dictionary) -> void:
 		if mid == avatar_klass:
 			continue ## Avatar class tile is already on the left.
 		var icon := TextureRect.new()
-		icon.custom_minimum_size = Vector2(comp_sz, comp_sz)
+		icon.custom_minimum_size = icon_sz
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		icon.texture = _class_tile(mid)
