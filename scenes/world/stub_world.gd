@@ -435,6 +435,8 @@ var _talk_reagent_pick := false
 var _talk_npc_gave_name := false
 ## Skara Ankh: OM stays hidden until the "Mantra?" / "만트라?" line.
 var _talk_skara_ankh_om_ready := false
+## Kline-style shrine-entry question this session — then offer heard mantra/rune.
+var _talk_requirements_asked := false
 var _talk_is_hawkwind := false
 var _talk_is_lb := false
 var _shop = null ## _VendorShop session
@@ -5447,6 +5449,90 @@ func _maybe_offer_paws_chain_keyword() -> void:
 			word_key,
 			"말씀" if korean else "Word",
 			"말씀" if korean else "word"
+		)
+
+
+func _talk_requirement_word_groups() -> Array:
+	## Shrine-entry interests: hearing any alias from anyone unlocks the rest.
+	return [
+		PackedStringArray(["만트라", "mantra", "mant"]),
+		PackedStringArray(["룬", "rune"]),
+	]
+
+
+func _talk_npc_has_requirement_topic(stem: String) -> bool:
+	if _talk_entry == null:
+		return false
+	var npc := str(_talk_entry.name).strip_edges()
+	var city := _talk_city_id()
+	for t in [str(_talk_entry.topic1), str(_talk_entry.topic2)]:
+		if _TalkLocale.match_topic_alias(t, stem, npc, city):
+			return true
+		if _TalkLocale.match_topic_alias(stem, t, npc, city):
+			return true
+	for raw in _talk_keywords:
+		if _talk_words_are_same_topic(str(raw), stem):
+			return true
+	return false
+
+
+func _remember_heard_requirement_words(text: String) -> void:
+	## Any speaker mentioning mantra/rune — remember globally for later NPCs.
+	if text.is_empty():
+		return
+	for group in _talk_requirement_word_groups():
+		var heard := false
+		for stem in group:
+			if _TalkTlk.keyword_first_index(text, str(stem)) >= 0:
+				heard = true
+				break
+		if not heard:
+			continue
+		for stem in group:
+			_persist_talk_heard_word(str(stem))
+
+
+func _talk_question_is_shrine_entry_requirements() -> bool:
+	## Kline: "Know ye the two requirements to enter and use the shrine?"
+	if _talk_entry == null:
+		return false
+	var raw := str(_talk_entry.question)
+	var shown := _TalkTlk.present_script(raw)
+	var blob := (raw + "\n" + shown).to_lower().replace("\n", "").replace(" ", "")
+	if blob.contains("입장요건") or blob.contains("입장조건"):
+		return true
+	var spaced := (raw + " " + shown).to_lower().replace("\n", " ")
+	return spaced.contains("requirement") and spaced.contains("shrine")
+
+
+func _maybe_offer_heard_requirement_keywords() -> void:
+	## After the shrine-entry question: if this NPC has mantra/rune and they were heard.
+	if _talk_entry == null:
+		return
+	var korean := GameState.lang_short() == "ko"
+	for group in _talk_requirement_word_groups():
+		var heard := false
+		var npc_has := false
+		var label := ""
+		for stem_raw in group:
+			var stem := str(stem_raw)
+			if _talk_has_heard_interest(stem):
+				heard = true
+			if _talk_npc_has_requirement_topic(stem):
+				npc_has = true
+			if korean and _TalkLocale.word_has_hangul(stem):
+				label = stem
+			elif not korean and not _TalkLocale.word_has_hangul(stem) and stem.length() > 3:
+				label = stem
+		if not heard or not npc_has:
+			continue
+		if label.is_empty():
+			label = str(group[0])
+		var display := label if korean else label.capitalize()
+		_offer_talk_keyword_item(
+			_talk_keyword_stable_key(label),
+			display,
+			label
 		)
 
 
@@ -15542,6 +15628,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_reagent_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
+	_talk_requirements_asked = false
 	_talk_keywords = entry.highlight_keywords(_talk_city_id())
 	_begin_talk_keyword_menu_if_requested()
 	_city_map.pause_follow(person_i)
@@ -15664,6 +15751,7 @@ func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
 	if flat.is_empty():
 		return
 	if match_keywords:
+		_remember_heard_requirement_words(flat)
 		_discover_talk_keywords(flat)
 	## Ensure geometry before measuring wrap width (first line of a talk).
 	if _msg_rw < 8.0 or (_msg_block != null and _msg_block.size.x < 8.0):
@@ -16404,6 +16492,8 @@ func _talk_prompt_interest() -> void:
 	_talk_buffer = ""
 	_reset_talk_hangul()
 	_talk_pending_ask = false
+	if _talk_requirements_asked:
+		_maybe_offer_heard_requirement_keywords()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
 	_sync_talk_ime_edit()
@@ -16445,6 +16535,9 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes:
 		_maybe_offer_azure_sacrifice_keyword()
 		_maybe_offer_den_prompt_keywords()
+		if _talk_question_is_shrine_entry_requirements():
+			_talk_requirements_asked = true
+			_maybe_offer_heard_requirement_keywords()
 	if _TalkTlk.apply_yesno_rewards(e, yes):
 		if GameState.all_spells_known():
 			_push_talk_learned_all_reagent_mix()
@@ -16922,6 +17015,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_reagent_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
+	_talk_requirements_asked = false
 	_talk_is_hawkwind = false
 	_talk_is_lb = false
 	_shop = null
