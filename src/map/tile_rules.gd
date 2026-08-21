@@ -252,6 +252,19 @@ static func is_secret_door(tile_id: int) -> bool:
 	return clampi(tile_id, 0, 255) == 73
 
 
+static func can_attack_over(tile_id: int) -> bool:
+	## xu4 Tile::canAttackOver — walk / swim / sail, or MASK_ATTACKOVER.
+	## Walls, columns, masts, rocks, doors, mountains, energy fields: false.
+	## Watersides (49–52) and white_solid (72) keep canattackover: true.
+	if is_walkable(tile_id) or is_swimable(tile_id) or is_sailable(tile_id):
+		return true
+	match clampi(tile_id, 0, 255):
+		49, 50, 51, 52, 72:
+			return true
+		_:
+			return false
+
+
 static func can_talk_over(tile_id: int) -> bool:
 	## xu4 rule `signs` talkover:true — A–Z letters + space (tile 96..122).
 	## Shop counters are painted with these; path can reach a vendor one step beyond.

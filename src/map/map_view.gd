@@ -373,6 +373,12 @@ var _combat_last_fled: Dictionary = {}
 var _combat_aim_pos := Vector2i(-1, -1)
 var _combat_aim_cursor: Image
 const COMBAT_AIM_CURSOR_PATH := "res://assets/ui/combat/target_cursor.png"
+## Out-of-range overlay while Attack aim is open (50% black).
+const COMBAT_RANGE_SHADE := Color(0, 0, 0, 0.5)
+var _combat_range_shade := false
+var _combat_range_from := Vector2i.ZERO
+var _combat_range_weapon := 0
+var _combat_range_shade_img: Image
 ## Combat-local tile flashes: { x, y, tid, left } in .CON coords.
 var _combat_tile_flashes: Array[Dictionary] = []
 ## Ranged weapon missile in combat-local float tile space (tile centers).
@@ -893,6 +899,7 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
 	_combat_aim_pos = Vector2i(-1, -1)
+	_combat_range_shade = false
 	_combat_tile_flashes.clear()
 	_combat_proj.clear()
 	_ensure_combat_aim_cursor()
@@ -1007,6 +1014,7 @@ func exit_combat() -> void:
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
 	_combat_aim_pos = Vector2i(-1, -1)
+	_combat_range_shade = false
 	_combat_tile_flashes.clear()
 	_combat_proj.clear()
 	_rebuild()
@@ -1178,9 +1186,44 @@ func get_combat_aim_cursor() -> Vector2i:
 	return _combat_aim_pos
 
 
+func set_combat_range_shade(from: Vector2i, weapon_id: int) -> void:
+	## Dim tiles the current weapon cannot reach. weapon_id < 0 clears (spell aim).
+	if weapon_id < 0:
+		clear_combat_range_shade()
+		return
+	_combat_range_shade = true
+	_combat_range_from = from
+	_combat_range_weapon = weapon_id
+	if _combat_map != null:
+		_rebuild()
+
+
+func clear_combat_range_shade() -> void:
+	if not _combat_range_shade:
+		return
+	_combat_range_shade = false
+	if _combat_map != null:
+		_rebuild()
+
+
+func combat_can_aim_tile(pos: Vector2i) -> bool:
+	## Confirm-attack cells: floor / water, or any tile a unit already occupies.
+	## Empty walls, rocks, columns, and doors cannot be struck (no corporeal
+	## monster can stand there). Cursor movement may still pass through.
+	if _combat_map == null or not _combat_in_bounds(pos):
+		return false
+	if combat_foe_index_at(pos) >= 0 or combat_party_index_at(pos) >= 0:
+		return true
+	var tid := int(_combat_map.tile_at(pos.x, pos.y))
+	return (
+		_TileRulesCamp.is_walkable(tid)
+		or _TileRulesCamp.is_swimable(tid)
+		or _TileRulesCamp.is_sailable(tid)
+	)
+
+
 func combat_can_strike(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
-	## In-range cells are always aimable (incl. walls / future secret tiles).
-	## Obstacles only stop the traveling projectile — they do not shade or forbid aim.
+	## Range check only. Terrain blocking is combat_can_aim_tile / projectile stop.
 	return _WeaponIconsScript.aim_strike_allows(weapon_id, from, to)
 
 
@@ -4178,6 +4221,7 @@ func _rebuild_combat() -> void:
 	_paint_combat_chests(origin_x, origin_y)
 	_paint_combat_foes(origin_x, origin_y)
 	_paint_combat_party(origin_x, origin_y)
+	_paint_combat_range_shade(origin_x, origin_y)
 	_paint_combat_focus(origin_x, origin_y)
 	_paint_combat_tile_flashes(origin_x, origin_y)
 	_paint_combat_projectile(origin_x, origin_y)
@@ -4343,6 +4387,38 @@ func _ensure_combat_aim_cursor() -> void:
 	if _combat_aim_cursor != null and not _combat_aim_cursor.is_empty():
 		return
 	_combat_aim_cursor = _load_image_path(COMBAT_AIM_CURSOR_PATH)
+
+
+func _ensure_combat_range_shade_img() -> void:
+	if _combat_range_shade_img != null and not _combat_range_shade_img.is_empty():
+		return
+	_combat_range_shade_img = Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
+	_combat_range_shade_img.fill(COMBAT_RANGE_SHADE)
+
+
+func _paint_combat_range_shade(origin_x: int, origin_y: int) -> void:
+	## 50% black on combat tiles outside this weapon's cursor range.
+	if not _combat_range_shade:
+		return
+	_ensure_combat_range_shade_img()
+	if _combat_range_shade_img == null:
+		return
+	for cy in CAMP_H:
+		for cx in CAMP_W:
+			var cell := Vector2i(cx, cy)
+			if _WeaponIconsScript.aim_cursor_allows(
+				_combat_range_weapon, _combat_range_from, cell
+			):
+				continue
+			var sx := origin_x + cx
+			var sy := origin_y + cy
+			if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+				continue
+			_buf.blend_rect(
+				_combat_range_shade_img,
+				Rect2i(0, 0, TILE_SRC, TILE_SRC),
+				_tile_px(sx, sy)
+			)
 
 
 func _paint_combat_aim_cursor(origin_x: int, origin_y: int) -> void:

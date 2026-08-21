@@ -10010,7 +10010,7 @@ func _finish_cast_aim_spell() -> void:
 		return
 	var target := _combat_aim_pos
 	var from := _combat_aim_from
-	if target == from:
+	if target == from or not _map.combat_can_aim_tile(target):
 		_push_message(Locale.t("cmd_cannot_attack"), false)
 		_layout_prompt_row()
 		return
@@ -17112,6 +17112,7 @@ func _combat_clear_aim_state() -> void:
 	_combat_foe_dmg.clear()
 	if _map:
 		_map.clear_combat_aim_cursor()
+		_map.clear_combat_range_shade()
 	_sync_combat_aim_foe_roster()
 
 
@@ -17846,6 +17847,7 @@ func _combat_begin_aim() -> void:
 		false
 	)
 	if _map:
+		_map.set_combat_range_shade(from, wid)
 		_map.set_combat_aim_cursor(_combat_aim_pos)
 	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
@@ -17918,6 +17920,7 @@ func _combat_cancel_aim() -> void:
 	_reset_hold_state()
 	if _map:
 		_map.clear_combat_aim_cursor()
+		_map.clear_combat_range_shade()
 	_sync_combat_aim_foe_roster()
 	_push_message(Locale.t("cmd_cancelled"), false)
 	_layout_prompt_row()
@@ -17943,7 +17946,7 @@ func _combat_confirm_aim() -> void:
 		return
 	var target := _combat_aim_pos
 	var from := _combat_aim_from
-	if target == from:
+	if target == from or not _map.combat_can_aim_tile(target):
 		_push_message(Locale.t("cmd_cannot_attack"), false)
 		_layout_prompt_row()
 		return
@@ -17953,6 +17956,7 @@ func _combat_confirm_aim() -> void:
 	_reset_hold_state()
 	if _map:
 		_map.clear_combat_aim_cursor()
+		_map.clear_combat_range_shade()
 	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
 	_combat_resolve_attack(klass, wid, from, target)
@@ -18164,6 +18168,8 @@ func _combat_pick_scatter_tile(center: Vector2i, exclude: Vector2i = Vector2i(-9
 			if p.x < 0 or p.y < 0 or p.x >= _CombatMapData.WIDTH or p.y >= _CombatMapData.HEIGHT:
 				continue
 			if p == exclude:
+				continue
+			if _map != null and not _map.combat_can_aim_tile(p):
 				continue
 			opts.append(p)
 	if opts.is_empty():
