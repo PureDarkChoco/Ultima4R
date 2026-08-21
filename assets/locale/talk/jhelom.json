@@ -131,7 +131,7 @@
         "look": "상처 입은 전사다!",
         "job": "던전을 탐색하오!",
         "health": "좋지 않소.",
-        "response1": "던전 ‘{destard}’에서\n떨어졌소.",
+        "response1": "{destard} 던전에서\n떨어졌소.",
         "response2": "그 제단에서는\n연결된 던전에서\n찾은 돌을\n쓰시오!",
         "question": "제단의 방을\n찾았소?",
         "yes": "{covetous}의 던전·\n{shame}의 던전·\n{hythloth} 던전과\n연결되오!",
@@ -311,7 +311,7 @@
         "response2": "제단 위에\n있소!",
         "question": "가지고 있소?",
         "yes": "그래서 못 찾았군!",
-        "no": "던전 {destard}에\n있소!",
+        "no": "{destard} 던전에\n있소!",
         "topic1": "던전",
         "topic1_aliases": [
           "dungeon",

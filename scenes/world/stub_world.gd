@@ -19707,6 +19707,10 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if GameState.journal_try_capture_talk(place, npc, topic):
 		refresh = true
 	var npc_key := npc.strip_edges().to_lower()
+	## Sailor Sam (Trinsic): sextant clue also unlocks the word for later pubs.
+	if place == "trinsic" and npc_key == "sailor sam" and topic == "SEXT":
+		GameState.talk_remember_heard_word("sextant")
+		GameState.talk_remember_heard_word("육분의")
 	## Manual → Zorin: any talk with Zorin completes the Way of the Avatar tip.
 	if place == "lcb" and npc_key == "zorin":
 		if _maybe_complete_manual_zorin_tip():

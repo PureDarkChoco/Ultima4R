@@ -952,7 +952,7 @@
       "goal": "stone:red",
       "know": ["stone:red", "dungeon:destard"],
       "en": "Search for the red stone in the dungeon of {destard}.",
-      "ko": "{destard}의 던전에서 빨간 돌 찾기",
+      "ko": "{destard} 던전에서 빨간 돌 찾기",
       "en_u4": "Search for the red stone in the dungeon of {destard}.",
       "en_us": "Search for the red stone in the dungeon of {destard}."
     },
@@ -1292,6 +1292,26 @@
       "en_us": "Honor mantra: SUMM"
     },
     {
+      "id": "trinsic.sailor-sam.jhelom-sextant",
+      "place": "trinsic",
+      "npc": "Sailor Sam",
+      "topic": "SEXT",
+      "chain": "trinsic.sextant",
+      "chain_order": 10,
+      "goal": "ask:barkeep-sextant",
+      "complete_if_recorded": [
+        "jhelom.senora.sextant",
+        "jhelom.celestial.guild-sextant"
+      ],
+      "complete_on_goal": "item:sextant",
+      "speaker_en": "Sailor Sam",
+      "speaker_ko": "선원 샘",
+      "en": "Ask of sextants at the pub in {jhelom}.",
+      "ko": "{jhelom} 술집에서 육분의에 대해 묻기",
+      "en_u4": "Go to the pub in {jhelom} and ask of sextants.",
+      "en_us": "Ask about sextants at the pub in {jhelom}."
+    },
+    {
       "id": "trinsic.swindrik.folley-mandrake",
       "place": "trinsic",
       "npc": "Swindrik",
@@ -1380,7 +1400,7 @@
       "speaker_en": "the Ankh of Spirituality",
       "speaker_ko": "영성의 앙크",
       "en": "Enter the shrine of Spirituality through the full-moon gate.",
-      "ko": "보름달 문으로 영성 사원에 들어가기",
+      "ko": "보름달 문으로 영성의 사원에 들어가기",
       "en_u4": "Enter the shrine of Spirituality through the gate of full moons.",
       "en_us": "Enter the shrine of Spirituality through the full-moon gate."
     },
@@ -1785,7 +1805,7 @@
       "chain_order": 20,
       "goal": "",
       "en": "{abyss} entrance: meditate at the shrines of Honesty, Compassion and Valor for 3 cycles.",
-      "ko": "{abyss} 입장: 정직·연민·용맹 사원에서 세 주기 명상하라."
+      "ko": "{abyss} 입장: 정직·연민·용맹의 사원에서 세 주기 명상하라."
     },
     {
       "id": "cove.blissful.ankh-chamber",
