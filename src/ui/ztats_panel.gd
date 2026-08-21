@@ -878,7 +878,7 @@ func _keyed_gear_texture(tex: Texture2D) -> Texture2D:
 			if key_white:
 				if c.r > 0.92 and c.g > 0.92 and c.b > 0.92:
 					img.set_pixel(x, y, Color(0, 0, 0, 0))
-			elif c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
+			elif c.a > 0.01 and c.r == 0.0 and c.g == 0.0 and c.b == 0.0:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return ImageTexture.create_from_image(img)
 
