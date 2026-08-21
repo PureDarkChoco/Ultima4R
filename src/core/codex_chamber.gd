@@ -36,10 +36,16 @@ static func question_key(stage: int) -> String:
 	return QUESTION_KEYS[i]
 
 
-static func frame_path(stage: int) -> String:
-	## Show the symbol that belongs to this question (1..11), keep 11 for Infinity.
-	var frame := clampi(stage, 1, 11)
-	return "res://assets/ui/codex/end_%02d.png" % frame
+static func revealed_frame(stage: int) -> int:
+	## Asking stage N shows the symbol earned by the previous answers.
+	## Stage 1 (first question) is a black chamber — end_01 after honesty.
+	return clampi(stage - 1, 0, 11)
+
+
+static func frame_path(revealed: int) -> String:
+	if revealed <= 0:
+		return ""
+	return "res://assets/ui/codex/end_%02d.png" % clampi(revealed, 1, 11)
 
 
 static func answer_ok(stage: int, typed: String) -> bool:

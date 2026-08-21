@@ -6709,13 +6709,31 @@ func _ensure_peer_overlay() -> void:
 
 
 func _ensure_codex_overlay() -> void:
-	if _codex_overlay != null or _map_pane == null:
+	if _map_pane == null:
 		return
-	_codex_overlay = _CodexChamberOverlay.new()
-	_codex_overlay.name = "CodexChamberOverlay"
-	_map_pane.add_child(_codex_overlay)
-	## Sit above the map, under side panels / dialogue / command menu.
-	_map_pane.move_child(_codex_overlay, 1)
+	if _codex_overlay == null or not is_instance_valid(_codex_overlay):
+		_codex_overlay = _CodexChamberOverlay.new()
+		_codex_overlay.name = "CodexChamberOverlay"
+		_map_pane.add_child(_codex_overlay)
+	_restack_codex_overlay()
+
+
+func _restack_codex_overlay() -> void:
+	## Sit immediately above MapView; Left/Right panes stay later → on top.
+	if _codex_overlay == null or _map_pane == null or _map == null:
+		return
+	if _codex_overlay.get_parent() != _map_pane:
+		return
+	var idx := _map.get_index() + 1
+	_map_pane.move_child(_codex_overlay, clampi(idx, 0, _map_pane.get_child_count() - 1))
+	if _right_bottom != null:
+		_right_bottom.move_to_front()
+	if _left_pane != null:
+		_left_pane.move_to_front()
+	if _right_top != null:
+		_right_top.move_to_front()
+	if _command_menu_layer != null and _command_menu_layer.visible:
+		_command_menu_layer.move_to_front()
 
 
 func _layout_codex_overlay() -> void:
@@ -6727,15 +6745,7 @@ func _layout_codex_overlay() -> void:
 	var pane_h := float(g["pane_h"])
 	var view_w := maxf(right - left, 8.0)
 	_codex_overlay.layout_in_map_view(Rect2(left, 0.0, view_w, pane_h))
-	## Keep the symbol under the dialogue / keyword list.
-	if _right_bottom != null:
-		_right_bottom.move_to_front()
-	if _left_pane != null:
-		_left_pane.move_to_front()
-	if _right_top != null:
-		_right_top.move_to_front()
-	if _command_menu_layer != null and _command_menu_layer.visible:
-		_command_menu_layer.move_to_front()
+	_restack_codex_overlay()
 
 
 func _is_option_alt_key(event: InputEvent) -> bool:
@@ -13617,6 +13627,7 @@ func _show_codex_stage() -> void:
 	if _codex_overlay != null:
 		_codex_overlay.show_stage(_codex_stage)
 		_layout_codex_overlay()
+		call_deferred("_layout_codex_overlay")
 	_push_message(Locale.t("cmd_codex_voice"), false)
 	var qkey := _CodexChamber.question_key(_codex_stage)
 	if not qkey.is_empty():
@@ -20414,10 +20425,21 @@ func _msg_gear_icon_side(font_sz: int) -> int:
 
 
 func _wrap_msg_text(text: String) -> PackedStringArray:
-	## Soft-wrap to the full message pane width (prefer spaces).
+	## Hard breaks (`\n` in locale strings) are history rows. Then soft-wrap.
 	var out: PackedStringArray = PackedStringArray()
 	if text.is_empty():
 		return out
+	var normalized := text.replace("\r\n", "\n").replace("\r", "\n")
+	for para in normalized.split("\n"):
+		if para.is_empty():
+			continue
+		out.append_array(_wrap_msg_paragraph(para))
+	return out
+
+
+func _wrap_msg_paragraph(text: String) -> PackedStringArray:
+	## Soft-wrap one paragraph to the message pane width (prefer spaces).
+	var out: PackedStringArray = PackedStringArray()
 	var max_w := _msg_line_max_width()
 	var font := UiTheme.font()
 	var font_sz := _msg_font_size()
