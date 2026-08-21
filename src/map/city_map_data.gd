@@ -558,6 +558,10 @@ func is_vendor_at(person_i: int) -> bool:
 	return _CityNpcRoles.is_vendor(role_at(person_i))
 
 
+func is_shop_like_at(person_i: int) -> bool:
+	return _CityNpcRoles.is_shop_like(role_at(person_i))
+
+
 func load_from_path(path: String) -> bool:
 	clear()
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -759,6 +763,9 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 			person_move[i] = MOVE_FOLLOW
 			return false
 		MOVE_WANDER:
+			## Stay put when the party just stepped (or already stands) in talk reach.
+			if _shopkeeper_holds_for_avatar(i, avatar):
+				return false
 			## Town: 50% stay put (world map always moves — not used here).
 			if (randi() % 2) != 0:
 				return false
@@ -801,6 +808,32 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 
 	persons[i] = Vector3i(next.x, next.y, int(persons[i].z))
 	return true
+
+
+func _shopkeeper_holds_for_avatar(i: int, avatar: Vector2i) -> bool:
+	## Any shop NPC in front of the party (adjacent, or one talk-over counter away) stays.
+	if i < 0 or i >= persons.size():
+		return false
+	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
+	var dx := pos.x - avatar.x
+	var dy := pos.y - avatar.y
+	if dx != 0 and dy != 0:
+		return false
+	var dist := absi(dx) + absi(dy)
+	var across_counter := false
+	if dist == 2:
+		var mid := avatar + Vector2i(signi(dx), signi(dy))
+		var mid_i := person_index_at(mid.x, mid.y)
+		var cell_tid := (
+			int(persons[mid_i].z) if mid_i >= 0 else int(effective_tile_at(mid.x, mid.y))
+		)
+		across_counter = _TileRules.can_talk_over(cell_tid)
+		if not across_counter:
+			return false
+	elif dist != 1:
+		return false
+	## Tagged vendors / LB / Hawkwind, or anyone standing behind a shop counter.
+	return across_counter or is_shop_like_at(i)
 
 
 func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2i]:
