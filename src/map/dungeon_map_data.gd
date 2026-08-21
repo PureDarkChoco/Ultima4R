@@ -4,6 +4,8 @@ extends RefCounted
 ## Ultima IV .DNG — 8×8×8 corridor maps + 256-byte room records (16 / Abyss 64).
 ## Prefer preload over bare class_name types (stale global class cache).
 
+const _TileRules := preload("res://src/map/tile_rules.gd")
+
 const WIDTH := 8
 const HEIGHT := 8
 const LEVELS := 8
@@ -274,10 +276,11 @@ func room_index_at(x: int, y: int, z: int) -> int:
 	var v := raw_at(x, y, z)
 	if token(v) != TOK_ROOM:
 		return -1
-	var sub := subtoken(v)
+	var sub := subtoken(v) & 0x0F
 	if is_abyss:
-		## 8 rooms per level: even floors use 0–7, odd floors 8–15.
-		return clampi(z, 0, 7) * 8 + (sub & 7)
+		## xu4: 16 rooms per two floors. Token 0xD* (* == 0–15); levels 1–2
+		## use rooms 0–15, 3–4 use 16–31, and so on.
+		return (0x10 * int(clampi(z, 0, 7) / 2)) + sub
 	return sub
 
 
@@ -381,9 +384,14 @@ func _set_room_party_start(
 
 func _apply_xu4_room_fixups() -> void:
 	## xu4 maploader.cpp repairs invalid DOS Hythloth room starts and the
-	## connected room geometry they depend on.
-	if dungeon_id != "hythloth":
-		return
+	## connected room geometry they depend on. Then every dungeon fills
+	## leftover NULL / wall-stacked party starts so any used door works.
+	if dungeon_id == "hythloth":
+		_apply_hythloth_room_fixups()
+	_repair_invalid_party_starts()
+
+
+func _apply_hythloth_room_fixups() -> void:
 	_set_room_party_start(
 		7,
 		DIR_E,
@@ -435,6 +443,124 @@ func _apply_xu4_room_fixups() -> void:
 			tiles[pos.y * ROOM_MAP_W + pos.x] = int(replacements[pos])
 		room["tiles"] = tiles
 	rooms[9] = room
+
+
+func _room_cell_walkable(tiles: PackedByteArray, pos: Vector2i) -> bool:
+	if pos.x < 0 or pos.y < 0 or pos.x >= ROOM_MAP_W or pos.y >= ROOM_MAP_H:
+		return false
+	if tiles.size() < ROOM_MAP_COUNT:
+		return false
+	return _TileRules.is_walkable(int(tiles[pos.y * ROOM_MAP_W + pos.x]))
+
+
+func _party_start_is_invalid(xs: Array, ys: Array, tiles: PackedByteArray) -> bool:
+	if xs.size() < AREA_PLAYERS or ys.size() < AREA_PLAYERS:
+		return true
+	var all_origin := true
+	var blocked := 0
+	for i in AREA_PLAYERS:
+		var pos := Vector2i(int(xs[i]), int(ys[i]))
+		if pos != Vector2i.ZERO:
+			all_origin = false
+		if not _room_cell_walkable(tiles, pos):
+			blocked += 1
+	return all_origin or blocked >= 6
+
+
+func _party_start_search_cells(dir: int) -> Array[Vector2i]:
+	var across: Array[int] = [5, 4, 6, 3, 7, 2, 8, 1, 9, 0, 10]
+	var out: Array[Vector2i] = []
+	match posmod(dir, 4):
+		DIR_N:
+			for y in range(0, 6):
+				for x in across:
+					out.append(Vector2i(x, y))
+		DIR_S:
+			for y in range(10, 4, -1):
+				for x in across:
+					out.append(Vector2i(x, y))
+		DIR_E:
+			for x in range(10, 4, -1):
+				for y in across:
+					out.append(Vector2i(x, y))
+		_:
+			for x in range(0, 6):
+				for y in across:
+					out.append(Vector2i(x, y))
+	return out
+
+
+func _synthesize_party_start(tiles: PackedByteArray, dir: int) -> Dictionary:
+	var xs: Array[int] = []
+	var ys: Array[int] = []
+	var seen: Dictionary = {}
+	for pos in _party_start_search_cells(dir):
+		if seen.has(pos) or not _room_cell_walkable(tiles, pos):
+			continue
+		seen[pos] = true
+		xs.append(pos.x)
+		ys.append(pos.y)
+		if xs.size() >= AREA_PLAYERS:
+			break
+	if xs.is_empty():
+		for i in AREA_PLAYERS:
+			xs.append(5)
+			ys.append(5)
+	while xs.size() < AREA_PLAYERS:
+		xs.append(xs[xs.size() - 1])
+		ys.append(ys[ys.size() - 1])
+	return {"x": xs, "y": ys}
+
+
+func _used_entry_dir_mask(room_index: int) -> int:
+	## Sides from which a corridor (or other non-wall) actually meets this room.
+	## Reads `levels` directly — `raw_at` still returns walls until `loaded`.
+	var mask := 0
+	if levels.size() < LEVELS:
+		return 0
+	for z in LEVELS:
+		var level: PackedByteArray = levels[z]
+		if level.size() < LEVEL_BYTES:
+			continue
+		for y in HEIGHT:
+			for x in WIDTH:
+				var v := int(level[y * WIDTH + x])
+				if token(v) != TOK_ROOM:
+					continue
+				var idx := subtoken(v) & 0x0F
+				if is_abyss:
+					idx = (0x10 * int(z / 2)) + idx
+				if idx != room_index:
+					continue
+				for dir in 4:
+					var n: Vector2i = neighbor(x, y, dir)
+					var nv := int(level[n.y * WIDTH + n.x])
+					if token(nv) != TOK_WALL:
+						mask |= 1 << dir
+	return mask
+
+
+func _repair_invalid_party_starts() -> void:
+	for i in rooms.size():
+		var room: Dictionary = rooms[i]
+		var tiles: PackedByteArray = room.get("tiles", PackedByteArray())
+		var party: Dictionary = room.get("party", {})
+		var used := _used_entry_dir_mask(i)
+		var changed := false
+		for dir in 4:
+			if (used & (1 << dir)) == 0:
+				continue
+			var side: Dictionary = party.get(dir, {})
+			var xs: Array = side.get("x", [])
+			var ys: Array = side.get("y", [])
+			if not _party_start_is_invalid(xs, ys, tiles):
+				continue
+			party[dir] = _synthesize_party_start(tiles, dir)
+			changed = true
+		if not changed:
+			continue
+		room["party"] = party
+		rooms[i] = room
 
 
 func _room_has_tile(tiles: PackedByteArray, tid: int) -> bool:
