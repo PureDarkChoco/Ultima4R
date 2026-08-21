@@ -366,6 +366,13 @@ const LINES := {
 		"이봐 친구! 이 늙은\n%s에게서 사고 싶은가?\n\n%s 말하길: %s에 온 걸 환영하네.\n내 물건을 보겠나? (Y/N)",
 	"%s says: Good Mate!\nYa see I gots:\nA-Torches\nB-Magic Gems\nC-Magic Keys\nWat'l it be?":
 		"%s 말하길: 좋은 친구!\n내게 있네:\nA-횃불\nB-마법 보석\nC-마법 열쇠\n뭘로 하지?",
+	"%s says: Good Mate!\nYa see I gots:":
+		"%s 말하길: 좋은 친구!\n내게 있네:",
+	"A-Torches": "A-횃불",
+	"B-Magic Gems": "B-마법 보석",
+	"C-Magic Keys": "C-마법 열쇠",
+	"D-Sextant": "D-육분의",
+	"Wat'l it be?": "뭘로 하지?",
 	"I can give ya 5 long lasting Torches for a mere 50gp.":
 		"오래가는 횃불 5개를 겨우 50gp에 주지.",
 	"I've got magical mapping Gems, 5 for only 60gp.":

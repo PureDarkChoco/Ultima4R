@@ -15132,9 +15132,13 @@ func _sync_shop_item_menu() -> void:
 		_refresh_message_view()
 		return
 	_shop_item_menu_cursor = 0
-	if not previous_key.is_empty():
+	var prefer := str(_shop.preferred_item_key).strip_edges() if _shop != null else ""
+	if _shop != null:
+		_shop.preferred_item_key = ""
+	var want := prefer if not prefer.is_empty() else previous_key
+	if not want.is_empty():
 		for i in entries.size():
-			if str(entries[i].get("key", "")) == previous_key:
+			if str(entries[i].get("key", "")) == want:
 				_shop_item_menu_cursor = i
 				break
 	_shop_item_menu_line_indices.clear()
@@ -15170,7 +15174,10 @@ func _choose_shop_item_menu_item() -> void:
 	var key := str(_shop_item_menu_items[_shop_item_menu_cursor].get("key", ""))
 	if key.is_empty() or not str(_shop.choice_keys).to_lower().contains(key):
 		return
-	_push_talk_player_input(key)
+	var spoken := key
+	if key == "?":
+		spoken = str(_shop_item_menu_items[_shop_item_menu_cursor].get("label", key))
+	_push_talk_player_input(spoken)
 	_shop.submit_choice(key)
 	_flush_shop_output()
 

@@ -129,6 +129,8 @@ var abyss_stones_used: int = 0
 var skull: int = 0 ## HUD/legacy; kept in sync with ITEM_SKULL bit
 ## Sextant required for Locate (L / Ctrl+L). xu4 starts with 0.
 var has_sextant: bool = false
+## Guild shop listed D-Sextant after the rumor hint (or a prior buy).
+var guild_sextant_listed: bool = false
 ## xu4 SaveGame.shiphull — normally 0..50; Wheel mounts to 99 (setShipHull).
 var ship_hull: int = 50
 const SHIP_HULL_MAX := 50
@@ -421,6 +423,7 @@ func reset_party() -> void:
 	abyss_stones_used = 0
 	skull = 0
 	has_sextant = false
+	guild_sextant_listed = false
 	ship_hull = 50
 	lastreagent = 0
 	search_taken.clear()
@@ -862,6 +865,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	lastreagent = 0
 	search_taken.clear()
 	has_sextant = false
+	guild_sextant_listed = false
 	moves = 0
 	lastcamp = 0
 	lastvirtue = 0
@@ -3046,6 +3050,7 @@ func to_save_dict() -> Dictionary:
 		"lastreagent": lastreagent,
 		"search_taken": search_taken.keys(),
 		"has_sextant": has_sextant,
+		"guild_sextant_listed": guild_sextant_listed,
 		"weapons": weapons.duplicate(),
 		"armor": armor.duplicate(),
 		"reagents": reagents.duplicate(),
@@ -3182,6 +3187,8 @@ func apply_save_dict(d: Dictionary) -> void:
 		items |= ITEM_SKULL
 	skull = 1 if (items & ITEM_SKULL) != 0 else 0
 	has_sextant = bool(d.get("has_sextant", false))
+	## Older saves: owning a sextant means the guild already parted with item D.
+	guild_sextant_listed = bool(d.get("guild_sextant_listed", has_sextant))
 	_apply_int_array(weapons, d.get("weapons", []), 16)
 	_apply_int_array(armor, d.get("armor", []), 8)
 	_apply_int_array(reagents, d.get("reagents", []), 8)

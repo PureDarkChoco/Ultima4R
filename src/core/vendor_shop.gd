@@ -26,6 +26,8 @@ var finished := false
 var want_horse := false
 var relocate_to := Vector2i(-1, -1)
 var do_inn_rest := false
+## After the journal hint is chosen, keep ↑↓ on D-Sextant.
+var preferred_item_key := ""
 
 var _role := 0
 var _locale := ""
@@ -308,6 +310,12 @@ func item_list_entries() -> Array[Dictionary]:
 					"key": String.chr(97 + i),
 					"label": _format_reagent_stock_line(i),
 				})
+		"g_item":
+			for key in _guild_visible_keys():
+				entries.append({
+					"key": key,
+					"label": _format_guild_stock_line(key),
+				})
 	return entries
 
 
@@ -533,6 +541,7 @@ func _reset() -> void:
 	want_horse = false
 	relocate_to = Vector2i(-1, -1)
 	do_inn_rest = false
+	preferred_item_key = ""
 	_phase = ""
 	_price = 0
 	_quant = 1
@@ -1226,8 +1235,10 @@ func _t_foggy() -> void:
 				rumor = _VL.rumor(str(t["rumor"])).replace("%", _owner)
 				break
 		_say(rumor)
-		if _topic_key == "sextant" and _locale == "Jhelom":
-			GameState.journal_try_capture("jhelom", "Celestial", "SEXTANT")
+		if _topic_key == "sextant":
+			GameState.talk_remember_heard_word("guild-item-d")
+			if _locale == "Jhelom":
+				GameState.journal_try_capture("jhelom", "Celestial", "SEXTANT")
 		if _topic_key == "white stone" and _locale == "Trinsic":
 			GameState.journal_try_capture("trinsic", "Terran", "WHITE STONE")
 		if _topic_key == "mandrake" and _locale == "Paws":
@@ -1639,12 +1650,65 @@ func _on_g_need(c0: String) -> void:
 		_g_adieu()
 
 
-func _g_goods() -> void:
-	_say(_L("%s says: Good Mate!\nYa see I gots:\nA-Torches\nB-Magic Gems\nC-Magic Keys\nWat'l it be?") % _owner)
-	_want_choice("abcd", "g_item")
+func _g_goods(after_hint: bool = false) -> void:
+	if not after_hint:
+		_say(_L("%s says: Good Mate!\nYa see I gots:") % _owner)
+	for key in _guild_visible_keys():
+		_say_item(key, _format_guild_stock_line(key))
+	_say(_L("Wat'l it be?"))
+	## D stays typeable even while the sextant line is still hidden.
+	var keys := "abcd"
+	if _guild_shows_hint():
+		keys += "?"
+	_want_choice(keys, "g_item")
+	preferred_item_key = "d" if after_hint else ""
+
+
+func _guild_visible_keys() -> PackedStringArray:
+	var keys: PackedStringArray = ["a", "b", "c"]
+	if _guild_sextant_listed():
+		keys.append("d")
+	elif _guild_shows_hint():
+		keys.append("?")
+	return keys
+
+
+func _guild_sextant_listed() -> bool:
+	return bool(GameState.guild_sextant_listed)
+
+
+func _guild_reveal_sextant() -> void:
+	GameState.guild_sextant_listed = true
+
+
+func _guild_shows_hint() -> bool:
+	## Journal “ask for item D” — offer a rumor line, not the sextant itself.
+	if _guild_sextant_listed():
+		return false
+	return GameState.journal_has_id("jhelom.celestial.guild-sextant")
+
+
+func _format_guild_stock_line(key: String) -> String:
+	match key:
+		"a":
+			return _L("A-Torches")
+		"b":
+			return _L("B-Magic Gems")
+		"c":
+			return _L("C-Magic Keys")
+		"d":
+			return _L("D-Sextant")
+		"?":
+			return Locale.t("shop_guild_heard_d")
+		_:
+			return ""
 
 
 func _on_g_item(c0: String) -> void:
+	if c0 == "?":
+		_guild_reveal_sextant()
+		_g_goods(true)
+		return
 	match c0:
 		"a":
 			_price = 50
@@ -1662,6 +1726,7 @@ func _on_g_item(c0: String) -> void:
 			_item_name = "key"
 			_say(_L("Magical Keys, 1 use each, a fair price at 60gp for 6."))
 		"d":
+			_guild_reveal_sextant()
 			_price = 900
 			_quant = 1
 			_item_name = "sextant"

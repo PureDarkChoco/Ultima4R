@@ -1205,6 +1205,11 @@ const _T := {
 		"en_us": "Ale",
 		"ko": "에일",
 	},
+	"shop_guild_heard_d": {
+		"en_u4": "I heard tell of an item D.",
+		"en_us": "I heard there is an item D.",
+		"ko": "D 물건이 있다고 들었습니다",
+	},
 	"cmd_nothing_to_open": {
 		"en_u4": "Not Here!",
 		"en_us": "Not Here!",
