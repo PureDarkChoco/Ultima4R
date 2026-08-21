@@ -101,6 +101,14 @@ func clear() -> void:
 	visible = false
 
 
+func get_ordered_foes() -> Array[Dictionary]:
+	## Living foes in left-panel order (priority, then top-left).
+	var out: Array[Dictionary] = []
+	for d in _foes:
+		out.append(d.duplicate(true))
+	return out
+
+
 func set_aim_highlight_slot(slot: int) -> void:
 	## Highlight the roster row for this creatureTable slot (red aim cursor).
 	if _aim_slot == slot:

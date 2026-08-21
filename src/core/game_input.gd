@@ -66,6 +66,36 @@ static func is_victory_exit(event: InputEvent) -> bool:
 	return false
 
 
+static func is_foe_roster_next(event: InputEvent) -> bool:
+	## Right bumper / > (or .) — cycle down the combat foe list.
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).button_index == JOY_BUTTON_RIGHT_SHOULDER
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		return (
+			k.keycode == KEY_GREATER or k.physical_keycode == KEY_GREATER
+			or k.keycode == KEY_PERIOD or k.physical_keycode == KEY_PERIOD
+		)
+	return false
+
+
+static func is_foe_roster_prev(event: InputEvent) -> bool:
+	## Left bumper / < (or ,) — cycle up the combat foe list.
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).button_index == JOY_BUTTON_LEFT_SHOULDER
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		return (
+			k.keycode == KEY_LESS or k.physical_keycode == KEY_LESS
+			or k.keycode == KEY_COMMA or k.physical_keycode == KEY_COMMA
+		)
+	return false
+
+
 static func dir_from_event(event: InputEvent) -> Vector2i:
 	## Single-step dir from a pressed key / d-pad / stick threshold.
 	## Stick: one step per tilt (must return near-neutral first). Without this,

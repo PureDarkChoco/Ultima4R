@@ -9978,9 +9978,11 @@ func _begin_cast_aim() -> void:
 
 
 func _handle_cast_aim_input(event: InputEvent) -> bool:
-	## Cursor move is polled in _tick_combat_aim_move. Events confirm only.
+	## Cursor move is polled in _tick_combat_aim_move. Events confirm / cycle.
 	if event is InputEventJoypadMotion:
 		_GameInput.stick_clear_if_released(event)
+		return true
+	if _try_combat_aim_foe_cycle(event):
 		return true
 	if _GameInput.is_select(event) or (
 		event is InputEventKey
@@ -17554,12 +17556,14 @@ func _handle_combat_aim_input(k: InputEventKey) -> bool:
 
 func _handle_combat_aim_input_event(event: InputEvent) -> bool:
 	## Cursor move is polled in _tick_combat_aim_move (hold = walk speed).
-	## Events only confirm / cancel; dirs are swallowed so they don't double-step.
+	## Events only confirm / cancel / foe-cycle; dirs are swallowed so they don't double-step.
 	if event is InputEventJoypadMotion:
 		_GameInput.stick_clear_if_released(event)
 		return true
 	if _is_cancel_event(event):
 		_combat_cancel_aim()
+		return true
+	if _try_combat_aim_foe_cycle(event):
 		return true
 	if _GameInput.is_select(event) or (
 		event is InputEventKey
@@ -17924,6 +17928,61 @@ func _combat_cancel_aim() -> void:
 	_sync_combat_aim_foe_roster()
 	_push_message(Locale.t("cmd_cancelled"), false)
 	_layout_prompt_row()
+
+
+func _try_combat_aim_foe_cycle(event: InputEvent) -> bool:
+	if _GameInput.is_foe_roster_next(event):
+		_combat_cycle_aim_foe(1)
+		return true
+	if _GameInput.is_foe_roster_prev(event):
+		_combat_cycle_aim_foe(-1)
+		return true
+	return false
+
+
+func _combat_cycle_aim_foe(delta: int) -> void:
+	## Jump the aim cursor along the left-panel foe list (wraps).
+	## No current foe: > / RB starts at the top, < / LB at the bottom.
+	if _map == null or not _combat_aiming or _foe_roster == null:
+		return
+	var list: Array[Dictionary] = _foe_roster.get_ordered_foes()
+	var n := list.size()
+	if n <= 0 or delta == 0:
+		return
+	var cur_slot := -1
+	var cur_i := _map.combat_foe_index_at(_combat_aim_pos)
+	if cur_i >= 0:
+		cur_slot = int(_map.get_combat_foe_at(cur_i).get("slot", -1))
+	var start_i := -1
+	if cur_slot >= 0:
+		for i in n:
+			var slot := int(list[i].get("slot", list[i].get("priority", -1)))
+			if slot == cur_slot:
+				start_i = i
+				break
+	var idx := 0
+	if start_i < 0:
+		idx = 0 if delta > 0 else n - 1
+	else:
+		idx = posmod(start_i + delta, n)
+	for _step in n:
+		var foe: Dictionary = list[idx]
+		var pos := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
+		if _combat_aim_foe_reachable(pos):
+			_combat_aim_pos = pos
+			_map.set_combat_aim_cursor(_combat_aim_pos)
+			_sync_combat_aim_foe_roster()
+			return
+		idx = posmod(idx + delta, n)
+		if start_i >= 0 and idx == start_i:
+			return
+
+
+func _combat_aim_foe_reachable(pos: Vector2i) -> bool:
+	## Spell aim is unlimited; weapons stay inside cursor range.
+	if _cast_stage == 6:
+		return true
+	return WeaponIcons.aim_cursor_allows(_combat_aim_weapon, _combat_aim_from, pos)
 
 
 func _combat_move_aim(dir: Vector2i) -> void:
