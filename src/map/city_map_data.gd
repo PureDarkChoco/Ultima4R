@@ -41,6 +41,8 @@ const MOVE_FOLLOW := 0x80
 const MOVE_ATTACK := 0xFF
 ## Internal: one-turn pause after talk (xu4 MOVEMENT_FOLLOW_PAUSE).
 const MOVE_FOLLOW_PAUSE := 2
+## Wander leash from default ULT tile (Manhattan; walls ignored).
+const WANDER_LEASH := 6
 
 const _DIRS: Array[Vector2i] = [
 	Vector2i(-1, 0), ## W
@@ -54,6 +56,8 @@ const _DIRS: Array[Vector2i] = [
 var tiles: PackedByteArray = PackedByteArray()
 ## Visible townsfolk: Vector3i(x, y, tile_id). tile_id 0 entries are skipped.
 var persons: Array[Vector3i] = []
+## Default spawn tile (leash origin) per person.
+var person_home: Array[Vector2i] = []
 ## Animation partner tile per person (same index as persons); -1 if none.
 var person_prev: Array[int] = []
 ## xu4 movement mode per person (MOVE_*).
@@ -84,6 +88,7 @@ func clear() -> void:
 	tiles.resize(TILE_COUNT)
 	tiles.fill(4) ## grass
 	persons.clear()
+	person_home.clear()
 	person_prev.clear()
 	person_move.clear()
 	person_conv.clear()
@@ -363,7 +368,12 @@ func take_person_at_index(i: int) -> Dictionary:
 	var role := _CityNpcRoles.Role.NONE
 	if i < person_role.size():
 		role = int(person_role[i])
+	var home := Vector2i(int(p.x), int(p.y))
+	if i < person_home.size():
+		home = person_home[i]
 	persons.remove_at(i)
+	if i < person_home.size():
+		person_home.remove_at(i)
 	if i < person_prev.size():
 		person_prev.remove_at(i)
 	if i < person_move.size():
@@ -384,6 +394,8 @@ func take_person_at_index(i: int) -> Dictionary:
 		"file_slot": slot,
 		"role": role,
 		"city_person": true,
+		"home_x": int(home.x),
+		"home_y": int(home.y),
 	}
 
 
@@ -396,6 +408,11 @@ func restore_person(foe: Dictionary) -> void:
 	if person_index_at(x, y) >= 0:
 		return
 	persons.append(Vector3i(x, y, int(foe.get("tile", 0))))
+	var home := Vector2i(
+		int(foe.get("home_x", x)),
+		int(foe.get("home_y", y))
+	)
+	person_home.append(home)
 	person_prev.append(int(foe.get("prev", -1)))
 	person_move.append(int(foe.get("movement", MOVE_FIXED)))
 	person_conv.append(int(foe.get("conv", -1)))
@@ -442,6 +459,8 @@ func destroy_all_except_lord_british() -> int:
 		if base == 94: ## lord_british
 			continue
 		persons.remove_at(i)
+		if i < person_home.size():
+			person_home.remove_at(i)
 		if i < person_prev.size():
 			person_prev.remove_at(i)
 		if i < person_move.size():
@@ -507,10 +526,15 @@ func spawn_or_relocate_named(
 	if existing >= 0:
 		var prev_tid := int(persons[existing].z)
 		persons[existing] = Vector3i(x, y, tile_id if tile_id > 0 else prev_tid)
+		if existing < person_home.size():
+			person_home[existing] = Vector2i(x, y)
+		else:
+			person_home.append(Vector2i(x, y))
 		if existing < person_move.size():
 			person_move[existing] = movement
 		return true
 	persons.append(Vector3i(x, y, tile_id))
+	person_home.append(Vector2i(x, y))
 	person_prev.append(-1)
 	person_move.append(movement)
 	person_conv.append(di)
@@ -658,6 +682,7 @@ func _append_extra_people(ult_path: String) -> void:
 		var di := discourses.size()
 		discourses.append(_TalkTlk.entry_from_dict(spec))
 		persons.append(Vector3i(x, y, tile_id))
+		person_home.append(Vector2i(x, y))
 		person_prev.append(-1)
 		person_move.append(movement)
 		person_conv.append(di)
@@ -679,6 +704,7 @@ func _load_tlk(ult_path: String) -> void:
 func _load_persons(bytes: PackedByteArray) -> void:
 	## xu4 loadCityMap person block after terrain.
 	persons.clear()
+	person_home.clear()
 	person_prev.clear()
 	person_move.clear()
 	person_conv.clear()
@@ -696,6 +722,7 @@ func _load_persons(bytes: PackedByteArray) -> void:
 		if x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT:
 			continue
 		persons.append(Vector3i(x, y, tid))
+		person_home.append(Vector2i(x, y))
 		var prev := int(pd[PD_PREV_TILE + i])
 		person_prev.append(prev if prev != 0 else -1)
 		person_move.append(_move_behavior(int(pd[PD_MOVE + i])))
@@ -748,6 +775,8 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 
 	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
 	var valid := _valid_dirs(pos, i, avatar)
+	if mode == MOVE_WANDER:
+		valid = _filter_wander_leash(i, valid)
 	if valid.is_empty():
 		return false
 
@@ -830,6 +859,20 @@ func _path_to(from: Vector2i, to: Vector2i, valid: Array[Vector2i]) -> Vector2i:
 			prefer.append(d)
 	var pool: Array[Vector2i] = prefer if not prefer.is_empty() else valid
 	return pool[randi() % pool.size()]
+
+
+func _filter_wander_leash(self_i: int, dirs: Array[Vector2i]) -> Array[Vector2i]:
+	## Keep only steps whose orthogonal tile count from home is <= WANDER_LEASH.
+	if self_i < 0 or self_i >= persons.size() or self_i >= person_home.size():
+		return dirs
+	var home: Vector2i = person_home[self_i]
+	var pos := Vector2i(int(persons[self_i].x), int(persons[self_i].y))
+	var out: Array[Vector2i] = []
+	for d in dirs:
+		var dest := pos + d
+		if absi(dest.x - home.x) + absi(dest.y - home.y) <= WANDER_LEASH:
+			out.append(d)
+	return out
 
 
 static func _manhattan(a: Vector3i, b: Vector2i) -> int:
