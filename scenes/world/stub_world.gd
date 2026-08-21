@@ -615,6 +615,8 @@ func _restore_city_from_save(w: Dictionary) -> void:
 		clampi(int(w.get("city_y", 15)), 0, _CityMapData.HEIGHT - 1)
 	)
 	_tile_pos = local
+	if cmap.has_method("nudge_persons_off_avatar"):
+		cmap.nudge_persons_off_avatar(local)
 	## Outside rim plains follow the Enter gate, not the saved mid-city tile.
 	var portal := _WorldPortals.portal_at(return_pos)
 	if portal.is_empty():
@@ -633,6 +635,7 @@ func _restore_city_from_save(w: Dictionary) -> void:
 	_refresh_locate_hud()
 	_apply_city_skull_wipe()
 	_apply_city_guards_alerted()
+	_nudge_city_npcs_off_party()
 
 
 func _overlays_from_save(raw: Variant) -> Array[Vector3i]:
@@ -12141,6 +12144,18 @@ func _apply_city_guards_alerted() -> void:
 		return
 	if _city_map.has_method("alert_guards"):
 		_city_map.alert_guards()
+
+
+func _nudge_city_npcs_off_party() -> void:
+	## Saved party tile vs default ULT spawn — step the NPC to a free neighbor.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return
+	if not _city_map.has_method("nudge_persons_off_avatar"):
+		return
+	if not _city_map.nudge_persons_off_avatar(_tile_pos):
+		return
+	if _map != null and not _combat_active:
+		_map.refresh()
 
 
 func _is_in_city() -> bool:

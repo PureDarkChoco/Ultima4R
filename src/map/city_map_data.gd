@@ -267,6 +267,75 @@ func person_index_at(x: int, y: int) -> int:
 	return -1
 
 
+func nudge_persons_off_avatar(avatar: Vector2i) -> bool:
+	## Load can place the party on a townsfolk's default ULT tile.
+	var moved := false
+	for i in persons.size():
+		var p: Vector3i = persons[i]
+		if int(p.x) != avatar.x or int(p.y) != avatar.y:
+			continue
+		var dest := _nudge_stand_tile(i, avatar)
+		if dest.x < 0:
+			continue
+		persons[i] = Vector3i(dest.x, dest.y, int(p.z))
+		moved = true
+	return moved
+
+
+func _nudge_stand_tile(self_i: int, avatar: Vector2i) -> Vector2i:
+	## Prefer adjacent W/E/N/S; if those are blocked, the nearest walkable tile.
+	const SIDE_DIRS: Array[Vector2i] = [
+		Vector2i(-1, 0),
+		Vector2i(1, 0),
+		Vector2i(0, -1),
+		Vector2i(0, 1),
+	]
+	for d in SIDE_DIRS:
+		var dest := avatar + d
+		if _person_can_stand_at(dest.x, dest.y, self_i, avatar, d):
+			return dest
+	var seen: Dictionary = {}
+	seen[avatar] = true
+	var q: Array[Vector2i] = [avatar]
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		qi += 1
+		if absi(cur.x - avatar.x) + absi(cur.y - avatar.y) >= 8:
+			continue
+		for d in _DIRS:
+			var nxt := cur + d
+			if seen.has(nxt):
+				continue
+			if not _person_terrain_walkable(nxt.x, nxt.y, d):
+				continue
+			seen[nxt] = true
+			if _person_can_stand_at(nxt.x, nxt.y, self_i, avatar, d):
+				return nxt
+			q.append(nxt)
+	return Vector2i(-1, -1)
+
+
+func _person_terrain_walkable(x: int, y: int, dir: Vector2i) -> bool:
+	if x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT:
+		return false
+	var dest_tid := effective_tile_at(x, y)
+	var step := dir if dir != Vector2i.ZERO else Vector2i(1, 0)
+	if not _TileRules.can_walk_on(dest_tid, step):
+		return false
+	return _TileRules.is_creature_walkable(dest_tid)
+
+
+func _person_can_stand_at(
+	x: int, y: int, ignore_i: int, avatar: Vector2i, dir: Vector2i
+) -> bool:
+	if Vector2i(x, y) == avatar:
+		return false
+	if _person_blocks(x, y, ignore_i):
+		return false
+	return _person_terrain_walkable(x, y, dir)
+
+
 func take_person_at(x: int, y: int) -> Dictionary:
 	## Remove and return person for combat engage (xu4 removeObject endCombat).
 	var i := person_index_at(x, y)
