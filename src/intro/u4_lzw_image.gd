@@ -30,10 +30,61 @@ static func load_ega_path(path: String, transparent_index: int = -1) -> Image:
 
 static func load_ega_bytes(compressed: PackedByteArray, transparent_index: int = -1) -> Image:
 	var raw := decompress(compressed)
-	if raw.is_empty() or raw.size() < EGA_RAW:
+	if raw.is_empty():
 		push_warning("U4LzwImage: bad decompress (%d bytes)" % raw.size())
 		return null
-	return ega4_to_image(raw, EGA_W, EGA_H, transparent_index)
+	return _ega_raw_to_image(raw, transparent_index)
+
+
+static func load_ega_rle_path(path: String, transparent_index: int = -1) -> Image:
+	## AVATAR.EXE pictures (STONCRCL, KEY7, virtue frames) are RLE, not LZW.
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.is_empty():
+		push_warning("U4LzwImage: cannot read %s" % path)
+		return null
+	return load_ega_rle_bytes(bytes, transparent_index)
+
+
+static func load_ega_rle_bytes(compressed: PackedByteArray, transparent_index: int = -1) -> Image:
+	var raw := rle_decompress(compressed)
+	if raw.is_empty():
+		push_warning("U4LzwImage: bad RLE decompress (%d bytes)" % raw.size())
+		return null
+	return _ega_raw_to_image(raw, transparent_index)
+
+
+static func rle_decompress(compressed: PackedByteArray) -> PackedByteArray:
+	## xu4 rleDecompress — 0x02, count, value; a literal 0x02 must be a run.
+	const RUN := 2
+	var out := PackedByteArray()
+	var i := 0
+	var n := compressed.size()
+	while i < n:
+		var ch := compressed[i]
+		i += 1
+		if ch == RUN:
+			if i + 1 >= n:
+				break
+			var count := compressed[i]
+			var val := compressed[i + 1]
+			i += 2
+			for _j in count:
+				out.append(val)
+		else:
+			out.append(ch)
+	return out
+
+
+static func _ega_raw_to_image(raw: PackedByteArray, transparent_index: int) -> Image:
+	var w := EGA_W
+	var h := EGA_H
+	if raw.size() >= 640 * 400 / 2:
+		w = 640
+		h = 400
+	elif raw.size() < EGA_RAW:
+		push_warning("U4LzwImage: bad raw size (%d bytes)" % raw.size())
+		return null
+	return ega4_to_image(raw, w, h, transparent_index)
 
 
 static func ega4_to_image(raw: PackedByteArray, w: int, h: int, transparent_index: int = -1) -> Image:

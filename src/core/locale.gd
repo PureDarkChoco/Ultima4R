@@ -2828,6 +2828,56 @@ const _T := {
 		"en_us": "The boundless knowledge of the Codex of Ultimate Wisdom is revealed to you.",
 		"ko": "궁극의 지혜의 코덱스가 지닌 한없는 지식이 그대에게 드러난다.",
 	},
+	"cmd_codex_end_voice": {
+		"en_u4": "The voice says: Thou hast proven thyself to be truly good in nature.",
+		"en_us": "The voice says: You have proven yourself to be truly good in nature.",
+		"ko": "목소리가 말한다: 그대는 참으로 선한 본성을 증명하였다.",
+	},
+	"cmd_codex_end_quest": {
+		"en_u4": "Thou must know that thy quest to become an Avatar is the endless quest of a lifetime.",
+		"en_us": "Know that the quest to become an Avatar is the endless quest of a lifetime.",
+		"ko": "아바타가 되는 길은 평생에 걸친 끝없는 여정임을 알아야 한다.",
+	},
+	"cmd_codex_end_gift": {
+		"en_u4": "Avatarhood is a living gift. It must always and forever be nurtured to flourish.",
+		"en_us": "Avatarhood is a living gift. It must always and forever be nurtured to flourish.",
+		"ko": "아바타의 지위는 살아 있는 선물이다. 언제나, 영원히 가꾸어야 피어난다.",
+	},
+	"cmd_codex_end_stray": {
+		"en_u4": "For if thou dost stray from the paths of virtue, thy way may be lost forever.",
+		"en_us": "For if you stray from the paths of virtue, your way may be lost forever.",
+		"ko": "미덕의 길에서 벗어난다면, 그 길은 영원히 잃을 수도 있다.",
+	},
+	"cmd_codex_end_return": {
+		"en_u4": "Return now unto thine own world. Live there as an example to thy people, as our memory of thy gallant deeds serves us.",
+		"en_us": "Return now to your own world. Live there as an example to your people, as our memory of your gallant deeds serves us.",
+		"ko": "이제 그대의 세계로 돌아가라. 그대의 용맹한 업적이 우리에게 기억되듯, 그곳에서 사람들의 본보기가 되어라.",
+	},
+	"cmd_codex_end_vertigo": {
+		"en_u4": "As the sound of the voice trails off, darkness seems to rise around you. There is a moment of intense, wrenching vertigo.",
+		"en_us": "As the sound of the voice trails off, darkness seems to rise around you. There is a moment of intense, wrenching vertigo.",
+		"ko": "목소리가 잦아들자 어둠이 주위를 차오른다. 몸이 뒤틀리는 듯한 강렬한 현기증이 일었다.",
+	},
+	"cmd_codex_end_stones": {
+		"en_u4": "You open your eyes to a familiar circle of stones. You wonder of your recent adventures.",
+		"en_us": "You open your eyes to a familiar circle of stones. You wonder about your recent adventures.",
+		"ko": "눈을 뜨니 낯익은 돌무리가 있다. 방금의 모험이 떠오른다.",
+	},
+	"cmd_codex_end_ankh": {
+		"en_u4": "It seems a time and place very distant. You wonder if it really happened. Then you realize that in your hand you hold The Ankh.",
+		"en_us": "It seems a time and place very distant. You wonder if it really happened. Then you realize that in your hand you hold The Ankh.",
+		"ko": "아주 멀고 먼 때와 장소처럼 느껴진다. 정말 일어난 일인지 의문이 들다가, 손안에 앙크가 들려 있음을 깨닫는다.",
+	},
+	"cmd_codex_end_walk": {
+		"en_u4": "You walk away from the circle, knowing that you can always return from whence you came, since you now know the secret of the gates.",
+		"en_us": "You walk away from the circle, knowing that you can always return from whence you came, since you now know the secret of the gates.",
+		"ko": "이제 문의 비밀을 알았으니 언제든 왔던 곳으로 돌아갈 수 있음을 알고, 돌무리를 떠나 걷는다.",
+	},
+	"cmd_codex_end_congrats": {
+		"en_u4": "CONGRATULATIONS!\nThou hast completed ULTIMA IV Quest of the Avatar in %s turns!\nReport thy feat unto Lord British at Origin Systems!",
+		"en_us": "CONGRATULATIONS!\nYou have completed ULTIMA IV Quest of the Avatar in %s turns!",
+		"ko": "축하한다!\n그대는 울티마 IV 아바타의 퀘스트를 %s턴 만에 완수하였다!",
+	},
 	"cmd_principle_truth": {
 		"en_u4": "Truth",
 		"en_us": "Truth",

@@ -48,6 +48,22 @@ static func frame_path(revealed: int) -> String:
 	return "res://assets/ui/codex/end_%02d.png" % clampi(revealed, 1, 11)
 
 
+static func stoncrcl_path() -> String:
+	## xu4 BKGD_STONCRCL — DOS STONCRCL.EGA in the map hole after the Codex splits.
+	const NAMES := ["STONCRCL.EGA", "stoncrcl.ega", "STONCRCL.PIC", "stoncrcl.pic"]
+	var roots: Array[String] = []
+	if not str(GameState.u4_data_path).is_empty():
+		roots.append(str(GameState.u4_data_path))
+	roots.append(GameState.U4_DATA_RES)
+	roots.append(GameState.U4_DATA_ABS)
+	for root in roots:
+		for name in NAMES:
+			var p := root.path_join(name)
+			if FileAccess.file_exists(p):
+				return p
+	return ""
+
+
 static func answer_ok(stage: int, typed: String) -> bool:
 	if stage >= 1 and stage <= 8:
 		return _Shrine.virtue_input_matches(stage - 1, typed)

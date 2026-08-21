@@ -340,6 +340,8 @@ var _codex_overlay # CodexChamberOverlay — preload instance, not class_name ty
 var _codex_choice_active := false
 var _codex_choice_cursor := 0
 var _codex_choice_items: Array[Dictionary] = []
+var _codex_endgame := false
+var _codex_end_waiting := false
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
 var _enter_prompt_stage := 0
 var _enter_prompt_choice := 0 ## selected button index in the dialogue choice row
@@ -13637,14 +13639,14 @@ func _show_codex_stage() -> void:
 
 
 func _codex_native_hangul_active() -> bool:
-	if _codex_stage <= 0 or str(GameState.language) != "ko":
+	if _codex_endgame or _codex_stage <= 0 or str(GameState.language) != "ko":
 		return false
 	_ensure_talk_hangul()
 	return _talk_hangul != null
 
 
 func _open_codex_choice_menu() -> void:
-	if _codex_stage <= 0:
+	if _codex_stage <= 0 or _codex_endgame:
 		return
 	_codex_choice_items = _CodexChamber.choice_items(GameState, _codex_stage)
 	if _codex_choice_items.is_empty():
@@ -13713,6 +13715,8 @@ func _choose_codex_choice() -> void:
 func _end_codex_session() -> void:
 	_codex_stage = 0
 	_codex_buffer = ""
+	_codex_endgame = false
+	_codex_end_waiting = false
 	_reset_talk_hangul()
 	_close_codex_choice_menu()
 	if _codex_overlay != null:
@@ -13721,6 +13725,14 @@ func _end_codex_session() -> void:
 
 
 func _handle_codex_input(event: InputEvent) -> bool:
+	if _codex_endgame:
+		if event is InputEventJoypadMotion:
+			return true
+		if not event.is_pressed() or event.is_echo():
+			return true
+		if _codex_end_waiting:
+			_codex_end_waiting = false
+		return true
 	if event is InputEventJoypadMotion:
 		if not _codex_choice_active:
 			var motion_dir := _GameInput.dir_from_event(event)
@@ -13849,16 +13861,75 @@ func _codex_fail() -> void:
 
 
 func _codex_win() -> void:
+	## xu4 codexHandleEndgame: rumble, split the Codex, wait-any-key through
+	## the ending, then STONCRCL + congratulations (xu4 then pauses forever).
 	_close_codex_choice_menu()
-	_codex_stage = 0
+	_codex_endgame = true
+	_codex_end_waiting = false
 	_codex_buffer = ""
 	_reset_talk_hangul()
 	_layout_prompt_row()
-	_push_message(Locale.t("cmd_codex_end"), false)
-	await get_tree().create_timer(2.4).timeout
+	AudioSfx.music_stop()
+	await get_tree().create_timer(2.0).timeout
+	if not _codex_endgame:
+		return
+	if _map != null:
+		var shake_sec := _map.shake_quake()
+		await get_tree().create_timer(shake_sec).timeout
+	if not _codex_endgame:
+		return
 	if _codex_overlay != null:
-		_codex_overlay.hide_chamber()
+		await _codex_overlay.play_split()
+		_layout_codex_overlay()
+	const PRE_DARK: Array[String] = [
+		"cmd_codex_end",
+		"cmd_codex_end_voice",
+		"cmd_codex_end_quest",
+		"cmd_codex_end_gift",
+		"cmd_codex_end_stray",
+		"cmd_codex_end_return",
+	]
+	for key in PRE_DARK:
+		if not _codex_endgame:
+			return
+		_push_message(Locale.t(key), false)
+		await _await_codex_key()
+	if not _codex_endgame:
+		return
+	if _codex_overlay != null:
+		_codex_overlay.erase_picture()
+		_layout_codex_overlay()
+	_push_message(Locale.t("cmd_codex_end_vertigo"), false)
+	await _await_codex_key()
+	if not _codex_endgame:
+		return
+	if _codex_overlay != null:
+		_codex_overlay.show_stoncrcl()
+		_layout_codex_overlay()
+	const AFTER_STONES: Array[String] = [
+		"cmd_codex_end_stones",
+		"cmd_codex_end_ankh",
+		"cmd_codex_end_walk",
+	]
+	for key in AFTER_STONES:
+		if not _codex_endgame:
+			return
+		_push_message(Locale.t(key), false)
+		await _await_codex_key()
+	if not _codex_endgame:
+		return
+	_push_message(Locale.t("cmd_codex_end_congrats", [str(GameState.moves)]), false)
+	await _await_codex_key()
+	_end_codex_session()
 	SceneRouter.to_menu()
+
+
+func _await_codex_key() -> void:
+	## xu4 EventHandler::waitAnyKey between endgame paragraphs.
+	_codex_end_waiting = true
+	while _codex_end_waiting and _codex_endgame:
+		await get_tree().process_frame
+	_codex_end_waiting = false
 
 
 func _is_castle_city() -> bool:
@@ -13867,6 +13938,9 @@ func _is_castle_city() -> bool:
 
 
 func _sync_music() -> void:
+	if _codex_endgame:
+		AudioSfx.music_stop()
+		return
 	AudioSfx.music_sync_world({
 		"combat": _combat_active,
 		"shrine": _shrine_session,
