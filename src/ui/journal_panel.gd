@@ -76,6 +76,7 @@ var _entry_nodes: Dictionary = {}
 var _header_nodes: Dictionary = {}
 var _nav_ids: Array[String] = []
 var _center_token := 0
+var _pin_selection_top := false
 var _flash_tween: Tween
 var _flash_overlay: Control
 var _flash_id := ""
@@ -264,20 +265,15 @@ func begin_browse(current_place: String) -> void:
 
 
 func prepare_session_selection(current_place: String) -> void:
-	## First world load: current city's first note, else the top of the log.
+	## First world load: current city's header at the top, else the top of the log.
 	var gs = _game_state()
 	if gs == null:
 		return
 	_set_page(0)
 	_set_unseen_id(gs, "")
-	var place := current_place.strip_edges().to_lower()
-	var pick := ""
-	if not place.is_empty():
-		pick = _Journal.first_id_for_place(gs, place)
-		if not pick.is_empty():
-			_set_place_collapsed(gs, place, false)
-	if pick.is_empty():
-		pick = _Journal.first_place_key(gs)
+	if focus_place(current_place):
+		return
+	var pick := _Journal.first_place_key(gs)
 	if not pick.is_empty():
 		_set_selected_id(pick)
 
@@ -365,6 +361,7 @@ func jump_selection_place(dir: int) -> void:
 func _select_nav_index(idx: int) -> void:
 	if idx < 0 or idx >= _nav_ids.size():
 		return
+	_pin_selection_top = false
 	_set_selected_id(_nav_ids[idx])
 	_apply_selection_visuals()
 	_center_selected()
@@ -385,6 +382,26 @@ func nudge_selected_place(dir_x: int) -> bool:
 
 func recenter_selection() -> void:
 	_schedule_center()
+
+
+func focus_place(place_id: String) -> bool:
+	## Pin this settlement's title to the top of the pane so its notes show first.
+	## Returns false when the travel log has no section for this place.
+	var place := place_id.strip_edges().to_lower()
+	if place.is_empty():
+		return false
+	var gs = _game_state()
+	if gs == null:
+		return false
+	if _Journal.first_id_for_place(gs, place).is_empty():
+		return false
+	_set_page(0)
+	_set_unseen_id(gs, "")
+	_set_place_collapsed(gs, place, false)
+	_set_selected_id(_place_key(place))
+	_pin_selection_top = true
+	refresh(is_visible_in_tree())
+	return true
 
 
 func refresh(journal_visible: bool = false) -> void:
@@ -482,6 +499,8 @@ func _prepare_open_selection(current_place: String) -> void:
 
 func _reveal_unseen_if_visible(gs: Node, journal_visible: bool) -> void:
 	if gs == null or not journal_visible:
+		return
+	if _pin_selection_top:
 		return
 	var unseen := _unseen_id(gs)
 	if unseen.is_empty():
@@ -698,6 +717,7 @@ func _center_selected_async(token: int) -> void:
 
 func _center_selected() -> void:
 	## Keep the focused note on the middle of the pane, like the gamepad menu.
+	## City enter pins the settlement title to the top instead; never overscroll.
 	if _current_page() != 0:
 		return
 	if _scroll == null or _list == null:
@@ -715,10 +735,10 @@ func _center_selected() -> void:
 	if row_h < 1.0:
 		return
 	var row_y := _journal_offset_of(node)
-	## Center ordinary rows, but pin the list to its top/bottom at either end.
-	var target_y := view_h * 0.5 - (row_y + row_h * 0.5)
 	var content_h := maxf(_list.custom_minimum_size.y, _list.size.y)
+	## Keep the last line flush with the pane bottom — never leave a gap below.
 	var bottom_y := minf(0.0, view_h - content_h)
+	var target_y := -row_y if _pin_selection_top else view_h * 0.5 - (row_y + row_h * 0.5)
 	_list.position = Vector2(0.0, clampf(target_y, bottom_y, 0.0))
 
 

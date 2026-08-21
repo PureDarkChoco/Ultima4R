@@ -11585,7 +11585,11 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 
 func _journal_note_entered_city(fname: String) -> void:
 	var place := _WorldPortals.place_id_for_portal({"fname": fname})
-	if GameState.journal_mark_city(place):
+	var marked := GameState.journal_mark_city(place)
+	if _journal_panel != null and _journal_panel.has_method("focus_place"):
+		if _journal_panel.focus_place(place):
+			return
+	if marked:
 		_refresh_journal_panel()
 
 
@@ -12356,6 +12360,7 @@ func _exit_dungeon_to_surface() -> void:
 				_map.enter_city(cmap, _tile_pos, _city_return_pos)
 			_apply_city_skull_wipe()
 			_apply_city_guards_alerted()
+			_journal_note_entered_city(city_fname)
 			_sync_music()
 			_refresh_locate_hud()
 			return
@@ -14741,6 +14746,7 @@ func _death_revive() -> void:
 			_map.enter_city(cmap, start, world_pos, spawn)
 			_map.set_transport_tile(-1)
 			_map.clear_moongate()
+		_journal_note_entered_city("lcb_2.ult")
 		entered = true
 	else:
 		push_warning("death revive: cannot load lcb_2.ult — staying at world LCB gate")
