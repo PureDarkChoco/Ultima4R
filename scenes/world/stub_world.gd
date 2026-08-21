@@ -8773,11 +8773,14 @@ func _ready_letter_from_key(k: InputEventKey) -> int:
 
 
 func _tick_ready_weapon_cursor() -> void:
-	var step := _read_select_step()
-	if step == 0:
+	var step_y := _read_select_step()
+	var step_x := 0 if _ready_self_only else _GameInput.read_select_step_x()
+	if step_y != 0:
+		step_x = 0
+	if step_x == 0 and step_y == 0:
 		_reset_hold_state()
 		return
-	var held := Vector2i(0, step)
+	var held := Vector2i(step_x, step_y)
 	if held != _held_dir:
 		_held_dir = held
 		_move_repeating = false
@@ -8786,8 +8789,10 @@ func _tick_ready_weapon_cursor() -> void:
 		return
 	if _move_repeating and _hold_arm > 0.0:
 		return
-	if _ready_panel:
-		_ready_panel.nudge_cursor(step)
+	if step_x != 0:
+		_nudge_ready_member(step_x)
+	elif _ready_panel:
+		_ready_panel.nudge_cursor(step_y)
 	_arm_hold_after_step()
 
 
@@ -8797,6 +8802,28 @@ func _nudge_ready_cursor(delta: int) -> void:
 	var n := maxi(GameState.party_size(), 1)
 	_ready_cursor = posmod(_ready_cursor + delta, n)
 	_sync_ready_selection()
+
+
+func _ready_member_switchable() -> bool:
+	return not _ready_self_only and GameState.party_size() > 1
+
+
+func _nudge_ready_member(delta: int) -> void:
+	## ←→ while the weapon list is open: switch party member, keep the panel.
+	if _ready_self_only or delta == 0:
+		return
+	var n := GameState.party_size()
+	if n <= 1 or _ready_slot < 0:
+		return
+	var slot := posmod(_ready_slot + delta, n)
+	if slot == _ready_slot:
+		return
+	_ready_slot = slot
+	_ready_cursor = slot
+	_ensure_ready_panel()
+	if _ready_panel:
+		_ready_panel.open_for(slot, _ready_member_switchable())
+	_layout_prompt_row()
 
 
 func _sync_ready_selection() -> void:
@@ -8831,7 +8858,7 @@ func _show_ready_weapons(slot: int) -> void:
 		_compact_pane.visible = false
 	_order_opened_roster = true
 	if _ready_panel:
-		_ready_panel.open_for(slot)
+		_ready_panel.open_for(slot, _ready_member_switchable())
 	_layout_prompt_row()
 
 
@@ -8884,7 +8911,11 @@ func _try_ready_weapon(weapon_id: int) -> void:
 		_:
 			_push_message(Locale.t("cmd_ready_done", [Locale.weapon_name(weapon_id)]), false)
 			_refresh_party()
-			_close_ready(false)
+			## Combat Ready spends a turn; explore stays open to re-pick / switch.
+			if _ready_self_only:
+				_close_ready(false)
+			elif _ready_panel:
+				_ready_panel.reload_equipped()
 
 
 func _ready_restricted_message(slot: int, weapon_id: int) -> String:
@@ -9044,11 +9075,14 @@ func _wear_letter_from_key(k: InputEventKey) -> int:
 
 
 func _tick_wear_armor_cursor() -> void:
-	var step := _read_select_step()
-	if step == 0:
+	var step_y := _read_select_step()
+	var step_x := _GameInput.read_select_step_x()
+	if step_y != 0:
+		step_x = 0
+	if step_x == 0 and step_y == 0:
 		_reset_hold_state()
 		return
-	var held := Vector2i(0, step)
+	var held := Vector2i(step_x, step_y)
 	if held != _held_dir:
 		_held_dir = held
 		_move_repeating = false
@@ -9057,8 +9091,10 @@ func _tick_wear_armor_cursor() -> void:
 		return
 	if _move_repeating and _hold_arm > 0.0:
 		return
-	if _wear_panel:
-		_wear_panel.nudge_cursor(step)
+	if step_x != 0:
+		_nudge_wear_member(step_x)
+	elif _wear_panel:
+		_wear_panel.nudge_cursor(step_y)
 	_arm_hold_after_step()
 
 
@@ -9066,6 +9102,28 @@ func _nudge_wear_cursor(delta: int) -> void:
 	var n := maxi(GameState.party_size(), 1)
 	_wear_cursor = posmod(_wear_cursor + delta, n)
 	_sync_wear_selection()
+
+
+func _wear_member_switchable() -> bool:
+	return GameState.party_size() > 1
+
+
+func _nudge_wear_member(delta: int) -> void:
+	## ←→ while the armor list is open: switch party member, keep the panel.
+	if delta == 0:
+		return
+	var n := GameState.party_size()
+	if n <= 1 or _wear_slot < 0:
+		return
+	var slot := posmod(_wear_slot + delta, n)
+	if slot == _wear_slot:
+		return
+	_wear_slot = slot
+	_wear_cursor = slot
+	_ensure_wear_panel()
+	if _wear_panel:
+		_wear_panel.open_for(slot, _wear_member_switchable())
+	_layout_prompt_row()
 
 
 func _sync_wear_selection() -> void:
@@ -9087,6 +9145,8 @@ func _accept_wear_slot(slot: int) -> void:
 func _show_wear_armor(slot: int) -> void:
 	_ensure_wear_panel()
 	_wear_stage = 2
+	_wear_slot = slot
+	_wear_cursor = slot
 	_reset_hold_state()
 	_clear_order_selection()
 	if _roster:
@@ -9097,7 +9157,7 @@ func _show_wear_armor(slot: int) -> void:
 		_compact_pane.visible = false
 	_order_opened_roster = true
 	if _wear_panel:
-		_wear_panel.open_for(slot)
+		_wear_panel.open_for(slot, _wear_member_switchable())
 	_layout_prompt_row()
 
 
@@ -9141,7 +9201,9 @@ func _try_wear_armor(armor_id: int) -> void:
 			_push_message(_wear_restricted_message(_wear_slot, armor_id), false)
 		_:
 			_push_message(Locale.t("cmd_wear_done", [Locale.armor_name(armor_id)]), false)
-			_close_wear(false)
+			_refresh_party()
+			if _wear_panel:
+				_wear_panel.reload_equipped()
 
 
 func _wear_restricted_message(slot: int, armor_id: int) -> String:

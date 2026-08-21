@@ -30,9 +30,13 @@ const CUR_ICON := 20
 
 var _root: VBoxContainer
 var _pad_top: Control
+var _name_left: Label
+var _member_name: Label
+var _name_right: Label
 var _cur_icon: TextureRect
 var _cur_name: Label
 var _cur_atk: Label
+var _switchable := false
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 ## Absorbs leftover panel pixels so the list viewport is an exact N-row height.
@@ -66,6 +70,49 @@ func _ready() -> void:
 	_pad_top.custom_minimum_size = Vector2(0, INV_PAD_TOP)
 	_pad_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_pad_top)
+
+	var name_wrap := MarginContainer.new()
+	name_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
+	name_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
+	name_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(name_wrap)
+
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 6)
+	name_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_wrap.add_child(name_row)
+
+	_name_left = Label.new()
+	_name_left.text = "◀"
+	_name_left.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_name_left.add_theme_font_size_override("font_size", FONT_SIZE)
+	_name_left.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(_name_left)
+	_name_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_name_left.visible = false
+	name_row.add_child(_name_left)
+
+	_member_name = Label.new()
+	_member_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_member_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_member_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_member_name.add_theme_font_size_override("font_size", FONT_SIZE + 1)
+	_member_name.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(_member_name)
+	_member_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_row.add_child(_member_name)
+
+	_name_right = Label.new()
+	_name_right.text = "▶"
+	_name_right.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_name_right.add_theme_font_size_override("font_size", FONT_SIZE)
+	_name_right.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(_name_right)
+	_name_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_name_right.visible = false
+	name_row.add_child(_name_right)
 
 	var cur_wrap := MarginContainer.new()
 	cur_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
@@ -163,13 +210,15 @@ func _notification(what: int) -> void:
 		call_deferred("_fit_list_viewport_gen", _scroll_gen)
 
 
-func open_for(slot: int) -> void:
+func open_for(slot: int, switchable: bool = false) -> void:
 	## Always start at the top usable row and scroll home.
 	_scroll_gen += 1
 	_slot = slot
+	_switchable = switchable
 	_klass = GameState.party_member_at(slot)
 	_current_id = GameState.weapon_of_slot(slot)
 	_current_dmg = _WeaponIcons.damage_of(_current_id)
+	_refresh_member_name()
 	_refresh_current()
 	_rebuild_list()
 	_cursor = _first_usable_index()
@@ -180,11 +229,34 @@ func open_for(slot: int) -> void:
 	call_deferred("_fit_list_viewport_gen", gen)
 
 
+func reload_equipped() -> void:
+	## After a successful ready: rebuild stats/qty, keep the cursor on the same row.
+	if _slot < 0:
+		return
+	var keep_id := -1
+	if _cursor >= 0 and _cursor < _ids.size():
+		keep_id = int(_ids[_cursor])
+	_klass = GameState.party_member_at(_slot)
+	_current_id = GameState.weapon_of_slot(_slot)
+	_current_dmg = _WeaponIcons.damage_of(_current_id)
+	_refresh_member_name()
+	_refresh_current()
+	_rebuild_list()
+	var keep := _index_of_id(keep_id)
+	if keep >= 0 and keep < _usable.size() and _usable[keep]:
+		_cursor = keep
+	else:
+		_cursor = _first_usable_index()
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
 func close_panel() -> void:
 	_scroll_gen += 1
 	visible = false
 	_slot = -1
 	_klass = -1
+	_switchable = false
 	_ids.clear()
 	_usable.clear()
 	_row_wraps.clear()
@@ -250,6 +322,28 @@ func is_usable_at(list_index: int) -> bool:
 	if list_index < 0 or list_index >= _usable.size():
 		return false
 	return _usable[list_index]
+
+
+func _refresh_member_name() -> void:
+	if _member_name == null:
+		return
+	if _slot >= 0:
+		_member_name.text = GameState.party_member_display_name(_slot)
+	else:
+		_member_name.text = ""
+	if _name_left:
+		_name_left.visible = _switchable
+	if _name_right:
+		_name_right.visible = _switchable
+
+
+func _index_of_id(item_id: int) -> int:
+	if item_id < 0:
+		return -1
+	for i in _ids.size():
+		if int(_ids[i]) == item_id:
+			return i
+	return -1
 
 
 func _refresh_current() -> void:
