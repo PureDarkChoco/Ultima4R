@@ -41,6 +41,8 @@ const _JournalScript := preload("res://src/core/journal.gd")
 const _DungeonMapData := preload("res://src/map/dungeon_map_data.gd")
 const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
 const _ShrineMantras := preload("res://src/core/shrine.gd")
+const _CodexChamber := preload("res://src/core/codex_chamber.gd")
+const _CodexChamberOverlay := preload("res://src/ui/codex_chamber_overlay.gd")
 const _ResImage := preload("res://src/core/res_image.gd")
 
 @onready var _top_bar: Control = %TopBar
@@ -334,6 +336,10 @@ var _dungeon_saved_sides_open := false
 var _dungeon_sides_forced := false
 var _codex_stage := 0
 var _codex_buffer := ""
+var _codex_overlay # CodexChamberOverlay — preload instance, not class_name type
+var _codex_choice_active := false
+var _codex_choice_cursor := 0
+var _codex_choice_items: Array[Dictionary] = []
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
 var _enter_prompt_stage := 0
 var _enter_prompt_choice := 0 ## selected button index in the dialogue choice row
@@ -469,6 +475,7 @@ func _ready() -> void:
 	_sides_open = GameState.is_new_game
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
+	_ensure_codex_overlay()
 	_ensure_ztats_panel()
 	_ensure_save_panel()
 	_ensure_esc_menu()
@@ -1377,6 +1384,9 @@ func _command_menu_scroll_metrics() -> Dictionary:
 	elif _abyss_altar_choice_active:
 		total = _abyss_altar_choice_items.size()
 		vis = mini(MSG_OPEN_LINES, total)
+	elif _codex_choice_active:
+		total = _codex_choice_items.size()
+		vis = mini(MSG_OPEN_LINES, total)
 	elif _talk_keyword_menu_active:
 		total = _talk_keyword_menu_items.size()
 		scroll = _talk_keyword_menu_scroll
@@ -1412,6 +1422,9 @@ func _rebuild_command_menu_rows() -> void:
 			row_texts.append(str(_city_warp_items[abs_i].get("label", "")))
 	elif _abyss_altar_choice_active:
 		for item in _abyss_altar_choice_items:
+			row_texts.append(str(item.get("label", "")))
+	elif _codex_choice_active:
+		for item in _codex_choice_items:
 			row_texts.append(str(item.get("label", "")))
 	elif _talk_keyword_menu_active:
 		var vis := _talk_keyword_visible_count()
@@ -1539,6 +1552,8 @@ func _layout_command_menu_layer() -> void:
 		selected_cursor = _city_warp_cursor - _city_warp_scroll
 	elif _abyss_altar_choice_active:
 		selected_cursor = _abyss_altar_choice_cursor
+	elif _codex_choice_active:
+		selected_cursor = _codex_choice_cursor
 	elif _talk_keyword_menu_active:
 		selected_cursor = _talk_keyword_menu_cursor - _talk_keyword_menu_scroll
 	for i in count:
@@ -1828,6 +1843,8 @@ func _prompt_row_text() -> String:
 	if _shrine_stage == 4:
 		return _shrine_buffer
 	if _codex_stage > 0:
+		if _codex_native_hangul_active():
+			return _talk_input_mode_marker() + _codex_buffer + _talk_hangul_preedit
 		return _codex_buffer
 	if _shrine_stage == 5:
 		return ""
@@ -1901,7 +1918,7 @@ func _prompt_row_text() -> String:
 
 func _prompt_row_wants_glyph() -> bool:
 	## xu4 screenPrompt — world command wait shows CHARSET_PROMPT; talk input does not.
-	return _talk_stage == 0
+	return _talk_stage == 0 and _codex_stage == 0 and _abyss_altar_stage == 0
 
 
 func _msg_prompt_glyph_side(font_sz: int) -> float:
@@ -2408,6 +2425,7 @@ func _layout_side_panels(animate: bool) -> void:
 	_layout_locate_hud()
 	_layout_ship_hull_hud()
 	_sync_aura_hud_pos()
+	_layout_codex_overlay()
 
 
 func _sync_aura_hud_pos() -> void:
@@ -2758,7 +2776,7 @@ func _process(delta: float) -> void:
 	if _cast_stage == 4:
 		_tick_cast_dir()
 		return
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _abyss_altar_choice_active or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _orb_touch_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _abyss_altar_choice_active or _codex_choice_active or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _orb_touch_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
@@ -2773,7 +2791,7 @@ func _process(delta: float) -> void:
 	if _wear_stage == 2:
 		_tick_wear_armor_cursor()
 		return
-	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return
 
 	## U5-style ship cruise: keep sailing without holding a key.
@@ -3041,6 +3059,8 @@ func _tick_select_cursor() -> void:
 		_nudge_use_cursor(step)
 	elif _abyss_altar_choice_active:
 		_nudge_abyss_altar_choice(step)
+	elif _codex_choice_active:
+		_nudge_codex_choice(step)
 	elif _camp_stage == 3:
 		_nudge_camp_guard_cursor(step)
 	elif _fountain_drink_stage == 1:
@@ -6688,6 +6708,36 @@ func _ensure_peer_overlay() -> void:
 	_map_pane.add_child(_peer_overlay)
 
 
+func _ensure_codex_overlay() -> void:
+	if _codex_overlay != null or _map_pane == null:
+		return
+	_codex_overlay = _CodexChamberOverlay.new()
+	_codex_overlay.name = "CodexChamberOverlay"
+	_map_pane.add_child(_codex_overlay)
+	## Sit above the map, under side panels / dialogue / command menu.
+	_map_pane.move_child(_codex_overlay, 1)
+
+
+func _layout_codex_overlay() -> void:
+	if _codex_overlay == null or not _codex_overlay.is_open() or _map_pane == null:
+		return
+	var g := _side_geom()
+	var left := float(g["left_w"])
+	var right := float(g["right_open_x"])
+	var pane_h := float(g["pane_h"])
+	var view_w := maxf(right - left, 8.0)
+	_codex_overlay.layout_in_map_view(Rect2(left, 0.0, view_w, pane_h))
+	## Keep the symbol under the dialogue / keyword list.
+	if _right_bottom != null:
+		_right_bottom.move_to_front()
+	if _left_pane != null:
+		_left_pane.move_to_front()
+	if _right_top != null:
+		_right_top.move_to_front()
+	if _command_menu_layer != null and _command_menu_layer.visible:
+		_command_menu_layer.move_to_front()
+
+
 func _is_option_alt_key(event: InputEvent) -> bool:
 	## Option (macOS) / Alt — summon the gamepad command / select UI.
 	if not (event is InputEventKey):
@@ -6707,6 +6757,9 @@ func _try_toggle_pad_select_ui(event: InputEvent) -> bool:
 	)
 	if _abyss_altar_stage != 0 and altar_toggle:
 		_toggle_abyss_altar_choice_menu()
+		return true
+	if _codex_stage > 0 and altar_toggle:
+		_toggle_codex_choice_menu()
 		return true
 	if not _is_option_alt_key(event):
 		return false
@@ -7469,6 +7522,8 @@ func _on_language_changed(_lang: String) -> void:
 	_refresh_locate_hud()
 	_refresh_journal_panel()
 	_layout_prompt_row()
+	if _codex_stage > 0 and _codex_choice_active:
+		_open_codex_choice_menu()
 
 
 func _handle_esc_menu_input(event: InputEvent) -> bool:
@@ -13313,6 +13368,7 @@ func _close_abyss_altar_choice_menu() -> void:
 		and not _command_menu_open
 		and not _talk_keyword_menu_active
 		and not _city_warp_open
+		and not _codex_choice_active
 	):
 		_command_menu_layer.visible = false
 
@@ -13540,26 +13596,157 @@ func _use_principle_key() -> void:
 
 
 func _begin_codex() -> void:
+	_use_stage = 0
+	if _use_panel:
+		_use_panel.close_panel()
 	_codex_stage = 1
 	_codex_buffer = ""
-	_push_message(Locale.t("cmd_codex_ask_mantra", [Locale.virtue_card_name(0)]), false)
+	_reset_talk_hangul()
+	_ensure_codex_overlay()
+	if not _sides_open:
+		_sides_open = true
+		_layout_side_panels(false)
+	_show_codex_stage()
+
+
+func _show_codex_stage() -> void:
+	_close_codex_choice_menu()
+	_codex_buffer = ""
+	_reset_talk_hangul()
+	_ensure_codex_overlay()
+	if _codex_overlay != null:
+		_codex_overlay.show_stage(_codex_stage)
+		_layout_codex_overlay()
+	_push_message(Locale.t("cmd_codex_voice"), false)
+	var qkey := _CodexChamber.question_key(_codex_stage)
+	if not qkey.is_empty():
+		_push_message(Locale.t(qkey), false)
+	_layout_prompt_row()
+	_open_codex_choice_menu()
+
+
+func _codex_native_hangul_active() -> bool:
+	if _codex_stage <= 0 or str(GameState.language) != "ko":
+		return false
+	_ensure_talk_hangul()
+	return _talk_hangul != null
+
+
+func _open_codex_choice_menu() -> void:
+	if _codex_stage <= 0:
+		return
+	_codex_choice_items = _CodexChamber.choice_items(GameState, _codex_stage)
+	if _codex_choice_items.is_empty():
+		_codex_choice_active = false
+		_layout_prompt_row()
+		return
+	_codex_choice_active = true
+	_codex_choice_cursor = 0
+	_reset_hold_state()
+	_rebuild_command_menu_rows()
+	if _command_menu_layer != null:
+		_command_menu_layer.visible = true
+		_command_menu_layer.move_to_front()
+	_layout_command_menu_layer()
+	_layout_prompt_row()
+
+
+func _close_codex_choice_menu() -> void:
+	_codex_choice_active = false
+	_codex_choice_cursor = 0
+	_codex_choice_items.clear()
+	_reset_hold_state()
+	if (
+		_command_menu_layer != null
+		and not _command_menu_open
+		and not _talk_keyword_menu_active
+		and not _city_warp_open
+		and not _abyss_altar_choice_active
+	):
+		_command_menu_layer.visible = false
+
+
+func _toggle_codex_choice_menu() -> void:
+	if _codex_choice_active:
+		_close_codex_choice_menu()
+	else:
+		_open_codex_choice_menu()
+	_layout_prompt_row()
+
+
+func _nudge_codex_choice(step: int) -> void:
+	if not _codex_choice_active or _codex_choice_items.is_empty() or step == 0:
+		return
+	_codex_buffer = ""
+	_reset_talk_hangul()
+	_codex_choice_cursor = posmod(
+		_codex_choice_cursor + step, _codex_choice_items.size()
+	)
+	_layout_command_menu_layer()
+	_layout_prompt_row()
+
+
+func _choose_codex_choice() -> void:
+	if (
+		not _codex_choice_active
+		or _codex_choice_cursor < 0
+		or _codex_choice_cursor >= _codex_choice_items.size()
+	):
+		return
+	var item: Dictionary = _codex_choice_items[_codex_choice_cursor]
+	_codex_buffer = str(item.get("input", ""))
+	_reset_talk_hangul()
+	_submit_codex_answer()
+
+
+func _end_codex_session() -> void:
+	_codex_stage = 0
+	_codex_buffer = ""
+	_reset_talk_hangul()
+	_close_codex_choice_menu()
+	if _codex_overlay != null:
+		_codex_overlay.hide_chamber()
 	_layout_prompt_row()
 
 
 func _handle_codex_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadMotion:
+		if not _codex_choice_active:
+			var motion_dir := _GameInput.dir_from_event(event)
+			if motion_dir.y != 0:
+				_open_codex_choice_menu()
+		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
+	if event is InputEventJoypadButton:
+		var button := event as InputEventJoypadButton
+		if button.button_index == JOY_BUTTON_B or button.is_action_pressed("cancel"):
+			_codex_fail()
+			return true
+		if button.button_index == JOY_BUTTON_A or button.is_action_pressed("confirm"):
+			if not _codex_choice_active:
+				_open_codex_choice_menu()
+			else:
+				_choose_codex_choice()
+			return true
+		return true
 	if not (event is InputEventKey):
 		return true
 	var k := event as InputEventKey
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		_codex_fail()
 		return true
+	if _is_direction_key(k):
+		if not _codex_choice_active:
+			_open_codex_choice_menu()
+		return true
+	if _codex_native_hangul_active() and _handle_codex_native_hangul(k):
+		return true
 	if _is_order_confirm_key(k):
-		var typed := _codex_buffer.strip_edges().to_lower()
-		_codex_buffer = ""
-		_layout_prompt_row()
-		_codex_submit(typed)
+		if _codex_buffer.strip_edges().is_empty() and _codex_choice_active:
+			_choose_codex_choice()
+		else:
+			_submit_codex_answer()
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 		if not _codex_buffer.is_empty():
@@ -13567,74 +13754,99 @@ func _handle_codex_input(event: InputEvent) -> bool:
 			_layout_prompt_row()
 		return true
 	var ch := _shrine_char_from_key(k)
-	if ch.is_empty():
+	if not ch.is_empty() and _codex_buffer.length() < 24:
+		_codex_buffer += ch
+		_layout_prompt_row()
+	return true
+
+
+func _handle_codex_native_hangul(k: InputEventKey) -> bool:
+	if not k.pressed or _talk_hangul == null:
+		return false
+	if _is_talk_input_mode_toggle(k):
+		if HangulInputSettings.is_korean_mode():
+			var flushed := str(_talk_hangul.call("flush"))
+			if not flushed.is_empty():
+				_codex_buffer += flushed
+			_talk_hangul_preedit = ""
+		else:
+			_talk_hangul.call("reset")
+		HangulInputSettings.toggle_input_mode()
+		_layout_prompt_row()
 		return true
-	if _codex_buffer.length() >= 12:
+	if _is_order_confirm_key(k):
+		var flushed := str(_talk_hangul.call("flush"))
+		if not flushed.is_empty():
+			_codex_buffer += flushed
+		_talk_hangul_preedit = ""
+		if _codex_buffer.strip_edges().is_empty() and _codex_choice_active:
+			_choose_codex_choice()
+		else:
+			_submit_codex_answer()
 		return true
-	_codex_buffer += ch
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		var erased: Dictionary = _talk_hangul.call("backspace") as Dictionary
+		if bool(erased.get("consumed", false)):
+			_talk_hangul_preedit = str(erased.get("preedit", ""))
+			_layout_prompt_row()
+			return true
+		_talk_hangul_preedit = ""
+		if not _codex_buffer.is_empty():
+			_codex_buffer = _codex_buffer.substr(0, _codex_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return true
+	var ascii := _talk_physical_ascii(k)
+	if ascii < 0:
+		return false
+	if _codex_buffer.length() >= 24 and _talk_hangul_preedit.is_empty():
+		return true
+	if not HangulInputSettings.is_korean_mode():
+		_codex_buffer += String.chr(ascii)
+		_layout_prompt_row()
+		return true
+	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
+	_codex_buffer += str(result.get("commit", ""))
+	_talk_hangul_preedit = str(result.get("preedit", ""))
+	if not bool(result.get("consumed", false)):
+		_codex_buffer += String.chr(ascii)
 	_layout_prompt_row()
 	return true
 
 
-func _codex_submit(typed: String) -> void:
+func _submit_codex_answer() -> void:
+	var typed := (_codex_buffer + _talk_hangul_preedit).strip_edges()
+	_codex_buffer = ""
+	_reset_talk_hangul()
 	if not typed.is_empty():
 		_push_message(typed, false)
-	if _codex_stage >= 1 and _codex_stage <= 8:
-		if not _ShrineMantras.mantra_matches(_codex_stage - 1, typed):
-			_codex_fail()
-			return
-		_codex_stage += 1
-		if _codex_stage <= 8:
-			_push_message(Locale.t("cmd_codex_ask_mantra", [Locale.virtue_card_name(_codex_stage - 1)]), false)
-			_layout_prompt_row()
-			return
-		_push_message(Locale.t("cmd_codex_ask_principle", [Locale.t("cmd_principle_truth")]), false)
-		_layout_prompt_row()
-		return
-	if _codex_stage == 9:
-		if typed != "truth" and typed != "진리":
-			_codex_fail()
-			return
-		_codex_stage = 10
-		_push_message(Locale.t("cmd_codex_ask_principle", [Locale.t("cmd_principle_love")]), false)
-		_layout_prompt_row()
-		return
-	if _codex_stage == 10:
-		if typed != "love" and typed != "사랑":
-			_codex_fail()
-			return
-		_codex_stage = 11
-		_push_message(Locale.t("cmd_codex_ask_principle", [Locale.t("cmd_principle_courage")]), false)
-		_layout_prompt_row()
-		return
-	if _codex_stage == 11:
-		if typed != "courage" and typed != "용기":
-			_codex_fail()
-			return
-		_codex_stage = 12
-		_push_message(Locale.t("cmd_codex_ask_word"), false)
-		_layout_prompt_row()
-		return
-	if typed != "infinity" and typed != "무한":
+	if not _CodexChamber.answer_ok(_codex_stage, typed):
 		_codex_fail()
 		return
-	_codex_win()
+	if _codex_stage >= _CodexChamber.STAGE_COUNT:
+		_codex_win()
+		return
+	_codex_stage += 1
+	_show_codex_stage()
 
 
 func _codex_fail() -> void:
-	_codex_stage = 0
-	_codex_buffer = ""
-	_layout_prompt_row()
+	_end_codex_session()
 	_push_message(Locale.t("cmd_codex_wrong"), false)
 	_exit_dungeon_to_surface()
 
 
 func _codex_win() -> void:
+	_close_codex_choice_menu()
 	_codex_stage = 0
 	_codex_buffer = ""
+	_reset_talk_hangul()
 	_layout_prompt_row()
 	_push_message(Locale.t("cmd_codex_end"), false)
 	await get_tree().create_timer(2.4).timeout
+	if _codex_overlay != null:
+		_codex_overlay.hide_chamber()
 	SceneRouter.to_menu()
 
 

@@ -2753,30 +2753,80 @@ const _T := {
 		"en_us": "You do not have the three keys!",
 		"ko": "세 열쇠가 없다!",
 	},
-	"cmd_codex_ask_mantra": {
-		"en_u4": "What is the mantra of %s?",
-		"en_us": "What is the mantra of %s?",
-		"ko": "%s의 만트라는 무엇인가?",
+	"cmd_codex_voice": {
+		"en_u4": "A voice rings out:",
+		"en_us": "A voice rings out:",
+		"ko": "목소리가 울려 퍼진다:",
 	},
-	"cmd_codex_ask_principle": {
-		"en_u4": "What is the principle of %s?",
-		"en_us": "What is the principle of %s?",
-		"ko": "%s의 원리는 무엇인가?",
+	"cmd_codex_q_honesty": {
+		"en_u4": "What dost thou possess if all may rely upon thy every word?",
+		"en_us": "What do you possess if all may rely upon your every word?",
+		"ko": "모든 이가 그대의 말마다 기댈 수 있다면, 그대가 지닌 것은?",
 	},
-	"cmd_codex_ask_word": {
-		"en_u4": "What is the one Word?",
-		"en_us": "What is the one Word?",
-		"ko": "그 한 단어는 무엇인가?",
+	"cmd_codex_q_compassion": {
+		"en_u4": "What quality compels one to share in the journeys of others?",
+		"en_us": "What quality compels one to share in the journeys of others?",
+		"ko": "남의 여정에 함께하게 하는 덕목은?",
+	},
+	"cmd_codex_q_valor": {
+		"en_u4": "What answers when great deeds are called for?",
+		"en_us": "What answers when great deeds are called for?",
+		"ko": "큰 위업이 요구될 때 응답하는 것은?",
+	},
+	"cmd_codex_q_justice": {
+		"en_u4": "What should be the same for Lord and Serf alike?",
+		"en_us": "What should be the same for lord and serf alike?",
+		"ko": "영주와 농노에게 마땅히 같아야 하는 것은?",
+	},
+	"cmd_codex_q_sacrifice": {
+		"en_u4": "What is loath to place the self above aught else?",
+		"en_us": "What is loath to place the self above all else?",
+		"ko": "자신을 무엇보다 앞에 두기를 꺼리는 것은?",
+	},
+	"cmd_codex_q_honor": {
+		"en_u4": "What shirks no duty?",
+		"en_us": "What shirks no duty?",
+		"ko": "어떤 의무도 피하지 않는 것은?",
+	},
+	"cmd_codex_q_spirituality": {
+		"en_u4": "What, in knowing the true self, knows all?",
+		"en_us": "What, in knowing the true self, knows all?",
+		"ko": "참된 자신을 앎으로써 모든 것을 아는 것은?",
+	},
+	"cmd_codex_q_humility": {
+		"en_u4": "What is that which Serfs are born with, but Nobles must strive to obtain?",
+		"en_us": "What is that which serfs are born with, but nobles must strive to obtain?",
+		"ko": "농노는 타고나되 귀족은 애써 얻어야 하는 것은?",
+	},
+	"cmd_codex_q_truth": {
+		"en_u4": "If all else is imaginary, this is real...",
+		"en_us": "If all else is imaginary, this is real...",
+		"ko": "다른 모든 것이 허상이라면, 이것만은 실재다...",
+	},
+	"cmd_codex_q_love": {
+		"en_u4": "What plunges to the depths, while soaring on the heights?",
+		"en_us": "What plunges to the depths, while soaring on the heights?",
+		"ko": "높은 곳에 오르면서도 깊은 곳으로 가라앉는 것은?",
+	},
+	"cmd_codex_q_courage": {
+		"en_u4": "What turns not away from any peril?",
+		"en_us": "What turns not away from any peril?",
+		"ko": "어떤 위험도 외면하지 않는 것은?",
+	},
+	"cmd_codex_q_infinity": {
+		"en_u4": "If all eight virtues of the Avatar combine into and are derived from the three principles of Truth, Love and Courage, then what is the one thing which encompasses and is the whole of all undeniable Truth, unending Love, and unyielding Courage?",
+		"en_us": "If all eight virtues of the Avatar combine into and are derived from the three principles of Truth, Love and Courage, then what is the one thing which encompasses and is the whole of all undeniable Truth, unending Love, and unyielding Courage?",
+		"ko": "아바타의 여덟 미덕이 진리·사랑·용기 세 원리에서 나와 하나로 합쳐진다면, 부정할 수 없는 진리와 끝없는 사랑과 꺾이지 않는 용기 전체를 아우르는 그 하나는?",
 	},
 	"cmd_codex_wrong": {
-		"en_u4": "That is not the answer!",
-		"en_us": "That is not the answer!",
-		"ko": "그것이 답이 아니다!",
+		"en_u4": "Passage is not granted.",
+		"en_us": "Passage is not granted.",
+		"ko": "통과가 허락되지 않는다.",
 	},
 	"cmd_codex_end": {
-		"en_u4": "The Codex of Ultimate Wisdom is revealed!",
-		"en_us": "The Codex of Ultimate Wisdom is revealed!",
-		"ko": "궁극의 지혜의 코덱스가 드러난다!",
+		"en_u4": "The boundless knowledge of the Codex of Ultimate Wisdom is revealed unto thee.",
+		"en_us": "The boundless knowledge of the Codex of Ultimate Wisdom is revealed to you.",
+		"ko": "궁극의 지혜의 코덱스가 지닌 한없는 지식이 그대에게 드러난다.",
 	},
 	"cmd_principle_truth": {
 		"en_u4": "Truth",
