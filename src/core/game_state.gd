@@ -3507,6 +3507,10 @@ func journal_mark_id(id: String) -> bool:
 	return _Journal.mark_id(self, id)
 
 
+func journal_capture_know(raw: Variant) -> bool:
+	return _Journal.capture_know(self, raw)
+
+
 func journal_try_upgrade_id(id: String) -> bool:
 	return _Journal.try_upgrade_id(self, id)
 

@@ -547,6 +547,7 @@
       "chain": "minoc.sacrifice-rune",
       "chain_order": 50,
       "goal": "stone:orange",
+      "know": "stone:orange",
       "en": "Sacrifice stone: orange; used in the altar rooms of Love and Courage.",
       "ko": "희생의 주황 돌: 사랑과 용기의 제단 방에서 사용한다."
     },
@@ -1860,6 +1861,7 @@
       "goal": "ask:britain-pub-black-stone",
       "complete_if_recorded": "britain.sam.merlin-stone",
       "complete_on_goal": "stone:black",
+      "know": "stone:black",
       "speaker_en": "Nate",
       "speaker_ko": "네이트",
       "en": "Ask at the pub in {britain} about the black stone.",
@@ -1895,6 +1897,7 @@
       "goal": "ask:merlin-stone",
       "complete_if_recorded": "cove.merlin.black-stone",
       "complete_on_goal": "stone:black",
+      "know": "stone:black",
       "speaker_en": "Sam",
       "speaker_ko": "샘",
       "en": "Ask Merlin in {cove} about the black stone.",

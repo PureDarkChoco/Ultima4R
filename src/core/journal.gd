@@ -1130,8 +1130,12 @@ static func known_principle_mask(gs: Node) -> int:
 	return int(gs.journal_known_principles)
 
 
-static func _capture_know(gs: Node, raw: Variant) -> bool:
+static func capture_know(gs: Node, raw: Variant) -> bool:
 	## Live talk/loot facts. Marks the collection page unread when something new lands.
+	return _capture_know(gs, raw)
+
+
+static func _capture_know(gs: Node, raw: Variant) -> bool:
 	var added := _apply_know(gs, raw)
 	if added:
 		mark_codex_unseen(gs)

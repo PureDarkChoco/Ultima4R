@@ -286,6 +286,10 @@ func tavern_topics() -> Array:
 	return _topics.duplicate()
 
 
+func locale_name() -> String:
+	return _locale
+
+
 func item_list_entries() -> Array[Dictionary]:
 	## Buy catalogs that may be navigated with ↑↓ and accepted with Enter / A.
 	var entries: Array[Dictionary] = []
@@ -1244,6 +1248,7 @@ func _t_foggy() -> void:
 				GameState.journal_try_capture("jhelom", "Celestial", "SEXTANT")
 		if _topic_key == "black stone" and _locale == "Britain":
 			GameState.journal_try_capture("britain", "Sam", "BLACK STONE")
+			GameState.journal_capture_know("stone:black")
 			GameState.journal_mark_id("magincia.nate.britain-pub-stone")
 			GameState.journal_mark_goal("ask:britain-pub-black-stone")
 		if _topic_key == "white stone" and _locale == "Trinsic":

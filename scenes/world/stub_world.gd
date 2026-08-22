@@ -4348,22 +4348,55 @@ func _talk_keyword_menu_can_select() -> bool:
 
 
 func _tavern_topic_unlocked(en_name: String) -> bool:
+	## Each pub only offers rumors the player was directed to ask there.
 	var want := en_name.strip_edges().to_lower()
-	if want.is_empty():
+	if want.is_empty() or _shop == null:
 		return false
-	if want == "sextant":
-		if GameState.journal_has_id("jhelom.senora.sextant"):
-			return true
-	if want == "white stone":
-		if GameState.journal_has_id("skara.mitre.trinsic-tap-stone"):
-			return true
-	if want == "mandrake":
-		if GameState.journal_has_id("trinsic.swindrik.folley-mandrake"):
-			return true
-	for alias in _tavern_topic_aliases(en_name):
-		if GameState.talk_has_heard_word(str(alias)):
-			return true
-	return false
+	var locale: String = str(_shop.locale_name()).strip_edges()
+	if locale.is_empty():
+		return false
+	match want:
+		"black stone":
+			return (
+				locale == "Britain"
+				and (
+					GameState.journal_has_id("magincia.nate.britain-pub-stone")
+					or GameState.journal_has_id("britain.sam.ask-black-stone")
+				)
+			)
+		"sextant":
+			return locale == "Jhelom" and (
+				GameState.journal_has_id("trinsic.sailor-sam.jhelom-sextant")
+				or GameState.journal_has_id("jhelom.pub.ask-sextant")
+			)
+		"white stone":
+			return locale == "Trinsic" and (
+				GameState.journal_has_id("skara.mitre.trinsic-tap-stone")
+				or GameState.journal_has_id("trinsic.tap.ask-white-stone")
+			)
+		"mandrake":
+			return locale == "Paws" and (
+				GameState.journal_has_id("trinsic.swindrik.folley-mandrake")
+				or GameState.journal_has_id("paws.greg.ask-mandrake")
+			)
+		"nightshade":
+			return locale == "Vesper" and (
+				GameState.journal_has_id("skara.presto.vesper-nightshade")
+				or GameState.journal_has_id("vesper.arron.ask-nightshade")
+			)
+		"skull":
+			match locale:
+				"Britain", "Jhelom", "Trinsic", "Paws":
+					return GameState.journal_has_id("britain.sebastian.den-skull")
+				"Buccaneers-Den":
+					return (
+						GameState.journal_has_id("britain.sebastian.den-skull")
+						or GameState.journal_has_id("den.ragnar.ask-skull")
+					)
+				_:
+					return false
+		_:
+			return false
 
 
 func _tavern_topic_aliases(en_name: String) -> PackedStringArray:
@@ -20595,6 +20628,10 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		and npc_key == "alkerion"
 		and topic == "STON"
 	):
+		if GameState.journal_try_capture_talk("minoc", "Alkerion", "STON"):
+			refresh = true
+		if GameState.journal_capture_know("stone:orange"):
+			refresh = true
 		if GameState.journal_mark_id("minoc.mischief.alkerion-stone"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:alkerion-stone"):
@@ -20857,6 +20894,10 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_goal("ask:nate-rune"):
 			refresh = true
 	if place == "magincia" and npc_key == "nate" and topic == "STON":
+		if GameState.journal_try_capture_talk("magincia", "Nate", "STON"):
+			refresh = true
+		if GameState.journal_capture_know("stone:black"):
+			refresh = true
 		if GameState.journal_mark_id("magincia.splot.nate-stone"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:nate-stone"):
