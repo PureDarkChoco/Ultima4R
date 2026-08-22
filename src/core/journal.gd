@@ -535,6 +535,8 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		changed = true
 	if _migrate_britain_compassion_virtue(gs):
 		changed = true
+	if _migrate_magincia_nate_rune_first_heard(gs):
+		changed = true
 	return changed
 
 
@@ -608,6 +610,38 @@ static func _migrate_britain_compassion_virtue(gs: Node) -> bool:
 	return false
 
 
+static func _migrate_magincia_nate_rune_first_heard(gs: Node) -> bool:
+	## Old Magincia saves could keep both Ruskin and Splot rune tips.
+	const RUSKIN := "magincia.ruskin.nate-rune"
+	const SPLOT := "magincia.splot.nate-rune"
+	if gs == null or not has_entry_id(gs, RUSKIN) or not has_entry_id(gs, SPLOT):
+		return false
+	var drop := SPLOT
+	var ruskin_at := -1
+	var splot_at := -1
+	var rows: Array = gs.journal_entries
+	for row in rows:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		var id := str(d.get("id", "")).strip_edges()
+		if id == RUSKIN:
+			ruskin_at = int(d.get("at", 0))
+		elif id == SPLOT:
+			splot_at = int(d.get("at", 0))
+	if splot_at >= 0 and (ruskin_at < 0 or splot_at < ruskin_at):
+		drop = RUSKIN
+	var kept: Array = []
+	for row in rows:
+		if typeof(row) == TYPE_DICTIONARY and str(row.get("id", "")).strip_edges() == drop:
+			continue
+		kept.append(row)
+	if kept.size() == rows.size():
+		return false
+	gs.journal_entries = kept
+	return true
+
+
 static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dictionary) -> bool:
 	## Search / ask tips must stay pending until the action. Old complete-on-record
 	## rows (empty stored goal) are migrated to the catalog goal.
@@ -632,6 +666,11 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 	):
 		if bool(row.get("done", false)) != inventory_done:
 			row["done"] = inventory_done
+			return true
+		return changed
+	if catalog_goal == "use:horn" or catalog_goal.begins_with("use:horn"):
+		if old_goal.is_empty() and bool(row.get("done", false)):
+			row["done"] = false
 			return true
 		return changed
 	if catalog_goal.begins_with("ask:"):

@@ -40,6 +40,16 @@ const HUMILITY_AMBUSH_COUNT := 8
 ## Spread the horde on y+1 so each daemon occupies its own tile (xu4 stacks all 8).
 const HUMILITY_AMBUSH_LINE_X0 := 228
 
+
+static func is_near_humility_shrine(pos: Vector2i) -> bool:
+	## World tiles where the silver horn blocks the daemon guard.
+	return (
+		pos.x >= HUMILITY_AMBUSH_X0
+		and pos.x < HUMILITY_AMBUSH_X1
+		and pos.y >= HUMILITY_AMBUSH_Y0
+		and pos.y < HUMILITY_AMBUSH_Y1
+	)
+
 ## xu4 Creature::specialAction — world-map ranged (not combat free-aim).
 const _WORLD_RANGED_SPECIAL := {
 	TILE_SEA_SERPENT: true,

@@ -5272,7 +5272,7 @@ func _maybe_offer_magincia_chain_keyword() -> void:
 			"룬" if korean else "Rune",
 			"룬" if korean else "rune"
 		)
-		if GameState.journal_has_id("magincia.splot.nate-rune"):
+		if GameState.journal_has_id("magincia.splot.nate-stone"):
 			var stone_key := _talk_keyword_stable_key(
 				"돌" if korean else "stone"
 			)
@@ -11380,6 +11380,14 @@ func _use_horn() -> void:
 	## Blocks humility-shrine daemon ambush. Sky-bar horn icon, no remaining-turn chip.
 	_push_message(Locale.t("cmd_use_horn"), false)
 	GameState.set_aura(GameState.AuraType.HORN, GameState.AURA_SPELL_TURNS)
+	if (
+		not _combat_active
+		and not _is_in_city()
+		and not _is_in_dungeon()
+		and _WorldCreaturesScript.is_near_humility_shrine(_tile_pos)
+		and GameState.journal_mark_goal("use:horn")
+	):
+		_refresh_journal_panel()
 	await _finish_use_command()
 
 
@@ -20568,12 +20576,17 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		GameState.talk_remember_heard_word("lady in waiting")
 		if _maybe_resolve_suzanna_horn_clues():
 			refresh = true
-	if place == "magincia" and npc_key == "nate" and topic in ["RUNE", "STON"]:
+	if place == "magincia" and npc_key == "nate" and topic == "RUNE":
 		if GameState.journal_mark_id("magincia.ruskin.nate-rune"):
 			refresh = true
 		if GameState.journal_mark_id("magincia.splot.nate-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:nate-rune"):
+			refresh = true
+	if place == "magincia" and npc_key == "nate" and topic == "STON":
+		if GameState.journal_mark_id("magincia.splot.nate-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:nate-stone"):
 			refresh = true
 	## Nate (Magincia): Rune reply points to Barren in Paws.
 	if place == "magincia" and npc_key == "nate" and topic == "RUNE":
