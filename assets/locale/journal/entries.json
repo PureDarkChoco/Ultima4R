@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -1341,7 +1341,7 @@
       "speaker_en": "Terran",
       "speaker_ko": "테란",
       "en": "Meet Sloven the hermit near Lock Lake.",
-      "ko": "록 호수 근처의 은자 슬로벤 만나기",
+      "ko": "로크 호수 근처의 은자 슬로벤 만나기",
       "en_u4": "Seek Sloven the hermit near Lock Lake.",
       "en_us": "Meet Sloven the hermit near Lock Lake."
     },
@@ -1429,7 +1429,6 @@
       "chain_order": 20,
       "goal": "ask:barren-mantra",
       "complete_if_recorded": "skara.barren.spirituality-mantra",
-      "complete_on_goal": "mantra:spirituality",
       "en": "Ask Barren about the mantra.",
       "ko": "바렌에게 만트라에 대해 묻기",
       "en_u4": "Ask Barren of the mantra.",
@@ -1793,6 +1792,33 @@
       "en_us": "Search in the training room of {serpent}."
     },
     {
+      "id": "paws.damsel.castle-entrance",
+      "place": "paws",
+      "npc": "Damsel",
+      "topic": "RATI_YES",
+      "goal": "enter:hythloth-castle",
+      "en": "Search for the secret entrance in {lcb}.",
+      "ko": "{lcb}에서 비밀 입구 찾기",
+      "en_u4": "Seek the secret entrance in {lcb}.",
+      "en_us": "Search for the secret entrance in {lcb}."
+    },
+    {
+      "id": "paws.jingles.mentorian-gate",
+      "place": "paws",
+      "npc": "Jingles",
+      "topic": "MAST_NO",
+      "goal": "ask:mentorian-gate",
+      "complete_if_recorded": "cove.mentorian.gate-spell",
+      "en": "Ask Mentorian about gate magic in the hidden village at Lock Lake.",
+      "ko": "로크 호수 숨은 마을에서 멘토리안에게 차원문 마법 묻기",
+      "en_u4": "Ask Mentorian of the gate spell in the hidden village at Lock Lake.",
+      "en_us": "Ask Mentorian about gate magic in the hidden village at Lock Lake.",
+      "en_upgraded": "Ask Mentorian about gate magic in {cove}.",
+      "ko_upgraded": "{cove}에서 멘토리안에게 차원문 마법 묻기",
+      "en_u4_upgraded": "Ask Mentorian of the gate spell in {cove}.",
+      "en_us_upgraded": "Ask Mentorian about gate magic in {cove}."
+    },
+    {
       "id": "paws.greg.calumny-mandrake",
       "place": "paws",
       "npc": "Greg 'n Rob",
@@ -1820,7 +1846,7 @@
       "speaker_en": "Zair the Wise",
       "speaker_ko": "지혜로운 자이르",
       "en": "Ask Zair's brother beyond Lock Lake about the word.",
-      "ko": "록 호수 너머 자이르의 형제에게 말씀에 대해 묻기",
+      "ko": "로크 호수 너머 자이르의 형제에게 말씀에 대해 묻기",
       "en_u4": "Ask Zair's brother beyond Lock Lake of the word.",
       "en_us": "Ask Zair's brother beyond Lock Lake about the word."
     },

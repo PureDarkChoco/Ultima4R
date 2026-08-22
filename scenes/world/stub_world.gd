@@ -4094,6 +4094,8 @@ func _seed_talk_latent_keywords() -> void:
 			and not _talk_skara_ankh_om_ready
 		):
 			continue
+		if _talk_should_hide_zair_word(word):
+			continue
 		var revealed := (
 			_talk_npc_is_iolo()
 			and _talk_word_is_compassion(word)
@@ -4135,6 +4137,28 @@ func _talk_word_is_compassion(word: String) -> bool:
 		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
 			return true
 	return false
+
+
+func _talk_word_is_passage_word(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["말씀", "word"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_should_hide_zair_word(word: String) -> bool:
+	## Paws Zair: Word is Romasco-directed — not a gray starter topic.
+	## Offer after name once skara.romasco.zair-word is recorded.
+	if _talk_entry == null:
+		return false
+	if _talk_city_id() != "paws":
+		return false
+	if str(_talk_entry.name).strip_edges().to_lower() != "zair the wise":
+		return false
+	return _talk_word_is_passage_word(word)
 
 
 func _remember_talk_keyword_menu_word(word: String) -> void:
@@ -4769,7 +4793,8 @@ func _talk_keyword_menu_intro_default_key() -> String:
 			"만트라" if GameState.lang_short() == "ko" else "mantra"
 		)
 	elif (
-		str(entry.name).strip_edges().to_lower() == "barren"
+		_talk_city_id() == "skara"
+		and str(entry.name).strip_edges().to_lower() == "barren"
 		and GameState.journal_has_id("skara.ambule.barren-mantra")
 	):
 		default_key = _talk_keyword_stable_key(
@@ -4834,6 +4859,14 @@ func _talk_keyword_menu_intro_default_key() -> String:
 	):
 		default_key = _talk_keyword_stable_key(
 			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		_talk_city_id() == "paws"
+		and str(entry.name).strip_edges().to_lower() == "barren"
+		and GameState.journal_has_id("skara.ambule.barren-mantra")
+	):
+		default_key = _talk_keyword_stable_key(
+			"만트라" if GameState.lang_short() == "ko" else "mantra"
 		)
 	elif (
 		_talk_city_id() == "paws"
@@ -5157,7 +5190,10 @@ func _unlock_skara_ankh_om_keyword() -> void:
 
 func _maybe_offer_skara_chain_keyword() -> void:
 	## Skara: Ambule/Barren mantra chain; Ankh rune (Rune then Om).
+	## Barren also exists in Paws — scope by city so the child gets Mantra, not the ranger.
 	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "skara":
 		return
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
 	var korean := GameState.lang_short() == "ko"
@@ -5480,24 +5516,32 @@ func _restore_talk_known_keywords() -> void:
 
 
 func _maybe_offer_paws_chain_keyword() -> void:
-	## Paws: Barren humility rune; Simon/Tessa mystic locations.
-	## Barren also exists in Skara Brae — scope by city.
+	## Paws: Barren rune + Ambule's mantra tip (same name as Skara's child);
+	## Simon/Tessa mystic; Zair word. Barren also exists in Skara — scope by city.
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	if _talk_city_id() != "paws":
 		return
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
 	var korean := GameState.lang_short() == "ko"
-	if (
-		npc == "barren"
-		and GameState.journal_has_id("magincia.nate.barren-rune")
-	):
-		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
-		_offer_talk_keyword_item(
-			rune_key,
-			"룬" if korean else "Rune",
-			"룬" if korean else "rune"
-		)
+	if npc == "barren":
+		if GameState.journal_has_id("magincia.nate.barren-rune"):
+			var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+			_offer_talk_keyword_item(
+				rune_key,
+				"룬" if korean else "Rune",
+				"룬" if korean else "rune"
+			)
+		## Same name as Skara's child — Ambule's mantra tip still appears here.
+		if GameState.journal_has_id("skara.ambule.barren-mantra"):
+			var mantra_key := _talk_keyword_stable_key(
+				"만트라" if korean else "mantra"
+			)
+			_offer_talk_keyword_item(
+				mantra_key,
+				"만트라" if korean else "Mantra",
+				"만트라" if korean else "mantra"
+			)
 	elif (
 		(
 			npc == "sir simon"
@@ -5634,7 +5678,8 @@ func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
 
 
 func _maybe_offer_cove_chain_keyword() -> void:
-	## Cove: Blissful (abyss) / the ankh (codex chamber) / Merlin (gate).
+	## Cove: Blissful (abyss) / the ankh (codex chamber) / Merlin (gate) /
+	## Mentorian (gate spell from Jingles) / Brother Zair (word).
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	if _talk_city_id() != "cove":
@@ -5684,6 +5729,17 @@ func _maybe_offer_cove_chain_keyword() -> void:
 				"달문" if korean else "gate"
 			)
 	elif (
+		npc == "mentorian"
+		and GameState.journal_has_id("paws.jingles.mentorian-gate")
+	):
+		GameState.journal_try_upgrade_id("paws.jingles.mentorian-gate")
+		var gate_key := _talk_keyword_stable_key("차원문" if korean else "gate")
+		_offer_talk_keyword_item(
+			gate_key,
+			"차원문" if korean else "Gate",
+			"차원문" if korean else "gate"
+		)
+	elif (
 		npc == "brother zair"
 		and GameState.journal_has_id("paws.zair.brother-word")
 	):
@@ -5698,6 +5754,43 @@ func _maybe_offer_cove_chain_keyword() -> void:
 func _talk_npc_key_flat(npc_name: String) -> String:
 	## TLK names may embed newlines (e.g. Jeremy James / Scirlock).
 	return npc_name.strip_edges().to_lower().replace("\n", " ").replace("\r", " ")
+
+
+func _maybe_offer_little_jon_earth_keyword() -> void:
+	## Little Jon: after Yes, "What is it called?" / "그곳 이름이 무엇이오?"
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "paws":
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "little jon":
+		return
+	var korean := GameState.lang_short() == "ko"
+	var earth_key := _talk_keyword_stable_key("지구" if korean else "earth")
+	_offer_talk_keyword_item(
+		earth_key,
+		"지구" if korean else "Earth",
+		"지구" if korean else "earth"
+	)
+
+
+func _maybe_offer_wheatpin_rune_keyword() -> void:
+	## Wheatpin asks "looking for something?" after Health — offer Rune only
+	## after Barren pointed at the south-east hills.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "paws":
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "wheatpin":
+		return
+	if not GameState.journal_has_id("paws.barren.humility-rune"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
+	_offer_talk_keyword_item(
+		rune_key,
+		"룬" if korean else "Rune",
+		"룬" if korean else "rune"
+	)
 
 
 func _maybe_offer_den_prompt_keywords() -> void:
@@ -11803,11 +11896,12 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 func _journal_note_entered_city(fname: String) -> void:
 	var place := _WorldPortals.place_id_for_portal({"fname": fname})
 	var marked := GameState.journal_mark_city(place)
-	if _journal_panel != null and _journal_panel.has_method("focus_place"):
-		if _journal_panel.focus_place(place):
-			return
+	if place == "cove" and GameState.journal_try_upgrade_id("paws.jingles.mentorian-gate"):
+		marked = true
 	if marked:
 		_refresh_journal_panel()
+	if _journal_panel != null and _journal_panel.has_method("focus_place"):
+		_journal_panel.focus_place(place)
 
 
 func _maybe_capture_manual_zorin_tip(fname: String) -> void:
@@ -12516,7 +12610,12 @@ func _enter_dungeon_from_portal(portal: Dictionary, from_city: bool = false) -> 
 	_tile_pos = Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 1)))
 	_dungeon_skip_room = false
 	_dungeon_room_index = -1
-	if GameState.journal_mark_dungeon(id):
+	var journal_changed := GameState.journal_mark_dungeon(id)
+	if from_city and id == _DungeonPortals.ID_HYTHLOTH:
+		GameState.journal_hythloth_castle = true
+		if GameState.journal_mark_goal("enter:hythloth-castle"):
+			journal_changed = true
+	if journal_changed:
 		_refresh_journal_panel()
 	if _map != null:
 		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
@@ -17076,6 +17175,7 @@ func _talk_ask_question() -> void:
 		_end_talk(false)
 		return
 	_push_talk_script(str(e.question))
+	_maybe_offer_wheatpin_rune_keyword()
 	_talk_stage = 3
 	_talk_buffer = ""
 	_reset_talk_hangul()
@@ -17106,6 +17206,7 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes:
 		_maybe_offer_azure_sacrifice_keyword()
 		_maybe_offer_den_prompt_keywords()
+		_maybe_offer_little_jon_earth_keyword()
 		if _talk_question_is_shrine_entry_requirements():
 			_talk_requirements_asked = true
 			_maybe_offer_heard_requirement_keywords()
@@ -17274,6 +17375,22 @@ func _talk_answer_yn(yes: bool) -> void:
 		and str(e.topic2).strip_edges().to_upper() == "HUMB"
 	):
 		if GameState.journal_try_capture_talk("magincia", "Splot", "HUMB_YES"):
+			journal_changed = true
+	## Damsel (Paws): Yes after Rations names the castle's secret entrance.
+	if (
+		yes
+		and npc_key == "damsel"
+		and str(e.topic2).strip_edges().to_upper() == "RATI"
+	):
+		if GameState.journal_try_capture_talk("paws", "Damsel", "RATI_YES"):
+			journal_changed = true
+	## Jingles (Paws): No after Master — Mentorian in the hidden Lock Lake village.
+	if (
+		not yes
+		and npc_key == "jingles"
+		and str(e.topic2).strip_edges().to_upper() == "MAST"
+	):
+		if GameState.journal_try_capture_talk("paws", "Jingles", "MAST_NO"):
 			journal_changed = true
 	## Sir Simon / Lady Tessa (Paws): Yes after Mystic reveals armour / weapons.
 	if (
@@ -20622,6 +20739,11 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("cove.merlin.black-stone"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:merlin-gate"):
+			refresh = true
+	if place == "cove" and npc_key == "mentorian" and topic == "GATE":
+		if GameState.journal_mark_id("paws.jingles.mentorian-gate"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:mentorian-gate"):
 			refresh = true
 	## Empath / Serpent local follow-ups.
 	if place == "empath" and npc_key == "suzanna" and topic == "HORN":
