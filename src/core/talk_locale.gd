@@ -279,50 +279,6 @@ static func word_has_hangul(s: String) -> bool:
 	return false
 
 
-static func latent_menu_words(highlight_words: Array) -> Array[String]:
-	## Language-filtered interest words for the gray “not yet spoken” menu rows.
-	## Prefer Hangul in Korean UI; fall back to Latin when a pack has no KO aliases.
-	var hangul: Array[String] = []
-	var latin: Array[String] = []
-	var seen_h: Dictionary = {}
-	var seen_l: Dictionary = {}
-	for raw in highlight_words:
-		var word := str(raw).strip_edges()
-		if word.is_empty():
-			continue
-		if normalize_interest(word) == normalize_interest("관심사"):
-			continue
-		if word_has_hangul(word):
-			var hk := normalize_interest(word)
-			if hk.is_empty() or seen_h.has(hk):
-				continue
-			seen_h[hk] = true
-			hangul.append(word)
-		else:
-			var lk := normalize_interest(word)
-			if lk.is_empty() or seen_l.has(lk):
-				continue
-			seen_l[lk] = true
-			latin.append(word)
-	var candidates: Array[String] = hangul if (is_korean() and not hangul.is_empty()) else latin
-	## Drop short stems covered by a longer sibling (writ⊂write, 점⊂점술).
-	var out: Array[String] = []
-	for i in candidates.size():
-		var a := candidates[i]
-		var al := a.to_lower()
-		var dominated := false
-		for j in candidates.size():
-			if i == j:
-				continue
-			var bl := candidates[j].to_lower()
-			if bl.length() > al.length() and bl.begins_with(al):
-				dominated = true
-				break
-		if not dominated:
-			out.append(a)
-	return out
-
-
 static func extra_npcs_for_map(ult_path: String) -> Array:
 	## Extra talk NPCs to spawn on this .ULT (not in the 16-slot .TLK).
 	ensure_city_for_path(ult_path)

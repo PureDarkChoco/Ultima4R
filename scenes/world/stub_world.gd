@@ -85,8 +85,6 @@ const MSG_INSET_X := 8
 const MSG_INSET_Y := 6
 const MSG_FONT_SIZE := 14
 const MSG_COLOR := Color(0.91, 0.9, 0.82, 1)
-## Talk keyword menu: not-yet-spoken NPC topics (still selectable for debugging).
-const MSG_COLOR_LATENT := Color(0.48, 0.5, 0.52, 1)
 const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 const CHARSET_GLYPH := 16
 ## xu4 CHARSET_PROMPT ('\020' = index 16) — blue right-triangle from charset.png.
@@ -1538,13 +1536,7 @@ func _rebuild_command_menu_rows() -> void:
 			if abs_i < 0 or abs_i >= _talk_keyword_menu_items.size():
 				continue
 			var item: Dictionary = _talk_keyword_menu_items[abs_i]
-			var lab := str(item.get("label", ""))
-			if not bool(item.get("revealed", true)):
-				lab = "[color=#%s]%s[/color]" % [
-					MSG_COLOR_LATENT.to_html(false),
-					lab,
-				]
-			row_texts.append(lab)
+			row_texts.append(str(item.get("label", "")))
 	else:
 		for cmd in _command_menu_items:
 			var letter := U4Commands.letter_for(cmd)
@@ -4117,8 +4109,8 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_talk_keyword_menu_await_neutral = true
 	_reset_hold_state()
 	_GameInput.latch_current_stick_navigation()
-	_seed_talk_latent_keywords()
 	_restore_talk_known_keywords()
+	_maybe_offer_iolo_compassion_keyword()
 	if _talk_npc_gave_name:
 		_offer_named_npc_journal_keywords()
 	_talk_keyword_menu_apply_intro_default()
@@ -4133,25 +4125,18 @@ func _talk_keyword_menu_health_index() -> int:
 	return _talk_keyword_menu_items.size()
 
 
-func _reveal_talk_keyword_if_latent(key: String) -> int:
-	## 0 = missing, 1 = already revealed, 2 = flipped gray → white.
+func _talk_keyword_menu_has_key(key: String) -> bool:
 	if key.is_empty():
-		return 0
+		return false
 	for i in _talk_keyword_menu_items.size():
 		var item: Dictionary = _talk_keyword_menu_items[i]
-		if not _talk_stored_key_matches(key, str(item.get("key", ""))):
-			continue
-		if bool(item.get("revealed", true)):
-			return 1
-		item["revealed"] = true
-		_talk_keyword_menu_items[i] = item
-		_persist_talk_known_word(str(item.get("input", item.get("key", ""))))
-		return 2
-	return 0
+		if _talk_stored_key_matches(key, str(item.get("key", ""))):
+			return true
+	return false
 
 
 func _insert_talk_keyword_menu_item(
-	key: String, label: String, input: String, revealed: bool
+	key: String, label: String, input: String
 ) -> void:
 	## Insert before Health (same slot as discovered / journal-directed topics).
 	var health_index := _talk_keyword_menu_health_index()
@@ -4159,42 +4144,10 @@ func _insert_talk_keyword_menu_item(
 		"key": key,
 		"label": label,
 		"input": input,
-		"revealed": revealed,
 	})
 	_remember_talk_keyword_menu_word(key)
 	_remember_talk_keyword_menu_word(input)
-	if revealed:
-		_persist_talk_known_word(input if not input.is_empty() else key)
-
-
-func _seed_talk_latent_keywords() -> void:
-	## Every NPC interest starts on the list. Look/Name/Job/Health/Give/Bye
-	## are already white. Join and unspoken topics are gray. Iolo's compassion
-	## flips white immediately if anyone else in town already said 연민.
-	if not _talk_keyword_menu_active or _talk_is_hawkwind:
-		return
-	var korean := GameState.lang_short() == "ko"
-	for word in _TalkLocale.latent_menu_words(_talk_keywords):
-		var key := _talk_keyword_stable_key(word)
-		if key.is_empty() or _talk_keyword_menu_seen.has(key):
-			continue
-		if _talk_is_white_builtin_key(key):
-			continue
-		if (
-			_talk_npc_is_skara_ankh(str(_talk_entry.name) if _talk_entry != null else "")
-			and _talk_word_is_om(word)
-			and not _talk_skara_ankh_om_ready
-		):
-			continue
-		if _talk_should_hide_zair_word(word):
-			continue
-		var revealed := (
-			_talk_npc_is_iolo()
-			and _talk_word_is_compassion(word)
-			and _talk_has_heard_interest(word)
-		)
-		var label := word if korean else word.capitalize()
-		_insert_talk_keyword_menu_item(key, label, word, revealed)
+	_persist_talk_known_word(input if not input.is_empty() else key)
 
 
 func _talk_has_heard_interest(word: String) -> bool:
@@ -4231,26 +4184,20 @@ func _talk_word_is_compassion(word: String) -> bool:
 	return false
 
 
-func _talk_word_is_passage_word(word: String) -> bool:
-	var key := _talk_keyword_stable_key(word)
-	if key.is_empty():
-		return false
-	for stem in ["말씀", "word"]:
-		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
-			return true
-	return false
-
-
-func _talk_should_hide_zair_word(word: String) -> bool:
-	## Paws Zair: Word is Romasco-directed — not a gray starter topic.
-	## Offer after name once skara.romasco.zair-word is recorded.
-	if _talk_entry == null:
-		return false
-	if _talk_city_id() != "paws":
-		return false
-	if str(_talk_entry.name).strip_edges().to_lower() != "zair the wise":
-		return false
-	return _talk_word_is_passage_word(word)
+func _maybe_offer_iolo_compassion_keyword() -> void:
+	## Heard 연민 / compassion from anyone else — offer it white on Iolo's list.
+	if not _talk_keyword_menu_active or not _talk_npc_is_iolo():
+		return
+	var korean := GameState.lang_short() == "ko"
+	for raw in _talk_keywords:
+		var word := str(raw).strip_edges()
+		if word.is_empty() or not _talk_word_is_compassion(word):
+			continue
+		if not _talk_has_heard_interest(word):
+			continue
+		var label := word if korean else word.capitalize()
+		_offer_talk_keyword_item(_talk_keyword_stable_key(word), label, word)
+		return
 
 
 func _remember_talk_keyword_menu_word(word: String) -> void:
@@ -4326,8 +4273,8 @@ func _finish_talk_reagent_keyword_menu() -> void:
 	for item in _talk_keyword_menu_items:
 		_remember_talk_keyword_menu_word(str(item.get("key", "")))
 		_remember_talk_keyword_menu_word(str(item.get("input", "")))
-	_seed_talk_latent_keywords()
 	_restore_talk_known_keywords()
+	_maybe_offer_iolo_compassion_keyword()
 	if _talk_npc_gave_name:
 		_offer_named_npc_journal_keywords()
 	_sync_talk_keyword_menu_scroll()
@@ -4523,19 +4470,12 @@ func _discover_talk_keywords(text: String) -> void:
 		_persist_talk_known_word(str(discovery.get("input", key)))
 		if not _talk_keyword_menu_active:
 			continue
-		var reveal_status := _reveal_talk_keyword_if_latent(key)
-		if reveal_status == 1:
-			continue
-		if reveal_status == 2:
-			changed = true
-			continue
-		if _talk_keyword_menu_seen.has(key):
+		if _talk_keyword_menu_has_key(key) or _talk_keyword_menu_seen.has(key):
 			continue
 		_insert_talk_keyword_menu_item(
 			key,
 			str(discovery.get("label", "")),
-			str(discovery.get("input", "")),
-			true
+			str(discovery.get("input", ""))
 		)
 		changed = true
 	if changed:
@@ -4557,23 +4497,14 @@ func _offer_talk_join_keyword() -> void:
 
 func _offer_talk_keyword_item(key: String, label: String, input: String) -> void:
 	## Insert a selectable interest before Health (same order as discovered topics).
-	## Latent (gray) rows flip white when journal / dialogue unlocks them.
 	if key.is_empty():
 		return
 	_persist_talk_known_word(input if not input.is_empty() else key)
 	if not _talk_keyword_menu_active:
 		return
-	var reveal_status := _reveal_talk_keyword_if_latent(key)
-	if reveal_status == 1:
+	if _talk_keyword_menu_has_key(key) or _talk_keyword_menu_seen.has(key):
 		return
-	if reveal_status == 2:
-		_sync_talk_keyword_menu_scroll()
-		_rebuild_command_menu_rows()
-		_sync_talk_keyword_menu_visibility()
-		return
-	if _talk_keyword_menu_seen.has(key):
-		return
-	_insert_talk_keyword_menu_item(key, label, input, true)
+	_insert_talk_keyword_menu_item(key, label, input)
 	_sync_talk_keyword_menu_scroll()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
@@ -5498,7 +5429,7 @@ func _talk_memory_legacy_npc_id() -> String:
 
 
 func _talk_is_white_builtin_key(key: String) -> bool:
-	## Already on the opening row as white. Join is a builtin but stays gray.
+	## Already on the opening row. Join is offered when the NPC invites the party.
 	return key in ["look", "name", "job", "heal", "give", "bye"]
 
 
@@ -5633,15 +5564,13 @@ func _restore_talk_known_keywords() -> void:
 			and not _talk_skara_ankh_om_ready
 		):
 			continue
-		if _reveal_talk_keyword_if_latent(stored) != 0:
-			continue
-		if _talk_keyword_menu_seen.has(stored):
+		if _talk_keyword_menu_has_key(stored) or _talk_keyword_menu_seen.has(stored):
 			continue
 		var word := _talk_label_for_stored_key(stored)
 		if word.is_empty():
 			word = stored
 		var label := word if korean else word.capitalize()
-		_insert_talk_keyword_menu_item(stored, label, word, true)
+		_insert_talk_keyword_menu_item(stored, label, word)
 
 
 func _maybe_offer_paws_chain_keyword() -> void:
