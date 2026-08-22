@@ -482,11 +482,11 @@ func _sync_volume_from_music() -> void:
 
 
 func _title_fade_linear() -> float:
-	## Title fade sits 10 percentage points above BGM (10% → 20%, 20% → 30%).
+	## Title fade sits 15 percentage points above BGM (10% → 25%, 20% → 35%).
 	var music_lin := 0.6
 	if music and music.has_method("volume_linear"):
 		music_lin = float(music.volume_linear())
-	return clampf(music_lin + 0.10, 0.0, 1.0)
+	return clampf(music_lin + 0.15, 0.0, 1.0)
 
 
 func _apply_volume() -> void:

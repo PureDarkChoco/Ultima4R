@@ -36,8 +36,9 @@ const OPTIONS_BTM_Y := 120 * SCALE
 const MAP_FRAME_COL := Color(0.35, 0.55, 0.95, 1.0)
 const MAP_FRAME_BORDER := 2 ## dialogue-like line thickness (logic px)
 const MAP_FRAME_PAD := 4 ## gap between border and tiles / menu content
-## TITLE MAP-band top (base y=96 from AnimType.MAP); wipe ornate chrome down from here.
-const MAP_CHROME_Y0 := 96 * SCALE
+## Just below "Quest of the Avatar" (y=80, h=13). TITLE.EGA's thick map bezel
+## starts in this gap; wiping from band y=96 left the top edge overlapping our frame.
+const MAP_CHROME_Y0 := 94 * SCALE
 ## Shore freckles (same rules/assets as MapView).
 const WATER_TILE_MAX := 2
 const SHORE_MASK_DIR := "res://assets/tiles/u4graphics/masks"
@@ -382,6 +383,11 @@ func _redraw() -> void:
 		Mode.TITLES:
 			## Title sequence is authored in 320×200; present at 2× (nearest) for the view.
 			_present_scaled(_accum)
+			## MAP curtains would otherwise reveal TITLE.EGA's thick bezel under our frame.
+			if _title_map_started():
+				_erase_classic_map_chrome()
+				_draw_map_window_frame()
+				_draw_map_static()
 		Mode.MAP, Mode.MENU:
 			## Black canvas, then logos/map shifted down so top/bottom empty bands match.
 			## Beasties stay on the absolute top corners (no content offset).
@@ -497,6 +503,10 @@ func _draw_map_animated() -> void:
 		if tid >= TILE_MOONGATE_0 and tid <= TILE_MOONGATE_OPEN:
 			_paint_intro_cell(ox, oy, tid, fr, true)
 			continue
+		## Ship shot is TITLE.EXE object 12 / shape 077 — use MapView cannonball art.
+		if tid == TILE_MISSILE or _intro_obj_is_cannon(i):
+			_paint_intro_cell(ox, oy, TILE_MISSILE, 0, false)
+			continue
 		## Creatures still flip walk frames like MapView.
 		var paint_tid: int = _WorldCreatures.resolve_paint_tile(tid, _tile_anim_frame)
 		_paint_intro_cell(ox, oy, paint_tid, fr, false)
@@ -517,11 +527,14 @@ func _paint_intro_cell(
 		_apply_water_shore_masks(cell, mx, my)
 	else:
 		## Terrain is fully drawn (black may be ink). Keys only apply to sprites.
-		_TileBank.blit_to(cell, ground, Vector2i.ZERO, 0)
+		## Town / keep / castle flags share extra frames — same cycle as MapView.
+		_TileBank.blit_anim_to(cell, ground, Vector2i.ZERO, _tile_anim_frame)
 	if obj_tid >= 0:
 		var o_img: Image = null
 		if moongate:
 			o_img = _moongate_sprite(obj_tid)
+		elif obj_tid == TILE_MISSILE:
+			o_img = _cannonball_sprite()
 		else:
 			o_img = _keyed_tile_image(obj_tid, obj_frame)
 		if o_img:
@@ -699,10 +712,22 @@ func _moongate_is_glow(c: Color) -> bool:
 	return false
 
 
+func _intro_obj_is_cannon(idx: int) -> bool:
+	if _bin == null or idx < 0 or idx >= _bin.base_tiles.size():
+		return false
+	return int(_bin.base_tiles[idx]) == TILE_MISSILE
+
+
+func _cannonball_sprite() -> Image:
+	## Same file and load path as MapView flying ship shot — not 077_missile.
+	if _cannonball_img == null or _cannonball_img.is_empty():
+		_cannonball_img = _load_cannonball_image()
+	return _cannonball_img
+
+
 func _keyed_tile_image(tile_id: int, frame: int) -> Image:
-	## Intro ship fire uses missFlash/missile slot (077); draw in-game cannonball art.
-	if tile_id == TILE_MISSILE and _cannonball_img != null and not _cannonball_img.is_empty():
-		return _cannonball_img
+	if tile_id == TILE_MISSILE:
+		return _cannonball_sprite()
 	var key := "k:%d:%d" % [tile_id, frame]
 	if _tile_cache.has(key):
 		return _tile_cache[key] as Image
@@ -722,19 +747,12 @@ func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 
 
 func _load_cannonball_image() -> Image:
-	## MapView::CANNONBALL_PATH — opaque black → transparent so water shows under.
+	## MapView loads this PNG as-is (already a ~10×10 pearl on transparent 32×32).
 	var img := _ResImage.load_rgba8(CANNONBALL_PATH)
-	if img == null:
+	if img == null or img.is_empty():
 		return null
 	if img.get_width() != TILE_PX or img.get_height() != TILE_PX:
 		img.resize(TILE_PX, TILE_PX, Image.INTERPOLATE_NEAREST)
-	for y in img.get_height():
-		for x in img.get_width():
-			var c: Color = img.get_pixel(x, y)
-			if c.a < 0.02:
-				continue
-			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
 	return img
 
 
@@ -971,8 +989,9 @@ func _init_titles() -> void:
 	_add_title(132, 33, 56, 5, AnimType.PRESENT, 0, 400)
 	## Pixel scatter of "Ultima IV" — duration matches title_fade_c64.ogg.
 	_add_title(59, 33, 202, 46, AnimType.TITLE, 1000, _title_fade_duration_ms())
-	_add_title(40, 80, 240, 13, AnimType.SUBTITLE, 1000, 100)
-	_add_title(0, 96, 320, 96, AnimType.MAP, 1000, 100)
+	## "Quest of the Avatar" writes left → right, then a beat, then the map.
+	_add_title(40, 80, 240, 13, AnimType.SUBTITLE, 600, 1400)
+	_add_title(0, 96, 320, 96, AnimType.MAP, 700, 1)
 	_build_title_sources()
 
 
@@ -1059,6 +1078,21 @@ func _blit_self(im: Image, dx: int, dy: int, sx: int, sy: int, w: int, h: int) -
 	im.blit_rect(tmp, Rect2i(0, 0, r.size.x, r.size.y), Vector2i(dx + (r.position.x - sx), dy + (r.position.y - sy)))
 
 
+func _title_map_started() -> bool:
+	var i := _title_index_of(AnimType.MAP)
+	if i < 0 or _title_i < i:
+		return false
+	if _title_i > i:
+		return true
+	var t: Dictionary = _titles[i]
+	if int(t.get("time_base", 0)) == 0:
+		return false
+	if _skip_titles:
+		return true
+	var elapsed: int = Time.get_ticks_msec() - int(t["time_base"])
+	return elapsed >= int(t.get("time_delay", 0))
+
+
 func _title_index_of(method: int) -> int:
 	for i in _titles.size():
 		if int(_titles[i].get("method", -1)) == method:
@@ -1138,7 +1172,8 @@ func _build_title_sources() -> void:
 				t["plot"] = plots
 				t["anim_step_max"] = plots.size()
 			AnimType.SUBTITLE:
-				t["anim_step_max"] = int(t["rh"] / 2) + 1
+				## One column per step — left-to-right write.
+				t["anim_step_max"] = maxi(1, int(t["rw"]))
 			AnimType.MAP:
 				t["anim_step_max"] = 20
 		_titles[i] = t
@@ -1150,6 +1185,13 @@ func _update_titles() -> bool:
 		return false
 	var t: Dictionary = _titles[_title_i]
 	var now := Time.get_ticks_msec()
+	if int(t["method"]) == AnimType.MAP:
+		if int(t["time_base"]) == 0:
+			t["time_base"] = now
+			_titles[_title_i] = t
+		if not _skip_titles and (now - int(t["time_base"])) < int(t["time_delay"]):
+			return true
+		return false
 	if int(t["time_base"]) == 0:
 		t["time_base"] = now
 		if _title_i == 0:
@@ -1238,36 +1280,17 @@ func _update_titles() -> bool:
 			t["anim_step"] = step
 		AnimType.SUBTITLE:
 			if t["src"]:
-				step = mini(maxi(step + 1, target), t["anim_step_max"])
+				step = mini(target, t["anim_step_max"])
 				dest.fill(Color(0, 0, 0, 0))
-				## center-out rows
-				var mid: int = int(t["rh"] / 2)
-				var y: int = mid - step + 1
-				var h: int = 1 + (step - 1) * 2
-				if y < 0:
-					y = 0
-				if y + h > t["rh"]:
-					h = t["rh"] - y
-				if h > 0 and y >= 0:
-					dest.blit_rect(t["src"], Rect2i(0, y, t["rw"], h), Vector2i(1, y + 1))
+				## Left → right, as if the line is being written.
+				var w: int = step
+				if w > 0:
+					dest.blit_rect(t["src"], Rect2i(0, 0, w, t["rh"]), Vector2i(1, 1))
 			t["anim_step"] = step
 		AnimType.MAP:
 			step = mini(target + 1, t["anim_step_max"])
+			## Do not blit TITLE.EGA's thick map bezel — thin frame is drawn on the canvas.
 			dest.fill(Color(0, 0, 0, 0))
-			## open curtains of bottom title band + static map under
-			if t["src"]:
-				var s: int = mini(step, t["anim_step_max"] - 1)
-				var strip_w: int = (s + 1) * 8
-				## simplified left/right open of full MAP region (base 320 space)
-				var half := BASE_W / 2
-				var left_x := half - strip_w
-				if left_x < 0:
-					left_x = 0
-				if strip_w * 2 > 0:
-					var ww := mini(strip_w * 2, t["rw"])
-					var sx := maxi(0, (t["rw"] - ww) / 2)
-					dest.blit_rect(t["src"], Rect2i(sx, 0, ww, t["rh"]), Vector2i(1 + sx, 1))
-			## start map tiles under the MAP band (classic 16px in base space)
 			_draw_map_onto(_accum)
 			t["anim_step"] = step
 
