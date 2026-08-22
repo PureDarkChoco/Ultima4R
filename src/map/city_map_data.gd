@@ -763,13 +763,16 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 			person_move[i] = MOVE_FOLLOW
 			return false
 		MOVE_WANDER:
-			## Stay put when the party just stepped (or already stands) in talk reach.
+			## Stay put after the party steps into talk reach (not while beside).
 			if _shopkeeper_holds_for_avatar(i, avatar):
 				return false
 			## Town: 50% stay put (world map always moves — not used here).
 			if (randi() % 2) != 0:
 				return false
 		MOVE_FOLLOW:
+			## Inns / healers often FOLLOW; do not sidestep off the facing cell.
+			if _shopkeeper_holds_for_avatar(i, avatar):
+				return false
 			## Town: 50% skip entire follow attempt.
 			if (randi() % 2) != 0:
 				return false
@@ -811,7 +814,32 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 
 
 func _shopkeeper_holds_for_avatar(i: int, avatar: Vector2i) -> bool:
-	## Any shop NPC in front of the party (adjacent, or one talk-over counter away) stays.
+	## Hold only on the facing cell. NPCs move after the party, so sliding
+	## from one tile beside into talk reach freezes them that turn; standing
+	## beside does not.
+	return _is_shop_npc(i) and _shop_talk_reach(i, avatar)
+
+
+func _is_shop_npc(i: int) -> bool:
+	## maps.b vendors / LB / Hawkwind, or anyone on/beside a letter counter.
+	if i < 0 or i >= persons.size():
+		return false
+	if is_shop_like_at(i):
+		return true
+	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
+	if _TileRules.can_talk_over(effective_tile_at(pos.x, pos.y)):
+		return true
+	for d in _DIRS:
+		var n := pos + d
+		if n.x < 0 or n.y < 0 or n.x >= WIDTH or n.y >= HEIGHT:
+			continue
+		if _TileRules.can_talk_over(effective_tile_at(n.x, n.y)):
+			return true
+	return false
+
+
+func _shop_talk_reach(i: int, avatar: Vector2i) -> bool:
+	## Same reach as Talk: adjacent, or one step past a letter-counter tile.
 	if i < 0 or i >= persons.size():
 		return false
 	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
@@ -820,20 +848,12 @@ func _shopkeeper_holds_for_avatar(i: int, avatar: Vector2i) -> bool:
 	if dx != 0 and dy != 0:
 		return false
 	var dist := absi(dx) + absi(dy)
-	var across_counter := false
-	if dist == 2:
-		var mid := avatar + Vector2i(signi(dx), signi(dy))
-		var mid_i := person_index_at(mid.x, mid.y)
-		var cell_tid := (
-			int(persons[mid_i].z) if mid_i >= 0 else int(effective_tile_at(mid.x, mid.y))
-		)
-		across_counter = _TileRules.can_talk_over(cell_tid)
-		if not across_counter:
-			return false
-	elif dist != 1:
+	if dist == 1:
+		return true
+	if dist != 2:
 		return false
-	## Tagged vendors / LB / Hawkwind, or anyone standing behind a shop counter.
-	return across_counter or is_shop_like_at(i)
+	var mid := avatar + Vector2i(signi(dx), signi(dy))
+	return _TileRules.can_talk_over(effective_tile_at(mid.x, mid.y))
 
 
 func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2i]:
