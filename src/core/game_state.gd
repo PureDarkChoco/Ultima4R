@@ -3510,7 +3510,9 @@ func journal_mark_dungeon(dungeon_id: String) -> bool:
 
 
 func journal_mark_city(place_id: String) -> bool:
-	return _Journal.mark_known_city(self, place_id)
+	var marked := _Journal.mark_known_city(self, place_id)
+	var seeded := _Journal.seed_referral_rows(self, false)
+	return marked or seeded
 
 
 func journal_mark_city_moon(phase: int) -> bool:

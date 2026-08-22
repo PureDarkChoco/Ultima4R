@@ -4595,7 +4595,8 @@ func _maybe_offer_zircon_mystic_keyword() -> void:
 		return
 	if str(_talk_entry.name).strip_edges().to_lower() != "zircon":
 		return
-	if not GameState.journal_has_id("lcb.seesha.zircon-mystics"):
+	if not GameState.journal_has_id("lcb.seesha.zircon-mystics") \
+			and not GameState.journal_has_id("lycaeum.scatu.zircon-mystics"):
 		return
 	var korean := GameState.lang_short() == "ko"
 	var word := "신비" if korean else "mystic"
@@ -4710,7 +4711,10 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		)
 	elif (
 		str(entry.name).strip_edges().to_lower() == "zircon"
-		and GameState.journal_has_id("lcb.seesha.zircon-mystics")
+		and (
+			GameState.journal_has_id("lcb.seesha.zircon-mystics")
+			or GameState.journal_has_id("lycaeum.scatu.zircon-mystics")
+		)
 	):
 		default_key = _talk_keyword_stable_key(
 			"신비" if GameState.lang_short() == "ko" else "mystic"
@@ -17275,6 +17279,8 @@ func _talk_answer_yn(yes: bool) -> void:
 	if yes and npc_key == "senora":
 		if GameState.journal_try_capture_talk("jhelom", "Senora", "CRIM_YES"):
 			journal_changed = true
+		if GameState.journal_mark_goal("ask:jhelom-pub-sextant"):
+			journal_changed = true
 		GameState.talk_remember_heard_word("sextant")
 		GameState.talk_remember_heard_word("육분의")
 	## Gravnor (Jhelom): No after "Dost thou have it?" names Destard and the red stone.
@@ -17400,12 +17406,16 @@ func _talk_answer_yn(yes: bool) -> void:
 	):
 		if GameState.journal_try_capture_talk("paws", "Sir Simon", "MYST_YES"):
 			journal_changed = true
+		if GameState.journal_mark_goal("ask:simon-tessa-mystic"):
+			journal_changed = true
 	if (
 		yes
 		and npc_key == "lady tessa"
 		and str(e.topic2).strip_edges().to_upper() == "MYST"
 	):
 		if GameState.journal_try_capture_talk("paws", "Lady Tessa", "MYST_YES"):
+			journal_changed = true
+		if GameState.journal_mark_goal("ask:simon-tessa-mystic"):
 			journal_changed = true
 	## Gem (Vesper): Yes/No after Mantra both teach reversing Pride's mantra.
 	if (
@@ -17549,7 +17559,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		if GameState.journal_try_capture_talk("serpent", "a ranger.", "DUNG_YES"):
 			journal_changed = true
 	if journal_changed:
-		_refresh_journal_panel()
+		_refresh_journal_after_talk()
 	var ask_kind := _talk_ask_kind
 	_talk_ask_kind = 0
 	_talk_prompt_interest()
@@ -20241,6 +20251,26 @@ func _refresh_journal_panel() -> void:
 	_journal_panel.refresh(visible)
 
 
+func _refresh_journal_after_talk() -> void:
+	## Source tip + destination seed: keep the open log on this settlement.
+	_refresh_journal_panel()
+	if _journal_panel == null or not _journal_panel.has_method("focus_place"):
+		return
+	var visible := (
+		(_sides_open or _journal_focus_active or _journal_opened_left_only)
+		and _journal_panel.visible
+		and not (_combat_active and _map != null and _map.is_in_combat())
+	)
+	if not visible:
+		return
+	var place := _talk_city_id()
+	if place.is_empty() and _is_in_city() and _city_map != null:
+		place = _TalkLocale.city_id_from_path(str(_city_map.source_path))
+	if place.is_empty():
+		return
+	_journal_panel.focus_place(place)
+
+
 func _can_open_journal_focus() -> bool:
 	if _journal_focus_active or _command_menu_open or _city_warp_open or _enter_prompt_stage != 0:
 		return false
@@ -20421,7 +20451,7 @@ func _try_journal_lord_british_capture(typed: String) -> void:
 	if topic.is_empty() or place.is_empty():
 		return
 	if GameState.journal_try_capture_talk(place, "Lord British", topic):
-		_refresh_journal_panel()
+		_refresh_journal_after_talk()
 
 
 func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
@@ -20514,6 +20544,8 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if place == "minoc" and npc_key == "zircon" and topic == "MYST":
 		if GameState.journal_mark_id("lcb.seesha.zircon-mystics"):
 			refresh = true
+		if GameState.journal_mark_id("lycaeum.scatu.zircon-mystics"):
+			refresh = true
 		if GameState.journal_mark_goal("ask:zircon-mystics"):
 			refresh = true
 	## Britain: Pepper / Cricket / Julio complete prior name-directed tips.
@@ -20594,10 +20626,35 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if place == "skara" and npc_key == "presto" and topic == "NIGH":
 		GameState.talk_remember_heard_word("nightshade")
 		GameState.talk_remember_heard_word("밤그늘풀")
+	if place == "trinsic" and npc_key == "terran" and topic in ["STON", "WHITE STONE"]:
+		if GameState.journal_mark_id("skara.mitre.trinsic-tap-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:trinsic-tap-stone"):
+			refresh = true
 	if place == "trinsic" and npc_key == "virgil" and topic == "NIGH":
 		if GameState.journal_mark_id("vesper.arron.virgil-nightshade"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:virgil-nightshade"):
+			refresh = true
+	if place == "vesper" and npc_key == "arron" and topic in ["NIGH", "NIGHTSHADE"]:
+		if GameState.journal_mark_id("skara.presto.vesper-nightshade"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:vesper-nightshade"):
+			refresh = true
+	if place == "paws" and npc_key == "greg 'n rob" and topic in ["MAND", "MANDRAKE"]:
+		if GameState.journal_mark_id("trinsic.swindrik.folley-mandrake"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:folley-mandrake"):
+			refresh = true
+	if place == "britain" and npc_key == "sam" and topic in ["STON", "BLACK STONE"]:
+		if GameState.journal_mark_id("magincia.nate.britain-pub-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:britain-pub-black-stone"):
+			refresh = true
+	if place == "den" and npc_key == "ragnar" and topic == "SKUL":
+		if GameState.journal_mark_id("britain.sebastian.den-skull"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:den-skull"):
 			refresh = true
 	if place == "trinsic" and npc_key == "winthrop" and topic == "RUNE":
 		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
@@ -20786,7 +20843,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_goal("ask:durham-dungeon"):
 			refresh = true
 	if refresh:
-		_refresh_journal_panel()
+		_refresh_journal_after_talk()
 
 
 func _sync_combat_aim_foe_roster() -> void:

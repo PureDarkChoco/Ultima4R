@@ -479,17 +479,33 @@ func refresh(journal_visible: bool = false) -> void:
 
 func _prepare_open_selection(current_place: String) -> void:
 	## Unseen new rows jump once; otherwise keep the last cursor.
+	## A source tip that also seeds another town stays on the current settlement.
 	var gs = _game_state()
 	if gs == null:
 		return
+	var place := current_place.strip_edges().to_lower()
 	var unseen := _unseen_id(gs)
 	if not unseen.is_empty() and not _Journal.place_for_entry_id(gs, unseen).is_empty():
+		var unseen_place := _Journal.place_for_entry_id(gs, unseen)
+		if (
+			place.is_empty()
+			or unseen_place == place
+			or not _Journal.place_has_entry_as_recent_as(gs, place, unseen)
+		):
+			_set_page(0)
+			_set_selected_id(unseen)
+			return
+		var local := _Journal.latest_id_for_place(gs, place)
+		if not local.is_empty():
+			_set_page(0)
+			_set_selected_id(local)
+			_set_unseen_id(gs, "")
+			return
 		_set_page(0)
 		_set_selected_id(unseen)
 		return
 	if not _selected_id().is_empty():
 		return
-	var place := current_place.strip_edges().to_lower()
 	var pick := _Journal.latest_id_for_place(gs, place)
 	if pick.is_empty():
 		pick = _Journal.last_acquired_id(gs)

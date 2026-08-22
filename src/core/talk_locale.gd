@@ -3,7 +3,8 @@ extends RefCounted
 
 ## Town discourse overlays (Korean etc.) keyed by classic English TLK lines.
 ## Packs: res://assets/locale/talk/<city>.json
-## Original en_u4 stays in GOG .TLK; this layer only affects display / keyword aliases.
+## Original en_u4 stays in GOG .TLK; this layer maps display / keyword aliases
+## and can fill unused TLK slots ("", "A") from the pack.
 ## KO topic/alias policy: short nouns for topic1/topic2 only (must appear in dialogue).
 ## topicN_aliases are Latin classic stems; no extra Korean synonyms to guess.
 ## See .cursor/rules/talk-locale-ko-nouns.mdc
@@ -33,6 +34,7 @@ static var _npc_aliases: Dictionary = {} ## "britain/thevel" / "thevel" -> { "MA
 static var _npc_hl: Dictionary = {}
 static var _npc_omit: Dictionary = {} ## "trinsic/a guard" -> { "STRO": true }
 static var _extra_npcs: Array = [] ## Pack rows with extra:true (spawn + discourse).
+static var _npc_specs: Dictionary = {} ## "paws/smith" -> pack Dictionary (non-extra)
 static var _ingest_city := ""
 
 
@@ -341,9 +343,35 @@ static func extra_npcs_for_map(ult_path: String) -> Array:
 	return out
 
 
+static func pack_spec(npc_name: String, city_id: String) -> Dictionary:
+	## City-scoped pack row. No by-name fallback (guards/children collide).
+	var n := npc_name.strip_edges().to_lower()
+	var c := city_id.strip_edges().to_lower()
+	if n.is_empty() or c.is_empty():
+		return {}
+	var keyed: Variant = _npc_specs.get("%s/%s" % [c, n], {})
+	if typeof(keyed) == TYPE_DICTIONARY:
+		return keyed as Dictionary
+	return {}
+
+
+static func unescape_pack(s: String) -> String:
+	return _unescape(s)
+
+
+static func _store_npc_spec(npc: Dictionary) -> void:
+	if bool(npc.get("extra", false)):
+		return
+	var n := str(npc.get("name", "")).strip_edges().to_lower()
+	if n.is_empty() or _ingest_city.is_empty():
+		return
+	_npc_specs["%s/%s" % [_ingest_city, n]] = npc
+
+
 static func _ingest_npc(npc: Dictionary) -> void:
 	if bool(npc.get("extra", false)):
 		_extra_npcs.append(npc)
+	_store_npc_spec(npc)
 	var ko: Variant = npc.get("ko", {})
 	if typeof(ko) != TYPE_DICTIONARY:
 		return

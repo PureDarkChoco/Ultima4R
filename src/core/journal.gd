@@ -11,6 +11,7 @@ const _Virtues := preload("res://src/core/virtues.gd")
 
 static var _catalog: Array = []
 static var _loaded := false
+static var _seeding_referrals := false
 
 
 static func ensure_catalog() -> void:
@@ -198,6 +199,10 @@ static func try_capture(gs: Node, place: String, npc: String, topic: String) -> 
 	for cat_v in matches:
 		if _append_catalog_capture(gs, cat_v as Dictionary, place, npc):
 			any = true
+	if mark_goals_for_inventory(gs):
+		any = true
+	if any:
+		_prefer_unseen_in_place(gs, p)
 	return any
 
 
@@ -335,6 +340,17 @@ static func _note_new_entry(gs: Node, id: String, place: String) -> void:
 	gs.journal_collapsed = cur
 
 
+static func _prefer_unseen_in_place(gs: Node, place: String) -> void:
+	## Dual-town inserts (source tip + destination ask) must ping the town
+	## where the player just heard it, not the seeded destination section.
+	if gs == null:
+		return
+	var id := latest_id_for_place(gs, place)
+	if id.is_empty():
+		return
+	_note_new_entry(gs, id, place)
+
+
 static func _catalog_speakers(cat: Dictionary, place: String, npc: String) -> Array:
 	var speaker_en := str(cat.get("speaker_en", "")).strip_edges()
 	var speaker_ko := str(cat.get("speaker_ko", "")).strip_edges()
@@ -396,6 +412,55 @@ static func _catalog_requires_recorded_met(gs: Node, cat: Dictionary) -> bool:
 		return true
 	var sid := str(raw).strip_edges()
 	return sid.is_empty() or has_entry_id(gs, sid)
+
+
+static func _catalog_seed_ids(cat: Dictionary) -> Array[String]:
+	var raw: Variant = cat.get("seed_if_recorded", "")
+	var out: Array[String] = []
+	if typeof(raw) == TYPE_ARRAY:
+		for sid in raw:
+			var id := str(sid).strip_edges()
+			if not id.is_empty():
+				out.append(id)
+		return out
+	var id := str(raw).strip_edges()
+	if not id.is_empty():
+		out.append(id)
+	return out
+
+
+static func _catalog_seed_if_recorded_met(gs: Node, cat: Dictionary) -> bool:
+	## Destination ask/meet rows unlock when any named source tip exists.
+	for sid in _catalog_seed_ids(cat):
+		if has_entry_id(gs, sid):
+			return true
+	return false
+
+
+static func seed_referral_rows(gs: Node, note_new: bool = false) -> bool:
+	## Cross-town "ask X in {town}" tips also leave a nameless ask/meet row
+	## on the destination settlement. Completing the talk finishes both.
+	if gs == null or _seeding_referrals:
+		return false
+	ensure_catalog()
+	_seeding_referrals = true
+	var any := false
+	for item in _catalog:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var cat: Dictionary = item
+		if _catalog_seed_ids(cat).is_empty():
+			continue
+		if not _catalog_seed_if_recorded_met(gs, cat):
+			continue
+		var place := str(cat.get("place", "")).strip_edges()
+		var npc := str(cat.get("npc", "")).strip_edges()
+		if place.is_empty() or npc.is_empty():
+			continue
+		if _append_catalog_capture(gs, cat, place, npc, note_new):
+			any = true
+	_seeding_referrals = false
+	return any
 
 
 static func _catalog_has_complete_if_recorded(cat: Dictionary) -> bool:
@@ -536,6 +601,8 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 	if _migrate_britain_compassion_virtue(gs):
 		changed = true
 	if _migrate_magincia_nate_rune_first_heard(gs):
+		changed = true
+	if seed_referral_rows(gs, false):
 		changed = true
 	return changed
 
@@ -866,6 +933,29 @@ static func last_acquired_id(gs: Node) -> String:
 			best_at = at
 			best_id = id
 	return best_id
+
+
+static func acquired_at(gs: Node, id: String) -> int:
+	if gs == null:
+		return -1
+	var want := id.strip_edges()
+	if want.is_empty():
+		return -1
+	for row in gs.journal_entries:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		if str(d.get("id", "")).strip_edges() != want:
+			continue
+		return int(d.get("at", 0))
+	return -1
+
+
+static func place_has_entry_as_recent_as(gs: Node, place: String, other_id: String) -> bool:
+	var local := latest_id_for_place(gs, place)
+	if local.is_empty():
+		return false
+	return acquired_at(gs, local) >= acquired_at(gs, other_id)
 
 
 static func place_for_entry_id(gs: Node, id: String) -> String:

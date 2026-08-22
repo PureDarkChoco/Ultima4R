@@ -62,7 +62,7 @@
         "health": "아주 좋소.",
         "response1": "레드 아이를\n상대하는 꼴\n봤소!",
         "response2": "말하는\n말이요!",
-        "question": "말 훔치러\n온 건 아니죠?",
+        "question": "말을 훔치러\n온 건가요?",
         "yes": "주인이 아주\n싫어할 거요!",
         "no": "그럼 스미스를\n보러 온 거겠소!",
         "topic1": "마구간",
@@ -534,28 +534,35 @@
       "look": "a white stallion.",
       "job": "Oh, not much.",
       "health": "Good, good.",
-      "response1": "A",
-      "response2": "A",
-      "question": "A",
-      "yes": "A",
-      "no": "A",
-      "topic1": "",
-      "topic2": "",
+      "ask_after": 5,
+      "response1": "Aye, I talk.\nLittle else.",
+      "response2": "Oats I could\npraise all day!",
+      "question": "Expecting more?",
+      "yes": "Neigh.",
+      "no": "Then thou art\nwise.",
+      "topic1": "TALK",
+      "topic2": "OATS",
       "ko": {
         "name": "스미스",
         "pronoun": "그",
         "look": "흰 수말이다.",
         "job": "별로 할 일\n없소.",
         "health": "좋소, 좋소.",
-        "response1": "A",
-        "response2": "A",
-        "question": "A",
-        "yes": "A",
-        "no": "A",
-        "topic1": "",
-        "topic1_aliases": [],
-        "topic2": "",
-        "topic2_aliases": []
+        "response1": "대화는 하오.\n그 이상은\n별로.",
+        "response2": "귀리라면\n하루 종일도\n좋소!",
+        "question": "더 기대했소?",
+        "yes": "히힝.",
+        "no": "현명한\n판단이오.",
+        "topic1": "대화",
+        "topic1_aliases": [
+          "talk",
+          "말"
+        ],
+        "topic2": "귀리",
+        "topic2_aliases": [
+          "oats",
+          "oat"
+        ]
       }
     }
   ]

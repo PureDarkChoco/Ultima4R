@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; the same ask:* goal completes both.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -122,6 +122,21 @@
       "en_us": "Ask Sister Antos about the bell at {serpent}."
     },
     {
+      "id": "lycaeum.father-antos.ask-book",
+      "place": "lycaeum",
+      "npc": "Father Antos",
+      "topic": "SEED",
+      "goal": "ask:antos-book",
+      "seed_if_recorded": "lcb.zorin.antos-book",
+      "complete_if_recorded": "lycaeum.father-antos.book",
+      "en": "Ask Father Antos about the book.",
+      "ko": "안토스 신부에게 책에 대해 묻기",
+      "en_u4": "Ask Father Antos of the book.",
+      "en_us": "Ask Father Antos about the book.",
+      "chain": "lycaeum.antos-book",
+      "chain_order": 5
+    },
+    {
       "id": "lycaeum.father-antos.book",
       "place": "lycaeum",
       "npc": "Father Antos",
@@ -135,6 +150,21 @@
       "en_us": "Search where other books are."
     },
     {
+      "id": "empath.brother-antos.ask-candle",
+      "place": "empath",
+      "npc": "Brother Antos",
+      "topic": "SEED",
+      "goal": "ask:antos-candle",
+      "seed_if_recorded": "lcb.zorin.antos-candle",
+      "complete_if_recorded": "empath.brother-antos.candle",
+      "en": "Ask Brother Antos about the candle.",
+      "ko": "안토스 형제에게 촛대에 대해 묻기",
+      "en_u4": "Ask Brother Antos of the candle.",
+      "en_us": "Ask Brother Antos about the candle.",
+      "chain": "empath.antos-candle",
+      "chain_order": 5
+    },
+    {
       "id": "empath.brother-antos.candle",
       "place": "empath",
       "npc": "Brother Antos",
@@ -144,6 +174,21 @@
       "goal": "",
       "en": "Candle of Love: needed to enter {abyss}.",
       "ko": "사랑의 촛대: {abyss}에 들어가려면 필요하다."
+    },
+    {
+      "id": "serpent.sister-antos.ask-bell",
+      "place": "serpent",
+      "npc": "Sister Antos",
+      "topic": "SEED",
+      "goal": "ask:antos-bell",
+      "seed_if_recorded": "lcb.zorin.antos-bell",
+      "complete_if_recorded": "serpent.sister-antos.bell",
+      "en": "Ask Sister Antos about the bell.",
+      "ko": "안토스 수녀에게 종에 대해 묻기",
+      "en_u4": "Ask Sister Antos of the bell.",
+      "en_us": "Ask Sister Antos about the bell.",
+      "chain": "serpent.antos-bell",
+      "chain_order": 5
     },
     {
       "id": "serpent.sister-antos.bell",
@@ -371,6 +416,24 @@
       "ko": "미덕: 겸손",
       "en_u4": "Virtue: Humility",
       "en_us": "Virtue: Humility"
+    },
+    {
+      "id": "minoc.zircon.ask-mystics",
+      "place": "minoc",
+      "npc": "Zircon",
+      "topic": "SEED",
+      "goal": "ask:zircon-mystics",
+      "seed_if_recorded": [
+        "lcb.seesha.zircon-mystics",
+        "lycaeum.scatu.zircon-mystics"
+      ],
+      "complete_if_recorded": "minoc.zircon.mystic-arms",
+      "en": "Ask Zircon about the mystic arms.",
+      "ko": "지르콘에게 신비의 무기에 대해 묻기",
+      "en_u4": "Ask Zircon of the mystic arms.",
+      "en_us": "Ask Zircon about the mystic arms.",
+      "chain": "minoc.zircon-mystics",
+      "chain_order": 5
     },
     {
       "id": "minoc.zircon.mystic-arms",
@@ -701,7 +764,10 @@
       "npc": "Joe",
       "topic": "STON",
       "goal": "stone:yellow",
-      "know": ["stone:yellow", "dungeon:despise"],
+      "know": [
+        "stone:yellow",
+        "dungeon:despise"
+      ],
       "en": "Search for the yellow stone in the dungeon of {despise}.",
       "ko": "{despise}의 던전에서 노란 돌 찾기",
       "en_u4": "Search for the yellow stone in the dungeon of {despise}.",
@@ -793,7 +859,11 @@
       "chain": "moonglow.honesty-stone",
       "chain_order": 10,
       "goal": "stone:blue",
-      "know": ["stone:blue", "dungeon:deceit", "virtue:honesty"],
+      "know": [
+        "stone:blue",
+        "dungeon:deceit",
+        "virtue:honesty"
+      ],
       "speaker_en": "Tyrone",
       "speaker_ko": "타이론",
       "en": "Search for the blue stone in the dungeon of {deceit}.",
@@ -916,6 +986,24 @@
       "en_us": "Valor mantra: RA"
     },
     {
+      "id": "jhelom.pub.ask-sextant",
+      "place": "jhelom",
+      "npc": "Senora",
+      "topic": "SEED",
+      "goal": "ask:jhelom-pub-sextant",
+      "seed_if_recorded": "trinsic.sailor-sam.jhelom-sextant",
+      "complete_if_recorded": "jhelom.senora.sextant",
+      "en": "Ask the barkeep about the sextant.",
+      "ko": "술집 주인에게 육분의에 대해 묻기",
+      "en_u4": "Ask the barkeep of the sextant.",
+      "en_us": "Ask the barkeep about the sextant.",
+      "chain": "jhelom.sextant",
+      "chain_order": 5,
+      "speaker_en": "Senora",
+      "speaker_ko": "세노라",
+      "complete_on_goal": "item:sextant"
+    },
+    {
       "id": "jhelom.senora.sextant",
       "place": "jhelom",
       "npc": "Senora",
@@ -951,7 +1039,10 @@
       "npc": "Gravnor",
       "topic": "STON_NO",
       "goal": "stone:red",
-      "know": ["stone:red", "dungeon:destard"],
+      "know": [
+        "stone:red",
+        "dungeon:destard"
+      ],
       "en": "Search for the red stone in the dungeon of {destard}.",
       "ko": "{destard} 던전에서 빨간 돌 찾기",
       "en_u4": "Search for the red stone in the dungeon of {destard}.",
@@ -1084,7 +1175,10 @@
       "npc": "Druid",
       "topic": "SHRI_YES",
       "goal": "stone:green",
-      "know": ["stone:green", "dungeon:wrong"],
+      "know": [
+        "stone:green",
+        "dungeon:wrong"
+      ],
       "speaker_en": "Druid",
       "speaker_ko": "드루이드",
       "en": "Search for the green stone in the dungeon of {wrong}.",
@@ -1134,6 +1228,21 @@
       "ko": "정의의 만트라: BEH",
       "en_u4": "Justice mantra: BEH",
       "en_us": "Justice mantra: BEH"
+    },
+    {
+      "id": "yew.calumny.ask-mandrake",
+      "place": "yew",
+      "npc": "Calumny",
+      "topic": "SEED",
+      "goal": "ask:calumny-mandrake",
+      "seed_if_recorded": "paws.greg.calumny-mandrake",
+      "complete_if_recorded": "yew.calumny.mandrake",
+      "en": "Ask Calumny about mandrake.",
+      "ko": "칼럼니에게 맨드레이크에 대해 묻기",
+      "en_u4": "Ask Calumny of mandrake.",
+      "en_us": "Ask Calumny about mandrake.",
+      "speaker_en": "Calumny",
+      "speaker_ko": "칼럼니"
     },
     {
       "id": "yew.calumny.mandrake",
@@ -1229,7 +1338,10 @@
       "npc": "Quix",
       "topic": "SECR",
       "goal": "",
-      "know": ["stone:purple", "virtue:honor"],
+      "know": [
+        "stone:purple",
+        "virtue:honor"
+      ],
       "speaker_en": "Quix",
       "speaker_ko": "퀵스",
       "en": "Purple stone of Honor",
@@ -1327,6 +1439,24 @@
       "ko": "폴리 선술집에서 맨드레이크에 대해 묻기",
       "en_u4": "Ask at the Folley tavern of mandrake.",
       "en_us": "Ask at the Folley tavern about mandrake."
+    },
+    {
+      "id": "trinsic.tap.ask-white-stone",
+      "place": "trinsic",
+      "npc": "Terran",
+      "topic": "SEED",
+      "goal": "ask:trinsic-tap-stone",
+      "seed_if_recorded": "skara.mitre.trinsic-tap-stone",
+      "complete_if_recorded": "trinsic.terran.sloven-white-stone",
+      "en": "Ask at the Tap about the white stone.",
+      "ko": "탭에서 하얀 돌에 대해 묻기",
+      "en_u4": "Ask at the Tap of the white stone.",
+      "en_us": "Ask at the Tap about the white stone.",
+      "chain": "trinsic.white-stone",
+      "chain_order": 5,
+      "speaker_en": "Terran",
+      "speaker_ko": "테란",
+      "complete_on_goal": "stone:white"
     },
     {
       "id": "trinsic.terran.sloven-white-stone",
@@ -1462,7 +1592,10 @@
       "npc": "Mitre",
       "topic": "STON",
       "codex_only": true,
-      "know": ["stone:white", "dungeon:hythloth"]
+      "know": [
+        "stone:white",
+        "dungeon:hythloth"
+      ]
     },
     {
       "id": "skara.mitre.trinsic-tap-stone",
@@ -1474,11 +1607,32 @@
       "goal": "ask:trinsic-tap-stone",
       "complete_if_recorded": "trinsic.terran.sloven-white-stone",
       "complete_on_goal": "stone:white",
-      "know": ["stone:white", "dungeon:hythloth"],
+      "know": [
+        "stone:white",
+        "dungeon:hythloth"
+      ],
       "en": "Ask about the white stone at the Tap in {trinsic}.",
       "ko": "{trinsic}의 탭에서 하얀 돌에 대해 묻기",
       "en_u4": "Ask of the white stone at the Tap in {trinsic}.",
       "en_us": "Ask about the white stone at the Tap in {trinsic}."
+    },
+    {
+      "id": "skara.isaac.ask-white-stone",
+      "place": "skara",
+      "npc": "Isaac",
+      "topic": "SEED",
+      "goal": "ask:isaac-stone",
+      "seed_if_recorded": "cove.sloven.isaac-stone",
+      "complete_if_recorded": "skara.isaac.white-stone",
+      "en": "Ask Isaac about the white stone.",
+      "ko": "아이작에게 하얀 돌에 대해 묻기",
+      "en_u4": "Ask Isaac of the white stone.",
+      "en_us": "Ask Isaac about the white stone.",
+      "chain": "skara.white-stone",
+      "chain_order": 15,
+      "speaker_en": "Isaac",
+      "speaker_ko": "아이작",
+      "complete_on_goal": "stone:white"
     },
     {
       "id": "skara.isaac.white-stone",
@@ -1714,6 +1868,24 @@
       "en_us": "Ask at the pub in {britain} about the black stone."
     },
     {
+      "id": "britain.sam.ask-black-stone",
+      "place": "britain",
+      "npc": "Sam",
+      "topic": "SEED",
+      "goal": "ask:britain-pub-black-stone",
+      "seed_if_recorded": "magincia.nate.britain-pub-stone",
+      "complete_if_recorded": "britain.sam.merlin-stone",
+      "en": "Ask at the pub about the black stone.",
+      "ko": "술집에서 검은 돌에 대해 묻기",
+      "en_u4": "Ask at the pub of the black stone.",
+      "en_us": "Ask at the pub about the black stone.",
+      "chain": "britain.black-stone",
+      "chain_order": 5,
+      "speaker_en": "Sam",
+      "speaker_ko": "샘",
+      "complete_on_goal": "stone:black"
+    },
+    {
       "id": "britain.sam.merlin-stone",
       "place": "britain",
       "npc": "Sam",
@@ -1725,10 +1897,10 @@
       "complete_on_goal": "stone:black",
       "speaker_en": "Sam",
       "speaker_ko": "샘",
-      "en": "Ask Merlin about the black stone.",
-      "ko": "멀린에게 검은 돌에 대해 묻기",
-      "en_u4": "Ask Merlin of the black stone.",
-      "en_us": "Ask Merlin about the black stone."
+      "en": "Ask Merlin in {cove} about the black stone.",
+      "ko": "{cove}의 멀린에게 검은 돌에 대해 묻기",
+      "en_u4": "Ask Merlin in {cove} of the black stone.",
+      "en_us": "Ask Merlin in {cove} about the black stone."
     },
     {
       "id": "magincia.nate.barren-rune",
@@ -1744,6 +1916,22 @@
       "ko": "{paws}의 바렌에게 룬에 대해 묻기",
       "en_u4": "Ask Barren of the rune in {paws}.",
       "en_us": "Ask Barren about the rune in {paws}."
+    },
+    {
+      "id": "paws.barren.ask-rune",
+      "place": "paws",
+      "npc": "Barren",
+      "topic": "SEED",
+      "goal": "ask:barren-rune",
+      "seed_if_recorded": "magincia.nate.barren-rune",
+      "complete_if_recorded": "paws.barren.humility-rune",
+      "en": "Ask Barren about the rune.",
+      "ko": "바렌에게 룬에 대해 묻기",
+      "en_u4": "Ask Barren of the rune.",
+      "en_us": "Ask Barren about the rune.",
+      "chain": "paws.humility-rune",
+      "chain_order": 5,
+      "complete_on_goal": "rune:humility"
     },
     {
       "id": "paws.barren.humility-rune",
@@ -1770,6 +1958,24 @@
       "ko": "산자락 구석에서 룬 찾기",
       "en_u4": "Search in the nook of the mountains.",
       "en_us": "Search in the nook of the mountains."
+    },
+    {
+      "id": "paws.simon-tessa.ask-mystic",
+      "place": "paws",
+      "npc": "Sir Simon",
+      "topic": "SEED",
+      "goal": "ask:simon-tessa-mystic",
+      "seed_if_recorded": "minoc.zircon.mystic-arms",
+      "complete_if_recorded": [
+        "paws.simon.mystic-armour",
+        "paws.tessa.mystic-weapons"
+      ],
+      "en": "Ask Sir Simon and Lady Tessa about the mystic.",
+      "ko": "사이먼 경과 테사 부인에게 신비에 대해 묻기",
+      "en_u4": "Ask Sir Simon and Lady Tessa of the mystic.",
+      "en_us": "Ask Sir Simon and Lady Tessa about the mystic.",
+      "speaker_en": "Sir Simon",
+      "speaker_ko": "사이먼 경"
     },
     {
       "id": "paws.simon.mystic-armour",
@@ -1819,6 +2025,23 @@
       "en_us_upgraded": "Ask Mentorian about gate magic in {cove}."
     },
     {
+      "id": "paws.greg.ask-mandrake",
+      "place": "paws",
+      "npc": "Greg 'n Rob",
+      "topic": "SEED",
+      "goal": "ask:folley-mandrake",
+      "seed_if_recorded": "trinsic.swindrik.folley-mandrake",
+      "complete_if_recorded": "paws.greg.calumny-mandrake",
+      "en": "Ask at the Folley tavern about mandrake.",
+      "ko": "폴리 선술집에서 맨드레이크에 대해 묻기",
+      "en_u4": "Ask at the Folley tavern of mandrake.",
+      "en_us": "Ask at the Folley tavern about mandrake.",
+      "chain": "paws.mandrake",
+      "chain_order": 5,
+      "speaker_en": "Greg 'n Rob",
+      "speaker_ko": "그렉과 롭"
+    },
+    {
       "id": "paws.greg.calumny-mandrake",
       "place": "paws",
       "npc": "Greg 'n Rob",
@@ -1829,10 +2052,27 @@
       "complete_if_recorded": "yew.calumny.mandrake",
       "speaker_en": "Greg 'n Rob",
       "speaker_ko": "그렉과 롭",
-      "en": "Ask Calumny the alchemist about mandrake.",
-      "ko": "연금술사 칼럼니에게 맨드레이크에 대해 묻기",
-      "en_u4": "Ask Calumny the alchemist of mandrake.",
-      "en_us": "Ask Calumny the alchemist about mandrake."
+      "en": "Ask Calumny the alchemist in {yew} about mandrake.",
+      "ko": "{yew}의 연금술사 칼럼니에게 맨드레이크에 대해 묻기",
+      "en_u4": "Ask Calumny the alchemist in {yew} of mandrake.",
+      "en_us": "Ask Calumny the alchemist in {yew} about mandrake."
+    },
+    {
+      "id": "paws.zair.ask-word",
+      "place": "paws",
+      "npc": "Zair the Wise",
+      "topic": "SEED",
+      "goal": "ask:zair-word",
+      "seed_if_recorded": "skara.romasco.zair-word",
+      "complete_if_recorded": "paws.zair.brother-word",
+      "en": "Ask Zair the Wise about the word.",
+      "ko": "자이르에게 말씀에 대해 묻기",
+      "en_u4": "Ask Zair the Wise of the word.",
+      "en_us": "Ask Zair the Wise about the word.",
+      "chain": "paws.word-of-passage",
+      "chain_order": 5,
+      "speaker_en": "Zair the Wise",
+      "speaker_ko": "지혜로운 자이르"
     },
     {
       "id": "paws.zair.brother-word",
@@ -1911,6 +2151,23 @@
       "en_us": "Ask the barkeep at The Axe-n-Ale in {vesper} about nightshade."
     },
     {
+      "id": "vesper.arron.ask-nightshade",
+      "place": "vesper",
+      "npc": "Arron",
+      "topic": "SEED",
+      "goal": "ask:vesper-nightshade",
+      "seed_if_recorded": "skara.presto.vesper-nightshade",
+      "complete_if_recorded": "vesper.arron.virgil-nightshade",
+      "en": "Ask the barkeep about nightshade.",
+      "ko": "술집 주인에게 밤그늘풀에 대해 묻기",
+      "en_u4": "Ask the barkeep of nightshade.",
+      "en_us": "Ask the barkeep about nightshade.",
+      "chain": "vesper.nightshade",
+      "chain_order": 5,
+      "speaker_en": "Arron",
+      "speaker_ko": "애런"
+    },
+    {
       "id": "vesper.arron.virgil-nightshade",
       "place": "vesper",
       "npc": "Arron",
@@ -1925,6 +2182,21 @@
       "ko": "{trinsic}의 버질에게 밤그늘풀에 대해 묻기",
       "en_u4": "Ask Virgil in {trinsic} of nightshade.",
       "en_us": "Ask Virgil in {trinsic} about nightshade."
+    },
+    {
+      "id": "trinsic.virgil.ask-nightshade",
+      "place": "trinsic",
+      "npc": "Virgil",
+      "topic": "SEED",
+      "goal": "ask:virgil-nightshade",
+      "seed_if_recorded": "vesper.arron.virgil-nightshade",
+      "complete_if_recorded": "trinsic.virgil.nightshade",
+      "en": "Ask Virgil about nightshade.",
+      "ko": "버질에게 밤그늘풀에 대해 묻기",
+      "en_u4": "Ask Virgil of nightshade.",
+      "en_us": "Ask Virgil about nightshade.",
+      "speaker_en": "Virgil",
+      "speaker_ko": "버질"
     },
     {
       "id": "trinsic.virgil.nightshade",
@@ -2008,6 +2280,24 @@
       "ko": "코덱스 방: 아바타 여덟 부분, 세 부분 열쇠, 통과의 말, 순수한 공리를 알라."
     },
     {
+      "id": "cove.merlin.ask-black-stone",
+      "place": "cove",
+      "npc": "Merlin",
+      "topic": "SEED",
+      "goal": "ask:merlin-stone",
+      "seed_if_recorded": "britain.sam.merlin-stone",
+      "complete_if_recorded": "cove.merlin.black-stone",
+      "en": "Ask Merlin about the black stone.",
+      "ko": "멀린에게 검은 돌에 대해 묻기",
+      "en_u4": "Ask Merlin of the black stone.",
+      "en_us": "Ask Merlin about the black stone.",
+      "chain": "cove.black-stone",
+      "chain_order": 5,
+      "speaker_en": "Merlin",
+      "speaker_ko": "멀린",
+      "complete_on_goal": "stone:black"
+    },
+    {
       "id": "cove.merlin.black-stone",
       "place": "cove",
       "npc": "Merlin",
@@ -2034,12 +2324,45 @@
       "en_us": "Search where the dark-moon gate appears, when both moons are dark."
     },
     {
+      "id": "cove.mentorian.ask-gate",
+      "place": "cove",
+      "npc": "Mentorian",
+      "topic": "SEED",
+      "goal": "ask:mentorian-gate",
+      "seed_if_recorded": "paws.jingles.mentorian-gate",
+      "complete_if_recorded": "cove.mentorian.gate-spell",
+      "en": "Ask Mentorian about gate magic.",
+      "ko": "멘토리안에게 차원문 마법 묻기",
+      "en_u4": "Ask Mentorian of the gate spell.",
+      "en_us": "Ask Mentorian about gate magic.",
+      "speaker_en": "Mentorian",
+      "speaker_ko": "멘토리안"
+    },
+    {
       "id": "cove.mentorian.gate-spell",
       "place": "cove",
       "npc": "Mentorian",
       "topic": "GATE",
       "en": "Gate spell: requires ash, pearl, and mandrake root.",
       "ko": "차원문 주문: 재·진주·맨드레이크가 필요하다."
+    },
+    {
+      "id": "cove.sloven.meet",
+      "place": "cove",
+      "npc": "Sloven",
+      "topic": "SEED",
+      "goal": "ask:sloven-stone",
+      "seed_if_recorded": "trinsic.terran.sloven-white-stone",
+      "complete_if_recorded": "cove.sloven.isaac-stone",
+      "en": "Meet Sloven the hermit.",
+      "ko": "은자 슬로벤 만나기",
+      "en_u4": "Seek Sloven the hermit.",
+      "en_us": "Meet Sloven the hermit.",
+      "chain": "cove.white-stone",
+      "chain_order": 5,
+      "speaker_en": "Sloven",
+      "speaker_ko": "슬로벤",
+      "complete_on_goal": "stone:white"
     },
     {
       "id": "cove.sloven.isaac-stone",
@@ -2055,6 +2378,21 @@
       "ko": "{skara} 여관의 아이작에게 하얀 돌에 대해 묻기",
       "en_u4": "Ask Isaac at the inn in {skara} of the white stone.",
       "en_us": "Ask Isaac at the inn in {skara} about the white stone."
+    },
+    {
+      "id": "cove.zair.ask-word",
+      "place": "cove",
+      "npc": "Brother Zair",
+      "topic": "SEED",
+      "goal": "ask:brother-zair-word",
+      "seed_if_recorded": "paws.zair.brother-word",
+      "complete_if_recorded": "cove.zair.word-of-passage",
+      "en": "Ask Brother Zair about the word.",
+      "ko": "자이르의 형제에게 말씀에 대해 묻기",
+      "en_u4": "Ask Brother Zair of the word.",
+      "en_us": "Ask Brother Zair about the word.",
+      "speaker_en": "Brother Zair",
+      "speaker_ko": "자이르의 형제"
     },
     {
       "id": "cove.zair.word-of-passage",
@@ -2085,7 +2423,11 @@
       "place": "cove",
       "npc": "Circe",
       "topic": "PART",
-      "know": ["principle:love", "principle:courage", "principle:truth"],
+      "know": [
+        "principle:love",
+        "principle:courage",
+        "principle:truth"
+      ],
       "en": "Axiom parts: unending love, limitless courage, truth that encompasses all.",
       "ko": "공리의 부분: 끝없는 사랑, 무한 용기, 만물을 감싸는 진리."
     },
@@ -2108,6 +2450,21 @@
       "ko": "{den} 캡틴 블랙 주점의 캡틴에게 해골에 대해 묻기",
       "en_u4": "Ask the Cap'n at Captain Black Tavern in {den} of the skull.",
       "en_us": "Ask the Cap'n at Captain Black Tavern in {den} about the skull."
+    },
+    {
+      "id": "den.ragnar.ask-skull",
+      "place": "den",
+      "npc": "Ragnar",
+      "topic": "SEED",
+      "goal": "ask:den-skull",
+      "seed_if_recorded": "britain.sebastian.den-skull",
+      "complete_if_recorded": "den.ragnar.skull-warning",
+      "en": "Ask the Cap'n about the skull.",
+      "ko": "캡틴에게 해골에 대해 묻기",
+      "en_u4": "Ask the Cap'n of the skull.",
+      "en_us": "Ask the Cap'n about the skull.",
+      "speaker_en": "Ragnar",
+      "speaker_ko": "라그나르"
     },
     {
       "id": "den.ragnar.skull-warning",
@@ -2160,6 +2517,23 @@
       "topic": "WORD_YES",
       "en": "Word of passage: one syllable is amo.",
       "ko": "통과의 말: 한 음절은 amo."
+    },
+    {
+      "id": "empath.suzanna.ask-horn",
+      "place": "empath",
+      "npc": "Suzanna",
+      "topic": "SEED",
+      "goal": "ask:suzanna-horn",
+      "seed_if_recorded": "magincia.demitry.suzanna-horn",
+      "complete_if_recorded": "empath.suzanna.malchor-horn",
+      "en": "Ask the lady in waiting about the horn.",
+      "ko": "시녀에게 은뿔에 대해 묻기",
+      "en_u4": "Ask the lady in waiting of the horn.",
+      "en_us": "Ask the lady in waiting about the horn.",
+      "chain": "empath.silver-horn",
+      "chain_order": 5,
+      "speaker_en": "Suzanna",
+      "speaker_ko": "수잔나"
     },
     {
       "id": "empath.suzanna.malchor-horn",
@@ -2318,6 +2692,21 @@
       "speaker_ko": "전사",
       "en": "Altar rooms: they connect the dungeons unto each other.",
       "ko": "제단 방: 던전들을 서로 잇는다."
+    },
+    {
+      "id": "lycaeum.nigel.ask-recall",
+      "place": "lycaeum",
+      "npc": "Nigel",
+      "topic": "SEED",
+      "goal": "ask:nigel-recall",
+      "seed_if_recorded": "moonglow.shazom.nigel-recall",
+      "complete_if_recorded": "lycaeum.nigel.resurrection",
+      "en": "Meet Nigel.",
+      "ko": "나이절 만나기",
+      "en_u4": "Seek Nigel.",
+      "en_us": "Meet Nigel.",
+      "speaker_en": "Nigel",
+      "speaker_ko": "나이절"
     },
     {
       "id": "lycaeum.nigel.resurrection",
@@ -2488,6 +2877,21 @@
       "topic": "ABYS",
       "en": "Great Stygian Abyss: holds the Codex of Ultimate Wisdom.",
       "ko": "대 스티기안 {abyss}: 궁극 지혜의 코덱스가 있다."
+    },
+    {
+      "id": "serpent.roderick.ask-orbs",
+      "place": "serpent",
+      "npc": "Roderick",
+      "topic": "SEED",
+      "goal": "ask:roderick-orbs",
+      "seed_if_recorded": "britain.thevel.roderick-orbs",
+      "complete_if_recorded": "serpent.roderick.blue-orbs",
+      "en": "Ask Roderick about the orbs.",
+      "ko": "로데릭에게 오브에 대해 묻기",
+      "en_u4": "Ask Roderick of the orbs.",
+      "en_us": "Ask Roderick about the orbs.",
+      "speaker_en": "Roderick",
+      "speaker_ko": "로데릭"
     },
     {
       "id": "serpent.roderick.blue-orbs",

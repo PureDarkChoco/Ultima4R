@@ -388,7 +388,48 @@ static func load_file(path: String) -> Array:
 		var e := _parse_record(rec)
 		if e != null:
 			out.append(e)
+	var city := _TalkLocale.city_id_from_path(path)
+	_TalkLocale.ensure_city(city)
+	for e2 in out:
+		apply_pack_fill(e2, city)
 	return out
+
+
+static func _unused_talk_text(s: String) -> bool:
+	var t := s.strip_edges()
+	return t.is_empty() or t.to_upper() == "A"
+
+
+static func apply_pack_fill(entry: Entry, city_id: String) -> void:
+	## Classic TLK leaves unused strings as "" / "A". Packs may fill those
+	## slots (Smith the stallion, etc.) without rewriting living lines.
+	if entry == null:
+		return
+	var spec: Dictionary = _TalkLocale.pack_spec(str(entry.name), city_id)
+	if spec.is_empty():
+		return
+	if _unused_talk_text(entry.response1) and not _unused_talk_text(str(spec.get("response1", ""))):
+		entry.response1 = _TalkLocale.unescape_pack(str(spec.get("response1", "")))
+	if _unused_talk_text(entry.response2) and not _unused_talk_text(str(spec.get("response2", ""))):
+		entry.response2 = _TalkLocale.unescape_pack(str(spec.get("response2", "")))
+	if _unused_talk_text(entry.question) and not _unused_talk_text(str(spec.get("question", ""))):
+		entry.question = _TalkLocale.unescape_pack(str(spec.get("question", "")))
+	if _unused_talk_text(entry.yes) and not _unused_talk_text(str(spec.get("yes", ""))):
+		entry.yes = _TalkLocale.unescape_pack(str(spec.get("yes", "")))
+	if _unused_talk_text(entry.no) and not _unused_talk_text(str(spec.get("no", ""))):
+		entry.no = _TalkLocale.unescape_pack(str(spec.get("no", "")))
+	if _trim_keyword(entry.topic1).is_empty():
+		var t1 := _trim_keyword(str(spec.get("topic1", "")))
+		if not t1.is_empty():
+			entry.topic1 = t1
+	if _trim_keyword(entry.topic2).is_empty():
+		var t2 := _trim_keyword(str(spec.get("topic2", "")))
+		if not t2.is_empty():
+			entry.topic2 = t2
+	if int(entry.ask_after) == QT_NONE and spec.has("ask_after"):
+		var ask := int(spec.get("ask_after", QT_NONE))
+		if ask != QT_NONE:
+			entry.ask_after = ask
 
 
 static func entry_from_dict(d: Dictionary) -> Entry:
