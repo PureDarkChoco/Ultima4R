@@ -194,7 +194,7 @@ https://clockworkraven.itch.io/raven-fantasy-icons
 
 Freesound
 
-문 여는 효과음은 Freesound에서 제공하는 무료 음원을 사용합니다.
+일부 효과음은 Freesound에서 제공하는 무료 음원을 사용합니다.
 https://freesound.org/
 
 각 음원의 라이선스와 제작자 표시는 Freesound의 해당 음원 페이지를 따릅니다.
@@ -262,7 +262,7 @@ The assets are used under the terms presented by the creator on the itch.io prod
 
 Freesound
 
-The door-opening sound effect uses free audio from Freesound.
+Some sound effects use free audio from Freesound.
 https://freesound.org/
 
 License and attribution for each clip follow that clip's page on Freesound.

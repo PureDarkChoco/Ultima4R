@@ -20015,6 +20015,7 @@ func _do_jimmy(dir: Vector2i) -> String:
 		return Locale.t("cmd_no_keys")
 	GameState.keys -= 1
 	_city_map.add_annotation(target.x, target.y, TILE_DOOR, -1)
+	AudioSfx.play_jimmy()
 	_refresh_inventory_bars()
 	if _map != null and _map.has_method("refresh"):
 		_map.refresh()
