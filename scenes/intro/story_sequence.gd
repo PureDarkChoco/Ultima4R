@@ -316,7 +316,7 @@ func _is_advance_input(event: InputEvent) -> bool:
 	if event is InputEventMouseButton:
 		return event.button_index == MOUSE_BUTTON_LEFT
 	if event is InputEventJoypadButton:
-		return event.button_index == JOY_BUTTON_A
+		return event.button_index == GameInput.confirm_button()
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		var code := k.keycode

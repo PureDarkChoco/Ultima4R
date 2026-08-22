@@ -21,22 +21,44 @@ static func ensure_input_map() -> void:
 	_ensure_ui_nav()
 
 
+static func confirm_button() -> JoyButton:
+	## Xbox A / Nintendo B — the face button that confirms.
+	if GamepadSettings != null and GamepadSettings.is_nintendo():
+		return JOY_BUTTON_B
+	return JOY_BUTTON_A
+
+
+static func cancel_button() -> JoyButton:
+	## Xbox B / Nintendo A — the face button that cancels.
+	if GamepadSettings != null and GamepadSettings.is_nintendo():
+		return JOY_BUTTON_A
+	return JOY_BUTTON_B
+
+
+static func rebind_confirm_cancel() -> void:
+	## Swap A/B on confirm/cancel after the Options layout changes.
+	_bind_face_action("confirm", confirm_button())
+	_bind_face_action("cancel", cancel_button())
+	_bind_face_action("ui_accept", confirm_button())
+	_bind_face_action("ui_cancel", cancel_button())
+
+
 static func is_cancel(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event.is_action_pressed("cancel") or event.is_action_pressed("ui_cancel"):
 		return true
 	if event is InputEventJoypadButton:
-		return (event as InputEventJoypadButton).button_index == JOY_BUTTON_B
+		return (event as InputEventJoypadButton).button_index == cancel_button()
 	return false
 
 
 static func is_select(event: InputEvent) -> bool:
-	## South-face (A) / Enter — Space is Pass only, never confirm.
+	## Confirm face button / Enter — Space is Pass only, never confirm.
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
-		return (event as InputEventJoypadButton).button_index == JOY_BUTTON_A
+		return (event as InputEventJoypadButton).button_index == confirm_button()
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		var code := k.keycode
@@ -364,20 +386,9 @@ static func _ensure_move_actions() -> void:
 
 
 static func _ensure_confirm_cancel() -> void:
-	_ensure_action(
-		"confirm",
-		[
-			_key(KEY_ENTER),
-			_joy_button(JOY_BUTTON_A),
-		]
-	)
-	_ensure_action(
-		"cancel",
-		[
-			_key(KEY_ESCAPE),
-			_joy_button(JOY_BUTTON_B),
-		]
-	)
+	_ensure_action("confirm", [_key(KEY_ENTER)])
+	_ensure_action("cancel", [_key(KEY_ESCAPE)])
+	rebind_confirm_cancel()
 
 
 static func _ensure_ui_nav() -> void:
@@ -418,19 +429,33 @@ static func _ensure_ui_nav() -> void:
 		[
 			_key(KEY_ENTER),
 			_key(KEY_KP_ENTER),
-			_joy_button(JOY_BUTTON_A),
 		]
 	)
 	_erase_key_from_action("confirm", KEY_SPACE)
 	_erase_key_from_action("ui_accept", KEY_SPACE)
 	_erase_key_from_action("ui_select", KEY_SPACE)
-	_ensure_action(
-		"ui_cancel",
-		[
-			_key(KEY_ESCAPE),
-			_joy_button(JOY_BUTTON_B),
-		]
-	)
+	_ensure_action("ui_cancel", [_key(KEY_ESCAPE)])
+	rebind_confirm_cancel()
+
+
+static func _bind_face_action(action: String, button: JoyButton) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action, STICK_DEADZONE)
+	_erase_joy_button_from_action(action, JOY_BUTTON_A)
+	_erase_joy_button_from_action(action, JOY_BUTTON_B)
+	_ensure_action(action, [_joy_button(button)])
+
+
+static func _erase_joy_button_from_action(action: String, button: JoyButton) -> void:
+	if not InputMap.has_action(action):
+		return
+	var to_erase: Array[InputEvent] = []
+	for existing in InputMap.action_get_events(action):
+		if existing is InputEventJoypadButton:
+			if (existing as InputEventJoypadButton).button_index == button:
+				to_erase.append(existing)
+	for existing in to_erase:
+		InputMap.action_erase_event(action, existing)
 
 
 static func _erase_key_from_action(action: String, phys: Key) -> void:

@@ -115,6 +115,21 @@ const _T := {
 		"en_us": "Sebeolsik Final",
 		"ko": "세벌식 최종",
 	},
+	"esc_options_gamepad": {
+		"en_u4": "Gamepad",
+		"en_us": "Gamepad",
+		"ko": "게임패드",
+	},
+	"esc_options_gamepad_xbox": {
+		"en_u4": "XBOX (A / B)",
+		"en_us": "XBOX (A / B)",
+		"ko": "XBOX (A / B)",
+	},
+	"esc_options_gamepad_nintendo": {
+		"en_u4": "NINTENDO (B / A)",
+		"en_us": "NINTENDO (B / A)",
+		"ko": "NINTENDO (B / A)",
+	},
 	## Clear language option labels (not raw ids like en_u4).
 	"lang_en_us": {
 		"en_u4": "English",

@@ -6249,7 +6249,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					event is InputEventJoypadButton
 					and event.pressed
 					and not event.is_echo()
-					and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A
+					and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button()
 				)
 			)
 		):
@@ -7576,10 +7576,10 @@ func _handle_esc_menu_input(event: InputEvent) -> bool:
 			return true
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_B:
+		if jb.button_index == _GameInput.cancel_button():
 			_close_esc_menu()
 			return true
-		if jb.button_index == JOY_BUTTON_A:
+		if jb.button_index == _GameInput.confirm_button():
 			_confirm_esc_menu(_esc_menu.cursor() if _esc_menu else 0)
 			return true
 	return true
@@ -7610,10 +7610,10 @@ func _handle_options_input(event: InputEvent) -> bool:
 			return true
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_B:
+		if jb.button_index == _GameInput.cancel_button():
 			_close_options_panel(true)
 			return true
-		if jb.button_index == JOY_BUTTON_A:
+		if jb.button_index == _GameInput.confirm_button():
 			_confirm_options_item(_options_panel.cursor() if _options_panel else 0)
 			return true
 	return true
@@ -7742,10 +7742,10 @@ func _handle_save_input(event: InputEvent) -> bool:
 			return true
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_B:
+		if jb.button_index == _GameInput.cancel_button():
 			_cancel_save(true)
 			return true
-		if jb.button_index == JOY_BUTTON_A:
+		if jb.button_index == _GameInput.confirm_button():
 			_confirm_slot_pick(_save_panel.cursor() if _save_panel else 0)
 			return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -8582,7 +8582,7 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 				return true
 		return true
 	## Pick stage — same affordances as New Order cursor.
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_ztats(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -8591,7 +8591,7 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_ztats_slot(_ztats_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_ztats_slot(_ztats_cursor)
 		return true
 	## ↑↓ are polled in _tick_select_cursor (hold-repeat like world move).
@@ -8886,7 +8886,7 @@ func _handle_ready_input(event: InputEvent) -> bool:
 	if _ready_self_only:
 		_close_ready(true)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_ready(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -8895,7 +8895,7 @@ func _handle_ready_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_ready_slot(_ready_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_ready_slot(_ready_cursor)
 		return true
 	if event is InputEventKey:
@@ -8911,7 +8911,7 @@ func _handle_ready_input(event: InputEvent) -> bool:
 
 
 func _handle_ready_weapon_input(event: InputEvent) -> bool:
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_ready(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -8920,7 +8920,7 @@ func _handle_ready_weapon_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_confirm_ready_cursor()
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_confirm_ready_cursor()
 		return true
 	## Letter A–P selects that weapon index (xu4 readAlphaAction).
@@ -9191,7 +9191,7 @@ func _handle_wear_input(event: InputEvent) -> bool:
 			return true
 	if _wear_stage == 2:
 		return _handle_wear_armor_input(event)
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_wear(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -9200,7 +9200,7 @@ func _handle_wear_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_wear_slot(_wear_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_wear_slot(_wear_cursor)
 		return true
 	if event is InputEventKey:
@@ -9216,7 +9216,7 @@ func _handle_wear_input(event: InputEvent) -> bool:
 
 
 func _handle_wear_armor_input(event: InputEvent) -> bool:
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_wear(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -9225,7 +9225,7 @@ func _handle_wear_armor_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_confirm_wear_cursor()
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_confirm_wear_cursor()
 		return true
 	## Letter A–H selects that armor index (xu4 readAlphaAction).
@@ -9490,7 +9490,7 @@ func _handle_mix_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_mix(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -9508,7 +9508,7 @@ func _handle_mix_list_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_mix_list_cursor()
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_mix_list_cursor()
 		return true
 	if event is InputEventKey:
@@ -9569,7 +9569,7 @@ func _handle_mix_reagent_input(event: InputEvent) -> bool:
 			return true
 		if _is_direction_key(ke):
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_mix_reagent_cursor()
 		return true
 	return true
@@ -9866,7 +9866,7 @@ func _handle_cast_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_cast(true, not _combat_active)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -9887,7 +9887,7 @@ func _handle_cast_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_cursor()
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_cast_cursor()
 		return true
 	if event is InputEventKey:
@@ -9906,7 +9906,7 @@ func _handle_cast_caster_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_caster_slot(_cast_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_cast_caster_slot(_cast_cursor)
 		return true
 	if event is InputEventKey:
@@ -9929,7 +9929,7 @@ func _handle_cast_who_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_cast_who_slot(_cast_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_cast_who_slot(_cast_cursor)
 		return true
 	if event is InputEventKey:
@@ -10081,7 +10081,7 @@ func _begin_cast_energy_type() -> void:
 
 
 func _handle_cast_energy_type_input(event: InputEvent) -> bool:
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		var keys := _prompt_choice_keys()
 		if not keys.is_empty():
 			_accept_cast_energy_type(keys.substr(_enter_prompt_choice, 1))
@@ -10123,7 +10123,7 @@ func _begin_cast_phase() -> void:
 
 
 func _handle_cast_phase_input(event: InputEvent) -> bool:
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		var keys := _prompt_choice_keys()
 		if not keys.is_empty():
 			_accept_cast_phase(keys.substr(_enter_prompt_choice, 1))
@@ -11221,7 +11221,7 @@ func _handle_use_input(event: InputEvent) -> bool:
 				_use_buffer = _use_buffer.substr(0, _use_buffer.length() - 1)
 				_layout_prompt_row()
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_close_use(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -11233,7 +11233,7 @@ func _handle_use_input(event: InputEvent) -> bool:
 		else:
 			_confirm_typed_use()
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_confirm_use_cursor()
 		return true
 	if event is InputEventKey and _is_direction_key(event as InputEventKey):
@@ -12712,7 +12712,7 @@ func _handle_orb_touch_input(event: InputEvent) -> bool:
 		if key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
 			_cancel_orb_touch(true)
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_cancel_orb_touch(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -12721,7 +12721,7 @@ func _handle_orb_touch_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_orb_touch_slot(_orb_touch_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_orb_touch_slot(_orb_touch_cursor)
 		return true
 	if event is InputEventKey:
@@ -12941,7 +12941,7 @@ func _handle_fountain_drink_input(event: InputEvent) -> bool:
 		if key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
 			_cancel_fountain_drink(true)
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_cancel_fountain_drink(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -12950,7 +12950,7 @@ func _handle_fountain_drink_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_fountain_drink_slot(_fountain_drink_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_fountain_drink_slot(_fountain_drink_cursor)
 		return true
 	if event is InputEventKey:
@@ -13533,10 +13533,10 @@ func _handle_abyss_altar_input(event: InputEvent) -> bool:
 		return false
 	if event is InputEventJoypadButton:
 		var button := event as InputEventJoypadButton
-		if button.button_index == JOY_BUTTON_B or button.is_action_pressed("cancel"):
+		if button.button_index == _GameInput.cancel_button() or button.is_action_pressed("cancel"):
 			_cancel_abyss_altar_use()
 			return true
-		if button.button_index == JOY_BUTTON_A or button.is_action_pressed("confirm"):
+		if button.button_index == _GameInput.confirm_button() or button.is_action_pressed("confirm"):
 			if not _abyss_altar_choice_active:
 				_open_abyss_altar_choice_menu()
 			else:
@@ -13849,10 +13849,10 @@ func _handle_codex_input(event: InputEvent) -> bool:
 		return false
 	if event is InputEventJoypadButton:
 		var button := event as InputEventJoypadButton
-		if button.button_index == JOY_BUTTON_B or button.is_action_pressed("cancel"):
+		if button.button_index == _GameInput.cancel_button() or button.is_action_pressed("cancel"):
 			_codex_fail()
 			return true
-		if button.button_index == JOY_BUTTON_A or button.is_action_pressed("confirm"):
+		if button.button_index == _GameInput.confirm_button() or button.is_action_pressed("confirm"):
 			if not _codex_choice_active:
 				_open_codex_choice_menu()
 			else:
@@ -14257,10 +14257,10 @@ func _handle_camp_watch_yn(event: InputEvent) -> bool:
 			return true
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
-		if jb.button_index == JOY_BUTTON_A:
+		if jb.button_index == _GameInput.confirm_button():
 			_accept_camp_set_watch(true)
 			return true
-		if jb.button_index == JOY_BUTTON_B:
+		if jb.button_index == _GameInput.cancel_button():
 			_cancel_camp(true)
 			return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -14295,7 +14295,7 @@ func _handle_camp_guard_pick(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_cancel_camp(true)
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_cancel_camp(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -14304,7 +14304,7 @@ func _handle_camp_guard_pick(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_camp_guard_slot(_camp_guard_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_camp_guard_slot(_camp_guard_cursor)
 		return true
 	if event is InputEventKey:
@@ -14587,7 +14587,7 @@ func _handle_order_input(event: InputEvent) -> bool:
 			_on_escape()
 			return true
 	## B / cancel action (not keyboard Space — handled below).
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_clear_pending_order(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -14597,7 +14597,7 @@ func _handle_order_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_order_slot(_order_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_order_slot(_order_cursor)
 		return true
 	## ↑↓ are polled in _tick_select_cursor (hold-repeat like world move).
@@ -19760,7 +19760,7 @@ func _handle_chest_open_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_cancel_chest_open(true)
 			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
 		_cancel_chest_open(true)
 		return true
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
@@ -19769,7 +19769,7 @@ func _handle_chest_open_input(event: InputEvent) -> bool:
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		_accept_chest_open_slot(_chest_open_cursor)
 		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == JOY_BUTTON_A:
+	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_chest_open_slot(_chest_open_cursor)
 		return true
 	if event is InputEventKey:

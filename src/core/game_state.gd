@@ -55,6 +55,7 @@ func options_snapshot() -> Dictionary:
 	return {
 		"language": language,
 		"hangul_keyboard": HangulInputSettings.layout_id(),
+		"gamepad_layout": GamepadSettings.layout_id(),
 		"window_scale": DisplaySettings.window_scale_percent(),
 		"window_pos_x": pos.x,
 		"window_pos_y": pos.y,
@@ -73,6 +74,8 @@ func apply_session_options(opts: Dictionary) -> void:
 		apply_session_language(str(opts.get("language")))
 	if opts.has("hangul_keyboard"):
 		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), true)
+	if opts.has("gamepad_layout"):
+		GamepadSettings.set_layout_id(str(opts.get("gamepad_layout")), true)
 	if opts.has("window_scale"):
 		DisplaySettings.set_window_scale_percent(int(opts.get("window_scale")), true)
 	if opts.has("fullscreen"):
@@ -94,6 +97,7 @@ func commit_live_options() -> void:
 	## Keep the in-play Options and write them as the app's last state.
 	_persist_language_pref()
 	HangulInputSettings.persist_pref()
+	GamepadSettings.persist_pref()
 	DisplaySettings.persist_pref()
 	AudioSfx.persist_pref()
 
@@ -102,6 +106,7 @@ func restore_menu_options() -> void:
 	## Cold start only: prefs files. Returning to title uses commit_live_options.
 	restore_menu_language()
 	HangulInputSettings.restore_pref()
+	GamepadSettings.restore_pref()
 	DisplaySettings.restore_pref()
 	AudioSfx.restore_pref()
 
