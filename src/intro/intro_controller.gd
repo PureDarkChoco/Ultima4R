@@ -7,7 +7,7 @@ signal mode_changed(mode: int)
 
 enum Mode { TITLES, MAP, MENU }
 
-enum AnimType { SIGNATURE, AND, BAR, ORIGIN, PRESENT, TITLE, SUBTITLE, MAP }
+enum AnimType { SIGNATURE, AND, BAR, ORIGIN, PRESENT, TITLE, SUBTITLE, SETTLE, MAP }
 
 const BASE_W := 320
 const BASE_H := 200
@@ -36,6 +36,9 @@ const OPTIONS_BTM_Y := 120 * SCALE
 const MAP_FRAME_COL := Color(0.35, 0.55, 0.95, 1.0)
 const MAP_FRAME_BORDER := 2 ## dialogue-like line thickness (logic px)
 const MAP_FRAME_PAD := 4 ## gap between border and tiles / menu content
+## User title plate (640×400): Lord British through Quest, above the map bezel.
+const TITLE_PLATE_PATH := "res://assets/intro/title_plate.png"
+const TITLE_PLATE_H := 192
 ## Just below "Quest of the Avatar" (y=80, h=13). TITLE.EGA's thick map bezel
 ## starts in this gap; wiping from band y=96 left the top edge overlapping our frame.
 const MAP_CHROME_Y0 := 94 * SCALE
@@ -78,6 +81,7 @@ var mode: int = Mode.TITLES
 var _bin: RefCounted ## IntroBinData
 var _title_base: Image ## Fixed 320×200 after fixup (title-sequence space)
 var _title_img: Image ## LOGIC-scale nearest (map/menu background + frame)
+var _title_plate: Image ## 640×400 still: Lord British → Quest of the Avatar
 var _options_btm: Image
 var _beast0: Array = [] ## 18 Images (display-scale)
 var _beast1: Array = []
@@ -114,6 +118,8 @@ var _beastie_offset := -32
 var _beasties_visible := false
 var _skip_titles := false
 var _title_fade_started := false
+## 0 = EGA construction, 1 = title plate fully revealed (Lord British → Quest).
+var _title_plate_t := 0.0
 
 ## Title sequence state (coordinates are base 320×200)
 var _titles: Array = [] ## Dictionaries
@@ -161,6 +167,12 @@ func setup(view: TextureRect) -> bool:
 	## 2× nearest keeps the map frame matching a 19×5 grid of 32² tiles.
 	_title_img = _title_base.duplicate()
 	_title_img.resize(LOGIC_W, LOGIC_H, Image.INTERPOLATE_NEAREST)
+	_title_plate = _ResImage.load_rgba8(TITLE_PLATE_PATH)
+	if _title_plate == null or _title_plate.is_empty():
+		push_warning("IntroController: title plate missing at %s" % TITLE_PLATE_PATH)
+		_title_plate = null
+	elif _title_plate.get_width() != LOGIC_W or _title_plate.get_height() != LOGIC_H:
+		_title_plate.resize(LOGIC_W, LOGIC_H, Image.INTERPOLATE_BILINEAR)
 
 	var opt320 := _U4Lzw.crop(_title_base, 0, 112, 320, 80)
 	_options_btm = opt320.duplicate() if opt320 else null
@@ -205,6 +217,7 @@ func set_mode(m: int) -> void:
 		_title_i = 0
 		_skip_titles = false
 		_title_fade_started = false
+		_title_plate_t = 0.0
 		_title_bg_baked = false
 		_accum = Image.create(BASE_W, BASE_H, false, Image.FORMAT_RGBA8)
 		_accum.fill(Color.BLACK)
@@ -242,27 +255,33 @@ func _bake_titles_into_map_bg() -> void:
 		return
 	_title_img = _accum.duplicate()
 	_title_img.resize(LOGIC_W, LOGIC_H, Image.INTERPOLATE_NEAREST)
+	_apply_title_plate_to(_title_img)
 	_title_bg_baked = true
 
 
 func skip_titles_or_advance() -> void:
 	match mode:
 		Mode.TITLES:
-			var title_idx := _title_index_of(AnimType.TITLE)
-			## First key: jump to "Ultima IV" fade (keep sound in sync). Second: map.
-			if title_idx >= 0 and _title_i < title_idx:
+			var settle_idx := _title_index_of(AnimType.SETTLE)
+			var map_idx := _title_index_of(AnimType.MAP)
+			## First key: snap to the finished logos (Ultima IV + Quest). Second: map.
+			if settle_idx >= 0 and _title_i <= settle_idx:
 				_skip_titles = true
+				AudioSfx.stop_title_fade()
 				var guard := 0
-				while _title_i < title_idx and _update_titles() and guard < 64:
+				while _title_i <= settle_idx and _update_titles() and guard < 80:
 					guard += 1
 				_skip_titles = false
-				if _title_i == title_idx:
-					_titles[_title_i]["time_base"] = 0
-					_titles[_title_i]["anim_step"] = 0
-					_titles[_title_i]["time_delay"] = 0
+				_title_plate_t = 1.0
+				if map_idx >= 0 and _title_i == map_idx:
+					_titles[map_idx]["time_base"] = 0
+					_titles[map_idx]["anim_step"] = 0
+					_titles[map_idx]["time_delay"] = 400
+				_redraw()
 				return
 			_skip_titles = true
 			AudioSfx.stop_title_fade()
+			_title_plate_t = 1.0
 			var rest := 0
 			while _update_titles() and rest < 64:
 				rest += 1
@@ -383,6 +402,8 @@ func _redraw() -> void:
 		Mode.TITLES:
 			## Title sequence is authored in 320×200; present at 2× (nearest) for the view.
 			_present_scaled(_accum)
+			if _title_plate_t > 0.0:
+				_overlay_title_plate(_title_plate_t)
 			## MAP curtains would otherwise reveal TITLE.EGA's thick bezel under our frame.
 			if _title_map_started():
 				_erase_classic_map_chrome()
@@ -989,9 +1010,10 @@ func _init_titles() -> void:
 	_add_title(132, 33, 56, 5, AnimType.PRESENT, 0, 400)
 	## Pixel scatter of "Ultima IV" — duration matches title_fade_c64.ogg.
 	_add_title(59, 33, 202, 46, AnimType.TITLE, 1000, _title_fade_duration_ms())
-	## "Quest of the Avatar" writes left → right, then a beat, then the map.
-	_add_title(40, 80, 240, 13, AnimType.SUBTITLE, 600, 1400)
-	_add_title(0, 96, 320, 96, AnimType.MAP, 700, 1)
+	## "Quest of the Avatar" writes left → right, then settle the logos, then the map.
+	_add_title(40, 80, 240, 13, AnimType.SUBTITLE, 600, 1000)
+	_add_title(0, 0, BASE_W, 94, AnimType.SETTLE, 120, 1100)
+	_add_title(0, 96, 320, 96, AnimType.MAP, 500, 1)
 	_build_title_sources()
 
 
@@ -1093,6 +1115,90 @@ func _title_map_started() -> bool:
 	return elapsed >= int(t.get("time_delay", 0))
 
 
+func _title_plate_band_h() -> int:
+	if _title_plate == null:
+		return 0
+	return mini(TITLE_PLATE_H, _title_plate.get_height())
+
+
+func _apply_title_plate_to(img: Image) -> void:
+	if img == null or _title_plate == null:
+		return
+	var h := _title_plate_band_h()
+	if h <= 0:
+		return
+	img.blit_rect(_title_plate, Rect2i(0, 0, LOGIC_W, h), Vector2i(0, 0))
+
+
+func _overlay_title_plate(amount: float) -> void:
+	if _title_plate == null or _canvas == null or amount <= 0.0:
+		return
+	amount = clampf(amount, 0.0, 1.0)
+	var off := _content_y_offset()
+	var h := _title_plate_band_h()
+	if h <= 0:
+		return
+	if amount >= 0.999:
+		_canvas.blit_rect(_title_plate, Rect2i(0, 0, LOGIC_W, h), Vector2i(0, off))
+		return
+	## Radial dissolve: new plate fades in from the center, no rim flash.
+	var cx := float(LOGIC_W) * 0.5
+	var cy := float(h) * 0.5
+	var inv_cx := 1.0 / cx
+	var inv_cy := 1.0 / maxf(cy, 1.0)
+	## Ellipse-norm distance at a corner is √2; expand a bit past that to clear the band.
+	var reach := 1.48
+	var feather := 0.34
+	var radius := amount * (reach + feather)
+	var solid_r := maxf(0.0, radius - feather)
+	var radius2 := radius * radius
+	var solid2 := solid_r * solid_r
+	for y in h:
+		var dy := (float(y) + 0.5 - cy) * inv_cy
+		var dy2 := dy * dy
+		if dy2 >= radius2:
+			continue
+		var dx_outer := cx * sqrt(radius2 - dy2)
+		var x_lo := clampi(int(floor(cx - dx_outer)), 0, LOGIC_W)
+		var x_hi := clampi(int(ceil(cx + dx_outer)), 0, LOGIC_W)
+		var xs0 := x_hi
+		var xs1 := x_lo
+		if dy2 < solid2:
+			var dx_solid := cx * sqrt(solid2 - dy2)
+			xs0 = clampi(int(floor(cx - dx_solid)), 0, LOGIC_W)
+			xs1 = clampi(int(ceil(cx + dx_solid)), 0, LOGIC_W)
+			if xs1 > xs0:
+				_canvas.blit_rect(
+					_title_plate,
+					Rect2i(xs0, y, xs1 - xs0, 1),
+					Vector2i(xs0, y + off)
+				)
+		for x in range(x_lo, xs0):
+			_blend_title_plate_rim(x, y, off, cx, cy, inv_cx, inv_cy, radius, feather)
+		for x in range(xs1, x_hi):
+			_blend_title_plate_rim(x, y, off, cx, cy, inv_cx, inv_cy, radius, feather)
+
+
+func _blend_title_plate_rim(
+	x: int,
+	y: int,
+	off: int,
+	cx: float,
+	cy: float,
+	inv_cx: float,
+	inv_cy: float,
+	radius: float,
+	feather: float
+) -> void:
+	var nd := Vector2((float(x) + 0.5 - cx) * inv_cx, (float(y) + 0.5 - cy) * inv_cy).length()
+	var a := 1.0 - clampf((nd - (radius - feather)) / feather, 0.0, 1.0)
+	if a <= 0.001:
+		return
+	var src: Color = _title_plate.get_pixel(x, y)
+	var dst: Color = _canvas.get_pixel(x, y + off)
+	_canvas.set_pixel(x, y + off, dst.lerp(src, a))
+
+
 func _title_index_of(method: int) -> int:
 	for i in _titles.size():
 		if int(_titles[i].get("method", -1)) == method:
@@ -1128,8 +1234,13 @@ func _build_title_sources() -> void:
 	for i in _titles.size():
 		var t: Dictionary = _titles[i]
 		var method: int = t["method"]
-		if method != AnimType.SIGNATURE and method != AnimType.BAR:
+		if method != AnimType.SIGNATURE and method != AnimType.BAR and method != AnimType.SETTLE:
 			t["src"] = _U4Lzw.crop(_title_base, t["rx"], t["ry"], t["rw"], t["rh"])
+		if method == AnimType.SETTLE:
+			t["dest"] = null
+			t["anim_step_max"] = 40
+			_titles[i] = t
+			continue
 		t["dest"] = Image.create(t["rw"] + 2, t["rh"] + 2, false, Image.FORMAT_RGBA8)
 		t["dest"].fill(Color(0, 0, 0, 0))
 		match method:
@@ -1287,6 +1398,10 @@ func _update_titles() -> bool:
 				if w > 0:
 					dest.blit_rect(t["src"], Rect2i(0, 0, w, t["rh"]), Vector2i(1, 1))
 			t["anim_step"] = step
+		AnimType.SETTLE:
+			step = mini(target, int(t["anim_step_max"]))
+			_title_plate_t = 1.0 if _skip_titles else float(step) / float(maxi(1, int(t["anim_step_max"])))
+			t["anim_step"] = step
 		AnimType.MAP:
 			step = mini(target + 1, t["anim_step_max"])
 			## Do not blit TITLE.EGA's thick map bezel — thin frame is drawn on the canvas.
@@ -1295,12 +1410,16 @@ func _update_titles() -> bool:
 			t["anim_step"] = step
 
 	## composite: dest over accum at rx,ry (only opaque src band)
-	_blit_dest_to_accum(t)
+	if method != AnimType.SETTLE:
+		_blit_dest_to_accum(t)
 	_titles[_title_i] = t
 
 	if int(t["anim_step"]) >= int(t["anim_step_max"]):
 		## freeze completed element into accum permanently
-		_blit_dest_to_accum(t, true)
+		if method == AnimType.SETTLE:
+			_title_plate_t = 1.0
+		else:
+			_blit_dest_to_accum(t, true)
 		_title_i += 1
 		if _title_i >= _titles.size():
 			return false
