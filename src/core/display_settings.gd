@@ -15,7 +15,7 @@ const DEFAULT_W := 1280
 const DEFAULT_H := 720
 const SAVE_DEBOUNCE_SEC := 0.35
 ## Windowed sizes as % of usable screen (Options → Resolution).
-const SCALE_PCTS: Array[int] = [90, 80, 70, 60, 50]
+const SCALE_PCTS: Array[int] = [40, 50, 60, 70, 80, 90]
 const DEFAULT_SCALE_PCT := 80
 const _GameInput := preload("res://src/core/game_input.gd")
 
@@ -217,6 +217,33 @@ func window_scale_percent() -> int:
 	return _window_scale_pct
 
 
+func available_scale_pcts() -> Array[int]:
+	## Drop scales that clamp to the same pixel size as a larger step (min 960×540).
+	var seen: Dictionary = {}
+	var kept: Array[int] = []
+	for i in range(SCALE_PCTS.size() - 1, -1, -1):
+		var pct := SCALE_PCTS[i]
+		var sz := size_for_scale_percent(pct)
+		var key := "%dx%d" % [sz.x, sz.y]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		kept.insert(0, pct)
+	if kept.is_empty():
+		kept.append(DEFAULT_SCALE_PCT)
+	return kept
+
+
+func effective_scale_percent() -> int:
+	## Label / cycle use the largest listed % that matches the current window size.
+	var avail := available_scale_pcts()
+	var sz := size_for_scale_percent(_window_scale_pct)
+	for pct in avail:
+		if size_for_scale_percent(pct) == sz:
+			return pct
+	return avail[0] if not avail.is_empty() else DEFAULT_SCALE_PCT
+
+
 func windowed_position() -> Vector2i:
 	return _windowed_position
 
@@ -250,12 +277,11 @@ func size_for_scale_percent(pct: int = -1) -> Vector2i:
 
 
 func cycle_window_scale(delta: int) -> void:
-	var idx := SCALE_PCTS.find(_window_scale_pct)
+	var avail := available_scale_pcts()
+	var idx := avail.find(effective_scale_percent())
 	if idx < 0:
-		idx = SCALE_PCTS.find(DEFAULT_SCALE_PCT)
-		if idx < 0:
-			idx = 0
-	set_window_scale_percent(SCALE_PCTS[posmod(idx + delta, SCALE_PCTS.size())])
+		idx = 0
+	set_window_scale_percent(avail[posmod(idx + delta, avail.size())])
 
 
 func set_window_scale_percent(pct: int, persist: bool = true) -> void:
@@ -311,10 +337,11 @@ func restore_pref() -> void:
 
 func resolution_label_parts() -> Dictionary:
 	## { "fullscreen": bool, "pct": int, "width": int, "height": int }
-	var sz := size_for_scale_percent(_window_scale_pct)
+	var pct := effective_scale_percent()
+	var sz := size_for_scale_percent(pct)
 	return {
 		"fullscreen": _is_fullscreen,
-		"pct": _window_scale_pct,
+		"pct": pct,
 		"width": sz.x,
 		"height": sz.y,
 	}

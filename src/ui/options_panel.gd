@@ -3,26 +3,32 @@ extends Control
 
 ## In-game Esc → Options submenu.
 ## Also embedded in the title map frame (main menu).
-## Items: language, Hangul keyboard, gamepad, window resolution, fullscreen, SFX, music.
+## Items: language pair, resolution pair, audio pair, then gamepad.
 ## Left/right (or Enter) cycles the selected item; Esc closes.
 
 enum Item {
 	LANGUAGE = 0,
 	HANGUL_KEYBOARD = 1,
-	GAMEPAD = 2,
-	RESOLUTION = 3,
-	FULLSCREEN = 4,
-	SFX = 5,
-	MUSIC = 6,
+	RESOLUTION = 2,
+	FULLSCREEN = 3,
+	SFX = 4,
+	MUSIC = 5,
+	GAMEPAD = 6,
 }
 
 const ITEM_COUNT := 7
+const GROUP_AFTER: Array[int] = [
+	Item.HANGUL_KEYBOARD,
+	Item.FULLSCREEN,
+	Item.MUSIC,
+]
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 const FONT_SIZE := 14
 const ROW_H := 26
+const GROUP_GAP := 10
 const PANEL_W := 440.0
 
 var _backdrop: ColorRect
@@ -35,6 +41,7 @@ var _row_labs: Array[Label] = []
 var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[TextureRect] = []
 var _row_wraps: Array[Control] = []
+var _group_gaps: Array[Control] = []
 var _cursor := 0
 var _embedded := false
 var _embed_rect := Rect2()
@@ -230,6 +237,7 @@ func _build() -> void:
 	_row_bgs.clear()
 	_row_edges.clear()
 	_row_wraps.clear()
+	_group_gaps.clear()
 	for i in ITEM_COUNT:
 		var wrap := Control.new()
 		wrap.custom_minimum_size = Vector2(0, ROW_H)
@@ -261,6 +269,12 @@ func _build() -> void:
 		_row_labs.append(lab)
 		_row_bgs.append(bg)
 		_row_edges.append(edge)
+		if i in GROUP_AFTER:
+			var gap := Control.new()
+			gap.custom_minimum_size = Vector2(0, GROUP_GAP)
+			gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_list.add_child(gap)
+			_group_gaps.append(gap)
 
 	_refresh_labels()
 
@@ -285,12 +299,18 @@ func _apply_presentation() -> void:
 		_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var col_sep := 4
 		var list_sep := 1
+		var group_gap := 6
 		if _col != null:
 			_col.add_theme_constant_override("separation", col_sep)
 		_list.add_theme_constant_override("separation", list_sep)
-		var overhead := float(col_sep) + float(list_sep) * float(ITEM_COUNT - 1)
+		var list_children := float(ITEM_COUNT + _group_gaps.size())
+		var overhead := (
+			float(col_sep)
+			+ float(list_sep) * maxf(0.0, list_children - 1.0)
+			+ float(group_gap) * float(_group_gaps.size())
+		)
 		var avail := maxf(48.0, _embed_rect.size.y - overhead)
-		var row_h := clampf(avail / float(ITEM_COUNT + 1), 16.0, 36.0)
+		var row_h := clampf(avail / float(ITEM_COUNT + 1), 15.0, 36.0)
 		var font_sz := clampi(int(row_h * 0.52), 11, 20)
 		_title.add_theme_font_size_override("font_size", font_sz + 1)
 		_title.custom_minimum_size = Vector2(0, row_h)
@@ -300,6 +320,8 @@ func _apply_presentation() -> void:
 			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_row_labs[i].offset_left = 8
 			_row_labs[i].offset_right = -8
+		for gap in _group_gaps:
+			gap.custom_minimum_size = Vector2(0, group_gap)
 	else:
 		_backdrop.visible = true
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -321,6 +343,8 @@ func _apply_presentation() -> void:
 			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 			_row_labs[i].offset_left = 12
 			_row_labs[i].offset_right = -8
+		for gap in _group_gaps:
+			gap.custom_minimum_size = Vector2(0, GROUP_GAP)
 
 
 func _refresh_labels() -> void:
