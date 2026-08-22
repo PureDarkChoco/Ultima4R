@@ -1449,6 +1449,22 @@
       "en_us": "Spirituality mantra: OM"
     },
     {
+      "id": "skara.mitre.white-stone",
+      "place": "skara",
+      "npc": "Mitre",
+      "topic": "JOUR",
+      "codex_only": true,
+      "know": "stone:white"
+    },
+    {
+      "id": "skara.mitre.hythloth",
+      "place": "skara",
+      "npc": "Mitre",
+      "topic": "STON",
+      "codex_only": true,
+      "know": ["stone:white", "dungeon:hythloth"]
+    },
+    {
       "id": "skara.mitre.trinsic-tap-stone",
       "place": "skara",
       "npc": "Mitre",
@@ -1458,6 +1474,7 @@
       "goal": "ask:trinsic-tap-stone",
       "complete_if_recorded": "trinsic.terran.sloven-white-stone",
       "complete_on_goal": "stone:white",
+      "know": ["stone:white", "dungeon:hythloth"],
       "en": "Ask about the white stone at the Tap in {trinsic}.",
       "ko": "{trinsic}의 탭에서 하얀 돌에 대해 묻기",
       "en_u4": "Ask of the white stone at the Tap in {trinsic}.",
@@ -1761,10 +1778,45 @@
       "place": "skara",
       "npc": "Presto",
       "topic": "NIGH",
+      "chain": "skara.nightshade",
+      "chain_order": 10,
+      "goal": "ask:vesper-nightshade",
+      "complete_if_recorded": "vesper.arron.virgil-nightshade",
+      "speaker_en": "Presto",
+      "speaker_ko": "프레스토",
       "en": "Ask the barkeep at The Axe-n-Ale in {vesper} about nightshade.",
-      "ko": "{vesper} ‘도끼와 에일’ 술집 주인에게 나이트셰이드에 대해 묻기",
+      "ko": "{vesper} ‘도끼와 에일’ 술집 주인에게 밤그늘풀에 대해 묻기",
       "en_u4": "Ask the barkeep at The Axe-n-Ale in {vesper} of nightshade.",
       "en_us": "Ask the barkeep at The Axe-n-Ale in {vesper} about nightshade."
+    },
+    {
+      "id": "vesper.arron.virgil-nightshade",
+      "place": "vesper",
+      "npc": "Arron",
+      "topic": "NIGHTSHADE",
+      "chain": "vesper.nightshade",
+      "chain_order": 10,
+      "goal": "ask:virgil-nightshade",
+      "complete_if_recorded": "trinsic.virgil.nightshade",
+      "speaker_en": "Arron",
+      "speaker_ko": "애런",
+      "en": "Ask Virgil in {trinsic} about nightshade.",
+      "ko": "{trinsic}의 버질에게 밤그늘풀에 대해 묻기",
+      "en_u4": "Ask Virgil in {trinsic} of nightshade.",
+      "en_us": "Ask Virgil in {trinsic} about nightshade."
+    },
+    {
+      "id": "trinsic.virgil.nightshade",
+      "place": "trinsic",
+      "npc": "Virgil",
+      "topic": "NIGH",
+      "goal": "",
+      "speaker_en": "Virgil",
+      "speaker_ko": "버질",
+      "en": "Nightshade: near lat-J'F\" long-C'O\", only on the darkest nights.",
+      "ko": "밤그늘풀: 위도 J'F\" 경도 C'O\" 근처, 가장 어두운 밤에만.",
+      "en_u4": "Nightshade may be found only near lat-J'F\" long-C'O\", only on the darkest of nights.",
+      "en_us": "Nightshade: near lat-J'F\" long-C'O\", only on the darkest nights."
     },
     {
       "id": "cove.allen.abyss-ship",

@@ -519,6 +519,14 @@ static func match_keyword(entry: Entry, input: String, city_id: String = "") -> 
 
 
 static func should_ask_after(entry: Entry, kind: int) -> bool:
+	## SKARA.TLK stores Shamino's truth question, but ask_after is 0 so classic
+	## U4 never asked it. Remake asks after TRUT so Yes can offer Join.
+	if (
+		entry != null
+		and str(entry.name).strip_edges().to_lower() == "shamino"
+		and kind == REPLY_TOPIC2
+	):
+		return true
 	match kind:
 		REPLY_JOB:
 			return entry.ask_after == QT_JOB
@@ -696,16 +704,26 @@ static func keyword_first_index(text: String, keyword: String) -> int:
 
 
 static func _keyword_before_ok(text: String, i: int, hangul_kw: bool, kw_len: int) -> bool:
-	## Word start, or Hangul compound prefix (은뿔 → tint 뿔 only).
+	## Word start, or a known Hangul compound (은뿔 → tint 뿔 only).
 	if i <= 0:
 		return true
 	var prev := text.unicode_at(i - 1)
 	if not _is_word_char(prev):
 		return true
-	## Multi-syllable Hangul topics must not match inside another word (부정의 → 정의).
-	if hangul_kw and _is_hangul_code(prev) and kw_len <= 1:
-		return true
+	## One-syllable topics must not match inside another word (말하길 → 길)
+	## except listed compounds.
+	if hangul_kw and _is_hangul_code(prev) and kw_len == 1:
+		return _hangul_compound_prefix_ok(text.substr(i - 1, 1), text.substr(i, 1))
 	return false
+
+
+static func _hangul_compound_prefix_ok(prev: String, keyword: String) -> bool:
+	## 은뿔: tint 뿔. Do not treat connective -길 (말하길) as PATH.
+	match keyword:
+		"뿔":
+			return prev == "은"
+		_:
+			return false
 
 
 static func _colorize_key_ok(s: String) -> bool:

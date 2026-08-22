@@ -60,7 +60,7 @@
         "job": "마법의 장을\n만듭니다.",
         "health": "건강하오.",
         "response1": "독이 제\n취향이오.",
-        "response2": "나이트셰이드는\n위도 J'F\"\n경도 C'O\" 근처\n가장 어두운 밤에만!",
+        "response2": "밤그늘풀은\n위도 J'F\"\n경도 C'O\" 근처\n가장 어두운 밤에만!",
         "question": "그대 취향도\n같소?",
         "yes": "브라보!",
         "no": "관심 없소!",
@@ -69,10 +69,12 @@
           "field",
           "fiel"
         ],
-        "topic2": "나이트셰이드",
+        "topic2": "밤그늘풀",
         "topic2_aliases": [
           "nightshade",
-          "nigh"
+          "nigh",
+          "나이트셰이드",
+          "밤그늘"
         ]
       }
     },

@@ -445,7 +445,7 @@ var _talk_turn_away := 0
 var _talk_pending_ask := false
 ## Reply kind (REPLY_TOPIC1/2 …) that triggered the pending Y/N question.
 var _talk_ask_kind := 0
-## Swindrik: after the reagent question, the keyword list is the eight reagents.
+## Swindrik / Presto: after the reagent riddle, the keyword list is the eight reagents.
 var _talk_reagent_pick := false
 ## True after this NPC has spoken their name (random intro or player asked).
 var _talk_npc_gave_name := false
@@ -4179,7 +4179,7 @@ func _talk_reagent_keyword_items() -> Array[Dictionary]:
 
 
 func _begin_talk_reagent_keyword_menu() -> void:
-	## After Swindrik asks the reagent question, pick from the known eight.
+	## After Swindrik / Presto asks the reagent riddle, pick from the known eight.
 	_talk_reagent_pick = true
 	if not _talk_keyword_menu_active:
 		return
@@ -5095,6 +5095,18 @@ func _maybe_offer_trinsic_chain_keyword() -> void:
 			"돌" if korean else "Stone",
 			"돌" if korean else "stone"
 		)
+	elif (
+		npc == "virgil"
+		and GameState.journal_has_id("vesper.arron.virgil-nightshade")
+	):
+		var nigh_key := _talk_keyword_stable_key(
+			"밤그늘풀" if korean else "nightshade"
+		)
+		_offer_talk_keyword_item(
+			nigh_key,
+			"밤그늘풀" if korean else "Nightshade",
+			"밤그늘풀" if korean else "nightshade"
+		)
 
 
 func _talk_npc_is_skara_ankh(npc_name: String) -> bool:
@@ -5853,7 +5865,7 @@ func _talk_answer_unlocks_join(e, yes: bool) -> bool:
 	if yes and str(e.yes).to_lower().contains("join"):
 		return true
 	match str(e.name).to_lower():
-		"dupre":
+		"dupre", "shamino":
 			return yes
 		"katrina":
 			return not yes
@@ -16957,12 +16969,6 @@ func _talk_process_keyword(input: String) -> void:
 			_push_talk_learned_reagent_mix()
 		_try_journal_talk_capture(e, kind)
 		if (
-			str(e.name).to_lower() == "shamino"
-			and kind == _TalkTlk.REPLY_TOPIC2
-			and GameState.can_person_join_name(str(e.name))
-		):
-			_offer_talk_join_keyword()
-		if (
 			_talk_npc_is_skara_ankh(str(e.name))
 			and kind == _TalkTlk.REPLY_TOPIC1
 		):
@@ -17393,8 +17399,8 @@ func _talk_answer_yn(yes: bool) -> void:
 	_talk_ask_kind = 0
 	_talk_prompt_interest()
 	if (
-		_TalkTlk._speaker_key(e) == "swindrik"
-		and ask_kind == _TalkTlk.REPLY_TOPIC1
+		ask_kind == _TalkTlk.REPLY_TOPIC1
+		and _TalkTlk._speaker_key(e) in ["swindrik", "presto"]
 	):
 		_begin_talk_reagent_keyword_menu()
 
@@ -20430,6 +20436,14 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if place == "trinsic" and npc_key == "swindrik" and topic == "MAND":
 		GameState.talk_remember_heard_word("mandrake")
 		GameState.talk_remember_heard_word("맨드레이크")
+	if place == "skara" and npc_key == "presto" and topic == "NIGH":
+		GameState.talk_remember_heard_word("nightshade")
+		GameState.talk_remember_heard_word("밤그늘풀")
+	if place == "trinsic" and npc_key == "virgil" and topic == "NIGH":
+		if GameState.journal_mark_id("vesper.arron.virgil-nightshade"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:virgil-nightshade"):
+			refresh = true
 	if place == "trinsic" and npc_key == "winthrop" and topic == "RUNE":
 		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
 			refresh = true

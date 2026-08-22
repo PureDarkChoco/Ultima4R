@@ -152,7 +152,7 @@ const TOPIC_ALIAS := {
 	"white stone": ["하얀 돌", "white stone"],
 	"mandrake": ["맨드레이크", "mandrake"],
 	"skull": ["해골", "skull"],
-	"nightshade": ["밤그늘", "나이트셰이드", "nightshade"],
+	"nightshade": ["밤그늘풀", "밤그늘", "나이트셰이드", "nightshade"],
 }
 
 const RUMOR := {
@@ -167,7 +167,7 @@ const RUMOR := {
 	"% says: If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!":
 		"% 말하길: 그 가장 사악한 것에 관해 알고 싶다면… 거지 주드를 찾게. 그는 몹시 가난하다네!",
 	"% says: Of Nightshade I know but this... Seek out Virgil or thou shalt miss! Try in Trinsic!":
-		"% 말하길: 밤그늘에 대해 내가 아는 건 이것뿐… 버질을 찾게, 놓치지 말게! {trinsic}에서 시험해 보게!",
+		"% 말하길: 밤그늘풀에 대해 내가 아는 건 이것뿐… 버질을 찾게, 놓치지 말게! {trinsic}에서 시험해 보게!",
 }
 
 const WEAPON_DESC_KO := {

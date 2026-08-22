@@ -1245,6 +1245,10 @@ func _t_foggy() -> void:
 			GameState.journal_try_capture("paws", "Greg 'n Rob", "MANDRAKE")
 			GameState.journal_mark_id("trinsic.swindrik.folley-mandrake")
 			GameState.journal_mark_goal("ask:folley-mandrake")
+		if _topic_key == "nightshade" and _locale == "Vesper":
+			GameState.journal_try_capture("vesper", "Arron", "NIGHTSHADE")
+			GameState.journal_mark_id("skara.presto.vesper-nightshade")
+			GameState.journal_mark_goal("ask:vesper-nightshade")
 		_t_something_else()
 		return
 	_say(_L("That subject is a bit foggy, perhaps more gold will refresh my memory. You\ngive:"))
