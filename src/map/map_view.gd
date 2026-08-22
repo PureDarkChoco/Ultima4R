@@ -231,6 +231,8 @@ var _los_h: int = 0
 const LOS_PAD := 1
 ## Temporary world overlays: Vector3i(x, y, tile_id) — horse/ship stubs, etc.
 var _overlays: Array[Vector3i] = []
+## Session-only terrain swaps (Abyss fire → dungeon). Not saved.
+var _session_tiles: Dictionary = {}
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
 ## Wilderness monsters: { x, y, tid, hp, max_hp }. Drawn with tile animation + HP bar.
 var _creatures: Array = []
@@ -457,6 +459,7 @@ func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
 	_horse_rider_class = -999
 	_corpse_slice = null
 	_overlay_slices.clear()
+	_session_tiles.clear()
 	_moongate_suck_by_tid.clear()
 	exit_combat()
 	exit_camp()
@@ -2719,6 +2722,24 @@ func _los_grid_size() -> Vector2i:
 	return Vector2i(view_w + LOS_PAD * 2, view_h + LOS_PAD * 2)
 
 
+func session_tile_at(tile: Vector2i) -> int:
+	if not _session_tiles.has(tile):
+		return -1
+	return int(_session_tiles[tile])
+
+
+func set_session_tile(tile: Vector2i, tile_id: int) -> void:
+	_session_tiles[tile] = tile_id
+	_rebuild()
+
+
+func clear_session_tiles() -> void:
+	if _session_tiles.is_empty():
+		return
+	_session_tiles.clear()
+	_rebuild()
+
+
 func overlay_at(tile: Vector2i) -> int:
 	## Tile id of an overlay at `tile`, or -1 if none.
 	for item in _overlays:
@@ -2968,6 +2989,18 @@ func _shake_offset() -> Vector2i:
 	var ox := int(round(sin(_shake_left * 38.0) * _shake_amp * fall))
 	var oy := int(round(cos(_shake_left * 29.0) * _shake_amp * 0.25 * fall))
 	return Vector2i(ox, oy)
+
+
+func _apply_view_shake() -> void:
+	## Shift the finished explore/dungeon frame so terrain and sprites quake together.
+	var shake := _shake_offset()
+	if shake.x == 0 and shake.y == 0:
+		return
+	var w := _buf.get_width()
+	var h := _buf.get_height()
+	var copy := _buf.duplicate()
+	_buf.fill(Color(0, 0, 0, 1))
+	_buf.blit_rect(copy, Rect2i(0, 0, w, h), shake)
 
 
 func _tile_px(sx: int, sy: int) -> Vector2i:
@@ -3505,7 +3538,7 @@ func _rebuild() -> void:
 		for dx in view_w + 1:
 			var mx := base.x - half_x + dx
 			var my := base.y - half_y + dy
-			var tid := clampi(world.tile_at(mx, my), 0, TILE_ID_MAX)
+			var tid := _world_display_tid(mx, my)
 			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
 			_blit_terrain_to(_stage, tid, dst, mx, my)
 
@@ -3525,6 +3558,7 @@ func _rebuild() -> void:
 	## Cannon ball + hit FX above party (xu4 flashTile over the avatar).
 	_paint_cannon_proj(cam)
 	_paint_tile_flashes(cam)
+	_apply_view_shake()
 
 	_upload_buffer()
 	queue_redraw()
@@ -3572,6 +3606,7 @@ func _rebuild_dungeon() -> void:
 		((view_h - CAMP_H) / 2) * TILE_SRC
 	)
 	_buf.blit_rect(_dungeon_field, Rect2i(0, 0, field_w, field_h), origin)
+	_apply_view_shake()
 	_upload_buffer()
 	queue_redraw()
 
@@ -3620,6 +3655,7 @@ func _rebuild_city() -> void:
 	_paint_party_marker()
 	_paint_bridge_near_rails(cam)
 	_paint_tile_flashes(cam)
+	_apply_view_shake()
 	_upload_buffer()
 	queue_redraw()
 
@@ -5297,8 +5333,18 @@ func _render_tid_at(mx: int, my: int) -> int:
 	if is_in_city():
 		return clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
 	if world != null and world.loaded:
-		return clampi(world.tile_at(mx, my), 0, TILE_ID_MAX)
+		return _world_display_tid(mx, my)
 	return TILE_GRASS
+
+
+func _world_display_tid(mx: int, my: int) -> int:
+	var pos := Vector2i(posmod(mx, WorldMapData.WIDTH), posmod(my, WorldMapData.HEIGHT))
+	var st := session_tile_at(pos)
+	if st >= 0:
+		return clampi(st, 0, TILE_ID_MAX)
+	if world == null or not world.loaded:
+		return TILE_GRASS
+	return clampi(world.tile_at(pos.x, pos.y), 0, TILE_ID_MAX)
 
 
 func _combat_view_tid_at(vx: int, vy: int) -> int:
@@ -6129,8 +6175,8 @@ func _overlay_slice(tile_id: int) -> Image:
 
 func _paint_party_marker() -> void:
 	## Center tile: transport sprite, or class/Avatar 2-frame walk cycle.
+	## Explore quakes shift the whole buffer in `_apply_view_shake`.
 	var dst := Vector2i((view_w / 2) * TILE_SRC, (view_h / 2) * TILE_SRC)
-	dst += _shake_offset()
 	if _transport_tile >= 0:
 		var ride: Image = null
 		if is_horse_tile(_transport_tile):

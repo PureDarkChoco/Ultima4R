@@ -278,11 +278,8 @@ static func abyss_stone_for_level(z: int) -> int:
 
 
 static func bbc_ready() -> bool:
-	return (
-		GameState.has_item_flag(GameState.ITEM_BELL_USED)
-		and GameState.has_item_flag(GameState.ITEM_BOOK_USED)
-		and GameState.has_item_flag(GameState.ITEM_CANDLE_USED)
-	)
+	## Remake: session-only after Bell → Book → Candle. Load must reopen.
+	return GameState.abyss_bbc_open
 
 
 static func has_three_keys() -> bool:

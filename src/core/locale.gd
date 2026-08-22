@@ -1826,6 +1826,11 @@ const _T := {
 		"en_us": "As you light the Candle the Earth Trembles!",
 		"ko": "촛대를 밝히자 대지가 흔들린다!",
 	},
+	"cmd_use_bbc_abyss_open": {
+		"en_u4": "The way into the Abyss is opened!",
+		"en_us": "The path to the Abyss has opened.",
+		"ko": "심연으로 가는 길이 열렸다!",
+	},
 	"cmd_use_skull_aloft": {
 		"en_u4": "You hold the evil Skull of Mondain the Wizard aloft...",
 		"en_us": "You hold the evil Skull of Mondain the Wizard aloft...",

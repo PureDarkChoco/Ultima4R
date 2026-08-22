@@ -154,6 +154,8 @@ var lastvirtue: int = 0
 var lastmeditation: int = 0
 ## xu4 SaveGame.items / stones / runes bitfields (Search / Use).
 var items: int = 0
+## Session-only: Bell+Book+Candle opened the Abyss this visit (not saved).
+var abyss_bbc_open: bool = false
 var stones: int = 0
 var runes: int = 0
 ## xu4 SaveGame.lbIntro — first throne-room audience speech delivered.
@@ -428,6 +430,7 @@ func reset_party() -> void:
 	lastreagent = 0
 	search_taken.clear()
 	items = 0
+	abyss_bbc_open = false
 	stones = 0
 	runes = 0
 	lb_intro = false
@@ -859,6 +862,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	keys = 0
 	skull = 0
 	items = 0
+	abyss_bbc_open = false
 	stones = 0
 	runes = 0
 	lb_intro = false
@@ -2435,6 +2439,10 @@ func add_item_flag(flag: int) -> void:
 	items |= flag
 
 
+func clear_item_flag(flag: int) -> void:
+	items &= ~flag
+
+
 func set_aura(t: int, duration: int, caster: int = -1) -> void:
 	## Horn stacks beside spell auras. J/P/Q: one of each type; one per caster.
 	## Negate drops J/P/Q and then lasts on its own (Horn stays).
@@ -3029,7 +3037,7 @@ func to_save_dict() -> Dictionary:
 		"dungeon_light_is_magic": dungeon_light_is_magic,
 		"abyss_stones_used": abyss_stones_used,
 		"skull": skull,
-		"items": items,
+		"items": items & ~(ITEM_CANDLE_USED | ITEM_BOOK_USED | ITEM_BELL_USED),
 		"stones": stones,
 		"runes": runes,
 		"lb_intro": lb_intro,
@@ -3114,6 +3122,8 @@ func apply_save_dict(d: Dictionary) -> void:
 	abyss_stones_used = maxi(0, int(d.get("abyss_stones_used", 0)))
 	skull = maxi(0, int(d.get("skull", 0)))
 	items = maxi(0, int(d.get("items", 0)))
+	items &= ~(ITEM_CANDLE_USED | ITEM_BOOK_USED | ITEM_BELL_USED)
+	abyss_bbc_open = false
 	stones = maxi(0, int(d.get("stones", 0)))
 	runes = maxi(0, int(d.get("runes", 0)))
 	lb_intro = bool(d.get("lb_intro", false))

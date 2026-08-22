@@ -157,6 +157,10 @@ var _cannon_busy := false
 var _dungeon_trap_busy := false
 ## True while poison / fire / lava hits play one roster slot at a time.
 var _turn_fx_busy := false
+## Combat: field underfoot already applied on this walk (finishTurn must not double-hit).
+var _combat_underfoot_applied := false
+## Abyss BBC this visit: 0 none, 1 bell, 2 book. Leaving the tile clears it.
+var _bbc_seq := 0
 ## True while Search is pausing on "Searching..." (blocks move/commands).
 var _search_busy := false
 ## True while xu4 death sequence runs (blocks move/commands).
@@ -190,6 +194,8 @@ const TREMOR_SHAKE_AMP := 16.0
 const TREMOR_HIT_FLASH_SEC := 0.42
 ## Victory ESC: cascade leave order 1→8 with a short beat between units.
 const COMBAT_VICTORY_EXIT_GAP := 0.2
+## Poison / fire / lava sequential hits (victory exit stays at 0.2s).
+const PARTY_HIT_GAP := 0.3
 var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## U5-style Attack aim: A → move cursor → A/Enter strike; Esc cancels.
@@ -941,11 +947,14 @@ func _can_move_to(dest: Vector2i) -> bool:
 
 
 func _effective_world_tid(pos: Vector2i) -> int:
-	## xu4 tileTypeAt — moongate annotation overrides base WORLD.MAP terrain.
+	## xu4 tileTypeAt — moongate / session Abyss swap override WORLD.MAP terrain.
 	if _map != null:
 		var gate := _map.moongate_tile_at(pos)
 		if gate >= 0:
 			return gate
+		var session := _map.session_tile_at(pos)
+		if session >= 0:
+			return session
 	if _world != null and _world.loaded:
 		return int(_world.tile_at(pos.x, pos.y))
 	return 4
@@ -10269,7 +10278,7 @@ func _finish_cast_aim_spell() -> void:
 		_clear_cast_aim_cursor()
 		_close_cast(false, true)
 		return
-	_play_cast_sfx()
+	await _play_cast_sfx()
 	_clear_cast_aim_cursor()
 	_close_cast(false, false)
 	_combat_resolving = true
@@ -10388,7 +10397,7 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
-	_play_cast_sfx()
+	await _play_cast_sfx()
 	var ok := false
 	match spell_id:
 		Spells.BLINK:
@@ -10438,7 +10447,7 @@ func _finish_cast_phase_spell(phase: int) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
-	_play_cast_sfx()
+	await _play_cast_sfx()
 	if _enter_btn_row != null:
 		_enter_btn_row.visible = false
 	await _apply_cast_gate(phase)
@@ -10646,9 +10655,23 @@ func _is_cast_implemented(spell_id: int) -> bool:
 
 
 func _play_cast_sfx() -> void:
-	## xu4 gameSpellCastSfx: pre-mana jumble, then MAGIC (invert is visual-only here).
-	AudioSfx.play_premagic()
-	AudioSfx.play_magic()
+	## 15+ MP: 0.5s precast then flash. Under 15, plus Fireball / Iceball / View: flash only.
+	## Spell effect starts after the last clip finishes.
+	_turn_fx_busy = true
+	if _cast_uses_precast(_cast_spell_id):
+		await AudioSfx.play_id_wait_cap(AudioSfx.ID_PREMAGIC, 0.5)
+	await AudioSfx.play_id_wait(AudioSfx.ID_MAGIC)
+	_turn_fx_busy = false
+
+
+func _cast_uses_precast(spell_id: int) -> bool:
+	if (
+		spell_id == Spells.FIREBALL
+		or spell_id == Spells.ICEBALL
+		or spell_id == Spells.VIEW
+	):
+		return false
+	return Spells.mp_cost(spell_id) >= 15
 
 
 func _finish_cast_none_spell() -> void:
@@ -10670,7 +10693,7 @@ func _finish_cast_none_spell() -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
-	_play_cast_sfx()
+	await _play_cast_sfx()
 	var ok := false
 	match spell_id:
 		Spells.JINX:
@@ -10859,7 +10882,7 @@ func _finish_cast_open_direct(dir: Vector2i) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
-	_play_cast_sfx()
+	await _play_cast_sfx()
 	if not _apply_cast_open(dir):
 		_push_message(Locale.t("cmd_nothing_to_open"), false)
 	_close_cast(false, true)
@@ -11023,7 +11046,7 @@ func _finish_cast_player_spell(target_slot: int) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
-	_play_cast_sfx()
+	await _play_cast_sfx()
 	var target := GameState.party_member_at(target_slot)
 	if _apply_cast_player_spell(spell_id, target):
 		_refresh_party()
@@ -11319,32 +11342,73 @@ func _use_horn() -> void:
 
 
 func _use_bbc(kind: int) -> void:
-	## xu4 useBBC — Abyss entrance (233,233) only, Bell → Book → Candle order.
-	const ABYSS_ENTRANCE := Vector2i(233, 233)
+	## Abyss entrance (233,233) only. Bell → Book → Candle this visit; move resets.
 	var at_abyss := (
 		not _combat_active
 		and not _is_in_city()
-		and _tile_pos == ABYSS_ENTRANCE
+		and _tile_pos == _DungeonPortals.ABYSS_ENTRANCE
 	)
 	if at_abyss:
 		if kind == _UseItems.Kind.BELL:
+			_bbc_seq = 1
 			_push_message(Locale.t("cmd_use_bell"), false)
-			GameState.add_item_flag(GameState.ITEM_BELL_USED)
+			await _await_bbc_sfx(AudioSfx.ID_ELEVATE)
 			await _finish_use_command()
 			return
-		if kind == _UseItems.Kind.BOOK and GameState.has_item_flag(GameState.ITEM_BELL_USED):
+		if kind == _UseItems.Kind.BOOK and _bbc_seq == 1:
+			_bbc_seq = 2
 			_push_message(Locale.t("cmd_use_book"), false)
-			GameState.add_item_flag(GameState.ITEM_BOOK_USED)
+			await _await_bbc_sfx(AudioSfx.ID_MAGIC)
 			await _finish_use_command()
 			return
-		if kind == _UseItems.Kind.CANDLE and GameState.has_item_flag(GameState.ITEM_BOOK_USED):
+		if kind == _UseItems.Kind.CANDLE and _bbc_seq == 2:
+			_bbc_seq = 0
+			GameState.abyss_bbc_open = true
 			_push_message(Locale.t("cmd_use_candle"), false)
-			GameState.add_item_flag(GameState.ITEM_CANDLE_USED)
+			_turn_fx_busy = true
+			await AudioSfx.play_id_wait(AudioSfx.ID_IGNITE)
+			if _map != null:
+				var shake_sec := _map.shake_quake(TREMOR_SHAKE_AMP)
+				var wait_sec := maxf(shake_sec, AudioSfx.stream_length(AudioSfx.ID_RUMBLE))
+				if wait_sec > 0.0:
+					await get_tree().create_timer(wait_sec).timeout
+			await get_tree().create_timer(0.2).timeout
+			_push_message(Locale.t("cmd_use_bbc_abyss_open"), false)
+			await AudioSfx.play_id_wait(AudioSfx.ID_GATE_OPEN)
+			_reveal_abyss_entrance()
+			_turn_fx_busy = false
 			await _finish_use_command()
 			return
 	## Wrong place, wrong order, or not on Abyss gate.
 	_push_message(Locale.t("cmd_use_no_effect"), false)
 	await _finish_use_command()
+
+
+func _bbc_reset_if_left_entrance() -> void:
+	## Mid-sequence walk / leave: start Bell → Book → Candle over.
+	if _bbc_seq <= 0:
+		return
+	if (
+		_combat_active
+		or _is_in_city()
+		or _is_in_dungeon()
+		or _tile_pos != _DungeonPortals.ABYSS_ENTRANCE
+	):
+		_bbc_seq = 0
+
+
+func _reveal_abyss_entrance() -> void:
+	## After the gate clip: fire field underfoot → dungeon mouth. Session only.
+	if _map == null:
+		return
+	_map.set_session_tile(_DungeonPortals.ABYSS_ENTRANCE, MapView.TILE_DUNGEON)
+
+
+func _await_bbc_sfx(sfx_id: String) -> void:
+	## Hold the turn clock until the relic clip finishes (then lava/poison can hit).
+	_turn_fx_busy = true
+	await AudioSfx.play_id_wait(sfx_id)
+	_turn_fx_busy = false
 
 
 func _use_wheel() -> void:
@@ -11376,17 +11440,22 @@ func _use_skull() -> void:
 		GameState.destroy_skull()
 		GameState.adjust_karma_destroyed_skull()
 		_refresh_inventory_bars()
+		_turn_fx_busy = true
 		if _map != null:
-			AudioSfx.play_magic()
-			await _map.await_spell_flash()
+			_map.await_spell_flash()
+		await AudioSfx.play_id_wait(AudioSfx.ID_FIRE_WALKING)
+		_turn_fx_busy = false
 		await _finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_skull_aloft"), false)
 	## xu4 gameDestroyAllCreatures starts with the Tremor spell effect.
+	_turn_fx_busy = true
 	if _map != null:
 		var shake_sec := _map.shake_quake(TREMOR_SHAKE_AMP)
-		if shake_sec > 0.0:
-			await get_tree().create_timer(shake_sec).timeout
+		var wait_sec := maxf(shake_sec, AudioSfx.stream_length(AudioSfx.ID_RUMBLE))
+		if wait_sec > 0.0:
+			await get_tree().create_timer(wait_sec).timeout
+	_turn_fx_busy = false
 	GameState.adjust_karma_used_skull()
 	if _combat_active and _map != null and _map.is_in_combat():
 		_map.destroy_combat_foes_except_lord_british()
@@ -14675,6 +14744,7 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 
 
 func _run_party_turn_once(in_combat: bool = false) -> void:
+	_bbc_reset_if_left_entrance()
 	var result: Dictionary = GameState.end_party_turn(true, in_combat)
 	var poison_flash := await _apply_poison_ticks_sequential(result.get("poison_slots", []))
 	var starve_mask := 0
@@ -15237,7 +15307,7 @@ func _await_party_hit_gap() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	await tree.create_timer(COMBAT_VICTORY_EXIT_GAP).timeout
+	await tree.create_timer(PARTY_HIT_GAP).timeout
 
 
 func _play_ground_effect_sfx(effect: int, flash: int) -> void:
@@ -17562,6 +17632,7 @@ func _begin_combat(
 	## Never open the arena on a wiped party (pirate broadsides / death cutscene).
 	if _party_wiped_or_dying():
 		return
+	_bbc_seq = 0
 	_reset_hold_state()
 	_clear_pending_dir()
 	_stop_ship_cruise()
@@ -18960,10 +19031,13 @@ func _combat_try_move(dir: Vector2i) -> void:
 			AudioSfx.play_walk_combat()
 			_push_message(_direction_label(dir, true), false)
 			_dungeon_try_room_trigger()
-			## Normal combat applies immediately. Victory applies once at turn end
-			## so Pass / blocked / slowed turns also re-trigger the standing field.
-			if not _combat_victory_aftermath and _apply_combat_field_under_focus():
-				after_flee = true
+			## Normal combat applies immediately on a successful step. Victory and
+			## Cast / Pass / blocked apply once at turn end so the action SFX
+			## finishes before the standing-field hit.
+			if not _combat_victory_aftermath:
+				_combat_underfoot_applied = true
+				if _apply_combat_field_under_focus():
+					after_flee = true
 		MapView.COMBAT_MOVE_SLOWED:
 			AudioSfx.play_walk_slowed()
 			_push_message(Locale.t("cmd_slow_progress"), false)
@@ -19103,6 +19177,13 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		return
 	_combat_resolving = true
 	_stamp_command_time()
+	## xu4 finishTurn: tile under the active member after the action (Cast / Pass /
+	## blocked / slowed). Successful walks already applied on the step.
+	var skip_underfoot := _combat_underfoot_applied
+	_combat_underfoot_applied = false
+	if not after_flee and not skip_underfoot:
+		if _apply_combat_field_under_focus():
+			after_flee = true
 	## Delay only after a real (able) action or flee — not for sleeper auto-pass.
 	var focus_klass := _map.get_combat_focus_klass()
 	var was_able := (

@@ -43,6 +43,7 @@ const ID_UI_TICK := "ui_tick"
 const ID_FIZZLE := "fizzle"
 const ID_IGNITE := "ignite"
 const ID_FIRE_FIELD := "fire_field"
+const ID_FIRE_WALKING := "fire_walking"
 const ID_DOOR := "door"
 
 ## Filename map matching xu4 module/Ultima-IV/config.b `sound:` (plus extras).
@@ -83,6 +84,7 @@ const FILES := {
 	ID_FIZZLE: "fizzle.wav",
 	ID_IGNITE: "ignite.wav",
 	ID_FIRE_FIELD: "poison_damage_dos.ogg",
+	ID_FIRE_WALKING: "fire_field_walking.ogg",
 	ID_DOOR: "door.ogg",
 }
 
@@ -203,6 +205,53 @@ func play_id(id: String) -> void:
 	player.play()
 
 
+func play_id_wait(id: String) -> void:
+	## Play a clip and wait until it finishes (or skip if SFX are off).
+	if not _enabled:
+		return
+	var stream: Variant = _streams.get(id, null)
+	if stream == null:
+		return
+	var player := _next_player()
+	if player == null:
+		return
+	player.stream = stream as AudioStream
+	player.play()
+	await player.finished
+
+
+func play_id_wait_cap(id: String, max_sec: float) -> void:
+	## Play a clip, stop it after `max_sec`, then return.
+	if not _enabled:
+		return
+	var stream: Variant = _streams.get(id, null)
+	if stream == null:
+		return
+	var player := _next_player()
+	if player == null:
+		return
+	player.stream = stream as AudioStream
+	player.play()
+	var cap := minf(maxf(0.0, max_sec), stream_length(id))
+	if cap <= 0.0:
+		player.stop()
+		return
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		player.stop()
+		return
+	await tree.create_timer(cap).timeout
+	if player.stream == stream and player.playing:
+		player.stop()
+
+
+func stream_length(id: String) -> float:
+	var stream: Variant = _streams.get(id, null)
+	if stream is AudioStream:
+		return maxf(0.0, (stream as AudioStream).get_length())
+	return 0.0
+
+
 func play_foot_step(_terrain_tid: int = -1, _in_city: bool = false) -> void:
 	## xu4 SOUND_WALK_NORMAL for foot (city and wilderness).
 	play_id(ID_WALK_NORMAL)
@@ -265,6 +314,13 @@ func play_premagic() -> void:
 	play_id(ID_PREMAGIC)
 
 
+func play_cast_wait() -> void:
+	## Default: magic flash only. Prefer `_play_cast_sfx` with the spell id.
+	if not _enabled:
+		return
+	await play_id_wait(ID_MAGIC)
+
+
 func play_moongate() -> void:
 	play_id(ID_MOONGATE)
 
@@ -295,6 +351,10 @@ func play_ignite() -> void:
 
 func play_fire_field() -> void:
 	play_id(ID_FIRE_FIELD)
+
+
+func play_fire_walking() -> void:
+	play_id(ID_FIRE_WALKING)
 
 
 func play_evade() -> void:
@@ -380,7 +440,7 @@ func _load_stream(id: String, filename: String) -> void:
 
 func _sync_volume_from_music() -> void:
 	if music and music.has_method("volume_linear"):
-		_volume_linear = maxf(0.0, float(music.volume_linear()) - 0.05)
+		_volume_linear = maxf(0.0, float(music.volume_linear()) - 0.04)
 
 
 func _apply_volume() -> void:
