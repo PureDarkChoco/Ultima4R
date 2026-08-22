@@ -308,8 +308,8 @@ func load_from_path(path: String, id: String = "") -> bool:
 	for i in nrooms:
 		var off := MAP_BYTES + i * ROOM_BYTES
 		rooms.append(_parse_room(bytes.slice(off, off + ROOM_BYTES), i))
-	_apply_xu4_room_fixups()
 	loaded = true
+	_apply_xu4_room_fixups()
 	_load_monsters_from_levels()
 	return true
 
@@ -388,7 +388,28 @@ func _apply_xu4_room_fixups() -> void:
 	## leftover NULL / wall-stacked party starts so any used door works.
 	if dungeon_id == "hythloth":
 		_apply_hythloth_room_fixups()
+	if is_abyss:
+		_apply_abyss_altar_diagonal_walls()
 	_repair_invalid_party_starts()
+
+
+func _apply_abyss_altar_diagonal_walls() -> void:
+	## Abyss floor 1 altar rooms: DOS map has a large open floor but the
+	## first-person renderer does not merge continuous empties — one diagonal
+	## wall exists in data; add the other three so corners read as enclosed.
+	const Z_FLOOR_1 := 0
+	const DIAG := [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
+	for y in HEIGHT:
+		for x in WIDTH:
+			if token(raw_at(x, y, Z_FLOOR_1)) != TOK_ALTAR:
+				continue
+			for d in DIAG:
+				var px := wrap_coord(x + d.x)
+				var py := wrap_coord(y + d.y)
+				var v := raw_at(px, py, Z_FLOOR_1)
+				if token(v) == TOK_WALL or token(v) == TOK_ALTAR:
+					continue
+				set_raw(px, py, Z_FLOOR_1, TOK_WALL)
 
 
 func _apply_hythloth_room_fixups() -> void:
