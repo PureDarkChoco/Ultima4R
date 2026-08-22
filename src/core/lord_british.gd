@@ -570,4 +570,5 @@ static func highlight_keywords() -> Array[String]:
 
 static func heal_party() -> void:
 	## xu4 FULLHEAL after "Let me heal thy wounds!" — cure + full HP, not resurrect.
+	AudioSfx.play_lbheal()
 	GameState.lord_british_heal_party()

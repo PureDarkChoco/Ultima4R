@@ -160,6 +160,7 @@ Ultima, Ultima IV, Britannia, Origin Systems 및 관련 명칭과 자산의 권�
 xu4
 
 게임 규칙, 파일 형식 및 구현을 이해하기 위해 xu4 소스 코드와 문서를 참고했습니다.
+효과음은 xu4 Ultima-IV 모듈의 소리를 사용합니다.
 https://github.com/xu4-engine/u4
 
 xu4는 GNU General Public License version 3(GPL-3.0)으로 배포됩니다.
@@ -193,7 +194,7 @@ https://clockworkraven.itch.io/raven-fantasy-icons
 
 Freesound
 
-일부 효과음은 Freesound에서 제공하는 무료 음원을 사용합니다.
+문 여는 효과음은 Freesound에서 제공하는 무료 음원을 사용합니다.
 https://freesound.org/
 
 각 음원의 라이선스와 제작자 표시는 Freesound의 해당 음원 페이지를 따릅니다.
@@ -227,6 +228,7 @@ Ultima, Ultima IV, Britannia, Origin Systems, and related names and assets belon
 xu4
 
 xu4 source code and documentation were consulted to understand game rules, file formats, and implementation details.
+Sound effects are taken from the xu4 Ultima-IV module.
 https://github.com/xu4-engine/u4
 
 xu4 is distributed under the GNU General Public License version 3 (GPL-3.0).
@@ -260,7 +262,7 @@ The assets are used under the terms presented by the creator on the itch.io prod
 
 Freesound
 
-Some sound effects use free audio from Freesound.
+The door-opening sound effect uses free audio from Freesound.
 https://freesound.org/
 
 License and attribution for each clip follow that clip's page on Freesound.

@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://b278eo0snjub8"
-path="res://.godot/imported/walk_horse.wav-f6cfbb94da37c3695426abeae2ddfd96.sample"
+uid="uid://bkt27p00bjj4k"
+path="res://.godot/imported/fizzle.wav-a6dd84bde0fb78058e934bd9bd79783c.sample"
 
 [deps]
 
-source_file="res://assets/sfx/walk_horse.wav"
-dest_files=["res://.godot/imported/walk_horse.wav-f6cfbb94da37c3695426abeae2ddfd96.sample"]
+source_file="res://assets/sfx/fizzle.wav"
+dest_files=["res://.godot/imported/fizzle.wav-a6dd84bde0fb78058e934bd9bd79783c.sample"]
 
 [params]
 

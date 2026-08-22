@@ -832,6 +832,7 @@ func _start_gate_open() -> void:
 	_gate_phase = GatePhase.OPENING
 	_gate_h = 1
 	_gate_t = 0.0
+	AudioSfx.play_gate_open()
 	_compose_gate(false)
 	set_process(true)
 

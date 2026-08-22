@@ -1,21 +1,89 @@
 extends Node
 
-## Thin SFX bus for exploration footsteps and (later) UX beeps.
+## xu4 Ultima-IV module SFX (Sound enum order in xu4 sound.h / config.b).
 ## Streams live under res://assets/sfx/; missing files fail softly.
 
 const SFX_DIR := "res://assets/sfx"
-const POOL_SIZE := 4
+const POOL_SIZE := 8
 
-const ID_WALK_OUTDOOR := "walk_outdoor"
-const ID_WALK_INDOOR := "walk_indoor"
-const ID_WALK_HORSE := "walk_horse"
+## xu4 Sound ids (string keys for play_id).
+const ID_TITLE_FADE := "title_fade"
+const ID_WALK_NORMAL := "walk_normal"
+const ID_WALK_SLOWED := "walk_slowed"
+const ID_WALK_COMBAT := "walk_combat"
+const ID_BLOCKED := "blocked"
+const ID_ERROR := "error"
+const ID_PC_ATTACK := "pc_attack"
+const ID_PC_STRUCK := "pc_struck"
+const ID_NPC_ATTACK := "npc_attack"
+const ID_NPC_STRUCK := "npc_struck"
+const ID_ACID := "acid"
+const ID_SLEEP := "sleep"
+const ID_POISON_EFFECT := "poison_effect"
+const ID_POISON_DAMAGE := "poison_damage"
+const ID_EVADE := "evade"
+const ID_FLEE := "flee"
+const ID_ITEM_STOLEN := "item_stolen"
+const ID_LBHEAL := "lbheal"
+const ID_LEVELUP := "levelup"
+const ID_ELEVATE := "elevate"
+const ID_MOONGATE := "moongate"
+const ID_CANNON := "cannon"
+const ID_PARTY_STRUCK := "party_struck"
+const ID_RUMBLE := "rumble"
+const ID_PREMAGIC := "premagic"
+const ID_MAGIC := "magic"
+const ID_WHIRLPOOL := "whirlpool"
+const ID_STORM := "storm"
+const ID_GATE_OPEN := "gate_open"
+const ID_STONE_FALLING := "stone_falling"
+const ID_WIND_GUST := "wind_gust"
+const ID_UI_CLICK := "ui_click"
+const ID_UI_TICK := "ui_tick"
+const ID_FIZZLE := "fizzle"
+const ID_IGNITE := "ignite"
+const ID_FIRE_FIELD := "fire_field"
 const ID_DOOR := "door"
 
-## City paved floors → indoor steps; dirt/grass/scrub/forest/hills (and other) → outdoor.
-const FOOT_INDOOR_TILES := {
-	22: true, ## tile floor
-	62: true, ## brick floor
-	63: true, ## planks
+## Filename map matching xu4 module/Ultima-IV/config.b `sound:` (plus extras).
+const FILES := {
+	ID_TITLE_FADE: "title_fade_c64.ogg",
+	ID_WALK_NORMAL: "walk_normal_c64.wav",
+	ID_WALK_SLOWED: "walk_slowed_c64.wav",
+	ID_WALK_COMBAT: "walk_combat_c64.wav",
+	ID_BLOCKED: "blocked_dos.ogg",
+	ID_ERROR: "error_dos.ogg",
+	ID_PC_ATTACK: "pc_attack_dos.ogg",
+	ID_PC_STRUCK: "pc_struck_dos.ogg",
+	ID_NPC_ATTACK: "npc_attack_dos.ogg",
+	ID_NPC_STRUCK: "npc_struck_dos.ogg",
+	ID_ACID: "enemy_magic_proj_hit.ogg",
+	ID_SLEEP: "enemy_magic_proj_hit.ogg",
+	ID_POISON_EFFECT: "poison_effect.ogg",
+	ID_POISON_DAMAGE: "poison_damage_dos.ogg",
+	ID_EVADE: "evade_dos.ogg",
+	ID_FLEE: "evade_dos.ogg",
+	ID_ITEM_STOLEN: "evade_dos.ogg",
+	ID_LBHEAL: "magic.ogg",
+	ID_LEVELUP: "reaper_sleeper.ogg",
+	ID_ELEVATE: "elevate.ogg",
+	ID_MOONGATE: "moongate_dos.ogg",
+	ID_CANNON: "cannon.wav",
+	ID_PARTY_STRUCK: "party_struck.wav",
+	ID_RUMBLE: "fx_tremor.ogg",
+	ID_PREMAGIC: "spell_precast_dos.ogg",
+	ID_MAGIC: "spell_flash_dos.ogg",
+	ID_WHIRLPOOL: "whirlpool.wav",
+	ID_STORM: "cyclone.wav",
+	ID_GATE_OPEN: "gate_open.ogg",
+	ID_STONE_FALLING: "stone_falling.ogg",
+	ID_WIND_GUST: "wind_gust.ogg",
+	ID_UI_CLICK: "ui_click.wav",
+	ID_UI_TICK: "ui_tick.wav",
+	ID_FIZZLE: "fizzle.wav",
+	ID_IGNITE: "ignite.wav",
+	ID_FIRE_FIELD: "fire_field_walking.ogg",
+	ID_DOOR: "door.ogg",
 }
 
 const _AudioMusic := preload("res://src/core/audio_music.gd")
@@ -33,10 +101,10 @@ var music: Node
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pool()
-	_load_stream(ID_WALK_OUTDOOR, "walk_outdoor.ogg")
-	_load_stream(ID_WALK_INDOOR, "walk_indoor.ogg")
-	_load_stream(ID_WALK_HORSE, "walk_horse.wav")
-	_load_stream(ID_DOOR, "door.ogg")
+	for id in FILES:
+		_load_stream(str(id), str(FILES[id]))
+	## Extra DOS cannon take (config.b uses the rFX conversion as SOUND_CANNON).
+	_load_stream("cannon_dos", "cannon_dos.ogg")
 	music = _AudioMusic.new()
 	music.name = "Music"
 	add_child(music)
@@ -129,21 +197,150 @@ func play_id(id: String) -> void:
 	player.play()
 
 
-func play_foot_step(terrain_tid: int = -1, in_city: bool = false) -> void:
-	## Outdoor soft ground → grass/leaves clip; city tile floors → indoor steps.
-	## Other tiles fall back to outdoor (replaces the old single walk_foot).
-	if in_city and FOOT_INDOOR_TILES.has(terrain_tid):
-		play_id(ID_WALK_INDOOR)
-		return
-	play_id(ID_WALK_OUTDOOR)
+func play_foot_step(_terrain_tid: int = -1, _in_city: bool = false) -> void:
+	## xu4 SOUND_WALK_NORMAL for foot (city and wilderness).
+	play_id(ID_WALK_NORMAL)
 
 
 func play_horse_step() -> void:
-	play_id(ID_WALK_HORSE)
+	## xu4 uses the same walk clip on horseback.
+	play_id(ID_WALK_NORMAL)
+
+
+func play_walk_slowed() -> void:
+	play_id(ID_WALK_SLOWED)
+
+
+func play_walk_combat() -> void:
+	play_id(ID_WALK_COMBAT)
+
+
+func play_blocked() -> void:
+	play_id(ID_BLOCKED)
+
+
+func play_error() -> void:
+	play_id(ID_ERROR)
 
 
 func play_door() -> void:
 	play_id(ID_DOOR)
+
+
+func play_pc_attack() -> void:
+	play_id(ID_PC_ATTACK)
+
+
+func play_pc_struck() -> void:
+	play_id(ID_PC_STRUCK)
+
+
+func play_npc_attack() -> void:
+	play_id(ID_NPC_ATTACK)
+
+
+func play_npc_struck() -> void:
+	play_id(ID_NPC_STRUCK)
+
+
+func play_party_struck() -> void:
+	play_id(ID_PARTY_STRUCK)
+
+
+func play_cannon() -> void:
+	play_id(ID_CANNON)
+
+
+func play_magic() -> void:
+	play_id(ID_MAGIC)
+
+
+func play_premagic() -> void:
+	play_id(ID_PREMAGIC)
+
+
+func play_moongate() -> void:
+	play_id(ID_MOONGATE)
+
+
+func play_rumble() -> void:
+	play_id(ID_RUMBLE)
+
+
+func play_whirlpool() -> void:
+	play_id(ID_WHIRLPOOL)
+
+
+func play_storm() -> void:
+	play_id(ID_STORM)
+
+
+func play_elevate() -> void:
+	play_id(ID_ELEVATE)
+
+
+func play_fizzle() -> void:
+	play_id(ID_FIZZLE)
+
+
+func play_ignite() -> void:
+	play_id(ID_IGNITE)
+
+
+func play_fire_field() -> void:
+	play_id(ID_FIRE_FIELD)
+
+
+func play_evade() -> void:
+	play_id(ID_EVADE)
+
+
+func play_flee() -> void:
+	play_id(ID_FLEE)
+
+
+func play_poison_effect() -> void:
+	play_id(ID_POISON_EFFECT)
+
+
+func play_poison_damage() -> void:
+	play_id(ID_POISON_DAMAGE)
+
+
+func play_acid() -> void:
+	play_id(ID_ACID)
+
+
+func play_sleep() -> void:
+	play_id(ID_SLEEP)
+
+
+func play_gate_open() -> void:
+	play_id(ID_GATE_OPEN)
+
+
+func play_stone_falling() -> void:
+	play_id(ID_STONE_FALLING)
+
+
+func play_wind_gust() -> void:
+	play_id(ID_WIND_GUST)
+
+
+func play_lbheal() -> void:
+	play_id(ID_LBHEAL)
+
+
+func play_levelup() -> void:
+	play_id(ID_LEVELUP)
+
+
+func play_ui_click() -> void:
+	play_id(ID_UI_CLICK)
+
+
+func play_ui_tick() -> void:
+	play_id(ID_UI_TICK)
 
 
 func _build_pool() -> void:
@@ -165,7 +362,7 @@ func _next_player() -> AudioStreamPlayer:
 
 func _load_stream(id: String, filename: String) -> void:
 	var path := "%s/%s" % [SFX_DIR, filename]
-	if not ResourceLoader.exists(path):
+	if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
 		push_warning("AudioSfx: missing %s" % path)
 		return
 	var res := load(path)

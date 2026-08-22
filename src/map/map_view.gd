@@ -2910,6 +2910,7 @@ func shake_ship(duration: float = 0.28, amplitude: float = 2.0) -> void:
 
 func shake_quake(amplitude: float = 16.0) -> float:
 	## 2–3 irregular left/right jolts, half-tile max, short still gaps between.
+	AudioSfx.play_rumble()
 	_shake_quake = true
 	_shake_amp = clampf(amplitude, 4.0, float(TILE_SRC) * 0.5)
 	_quake_ox = 0

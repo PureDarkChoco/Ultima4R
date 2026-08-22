@@ -836,6 +836,7 @@ func _try_ship_cruise_step() -> void:
 		return
 	## xu4 wind: same Slow progress rules as manual sail (incl. 8-way diagonals).
 	if GameState.ship_slowed_by_wind(dir):
+		AudioSfx.play_walk_slowed()
 		_push_message(Locale.t("cmd_slow_progress"), false)
 		_finish_party_turn()
 		_move_cd = _move_hold_interval()
@@ -2906,12 +2907,14 @@ func _process(delta: float) -> void:
 			posmod(_tile_pos.y + dir.y, WorldMapData.HEIGHT)
 		)
 	if not _can_move_to(next):
+		AudioSfx.play_blocked()
 		_push_message(Locale.t("cmd_blocked"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
 		return
 	## xu4 ship: slowedByWind before the hull moves (into / with wind).
 	if not _is_in_city() and _transport == Transport.SHIP and GameState.ship_slowed_by_wind(dir):
+		AudioSfx.play_walk_slowed()
 		_push_message(Locale.t("cmd_slow_progress"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
@@ -2921,6 +2924,7 @@ func _process(delta: float) -> void:
 		(_transport == Transport.FOOT or _transport == Transport.HORSE)
 		and _TileRules.slowed_by_tile(_terrain_tid_at(next))
 	):
+		AudioSfx.play_walk_slowed()
 		_push_message(Locale.t("cmd_slow_progress"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
@@ -2941,6 +2945,7 @@ func _process(delta: float) -> void:
 			var slow2 := _TileRules.slowed_by_tile(_terrain_tid_at(next2))
 			if slow2:
 				## Second gallop step stalls — stay put, turn already continues below.
+				AudioSfx.play_walk_slowed()
 				_push_message(Locale.t("cmd_slow_progress"), false)
 			else:
 				_apply_world_step(next2, dir, false)
@@ -6510,6 +6515,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			## Any other key → classic grey "What?" (no prompt), abort Dir?.
 			_clear_pending_dir()
 			_clear_ship_yell_await()
+			AudioSfx.play_error()
 			_push_message(Locale.t("cmd_what"), false)
 			_mark_input_handled()
 			return
@@ -6555,6 +6561,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event is InputEventJoypadButton:
 				_clear_pending_dir()
 				_clear_ship_yell_await()
+				AudioSfx.play_error()
 				_push_message(Locale.t("cmd_what"), false)
 				_mark_input_handled()
 			return
@@ -8037,7 +8044,9 @@ func _on_force_of_nature(info: Dictionary) -> bool:
 	var kind := str(info.get("kind", "twister"))
 	if bool(info.get("on_party", false)):
 		if kind == "whirlpool":
+			AudioSfx.play_whirlpool()
 			return _apply_whirlpool_hit_on_party()
+		AudioSfx.play_storm()
 		_apply_twister_hit_on_party()
 		return false
 	var ate := bool(info.get("ate", false))
@@ -8078,6 +8087,7 @@ func _apply_twister_hit_on_party() -> void:
 		return
 	var flash := GameState.damage_party_cannon(0, 75)
 	_refresh_party()
+	AudioSfx.play_party_struck()
 	_flash_party_damage(flash)
 	if GameState.is_party_dead():
 		_start_death_sequence(0.0)
@@ -8146,6 +8156,7 @@ func _fire_cannon_along_async(origin: Vector2i, dir: Vector2i, from_avatar: bool
 			impact = info
 			break
 	_cannon_busy = true
+	AudioSfx.play_cannon()
 	if _map != null:
 		await _map.await_cannonball(origin, impact_pos, dir)
 	if not impact.is_empty():
@@ -8250,6 +8261,7 @@ func _apply_cannon_hit_on_party() -> void:
 		return
 	var flash := GameState.damage_party_cannon(10, 25)
 	_refresh_party()
+	AudioSfx.play_party_struck()
 	_flash_party_damage(flash)
 	## Foot: if the volley wiped the party, death starts now — not after more AI.
 	if GameState.is_party_dead():
@@ -8445,6 +8457,7 @@ func _do_new_order() -> void:
 	_push_message(Locale.t("cmd_new_order"), false)
 	if GameState.party_size() <= 1:
 		## Nobody to exchange with.
+		AudioSfx.play_error()
 		_push_message(Locale.t("cmd_what"), false)
 		return
 	_open_order_roster()
@@ -9685,6 +9698,7 @@ func _confirm_new_mix() -> void:
 		return
 	## Failure — reagents stay spent; leave Mix.
 	_mix_panel.close_panel()
+	AudioSfx.play_fizzle()
 	_push_message(Locale.t("mix_failed"), false)
 	_mix_stage = 0
 	_mix_pad_full_list = false
@@ -10253,6 +10267,7 @@ func _finish_cast_aim_spell() -> void:
 		_clear_cast_aim_cursor()
 		_close_cast(false, true)
 		return
+	_play_cast_sfx()
 	_clear_cast_aim_cursor()
 	_close_cast(false, false)
 	_combat_resolving = true
@@ -10371,6 +10386,7 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
+	_play_cast_sfx()
 	var ok := false
 	match spell_id:
 		Spells.BLINK:
@@ -10420,6 +10436,7 @@ func _finish_cast_phase_spell(phase: int) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
+	_play_cast_sfx()
 	if _enter_btn_row != null:
 		_enter_btn_row.visible = false
 	await _apply_cast_gate(phase)
@@ -10431,6 +10448,7 @@ func _apply_cast_gate(phase: int) -> void:
 	var dest: Vector2i = _Moongates.coords(phase)
 	_moongate_busy = true
 	if _map != null:
+		AudioSfx.play_magic()
 		await _map.await_spell_flash()
 	if dest != _tile_pos:
 		_tile_pos = dest
@@ -10625,6 +10643,12 @@ func _is_cast_implemented(spell_id: int) -> bool:
 	)
 
 
+func _play_cast_sfx() -> void:
+	## xu4 gameSpellCastSfx: pre-mana jumble, then MAGIC (invert is visual-only here).
+	AudioSfx.play_premagic()
+	AudioSfx.play_magic()
+
+
 func _finish_cast_none_spell() -> void:
 	## xu4 spellCast + PARAM_NONE: spend mix, then MP, then effect.
 	var spell_id := _cast_spell_id
@@ -10644,6 +10668,7 @@ func _finish_cast_none_spell() -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
+	_play_cast_sfx()
 	var ok := false
 	match spell_id:
 		Spells.JINX:
@@ -10832,6 +10857,7 @@ func _finish_cast_open_direct(dir: Vector2i) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
+	_play_cast_sfx()
 	if not _apply_cast_open(dir):
 		_push_message(Locale.t("cmd_nothing_to_open"), false)
 	_close_cast(false, true)
@@ -10967,6 +10993,7 @@ func _apply_cast_open_city(dir: Vector2i) -> bool:
 
 func _apply_cast_winds(dir: Vector2i) -> bool:
 	## DOS SPL_Winds — "From Dir:" sets WindDir. Remake locks it for 10 seconds.
+	AudioSfx.play_wind_gust()
 	return GameState.set_wind_from_dir(dir)
 
 
@@ -10994,6 +11021,7 @@ func _finish_cast_player_spell(target_slot: int) -> void:
 	if _cast_blocked_by_negate():
 		_close_cast(false, true)
 		return
+	_play_cast_sfx()
 	var target := GameState.party_member_at(target_slot)
 	if _apply_cast_player_spell(spell_id, target):
 		_refresh_party()
@@ -11347,6 +11375,7 @@ func _use_skull() -> void:
 		GameState.adjust_karma_destroyed_skull()
 		_refresh_inventory_bars()
 		if _map != null:
+			AudioSfx.play_magic()
 			await _map.await_spell_flash()
 		await _finish_use_command()
 		return
@@ -12027,6 +12056,7 @@ func _shrine_submit_mantra(typed: String) -> void:
 			false
 		)
 		if _map != null:
+			AudioSfx.play_elevate()
 			_map.play_spell_flash()
 		_push_message(Locale.t("cmd_shrine_vision_elevated"), false)
 	else:
@@ -12470,6 +12500,7 @@ func _dungeon_step(sign: int) -> void:
 		_tile_pos.x, _tile_pos.y, move_dir
 	)
 	if not _dungeon_map.can_walk(dest.x, dest.y, _dungeon_z):
+		AudioSfx.play_blocked()
 		_push_message(Locale.t("cmd_blocked"), false)
 		_finish_party_turn()
 		_arm_hold_after_step(true)
@@ -12526,6 +12557,7 @@ func _dungeon_is_rocks_trap() -> bool:
 func _dungeon_rocks_trap_async() -> void:
 	## Falling rocks: animate impact, then apply damage when they hit the floor.
 	_dungeon_trap_busy = true
+	AudioSfx.play_stone_falling()
 	_push_message(Locale.t("cmd_dungeon_trap_rocks"), false)
 	if _map != null and _map.has_method("await_dungeon_falling_rocks_fall"):
 		await _map.await_dungeon_falling_rocks_fall()
@@ -12763,6 +12795,7 @@ func _do_ignite() -> void:
 	GameState.torches -= 1
 	GameState.dungeon_torch_left = 100
 	GameState.dungeon_light_is_magic = false
+	AudioSfx.play_ignite()
 	_push_message(Locale.t("cmd_ignite_torch"), false)
 	_refresh_inventory_bars()
 	_refresh_dungeon_view()
@@ -12911,6 +12944,7 @@ func _complete_fountain_drink(slot: int) -> void:
 			if GameState.healer_heal_member(slot, "fullheal"):
 				result_key = "cmd_dungeon_fountain_heal"
 		_DungeonMapData.FOUNTAIN_ACID:
+			AudioSfx.play_acid()
 			if GameState.apply_member_damage(member, 100):
 				flash = 1 << slot
 			result_key = "cmd_dungeon_fountain_acid"
@@ -12922,6 +12956,7 @@ func _complete_fountain_drink(slot: int) -> void:
 				flash = GameState.apply_effect(_TileRules.Effect.POISON, slot)
 				if GameState.apply_member_damage(member, 100):
 					flash |= 1 << slot
+				AudioSfx.play_poison_effect()
 				result_key = "cmd_dungeon_fountain_poison"
 		_:
 			pass
@@ -14610,6 +14645,7 @@ func _accept_order_slot(slot: int) -> void:
 	_clear_order_selection()
 	_layout_prompt_row()
 	if not GameState.swap_party_members(a, slot):
+		AudioSfx.play_error()
 		_push_message(Locale.t("cmd_what"), false)
 		_close_order_roster()
 		return
@@ -14638,6 +14674,8 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 
 func _run_party_turn_once(in_combat: bool = false) -> void:
 	var result: Dictionary = GameState.end_party_turn(true, in_combat)
+	if int(result.get("poisoned_mask", 0)) != 0:
+		AudioSfx.play_poison_damage()
 	## xu4 finishTurn: aura.passTurn after Party::endTurn (world turns).
 	if not in_combat:
 		GameState.pass_aura_turn()
@@ -15101,24 +15139,42 @@ func _apply_ground_tile_effect() -> int:
 	## Skipped while balloon is flying (party not "standing" on the tile).
 	if _is_balloon_flying():
 		return 0
+	var effect := _TileRules.Effect.NONE
 	if _is_in_dungeon() and _dungeon_map != null:
 		if _dungeon_map.token_at(_tile_pos.x, _tile_pos.y, _dungeon_z) != _DungeonMapData.TOK_FIELD:
 			return 0
 		var ftid: int = _dungeon_map.field_world_tile(_tile_pos.x, _tile_pos.y, _dungeon_z)
-		return GameState.apply_tile_effect(_TileRules.effect_of(ftid))
-	if _is_in_city():
+		effect = _TileRules.effect_of(ftid)
+	elif _is_in_city():
 		if _city_map == null or not _city_map.loaded:
 			return 0
 		var ctid := int(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y))
-		return GameState.apply_tile_effect(_TileRules.effect_of(ctid))
-	if _world == null:
-		return 0
-	var tid := _effective_world_tid(_tile_pos)
-	if _map != null:
-		var ov := _map.overlay_at(_tile_pos)
-		if ov >= 0:
-			tid = ov
-	return GameState.apply_tile_effect(_TileRules.effect_of(tid))
+		effect = _TileRules.effect_of(ctid)
+	else:
+		if _world == null:
+			return 0
+		var tid := _effective_world_tid(_tile_pos)
+		if _map != null:
+			var ov := _map.overlay_at(_tile_pos)
+			if ov >= 0:
+				tid = ov
+		effect = _TileRules.effect_of(tid)
+	var flash := GameState.apply_tile_effect(effect)
+	_play_ground_effect_sfx(effect, flash)
+	return flash
+
+
+func _play_ground_effect_sfx(effect: int, flash: int) -> void:
+	## xu4 Party::applyEffect plays a clip only when someone actually flashed.
+	if flash == 0:
+		return
+	match effect:
+		_TileRules.Effect.FIRE, _TileRules.Effect.LAVA:
+			AudioSfx.play_fire_field()
+		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
+			AudioSfx.play_poison_effect()
+		_TileRules.Effect.SLEEP:
+			AudioSfx.play_sleep()
 
 
 func _stamp_command_time() -> void:
@@ -18023,6 +18079,7 @@ func _handle_combat_pending_dir_event(event: InputEvent) -> bool:
 		## Any non-dir → "What?" and abort Dir? (no turn until a real action).
 		if event is InputEventKey or event is InputEventJoypadButton:
 			_clear_pending_dir(true)
+			AudioSfx.play_error()
 			_push_message(Locale.t("cmd_what"), false)
 			_layout_prompt_row()
 			return true
@@ -18281,6 +18338,8 @@ func _victory_apply_round_turn() -> void:
 	## Advance food/status/moves without applying the dungeon corridor tile or
 	## moving corridor monsters while the party is still on the combat map.
 	var result: Dictionary = GameState.end_party_turn(false, false)
+	if int(result.get("poisoned_mask", 0)) != 0:
+		AudioSfx.play_poison_damage()
 	GameState.pass_aura_turn()
 	## Poison/starvation can kill during these real turns; dead units must not
 	## remain stranded on an arena that only living members can walk out of.
@@ -18540,6 +18599,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		## Aimed empty space (not scatter, not self) — drop sticky.
 		_combat_clear_sticky_aim()
 
+	AudioSfx.play_pc_attack()
 	if use_proj:
 		await _combat_resolve_ranged_attack(klass, wid, from, target, aim_foe_i, aim_ally_i)
 	else:
@@ -18746,6 +18806,7 @@ func _combat_apply_foe_hit(
 	_combat_record_foe_damage(foe_i, klass, dealt)
 	var flash := flash_tid if flash_tid >= 0 else MapView.TILE_HIT_FLASH
 	var flash_dur := COMBAT_HIT_FLASH_SEC if flash_sec < 0.0 else flash_sec
+	AudioSfx.play_npc_struck()
 	await _map.await_flash_combat_tile(at, flash, flash_dur)
 	if killed:
 		var nm := _WorldCreaturesScript.display_name(foe_tile)
@@ -18770,6 +18831,7 @@ func _combat_apply_ally_hit(attacker_klass: int, ally_i: int, at: Vector2i, dmg:
 		dmg = GameState.party_attack_damage(attacker_klass)
 	GameState.apply_member_damage(def_klass, dmg)
 	var flash := flash_tid if flash_tid >= 0 else MapView.TILE_HIT_FLASH
+	AudioSfx.play_pc_struck()
 	await _map.await_flash_combat_tile(at, flash, COMBAT_HIT_FLASH_SEC)
 	if GameState.status_of_class(def_klass) == PartyRoster.Status.DEAD:
 		var slot := int(ally.get("party_slot", -1))
@@ -18818,6 +18880,7 @@ func _combat_try_move(dir: Vector2i) -> void:
 	var after_flee := false
 	match result:
 		MapView.COMBAT_MOVE_OK:
+			AudioSfx.play_walk_combat()
 			_push_message(_direction_label(dir, true), false)
 			_dungeon_try_room_trigger()
 			## Normal combat applies immediately. Victory applies once at turn end
@@ -18825,9 +18888,11 @@ func _combat_try_move(dir: Vector2i) -> void:
 			if not _combat_victory_aftermath and _apply_combat_field_under_focus():
 				after_flee = true
 		MapView.COMBAT_MOVE_SLOWED:
+			AudioSfx.play_walk_slowed()
 			_push_message(Locale.t("cmd_slow_progress"), false)
 		MapView.COMBAT_MOVE_FLED:
 			## xu4: direction message + SOUND_FLEE; unit already off the arena.
+			AudioSfx.play_flee()
 			_push_message(_direction_label(dir, true), false)
 			_dungeon_last_flee_dir = dir
 			## No healthy-flee karma after Victory! (already awarded on announce).
@@ -18835,6 +18900,7 @@ func _combat_try_move(dir: Vector2i) -> void:
 				_combat_apply_healthy_fled_karma(_map.get_combat_last_fled())
 			after_flee = true
 		_:
+			AudioSfx.play_blocked()
 			_push_message(Locale.t("cmd_blocked"), false)
 	if _combat_victory_aftermath:
 		## Post-victory movement still spends turns (sleep wake, food, aura).
@@ -18874,9 +18940,13 @@ func _apply_combat_field_to_party(pos: Vector2i, party_slot: int, party_i: int) 
 	if mask == 0:
 		return false
 	match effect:
+		_TileRules.Effect.FIRE, _TileRules.Effect.LAVA:
+			AudioSfx.play_fire_field()
 		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
+			AudioSfx.play_poison_effect()
 			_push_message(Locale.t("cmd_poisoned"), false)
 		_TileRules.Effect.SLEEP:
+			AudioSfx.play_sleep()
 			_push_message(Locale.t("cmd_combat_sleep"), false)
 	if _roster and _roster.has_method("flash_players"):
 		_roster.flash_players(mask)
@@ -18905,6 +18975,7 @@ func _apply_combat_field_to_foe(pos: Vector2i, foe_i: int) -> void:
 			var foe_tid := int(_map.get_combat_foe_at(foe_i).get("tile", 0))
 			if _WorldCreaturesScript.resists_fire(foe_tid):
 				return
+			AudioSfx.play_fire_field()
 			_combat_note_field_foe_hit(_map.damage_combat_foe(foe_i, 16 + (randi() % 32)))
 		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
 			if not _map.is_combat_foe_poisoned(foe_i):
@@ -19127,6 +19198,7 @@ func _combat_prepare_foe_turn(foe_i: int) -> bool:
 			return false
 		_map.set_combat_foe_asleep(foe_i, false)
 	if _map.is_combat_foe_poisoned(foe_i):
+		AudioSfx.play_poison_damage()
 		var hit: Dictionary = _map.damage_combat_foe(foe_i, GameState.POISON_DAMAGE)
 		if bool(hit.get("killed", false)):
 			_combat_note_field_foe_hit(hit)
@@ -19176,13 +19248,17 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 	klass = int(unit.get("klass", klass))
 	at = Vector2i(int(unit.get("x", at.x)), int(unit.get("y", at.y)))
 	var hits := GameState.creature_hits_party_member(klass)
+	AudioSfx.play_npc_attack()
 	if hits:
 		var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
 		GameState.apply_member_damage(klass, dmg)
+		AudioSfx.play_pc_struck()
 		await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
 		if _WorldCreaturesScript.steals_gold(tid) and (randi() % 4) == 0:
+			AudioSfx.play_id(AudioSfx.ID_ITEM_STOLEN)
 			GameState.adjust_gold(-(randi() % 0x3f))
 		if _WorldCreaturesScript.steals_food(tid):
+			AudioSfx.play_id(AudioSfx.ID_ITEM_STOLEN)
 			GameState.adjust_food(-2500)
 		if GameState.status_of_class(klass) == PartyRoster.Status.DEAD:
 			var slot := int(unit.get("party_slot", -1))
@@ -19222,6 +19298,7 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 		return
 	klass = int(unit.get("klass", klass))
 	to = Vector2i(int(unit.get("x", to.x)), int(unit.get("y", to.y)))
+	AudioSfx.play_npc_attack()
 	await _map.await_combat_projectile(from, to, -1, miss_tid)
 	if not _map.combat_shot_reaches(from, to):
 		## Blocked / empty path end — xu4 leaveTile (lava lizard lava) when walkable.
@@ -19230,15 +19307,18 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 			_map.combat_leave_field(land, leave_tid)
 		return
 	## Impact flash uses creature hittile (magic sphere, field, rocks, lava…).
+	AudioSfx.play_pc_struck()
 	await _map.await_flash_combat_tile(to, hit_tid, COMBAT_HIT_FLASH_SEC)
 	match effect:
 		"poison":
 			## xu4: STAT_GOOD + 50% only; sleepers get neither damage nor poison.
 			if GameState.try_poison_class(klass):
+				AudioSfx.play_poison_effect()
 				_push_message(Locale.t("cmd_poisoned"), false)
 		"sleep":
 			## xu4: STAT_GOOD + 50%; already sleeping → no effect / no HP.
 			if GameState.try_sleep_class(klass):
+				AudioSfx.play_sleep()
 				_push_message(Locale.t("cmd_combat_sleep"), false)
 		_:
 			## damage / energy — always connect (xu4 rangedAttack).
@@ -19705,10 +19785,13 @@ func _resolve_chest_trap(opener_slot: int, opener_klass: int) -> void:
 	var trap_type := int(roll.get("trap_type", TileRules.Effect.NONE))
 	match trap_type:
 		TileRules.Effect.FIRE:
+			AudioSfx.play_acid()
 			_push_message(Locale.t("cmd_chest_trap_acid"), false)
 		TileRules.Effect.POISON:
+			AudioSfx.play_poison_effect()
 			_push_message(Locale.t("cmd_chest_trap_poison"), false)
 		TileRules.Effect.SLEEP:
+			AudioSfx.play_sleep()
 			_push_message(Locale.t("cmd_chest_trap_sleep"), false)
 		TileRules.Effect.LAVA:
 			_push_message(Locale.t("cmd_chest_trap_bomb"), false)
@@ -19717,6 +19800,7 @@ func _resolve_chest_trap(opener_slot: int, opener_klass: int) -> void:
 		_:
 			return
 	if GameState.chest_trap_evaded(opener_klass):
+		AudioSfx.play_evade()
 		_push_message(Locale.t("cmd_chest_trap_evaded"), false)
 		return
 	var flash := GameState.apply_effect(trap_type, opener_slot)
@@ -20629,6 +20713,7 @@ func _try_moongate_travel() -> bool:
 		return false
 	_moongate_busy = true
 	_reset_hold_state()
+	AudioSfx.play_moongate()
 	_moongate_travel_async(dest)
 	return true
 
