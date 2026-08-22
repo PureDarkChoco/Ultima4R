@@ -1218,6 +1218,9 @@ func _t_topic(raw: String) -> void:
 	if _topic_key == "sextant":
 		GameState.journal_mark_id("jhelom.senora.sextant")
 		GameState.journal_mark_goal("ask:barkeep-sextant")
+	if _topic_key == "black stone":
+		GameState.journal_mark_id("magincia.nate.britain-pub-stone")
+		GameState.journal_mark_goal("ask:britain-pub-black-stone")
 	if _topic_key == "white stone":
 		GameState.journal_mark_id("skara.mitre.trinsic-tap-stone")
 		GameState.journal_mark_goal("ask:trinsic-tap-stone")
@@ -1239,6 +1242,10 @@ func _t_foggy() -> void:
 			GameState.talk_remember_heard_word("guild-item-d")
 			if _locale == "Jhelom":
 				GameState.journal_try_capture("jhelom", "Celestial", "SEXTANT")
+		if _topic_key == "black stone" and _locale == "Britain":
+			GameState.journal_try_capture("britain", "Sam", "BLACK STONE")
+			GameState.journal_mark_id("magincia.nate.britain-pub-stone")
+			GameState.journal_mark_goal("ask:britain-pub-black-stone")
 		if _topic_key == "white stone" and _locale == "Trinsic":
 			GameState.journal_try_capture("trinsic", "Terran", "WHITE STONE")
 		if _topic_key == "mandrake" and _locale == "Paws":

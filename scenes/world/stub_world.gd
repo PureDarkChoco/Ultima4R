@@ -4869,6 +4869,17 @@ func _talk_keyword_menu_intro_default_key() -> String:
 			"달문" if GameState.lang_short() == "ko" else "gate"
 		)
 	elif (
+		_talk_city_id() == "cove"
+		and str(entry.name).strip_edges().to_lower() == "merlin"
+		and (
+			GameState.journal_has_id("magincia.nate.britain-pub-stone")
+			or GameState.journal_has_id("britain.sam.merlin-stone")
+		)
+	):
+		default_key = _talk_keyword_stable_key(
+			"돌" if GameState.lang_short() == "ko" else "stone"
+		)
+	elif (
 		_talk_city_id() == "empath"
 		and str(entry.name).strip_edges().to_lower() == "malchor"
 		and GameState.journal_has_id("empath.suzanna.malchor-horn")
@@ -5261,6 +5272,15 @@ func _maybe_offer_magincia_chain_keyword() -> void:
 			"룬" if korean else "Rune",
 			"룬" if korean else "rune"
 		)
+		if GameState.journal_has_id("magincia.splot.nate-rune"):
+			var stone_key := _talk_keyword_stable_key(
+				"돌" if korean else "stone"
+			)
+			_offer_talk_keyword_item(
+				stone_key,
+				"돌" if korean else "Stone",
+				"돌" if korean else "stone"
+			)
 
 
 func _talk_city_id() -> String:
@@ -5643,16 +5663,26 @@ func _maybe_offer_cove_chain_keyword() -> void:
 			"방" if korean else "Chamber",
 			"방" if korean else "chamber"
 		)
-	elif (
-		npc == "merlin"
-		and GameState.journal_has_id("cove.merlin.black-stone")
-	):
-		var gate_key := _talk_keyword_stable_key("달문" if korean else "gate")
-		_offer_talk_keyword_item(
-			gate_key,
-			"달문" if korean else "Gate",
-			"달문" if korean else "gate"
-		)
+	elif npc == "merlin":
+		if (
+			GameState.journal_has_id("magincia.nate.britain-pub-stone")
+			or GameState.journal_has_id("britain.sam.merlin-stone")
+		):
+			var stone_key := _talk_keyword_stable_key(
+				"돌" if korean else "stone"
+			)
+			_offer_talk_keyword_item(
+				stone_key,
+				"돌" if korean else "Stone",
+				"돌" if korean else "stone"
+			)
+		if GameState.journal_has_id("cove.merlin.black-stone"):
+			var gate_key := _talk_keyword_stable_key("달문" if korean else "gate")
+			_offer_talk_keyword_item(
+				gate_key,
+				"달문" if korean else "Gate",
+				"달문" if korean else "gate"
+			)
 	elif (
 		npc == "brother zair"
 		and GameState.journal_has_id("paws.zair.brother-word")
@@ -20569,6 +20599,11 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("cove.blissful.ankh-chamber"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:ankh-chamber"):
+			refresh = true
+	if place == "cove" and npc_key == "merlin" and topic == "STON":
+		if GameState.journal_mark_id("britain.sam.merlin-stone"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:merlin-stone"):
 			refresh = true
 	if place == "cove" and npc_key == "merlin" and topic == "GATE":
 		if GameState.journal_mark_id("cove.merlin.black-stone"):

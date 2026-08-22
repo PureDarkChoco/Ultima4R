@@ -162,16 +162,17 @@
         "name": "폴트리스",
         "pronoun": "그것",
         "look": "키 큰 유령이다.",
-        "job": "그냥 떠돌 뿐!",
+        "job": "교수형 뒤에\n떠돌 뿐!",
         "health": "더 나았었소.",
-        "response1": "자만의 죄로\n목매달렸소!",
+        "response1": "자만의 죄로\n교수형 당했소!",
         "response2": "겸손의 반대인\n자만의 만트라는\n‘MUL’이오.",
         "question": "자만하오?",
         "yes": "큰 죄요!",
         "no": "자만은 악의\n총애 죄요!",
-        "topic1": "교수",
+        "topic1": "교수형",
         "topic1_aliases": [
-          "hang"
+          "hang",
+          "교수"
         ],
         "topic2": "만트라",
         "topic2_aliases": [
@@ -377,7 +378,7 @@
         "health": "딸꾹…",
         "response1": "부는 끝없고\n권력도 컸소!",
         "response2": "자만한 혼은\n제값을 모르오!",
-        "question": "보오?",
+        "question": "그게\n보이오?",
         "yes": "세상은 나 없이도\n돌아갑니다.",
         "no": "세상은 나 없이도\n돌아갑니다.",
         "topic1": "상인",
@@ -414,7 +415,7 @@
         "response1": "식량 가게지요.",
         "response2": "곧 더 들어올\n예정이오!",
         "question": "식량 관심\n있소?",
-        "yes": "흠, 재고가\n상했군요…",
+        "yes": "흠, 재고에\n상함이 생겼소…",
         "no": "최고만\n팝니다.",
         "topic1": "가게",
         "topic1_aliases": [
