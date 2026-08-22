@@ -197,8 +197,8 @@ const MOONGATE_TRAVEL_GAP_SEC := 0.35
 ## Open-gate glow: rectangular rings scroll inward (smooth blue↔white).
 const MOONGATE_SUCK_FRAMES := 24
 const MOONGATE_SUCK_PERIOD := 0.06
-## Tile-cell wipe explore → combat over 0.6s (diagonal front from top-left).
-const COMBAT_ENTER_TRANS_SEC := 0.6
+## Tile-cell wipe explore → combat over 0.8s (diagonal front from top-left).
+const COMBAT_ENTER_TRANS_SEC := 0.8
 
 ## Trial: smooth one-tile camera scroll. Set false to snap instantly again.
 ## Three-frame scroll: 1/3 → 2/3 → arrive (chunky, easy to revert).
@@ -921,6 +921,11 @@ func snapshot_frame() -> Image:
 	if _buf == null:
 		return null
 	return _buf.duplicate()
+
+
+func await_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_SEC) -> void:
+	## Diagonal tile wipe for scene entry (combat, city, dungeon).
+	await await_combat_enter_wipe(from, duration)
 
 
 func await_combat_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_SEC) -> void:

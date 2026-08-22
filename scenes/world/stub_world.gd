@@ -11793,6 +11793,16 @@ func _do_hole_up() -> void:
 	_layout_prompt_row()
 
 
+func _await_map_enter_wipe(apply: Callable) -> void:
+	## Same diagonal tile wipe as combat entry — snapshot before `apply` rebuilds the map.
+	var from_img: Image = null
+	if _map != null:
+		from_img = _map.snapshot_frame()
+	apply.call()
+	if _map != null and from_img != null:
+		await _map.await_enter_wipe(from_img, MapView.COMBAT_ENTER_TRANS_SEC)
+
+
 func _do_enter() -> void:
 	## xu4 'e' → usePortalAt(ACTION_ENTER). Cities + shrines + dungeons.
 	if _is_in_city() or _is_in_dungeon():
@@ -11987,6 +11997,10 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 
 
 func _enter_city_from_portal(portal: Dictionary) -> void:
+	_enter_city_from_portal_wipe(portal)
+
+
+func _enter_city_from_portal_wipe(portal: Dictionary) -> void:
 	var fname := str(portal.get("fname", ""))
 	var path := _CityMapData.resolve_u4_file(fname)
 	if path.is_empty():
@@ -12010,11 +12024,13 @@ func _enter_city_from_portal(portal: Dictionary) -> void:
 	_apply_remembered_city_chests(cmap)
 	var start := Vector2i(int(portal.get("sx", 1)), int(portal.get("sy", 15)))
 	_tile_pos = start
-	if _map != null:
-		_map.enter_city(cmap, start, _city_return_pos)
-		## Re-apply mount sprite immediately (enter used to wipe MapView transport).
-		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
-		_map.clear_moongate()
+	await _await_map_enter_wipe(func() -> void:
+		if _map != null:
+			_map.enter_city(cmap, start, _city_return_pos)
+			## Re-apply mount sprite immediately (enter used to wipe MapView transport).
+			_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
+			_map.clear_moongate()
+	)
 	_maybe_capture_manual_zorin_tip(fname)
 	_journal_note_entered_city(fname)
 	_sync_music()
@@ -12561,10 +12577,18 @@ func _use_city_floor_portal(action: int) -> void:
 		int(world_portal.get("sx", 15)),
 		int(world_portal.get("sy", 30))
 	)
-	if _map != null:
-		_map.enter_city(cmap, start, _city_return_pos, spawn)
-		_map.set_transport_tile(-1)
-		_map.clear_moongate()
+	_use_city_floor_portal_wipe(cmap, start, spawn)
+
+
+func _use_city_floor_portal_wipe(
+	cmap, start: Vector2i, spawn: Vector2i
+) -> void:
+	await _await_map_enter_wipe(func() -> void:
+		if _map != null:
+			_map.enter_city(cmap, start, _city_return_pos, spawn)
+			_map.set_transport_tile(-1)
+			_map.clear_moongate()
+	)
 	## Same stay (e.g. LCB 1↔2): keep skull wipe and re-apply alertGuards.
 	_apply_city_skull_wipe()
 	_apply_city_guards_alerted()
@@ -12716,6 +12740,10 @@ func _try_enter_hythloth_from_city() -> bool:
 
 
 func _enter_dungeon_from_portal(portal: Dictionary, from_city: bool = false) -> void:
+	_enter_dungeon_from_portal_wipe(portal, from_city)
+
+
+func _enter_dungeon_from_portal_wipe(portal: Dictionary, from_city: bool = false) -> void:
 	var id := str(portal.get("id", ""))
 	var fname := str(portal.get("fname", _DungeonPortals.fname_for(id)))
 	var path := _DungeonMapData.resolve_u4_file(fname)
@@ -12746,9 +12774,11 @@ func _enter_dungeon_from_portal(portal: Dictionary, from_city: bool = false) -> 
 			journal_changed = true
 	if journal_changed:
 		_refresh_journal_panel()
-	if _map != null:
-		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
 	_open_sides_for_dungeon()
+	await _await_map_enter_wipe(func() -> void:
+		if _map != null:
+			_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	)
 	_sync_music()
 	_refresh_locate_hud()
 
@@ -13596,6 +13626,10 @@ func _dungeon_after_combat_exit() -> void:
 
 
 func _enter_connected_dungeon(id: String, z: int) -> void:
+	_enter_connected_dungeon_wipe(id, z)
+
+
+func _enter_connected_dungeon_wipe(id: String, z: int) -> void:
 	var fname := _DungeonPortals.fname_for(id)
 	var path := _DungeonMapData.resolve_u4_file(fname)
 	var dmap = _DungeonMapData.new()
@@ -13610,8 +13644,10 @@ func _enter_connected_dungeon(id: String, z: int) -> void:
 	_dungeon_skip_room = false
 	if GameState.journal_mark_dungeon(id):
 		_refresh_journal_panel()
-	if _map != null:
-		_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	await _await_map_enter_wipe(func() -> void:
+		if _map != null:
+			_map.enter_dungeon(dmap, _tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
+	)
 	_sync_dungeon_hud()
 	_sync_music()
 
@@ -17976,7 +18012,7 @@ func _begin_combat(
 			_sync_creatures_to_map()
 		_push_message(Locale.t("cmd_nothing_to_attack"), false)
 		return
-	## Lock input; open panels while the map wipes explore → combat (0.6s tile diagonals).
+	## Lock input; open panels while the map wipes explore → combat (0.8s tile diagonals).
 	_combat_active = true
 	_sync_music()
 	if GameState.journal_mark_goal("combat:first"):
