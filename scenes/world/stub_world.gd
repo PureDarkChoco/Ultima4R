@@ -20483,6 +20483,13 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 	if _is_cancel_event(event):
 		_close_journal_focus()
 		return true
+	if (
+		(event is InputEventKey and _is_space_key(event as InputEventKey))
+		or _GameInput.is_victory_exit(event)
+	):
+		if _journal_panel != null and _journal_panel.has_method("toggle_hide_done"):
+			_journal_panel.toggle_hide_done()
+		return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
 		if _journal_panel != null and _journal_panel.has_method("activate_selection"):
 			_journal_panel.activate_selection()

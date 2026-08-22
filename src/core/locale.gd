@@ -929,6 +929,11 @@ const _T := {
 		"en_us": "No notes yet.",
 		"ko": "아직 기록이 없다.",
 	},
+	"journal_hide_done": {
+		"en_u4": "Hide done",
+		"en_us": "Hide completed",
+		"ko": "완료 숨김",
+	},
 	"journal_page_mark": {
 		"en_u4": "%d / %d",
 		"en_us": "%d / %d",

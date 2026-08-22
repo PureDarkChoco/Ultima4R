@@ -58,6 +58,7 @@ const CODEX_DUNGEONS := [
 ]
 
 var _title: Label
+var _hide_done_lab: Label
 var _page_mark: HBoxContainer
 var _page_num_1: Label
 var _page_sep: Label
@@ -191,6 +192,14 @@ func _ready() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(_title, true)
 	add_child(_title)
+	_hide_done_lab = Label.new()
+	_hide_done_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hide_done_lab.add_theme_font_size_override("font_size", PLACE_SIZE)
+	_hide_done_lab.add_theme_color_override("font_color", COL_PAGE_NEW)
+	_hide_done_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hide_done_lab.visible = false
+	UiTheme.apply_font(_hide_done_lab)
+	add_child(_hide_done_lab)
 	_page_mark = HBoxContainer.new()
 	_page_mark.alignment = BoxContainer.ALIGNMENT_CENTER
 	_page_mark.add_theme_constant_override("separation", 0)
@@ -358,6 +367,32 @@ func jump_selection_place(dir: int) -> void:
 	_select_nav_index(places[next_slot])
 
 
+func toggle_hide_done() -> void:
+	var gs = _game_state()
+	if gs == null:
+		return
+	gs.journal_hide_done = not bool(gs.journal_hide_done)
+	refresh(is_visible_in_tree())
+
+
+func _hide_done_active() -> bool:
+	var gs = _game_state()
+	return gs != null and bool(gs.journal_hide_done)
+
+
+func _visible_journal_rows(rows: Array, hide_done: bool) -> Array:
+	if not hide_done:
+		return rows
+	var out: Array = []
+	for row in rows:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		if bool((row as Dictionary).get("done", false)):
+			continue
+		out.append(row)
+	return out
+
+
 func _select_nav_index(idx: int) -> void:
 	if idx < 0 or idx >= _nav_ids.size():
 		return
@@ -409,6 +444,10 @@ func refresh(journal_visible: bool = false) -> void:
 		return
 	_title.text = Locale.t("journal_title")
 	_empty.text = Locale.t("journal_empty")
+	var hide_done := _hide_done_active()
+	if _hide_done_lab != null:
+		_hide_done_lab.text = Locale.t("journal_hide_done") if hide_done else ""
+		_hide_done_lab.visible = hide_done
 	_refresh_page_mark()
 	_clear_list()
 	_kill_flash()
@@ -423,19 +462,14 @@ func refresh(journal_visible: bool = false) -> void:
 	var lang := "en_us"
 	if gs != null:
 		lang = str(gs.language)
-	var has_any := not groups.is_empty()
-	_empty.visible = not has_any
-	_scroll.visible = has_any
-	if not has_any:
-		_rebuild_codex()
-		_apply_page()
-		return
+	var has_any := false
 	var collapsed := _collapsed_map(gs)
 	for group in groups:
 		var place := str(group.get("place", ""))
-		var rows: Array = group.get("entries", [])
+		var rows := _visible_journal_rows(group.get("entries", []), hide_done)
 		if rows.is_empty():
 			continue
+		has_any = true
 		var is_collapsed := bool(collapsed.get(place, false))
 		var header := _make_place_header(place, is_collapsed)
 		var place_key := _place_key(place)
@@ -468,6 +502,12 @@ func refresh(journal_visible: bool = false) -> void:
 				_entry_nodes[id] = entry
 				_nav_ids.append(id)
 			_list.add_child(entry)
+	_empty.visible = not has_any
+	_scroll.visible = has_any
+	if not has_any:
+		_rebuild_codex()
+		_apply_page()
+		return
 	_sync_list_min_size()
 	_reveal_unseen_if_visible(gs, journal_visible)
 	_normalize_selection(gs)

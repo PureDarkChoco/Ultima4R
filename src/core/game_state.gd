@@ -175,6 +175,8 @@ var journal_selected_id: String = ""
 var journal_unseen_id: String = ""
 ## 0 = notes (page 1), 1 = collection page. New entries always return to page 1.
 var journal_page: int = 0
+## Journal notes page: hide completed (done) rows.
+var journal_hide_done: bool = false
 ## True until the collection page is opened after a new page-2 fact.
 var journal_codex_unseen: bool = false
 ## Bitmasks (1 << Virtues.Id) of virtues / mantras learned from talk or shrine.
@@ -446,6 +448,7 @@ func reset_party() -> void:
 	journal_selected_id = ""
 	journal_unseen_id = ""
 	journal_page = 0
+	journal_hide_done = false
 	journal_codex_unseen = false
 	journal_known_virtues = 0
 	journal_known_mantras = 0
@@ -892,6 +895,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	journal_selected_id = ""
 	journal_unseen_id = ""
 	journal_page = 0
+	journal_hide_done = false
 	journal_codex_unseen = false
 	journal_known_virtues = 0
 	journal_known_mantras = 0
@@ -3055,6 +3059,7 @@ func to_save_dict() -> Dictionary:
 		"journal_selected_id": journal_selected_id,
 		"journal_unseen_id": journal_unseen_id,
 		"journal_page": journal_page,
+		"journal_hide_done": journal_hide_done,
 		"journal_codex_unseen": journal_codex_unseen,
 		"journal_known_virtues": journal_known_virtues,
 		"journal_known_mantras": journal_known_mantras,
@@ -3157,6 +3162,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	journal_selected_id = str(d.get("journal_selected_id", "")).strip_edges()
 	journal_unseen_id = str(d.get("journal_unseen_id", "")).strip_edges()
 	journal_page = clampi(int(d.get("journal_page", 0)), 0, 1)
+	journal_hide_done = d.get("journal_hide_done", false) == true
 	journal_codex_unseen = d.get("journal_codex_unseen", false) == true
 	journal_known_virtues = int(d.get("journal_known_virtues", 0))
 	journal_known_mantras = int(d.get("journal_known_mantras", 0))
