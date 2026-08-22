@@ -10,6 +10,8 @@ const TEXT := Color("e8f0e9")
 const MUTED := Color("8aa39a")
 const ACCENT := Color("d4a84b")
 const ACCENT_DIM := Color("8a6a2e")
+## Keyboard/command focus on a side panel or the Peer gem map.
+const FOCUS_BORDER := Color("f2d43d")
 ## Selected choice (not keyboard focus) — cool blue so it differs from ACCENT focus.
 const SELECT := Color("4aa3d4")
 const DANGER := Color("c45c4a")

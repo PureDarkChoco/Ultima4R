@@ -150,7 +150,7 @@ func _build() -> void:
 	_panel.clip_contents = true
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.0, 0.0, 0.0, 1)
-	sb.border_color = Color(0.35, 0.55, 0.95, 1)
+	sb.border_color = UiTheme.FOCUS_BORDER
 	sb.border_width_left = BORDER_W
 	sb.border_width_top = BORDER_W
 	sb.border_width_right = BORDER_W

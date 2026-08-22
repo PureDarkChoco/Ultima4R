@@ -60,6 +60,8 @@ const _ResImage := preload("res://src/core/res_image.gd")
 @onready var _msg_block: Control = %MsgBlock
 
 var _peer_overlay: PeerGemOverlay
+var _focus_ring: Control
+var _focus_kind := ""
 var _ztats_panel: ZtatsPanel
 var _ready_panel: ReadyPanel
 var _wear_panel: WearPanel
@@ -1064,11 +1066,12 @@ func _make_edge_panel(
 	border_t: int,
 	border_r: int,
 	border_b: int,
-	bg: Color = Color(0.0, 0.0, 0.0, 1.0)
+	bg: Color = Color(0.0, 0.0, 0.0, 1.0),
+	border_color: Color = Color(0.35, 0.55, 0.95, 1)
 ) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
-	sb.border_color = Color(0.35, 0.55, 0.95, 1)
+	sb.border_color = border_color
 	sb.border_width_left = border_l
 	sb.border_width_top = border_t
 	sb.border_width_right = border_r
@@ -1079,6 +1082,94 @@ func _make_edge_panel(
 	sb.content_margin_top = content_margin
 	sb.content_margin_bottom = content_margin
 	return sb
+
+
+func _panel_focus_kind() -> String:
+	if _peer_overlay != null and _peer_overlay.is_open():
+		return ""
+	if _journal_focus_active and _left_pane != null and _left_pane.visible:
+		return "left"
+	if (
+		(_ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0)
+		and _right_top != null
+		and _right_top.visible
+	):
+		return "top"
+	if _talk_stage != 0 and _right_bottom != null and _right_bottom.visible:
+		return "bottom"
+	return ""
+
+
+func _ensure_focus_ring() -> void:
+	if _focus_ring != null and is_instance_valid(_focus_ring):
+		return
+	_focus_ring = Control.new()
+	_focus_ring.name = "PanelFocusRing"
+	_focus_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_focus_ring.visible = false
+	for side in ["L", "T", "R", "B"]:
+		var strip := ColorRect.new()
+		strip.name = "FocusEdge%s" % side
+		strip.color = UiTheme.FOCUS_BORDER
+		strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_focus_ring.add_child(strip)
+	## Root-level sibling of RootCol: the ring may extend across MapPane clipping
+	## and cover the top/bottom HUD seam itself.
+	add_child(_focus_ring)
+
+
+func _layout_focus_fill_strips(kind: String) -> void:
+	## Paint exactly where the existing blue chrome lives. HUD seams belong to
+	## TopBar/BottomBar, so their strips sit just outside the MapPane panel rect.
+	const W := 2.0
+	var sz := _focus_ring.size
+	var l := _focus_ring.get_node("FocusEdgeL") as ColorRect
+	var t := _focus_ring.get_node("FocusEdgeT") as ColorRect
+	var r := _focus_ring.get_node("FocusEdgeR") as ColorRect
+	var b := _focus_ring.get_node("FocusEdgeB") as ColorRect
+	if l:
+		l.visible = kind == "top" or kind == "bottom"
+		l.position = Vector2.ZERO
+		l.size = Vector2(W, sz.y)
+	if t:
+		t.visible = true
+		t.position = Vector2(0.0, -W if kind == "left" or kind == "top" else 0.0)
+		t.size = Vector2(sz.x, W)
+	if r:
+		r.visible = kind == "left"
+		r.position = Vector2(sz.x - W, 0.0)
+		r.size = Vector2(W, sz.y)
+	if b:
+		b.visible = true
+		b.position = Vector2(0.0, sz.y)
+		b.size = Vector2(sz.x, W)
+
+
+func _sync_panel_focus_border() -> void:
+	_ensure_focus_ring()
+	if _focus_ring == null:
+		return
+	var kind := _panel_focus_kind()
+	if kind != _focus_kind:
+		_focus_kind = kind
+		_style_side_panels()
+	var target: Control = null
+	match kind:
+		"left":
+			target = _left_pane
+		"top":
+			target = _right_top
+		"bottom":
+			target = _right_bottom
+	if target == null or not is_instance_valid(target) or not target.visible:
+		_focus_ring.visible = false
+		return
+	_focus_ring.visible = true
+	var target_pos := target.global_position - global_position
+	_focus_ring.position = target_pos
+	_focus_ring.size = target.size
+	_layout_focus_fill_strips(kind)
+	_focus_ring.move_to_front()
 
 
 func _side_geom() -> Dictionary:
@@ -2712,6 +2803,7 @@ func _on_order_roster_closed() -> void:
 
 
 func _process(delta: float) -> void:
+	_sync_panel_focus_border()
 	_tick_cursor(delta)
 	## xu4 timerFired still runs during menus; remake freezes the clock on gem view.
 	if _peer_overlay == null or not _peer_overlay.is_open():
