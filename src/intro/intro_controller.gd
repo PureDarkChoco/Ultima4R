@@ -112,6 +112,7 @@ var _beastie2_cycle := 0
 var _beastie_offset := -32
 var _beasties_visible := false
 var _skip_titles := false
+var _title_fade_started := false
 
 ## Title sequence state (coordinates are base 320×200)
 var _titles: Array = [] ## Dictionaries
@@ -202,6 +203,7 @@ func set_mode(m: int) -> void:
 		_beastie_offset = -32
 		_title_i = 0
 		_skip_titles = false
+		_title_fade_started = false
 		_title_bg_baked = false
 		_accum = Image.create(BASE_W, BASE_H, false, Image.FORMAT_RGBA8)
 		_accum.fill(Color.BLACK)
@@ -245,11 +247,24 @@ func _bake_titles_into_map_bg() -> void:
 func skip_titles_or_advance() -> void:
 	match mode:
 		Mode.TITLES:
-			## Finish every remaining title paint instantly, then open map.
+			var title_idx := _title_index_of(AnimType.TITLE)
+			## First key: jump to "Ultima IV" fade (keep sound in sync). Second: map.
+			if title_idx >= 0 and _title_i < title_idx:
+				_skip_titles = true
+				var guard := 0
+				while _title_i < title_idx and _update_titles() and guard < 64:
+					guard += 1
+				_skip_titles = false
+				if _title_i == title_idx:
+					_titles[_title_i]["time_base"] = 0
+					_titles[_title_i]["anim_step"] = 0
+					_titles[_title_i]["time_delay"] = 0
+				return
 			_skip_titles = true
-			var guard := 0
-			while _update_titles() and guard < 64:
-				guard += 1
+			AudioSfx.stop_title_fade()
+			var rest := 0
+			while _update_titles() and rest < 64:
+				rest += 1
 			set_mode(Mode.MAP)
 		Mode.MAP:
 			set_mode(Mode.MENU)
@@ -954,7 +969,8 @@ func _init_titles() -> void:
 	_add_title(86, 21, 150, 9, AnimType.ORIGIN, 1000, 100)
 	## After fixupIntro: PRESENT lives at (132,33) 56×5 (xu4 dest of copy)
 	_add_title(132, 33, 56, 5, AnimType.PRESENT, 0, 400)
-	_add_title(59, 33, 202, 46, AnimType.TITLE, 1000, 5000)
+	## Pixel scatter of "Ultima IV" — duration matches title_fade_c64.ogg.
+	_add_title(59, 33, 202, 46, AnimType.TITLE, 1000, _title_fade_duration_ms())
 	_add_title(40, 80, 240, 13, AnimType.SUBTITLE, 1000, 100)
 	_add_title(0, 96, 320, 96, AnimType.MAP, 1000, 100)
 	_build_title_sources()
@@ -1041,6 +1057,20 @@ func _blit_self(im: Image, dx: int, dy: int, sx: int, sy: int, w: int, h: int) -
 		return
 	var tmp := im.get_region(r)
 	im.blit_rect(tmp, Rect2i(0, 0, r.size.x, r.size.y), Vector2i(dx + (r.position.x - sx), dy + (r.position.y - sy)))
+
+
+func _title_index_of(method: int) -> int:
+	for i in _titles.size():
+		if int(_titles[i].get("method", -1)) == method:
+			return i
+	return -1
+
+
+func _title_fade_duration_ms() -> int:
+	var sec := AudioSfx.stream_length(AudioSfx.ID_TITLE_FADE)
+	if sec <= 0.0:
+		return 5000
+	return int(round(sec * 1000.0))
 
 
 func _add_title(x: int, y: int, w: int, h: int, method: int, delay_ms: int, duration_ms: int) -> void:
@@ -1188,6 +1218,9 @@ func _update_titles() -> bool:
 					dest.blit_rect(t["src"], Rect2i(0, src_y, t["rw"], h), Vector2i(1, 1))
 			t["anim_step"] = step
 		AnimType.TITLE:
+			if step == 0 and not _skip_titles and not _title_fade_started:
+				_title_fade_started = true
+				AudioSfx.play_title_fade()
 			step = target
 			dest.fill(Color(0, 0, 0, 0))
 			var plots: Array = t["plot"]

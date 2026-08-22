@@ -95,6 +95,7 @@ const SETTINGS_SECTION := "audio"
 var _streams: Dictionary = {} ## id → AudioStream
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_i := 0
+var _title_player: AudioStreamPlayer
 var _enabled := true
 ## Music volume minus 5% so SFX sits slightly under BGM (still audible at 10%).
 var _volume_linear := 0.55
@@ -104,6 +105,11 @@ var music: Node
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_pool()
+	_title_player = AudioStreamPlayer.new()
+	_title_player.name = "TitleFadePlayer"
+	_title_player.bus = "Master"
+	_title_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_title_player)
 	for id in FILES:
 		_load_stream(str(id), str(FILES[id]))
 	## Extra DOS cannon take (config.b uses the rFX conversion as SOUND_CANNON).
@@ -190,6 +196,38 @@ func set_volume_linear(v: float) -> void:
 
 func volume_linear() -> float:
 	return _volume_linear
+
+
+func play_title_fade() -> void:
+	## Dedicated player so the rotating SFX pool cannot steal the title fade.
+	if not _enabled:
+		return
+	if not _streams.has(ID_TITLE_FADE):
+		_load_stream(ID_TITLE_FADE, str(FILES.get(ID_TITLE_FADE, "title_fade_c64.ogg")))
+	var stream: Variant = _streams.get(ID_TITLE_FADE, null)
+	if stream == null or _title_player == null:
+		return
+	_title_player.stop()
+	_title_player.stream = stream as AudioStream
+	_title_player.play()
+
+
+func stop_title_fade() -> void:
+	if _title_player != null and _title_player.playing:
+		_title_player.stop()
+	stop_id(ID_TITLE_FADE)
+
+
+func stop_id(id: String) -> void:
+	var stream: Variant = _streams.get(id, null)
+	if stream == null:
+		return
+	for p in _pool:
+		if p.stream == stream and p.playing:
+			p.stop()
+	if id == ID_TITLE_FADE:
+		if _title_player != null and _title_player.playing:
+			_title_player.stop()
 
 
 func play_id(id: String) -> void:
@@ -443,10 +481,20 @@ func _sync_volume_from_music() -> void:
 		_volume_linear = maxf(0.0, float(music.volume_linear()) - 0.04)
 
 
+func _title_fade_linear() -> float:
+	## Title fade sits 10 percentage points above BGM (10% → 20%, 20% → 30%).
+	var music_lin := 0.6
+	if music and music.has_method("volume_linear"):
+		music_lin = float(music.volume_linear())
+	return clampf(music_lin + 0.10, 0.0, 1.0)
+
+
 func _apply_volume() -> void:
 	var db := linear_to_db(maxf(0.0001, _volume_linear))
 	for p in _pool:
 		p.volume_db = db
+	if _title_player != null:
+		_title_player.volume_db = linear_to_db(maxf(0.0001, _title_fade_linear()))
 
 
 func _load_settings() -> void:

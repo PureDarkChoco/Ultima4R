@@ -475,7 +475,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if _intro.mode == _IntroController.Mode.TITLES or _intro.mode == _IntroController.Mode.MAP:
-		if pressed_key or click or (joy and (event as InputEventJoypadButton).button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START]):
+		## Keyboard / confirm only — a focus click must not skip the title fade.
+		var joy_ok := joy and (event as InputEventJoypadButton).button_index in [
+			JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START
+		]
+		if pressed_key or joy_ok:
+			_intro.skip_titles_or_advance()
+			accept_event()
+		elif click and _intro.mode == _IntroController.Mode.MAP:
 			_intro.skip_titles_or_advance()
 			accept_event()
 		return
