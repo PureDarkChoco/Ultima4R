@@ -155,6 +155,8 @@ var _moongate_busy := false
 var _cannon_busy := false
 ## True while a dungeon falling-rock trap animation plays.
 var _dungeon_trap_busy := false
+## True while poison / fire / lava hits play one roster slot at a time.
+var _turn_fx_busy := false
 ## True while Search is pausing on "Searching..." (blocks move/commands).
 var _search_busy := false
 ## True while xu4 death sequence runs (blocks move/commands).
@@ -2705,7 +2707,7 @@ func _process(delta: float) -> void:
 	## xu4 timerFired still runs during menus; remake freezes the clock on gem view.
 	if _peer_overlay == null or not _peer_overlay.is_open():
 		_tick_world_clock(delta)
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
 		return
 	## Combat arena: no world cruise / auto-pass.
 	## Aim + victory free-roam poll held dirs (walk cadence). Turn move stays
@@ -3715,7 +3717,7 @@ func _can_open_command_menu() -> bool:
 	if _command_menu_open or _city_warp_open or _journal_focus_active or _enter_prompt_stage != 0:
 		return false
 	if (
-		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy or _turn_fx_busy
 		or _shrine_busy or _shrine_stage != 0 or _inn_stage != 0 or _codex_stage > 0
 	):
 		return false
@@ -6174,7 +6176,7 @@ func _handle_panel_toggle() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
 		_mark_input_handled()
 		return
 	if _city_warp_open:
@@ -6884,7 +6886,7 @@ func _can_open_city_warp() -> bool:
 	if _city_warp_open or _command_menu_open or _journal_focus_active or _enter_prompt_stage != 0:
 		return false
 	if (
-		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy or _turn_fx_busy
 		or _shrine_busy or _shrine_stage != 0 or _shrine_session or _inn_stage != 0
 	):
 		return false
@@ -14674,13 +14676,15 @@ func _finish_party_turn(in_combat: bool = false) -> void:
 
 func _run_party_turn_once(in_combat: bool = false) -> void:
 	var result: Dictionary = GameState.end_party_turn(true, in_combat)
-	if int(result.get("poisoned_mask", 0)) != 0:
-		AudioSfx.play_poison_damage()
+	var poison_flash := await _apply_poison_ticks_sequential(result.get("poison_slots", []))
+	var starve_mask := 0
+	if bool(result.get("starving", false)):
+		starve_mask = GameState.apply_starvation_tick()
 	## xu4 finishTurn: aura.passTurn after Party::endTurn (world turns).
 	if not in_combat:
 		GameState.pass_aura_turn()
 	## xu4: after endTurn, applyEffect from tile underfoot (skipped while flying / combat).
-	var ground_flash := 0 if in_combat else _apply_ground_tile_effect()
+	var ground_flash := 0 if in_combat else await _apply_ground_tile_effect()
 	## xu4 Map::moveObjects — town NPCs roam after the party acts.
 	if not in_combat:
 		await _move_city_persons()
@@ -14706,9 +14710,10 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 		if _transport != Transport.SHIP and _parked_ship_tile.x >= 0:
 			_store_ship_hull_at(_parked_ship_tile, GameState.ship_hull)
 		_refresh_ship_hull_hud()
-	var mask: int = int(result.get("damaged_mask", 0)) | ground_flash
-	if result.get("vitals_changed", false) or ground_flash != 0:
+	var mask: int = starve_mask
+	if result.get("vitals_changed", false) or ground_flash != 0 or poison_flash != 0 or starve_mask != 0:
 		_refresh_party()
+		## Poison / fire already flashed per slot. Starvation still hits together.
 		if mask != 0:
 			if _roster and _roster.has_method("flash_players"):
 				_roster.flash_players(mask)
@@ -15159,9 +15164,80 @@ func _apply_ground_tile_effect() -> int:
 			if ov >= 0:
 				tid = ov
 		effect = _TileRules.effect_of(tid)
+	if effect == _TileRules.Effect.FIRE or effect == _TileRules.Effect.LAVA:
+		return await _apply_fire_lava_hits_sequential(effect)
 	var flash := GameState.apply_tile_effect(effect)
 	_play_ground_effect_sfx(effect, flash)
 	return flash
+
+
+func _apply_poison_ticks_sequential(slots: Variant) -> int:
+	## Poison DoT: roster order, one hit + clip per member (not a shared flash).
+	var pending: Array[int] = []
+	for slot in slots:
+		var i := int(slot)
+		var mid := GameState.party_member_at(i)
+		if mid < 0 or GameState.is_class_dead(mid):
+			continue
+		if GameState.status_of_class(mid) != PartyRoster.Status.POISONED:
+			continue
+		pending.append(i)
+	return await _play_sequential_party_hits(pending, true, _TileRules.Effect.NONE)
+
+
+func _apply_fire_lava_hits_sequential(effect: int) -> int:
+	## Fire / lava under the party: every living member in roster order, with
+	## the Victory Esc gap so each hit has its own flash and clip.
+	var pending: Array[int] = []
+	for i in GameState.party_size():
+		var mid := GameState.party_member_at(i)
+		if mid < 0 or GameState.is_class_dead(mid):
+			continue
+		pending.append(i)
+	return await _play_sequential_party_hits(pending, false, effect)
+
+
+func _play_sequential_party_hits(slots: Array[int], is_poison: bool, fire_effect: int) -> int:
+	if slots.is_empty():
+		return 0
+	var flash := 0
+	_turn_fx_busy = true
+	for n in slots.size():
+		if n > 0:
+			await _await_party_hit_gap()
+		var i: int = slots[n]
+		var hit := 0
+		if is_poison:
+			var mid := GameState.party_member_at(i)
+			if mid >= 0 and GameState.apply_member_damage(mid, GameState.POISON_DAMAGE):
+				hit = 1 << i
+				AudioSfx.play_poison_damage()
+		else:
+			hit = GameState.apply_effect(fire_effect, i)
+			if hit != 0:
+				AudioSfx.play_fire_field()
+		if hit == 0:
+			continue
+		flash |= hit
+		_flash_party_slot(i)
+	_turn_fx_busy = false
+	return flash
+
+
+func _flash_party_slot(slot: int) -> void:
+	_refresh_party()
+	var mask := 1 << slot
+	if _roster and _roster.has_method("flash_players"):
+		_roster.flash_players(mask)
+	if _compact_roster and _compact_roster.has_method("flash_players"):
+		_compact_roster.flash_players(mask)
+
+
+func _await_party_hit_gap() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	await tree.create_timer(COMBAT_VICTORY_EXIT_GAP).timeout
 
 
 func _play_ground_effect_sfx(effect: int, flash: int) -> void:
@@ -15192,7 +15268,7 @@ func _can_auto_pass() -> bool:
 		return false
 	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return false
-	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active or _dungeon_trap_busy:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _combat_active or _dungeon_trap_busy or _turn_fx_busy:
 		return false
 	if _pending_cmd != U4Commands.Id.NONE:
 		return false
@@ -18269,7 +18345,7 @@ func _victory_finish_member_turn(after_flee: bool = false) -> void:
 		_map.set_combat_focus(next)
 
 	if wrapped:
-		_victory_apply_round_turn()
+		await _victory_apply_round_turn()
 	await _victory_seek_able_focus()
 	_victory_turn_pending = false
 
@@ -18331,15 +18407,17 @@ func _victory_seek_able_focus() -> void:
 				await get_tree().create_timer(IMMOBILIZED_SLEEP_SEC).timeout
 				if not _combat_active or not _combat_victory_aftermath:
 					return
-			_victory_apply_round_turn()
+			await _victory_apply_round_turn()
 
 
 func _victory_apply_round_turn() -> void:
 	## Advance food/status/moves without applying the dungeon corridor tile or
 	## moving corridor monsters while the party is still on the combat map.
 	var result: Dictionary = GameState.end_party_turn(false, false)
-	if int(result.get("poisoned_mask", 0)) != 0:
-		AudioSfx.play_poison_damage()
+	var poison_flash := await _apply_poison_ticks_sequential(result.get("poison_slots", []))
+	var starve_mask := 0
+	if bool(result.get("starving", false)):
+		starve_mask = GameState.apply_starvation_tick()
 	GameState.pass_aura_turn()
 	## Poison/starvation can kill during these real turns; dead units must not
 	## remain stranded on an arena that only living members can walk out of.
@@ -18353,14 +18431,13 @@ func _victory_apply_round_turn() -> void:
 		_refresh_inventory_bars()
 	if bool(result.get("starving", false)):
 		_push_message(Locale.t("cmd_starving"), false)
-	if bool(result.get("vitals_changed", false)):
+	if bool(result.get("vitals_changed", false)) or poison_flash != 0 or starve_mask != 0:
 		_refresh_party()
-		var mask := int(result.get("damaged_mask", 0))
-		if mask != 0:
+		if starve_mask != 0:
 			if _roster and _roster.has_method("flash_players"):
-				_roster.flash_players(mask)
+				_roster.flash_players(starve_mask)
 			if _compact_roster and _compact_roster.has_method("flash_players"):
-				_compact_roster.flash_players(mask)
+				_compact_roster.flash_players(starve_mask)
 
 
 func _is_key(k: InputEventKey, code: int) -> bool:
@@ -19925,7 +20002,7 @@ func _can_open_journal_focus() -> bool:
 	if _journal_focus_active or _command_menu_open or _city_warp_open or _enter_prompt_stage != 0:
 		return false
 	if (
-		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy
+		_death_busy or _moongate_busy or _cannon_busy or _search_busy or _dungeon_trap_busy or _turn_fx_busy
 		or _shrine_busy or _shrine_stage != 0 or _shrine_session or _inn_stage != 0
 	):
 		return false

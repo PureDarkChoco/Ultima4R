@@ -82,7 +82,7 @@ const FILES := {
 	ID_UI_TICK: "ui_tick.wav",
 	ID_FIZZLE: "fizzle.wav",
 	ID_IGNITE: "ignite.wav",
-	ID_FIRE_FIELD: "fire_field_walking.ogg",
+	ID_FIRE_FIELD: "poison_damage_dos.ogg",
 	ID_DOOR: "door.ogg",
 }
 
@@ -94,7 +94,8 @@ var _streams: Dictionary = {} ## id → AudioStream
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_i := 0
 var _enabled := true
-var _volume_linear := 0.7
+## Music volume minus 5% so SFX sits slightly under BGM (still audible at 10%).
+var _volume_linear := 0.55
 var music: Node
 
 
@@ -109,6 +110,7 @@ func _ready() -> void:
 	music.name = "Music"
 	add_child(music)
 	_load_settings()
+	_sync_volume_from_music()
 	_apply_volume()
 
 
@@ -145,6 +147,8 @@ func music_set_enabled(on: bool, persist: bool = true) -> void:
 func music_set_volume_percent(pct: int, persist: bool = true) -> void:
 	if music and music.has_method("set_volume_percent"):
 		music.set_volume_percent(pct, persist)
+	_sync_volume_from_music()
+	_apply_volume()
 
 
 func music_volume_percent() -> int:
@@ -169,6 +173,8 @@ func restore_pref() -> void:
 	_load_settings()
 	if music and music.has_method("restore_pref"):
 		music.restore_pref()
+	_sync_volume_from_music()
+	_apply_volume()
 
 
 func is_enabled() -> bool:
@@ -370,6 +376,11 @@ func _load_stream(id: String, filename: String) -> void:
 		_streams[id] = res
 	else:
 		push_warning("AudioSfx: not an AudioStream: %s" % path)
+
+
+func _sync_volume_from_music() -> void:
+	if music and music.has_method("volume_linear"):
+		_volume_linear = maxf(0.0, float(music.volume_linear()) - 0.05)
 
 
 func _apply_volume() -> void:

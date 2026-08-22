@@ -2908,7 +2908,7 @@ func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dicti
 
 	var old_disp := food_display()
 	var damaged_mask := 0
-	var poisoned_mask := 0
+	var poison_slots: Array[int] = []
 	var vitals_changed := false
 	var ship_hull_changed := false
 
@@ -2918,7 +2918,7 @@ func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dicti
 			"starving": food == 0,
 			"vitals_changed": false,
 			"damaged_mask": 0,
-			"poisoned_mask": 0,
+			"poison_slots": poison_slots,
 			"ship_hull_changed": false,
 		}
 
@@ -2938,21 +2938,11 @@ func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dicti
 				if (randi() % 5) == 0 and wake_member(mid):
 					vitals_changed = true
 			PartyRoster.Status.POISONED:
-				## xu4: 2 HP / turn; poison does not wear off on its own.
-				if apply_member_damage(mid, POISON_DAMAGE):
-					damaged_mask |= 1 << i
-					poisoned_mask |= 1 << i
-					vitals_changed = true
+				## Damage is applied one roster slot at a time in the world
+				## (sound + flash per member), not all at once.
+				poison_slots.append(i)
 	if regenerate_mp():
 		vitals_changed = true
-
-	## Starving after per-member status (xu4 emits STARVING after the loop).
-	if food == 0:
-		for i in party_size():
-			var mid2 := party_member_at(i)
-			if apply_member_damage(mid2, STARVE_DAMAGE):
-				damaged_mask |= 1 << i
-				vitals_changed = true
 
 	## World-map hull regen at half xu4 pace (12.5% / turn vs 25%).
 	if on_world_map and ship_hull < SHIP_HULL_MAX and (randi() % 8) == 0:
@@ -2962,11 +2952,22 @@ func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dicti
 	return {
 		"food_changed": food_display() != old_disp,
 		"starving": food == 0,
-		"vitals_changed": vitals_changed,
+		"vitals_changed": vitals_changed or not poison_slots.is_empty(),
 		"damaged_mask": damaged_mask,
-		"poisoned_mask": poisoned_mask,
+		"poison_slots": poison_slots,
 		"ship_hull_changed": ship_hull_changed,
 	}
+
+
+func apply_starvation_tick() -> int:
+	## xu4 emits STARVING after the per-member poison loop.
+	if food != 0:
+		return 0
+	var mask := 0
+	for i in party_size():
+		if apply_member_damage(party_member_at(i), STARVE_DAMAGE):
+			mask |= 1 << i
+	return mask
 
 
 func tick_world_clock(on_world_map: bool = true) -> bool:
