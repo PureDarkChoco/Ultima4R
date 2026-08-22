@@ -7588,7 +7588,7 @@ func _open_telescope_city(choice_index: int) -> void:
 		return
 	var tile_sz := _map.displayed_tile_size()
 	var portal := _WorldPortals.portal_for_fname(fname)
-	var loc := str(portal.get("name", fname.get_basename()))
+	var loc := _localized_portal_name(portal) if not portal.is_empty() else fname.get_basename()
 	_peer_overlay.open_peer_city(cmap, tile_sz, loc)
 	## Turn ends when the gem view is dismissed (_close_peer_overlay).
 
@@ -7619,7 +7619,7 @@ func _open_peer_view() -> bool:
 	if _is_in_city() and _city_map != null and _city_map.loaded:
 		var fname := str(_city_map.source_path).get_file()
 		var portal := _WorldPortals.portal_for_fname(fname)
-		var loc := str(portal.get("name", fname.get_basename()))
+		var loc := _localized_portal_name(portal) if not portal.is_empty() else fname.get_basename()
 		_peer_overlay.open_peer_city(_city_map, tile_sz, loc, _tile_pos)
 		return true
 	var loc := ""
@@ -21337,7 +21337,7 @@ func _tick_cursor(delta: float) -> void:
 	if _cursor_t < CURSOR_FRAME_SEC:
 		return
 	_cursor_t = 0.0
-	_cursor_frame = (_cursor_frame + 1) % _cursor_frames.size()
+	_cursor_frame = (_cursor_frame - 1 + _cursor_frames.size()) % _cursor_frames.size()
 	_apply_cursor_frame()
 
 

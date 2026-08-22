@@ -1055,7 +1055,7 @@ func _codex_city_block(gs: Node, show_mask: int) -> Control:
 		var moon_file := _moon_file_index(i) if moon_on else MOON_NEW_FILE
 		moons.add_child(_codex_icon_cell(MOON_PHASE_PATH % moon_file))
 		var place := str(_WorldPortals.JOURNAL_TOWNS[i])
-		names.add_child(_codex_text_cell(_WorldPortals.town_abbrev(place)))
+		names.add_child(_codex_text_cell(Locale.place(place)))
 	wrap.add_child(moons)
 	wrap.add_child(names)
 	return wrap
