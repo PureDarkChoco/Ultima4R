@@ -160,7 +160,7 @@ Ultima, Ultima IV, Britannia, Origin Systems 및 관련 명칭과 자산의 권�
 xu4
 
 게임 규칙, 파일 형식 및 구현을 이해하기 위해 xu4 소스 코드와 문서를 참고했습니다.
-효과음은 xu4 Ultima-IV 모듈의 소리를 사용합니다.
+효과음 파일은 xu4에서 가져와 사용합니다.
 https://github.com/xu4-engine/u4
 
 xu4는 GNU General Public License version 3(GPL-3.0)으로 배포됩니다.
@@ -228,7 +228,7 @@ Ultima, Ultima IV, Britannia, Origin Systems, and related names and assets belon
 xu4
 
 xu4 source code and documentation were consulted to understand game rules, file formats, and implementation details.
-Sound effects are taken from the xu4 Ultima-IV module.
+Sound-effect files are taken from xu4.
 https://github.com/xu4-engine/u4
 
 xu4 is distributed under the GNU General Public License version 3 (GPL-3.0).
