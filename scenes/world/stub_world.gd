@@ -407,6 +407,9 @@ var _command_menu_scroll_thumb: ColorRect
 var _command_menu_scroll_up: Label
 var _command_menu_scroll_down: Label
 var _command_menu_rows: Array[ColorRect] = []
+const COMMAND_MENU_UNFOLD_SEC := 0.14
+var _command_menu_reveal := 1.0
+var _command_menu_tween: Tween
 ## LOCAL CHEAT (⌘/Ctrl+P) — city warp list. Do not commit.
 var _city_warp_open := false
 ## Cmd/Ctrl+J: browse the left-pane journal; Esc restores prior side-panel state.
@@ -1477,6 +1480,82 @@ func _ensure_command_menu_scroll_nodes() -> void:
 		_command_menu_layer.add_child(_command_menu_scroll_down)
 
 
+func _show_command_menu_layer(animate: bool = true) -> void:
+	_ensure_command_menu_layer()
+	if _command_menu_layer == null:
+		return
+	var was_visible := _command_menu_layer.visible
+	var was_partly_revealed := _command_menu_reveal < 1.0
+	_command_menu_layer.visible = true
+	_command_menu_layer.move_to_front()
+	_layout_command_menu_layer()
+	if animate and (not was_visible or was_partly_revealed):
+		_play_command_menu_unfold()
+	else:
+		_reset_command_menu_reveal(false)
+
+
+func _play_command_menu_unfold() -> void:
+	if _command_menu_tween != null and is_instance_valid(_command_menu_tween):
+		_command_menu_tween.kill()
+	var from := _command_menu_reveal if _command_menu_layer.visible else 0.0
+	if from >= 1.0:
+		from = 0.0
+	_command_menu_reveal = from
+	_layout_command_menu_layer()
+	_command_menu_tween = create_tween()
+	_command_menu_tween.tween_method(
+		_set_command_menu_reveal,
+		from,
+		1.0,
+		maxf(COMMAND_MENU_UNFOLD_SEC * (1.0 - from), 0.01)
+	) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _hide_command_menu_layer(animate: bool = true) -> void:
+	if _command_menu_layer == null or not _command_menu_layer.visible:
+		_reset_command_menu_reveal(false)
+		return
+	if _command_menu_tween != null and is_instance_valid(_command_menu_tween):
+		_command_menu_tween.kill()
+	if not animate or not is_inside_tree():
+		_command_menu_layer.visible = false
+		_command_menu_reveal = 1.0
+		_command_menu_tween = null
+		return
+	var from := _command_menu_reveal
+	_command_menu_tween = create_tween()
+	_command_menu_tween.tween_method(
+		_set_command_menu_reveal,
+		from,
+		0.0,
+		maxf(COMMAND_MENU_UNFOLD_SEC * from, 0.01)
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	_command_menu_tween.tween_callback(_finish_hiding_command_menu_layer)
+
+
+func _finish_hiding_command_menu_layer() -> void:
+	if _command_menu_layer != null:
+		_command_menu_layer.visible = false
+	_command_menu_reveal = 1.0
+	_command_menu_tween = null
+
+
+func _set_command_menu_reveal(v: float) -> void:
+	_command_menu_reveal = clampf(v, 0.0, 1.0)
+	_layout_command_menu_layer()
+
+
+func _reset_command_menu_reveal(relayout: bool = true) -> void:
+	if _command_menu_tween != null and is_instance_valid(_command_menu_tween):
+		_command_menu_tween.kill()
+		_command_menu_tween = null
+	_command_menu_reveal = 1.0
+	if relayout:
+		_layout_command_menu_layer()
+
+
 func _command_menu_scroll_metrics() -> Dictionary:
 	## Shared by keyword / city-warp lists that window into MSG_OPEN_LINES.
 	var total := 0
@@ -1623,18 +1702,21 @@ func _layout_command_menu_layer() -> void:
 	var menu_x := dialogue_x - gap - menu_w
 	menu_x = clampf(menu_x, menu_margin, maxf(pane_size.x - menu_w, 0.0))
 	_command_menu_layer.position = Vector2(menu_x, dialogue_y)
-	_command_menu_layer.size = Vector2(menu_w, menu_h)
+	var reveal_h := menu_h * _command_menu_reveal
+	_command_menu_layer.size = Vector2(menu_w, reveal_h)
 	_command_menu_layer.custom_minimum_size = Vector2.ZERO
 	if _command_menu_backdrop != null:
 		_command_menu_backdrop.position = Vector2.ZERO
-		_command_menu_backdrop.size = _command_menu_layer.size
+		_command_menu_backdrop.size = Vector2(menu_w, reveal_h)
 	if _command_menu_frame != null:
 		_command_menu_frame.position = Vector2.ZERO
-		_command_menu_frame.size = _command_menu_layer.size
+		_command_menu_frame.size = Vector2(menu_w, reveal_h)
 		_command_menu_frame.move_to_front()
 	if _command_menu_separator != null:
-		_command_menu_separator.visible = count > 0 and count < MSG_OPEN_LINES
-		_command_menu_separator.position = Vector2(0, maxf(menu_h - 1.0, 0.0))
+		_command_menu_separator.visible = (
+			count > 0 and count < MSG_OPEN_LINES and _command_menu_reveal >= 1.0
+		)
+		_command_menu_separator.position = Vector2(0, maxf(reveal_h - 1.0, 0.0))
 		_command_menu_separator.size = Vector2(menu_w, 1)
 		_command_menu_separator.move_to_front()
 	var scroll_info := _command_menu_scroll_metrics()
@@ -1681,7 +1763,16 @@ func _layout_command_menu_layer() -> void:
 		if edge != null:
 			UiTheme.layout_selection_edge(edge, row_w, pitch, font_sz)
 			UiTheme.set_selection_edge_active(edge, i == selected_cursor)
-	_layout_command_menu_scroll_chrome(menu_w, menu_h, pitch, font_sz, scroll_info)
+	if _command_menu_reveal >= 1.0:
+		_layout_command_menu_scroll_chrome(menu_w, menu_h, pitch, font_sz, scroll_info)
+	elif _command_menu_scroll_track != null:
+		_command_menu_scroll_track.visible = false
+		if _command_menu_scroll_thumb != null:
+			_command_menu_scroll_thumb.visible = false
+		if _command_menu_scroll_up != null:
+			_command_menu_scroll_up.visible = false
+		if _command_menu_scroll_down != null:
+			_command_menu_scroll_down.visible = false
 
 
 func _layout_command_menu_scroll_chrome(
@@ -3863,10 +3954,7 @@ func _open_command_menu() -> void:
 	_reset_hold_state()
 	_block_dir_until_keyup = true
 	_rebuild_command_menu_rows()
-	if _command_menu_layer != null:
-		_command_menu_layer.visible = true
-		_command_menu_layer.move_to_front()
-	_layout_command_menu_layer()
+	_show_command_menu_layer(true)
 
 
 func _close_command_menu() -> void:
@@ -3879,8 +3967,7 @@ func _close_command_menu() -> void:
 	):
 		_command_menu_last_cmd = _command_menu_items[_command_menu_cursor]
 	_command_menu_open = false
-	if _command_menu_layer != null:
-		_command_menu_layer.visible = false
+	_hide_command_menu_layer(true)
 	_command_menu_items.clear()
 	_command_menu_cursor = 0
 	_reset_hold_state()
@@ -4287,7 +4374,7 @@ func _end_talk_keyword_menu() -> void:
 	_talk_keyword_menu_seen.clear()
 	_reset_hold_state()
 	if _command_menu_layer != null and not _command_menu_open:
-		_command_menu_layer.visible = false
+		_hide_command_menu_layer(true)
 
 
 func _talk_reagent_keyword_items() -> Array[Dictionary]:
@@ -4464,10 +4551,11 @@ func _sync_talk_keyword_menu_visibility() -> void:
 	_ensure_command_menu_layer()
 	if _command_menu_layer == null:
 		return
-	_command_menu_layer.visible = _talk_keyword_menu_can_select()
-	if _command_menu_layer.visible:
-		_command_menu_layer.move_to_front()
-		_layout_command_menu_layer()
+	var show := _talk_keyword_menu_can_select()
+	if show:
+		_show_command_menu_layer(true)
+	else:
+		_hide_command_menu_layer(true)
 
 
 func _discover_talk_keywords(text: String) -> void:
@@ -7159,7 +7247,18 @@ func _is_option_alt_key(event: InputEvent) -> bool:
 	var k := event as InputEventKey
 	if not k.pressed or k.echo:
 		return false
-	return k.keycode == KEY_ALT or k.physical_keycode == KEY_ALT
+	if (
+		k.keycode == KEY_ALT or k.physical_keycode == KEY_ALT
+		or k.key_label == KEY_ALT
+	):
+		return true
+	## Some macOS layouts/IMEs expose a bare Option press only as a modifier.
+	## Restrict the fallback to a keyless event so Option+letter stays untouched.
+	return (
+		k.alt_pressed and not k.ctrl_pressed and not k.meta_pressed
+		and not k.shift_pressed and k.unicode == 0
+		and k.keycode == KEY_NONE and k.physical_keycode == KEY_NONE
+	)
 
 
 func _try_toggle_pad_select_ui(event: InputEvent) -> bool:
@@ -7315,10 +7414,7 @@ func _open_city_warp() -> void:
 	_reset_hold_state()
 	_block_dir_until_keyup = true
 	_rebuild_command_menu_rows()
-	if _command_menu_layer != null:
-		_command_menu_layer.visible = true
-		_command_menu_layer.move_to_front()
-	_layout_command_menu_layer()
+	_show_command_menu_layer(true)
 
 
 func _close_city_warp() -> void:
@@ -7329,7 +7425,7 @@ func _close_city_warp() -> void:
 	_city_warp_scroll = 0
 	_city_warp_items.clear()
 	if _command_menu_layer != null and not _command_menu_open and not _talk_keyword_menu_active:
-		_command_menu_layer.visible = false
+		_hide_command_menu_layer(true)
 	_reset_hold_state()
 	_block_dir_until_keyup = true
 	grab_focus()
@@ -13907,10 +14003,7 @@ func _open_abyss_altar_choice_menu() -> void:
 	_abyss_altar_buffer = ""
 	_reset_hold_state()
 	_rebuild_command_menu_rows()
-	if _command_menu_layer != null:
-		_command_menu_layer.visible = true
-		_command_menu_layer.move_to_front()
-	_layout_command_menu_layer()
+	_show_command_menu_layer(true)
 	_layout_prompt_row()
 
 
@@ -13926,7 +14019,7 @@ func _close_abyss_altar_choice_menu() -> void:
 		and not _city_warp_open
 		and not _codex_choice_active
 	):
-		_command_menu_layer.visible = false
+		_hide_command_menu_layer(true)
 
 
 func _toggle_abyss_altar_choice_menu() -> void:
@@ -14201,10 +14294,7 @@ func _open_codex_choice_menu() -> void:
 	_codex_choice_cursor = 0
 	_reset_hold_state()
 	_rebuild_command_menu_rows()
-	if _command_menu_layer != null:
-		_command_menu_layer.visible = true
-		_command_menu_layer.move_to_front()
-	_layout_command_menu_layer()
+	_show_command_menu_layer(true)
 	_layout_prompt_row()
 
 
@@ -14220,7 +14310,7 @@ func _close_codex_choice_menu() -> void:
 		and not _city_warp_open
 		and not _abyss_altar_choice_active
 	):
-		_command_menu_layer.visible = false
+		_hide_command_menu_layer(true)
 
 
 func _toggle_codex_choice_menu() -> void:
