@@ -211,9 +211,9 @@
       "goal": "ask:zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
       "en": "Ask Zircon about the weapons in {minoc}.",
-      "ko": "{minoc}의 지르콘에게 무기에 대해 묻기",
+      "ko": "{minoc}의 지르콘에게 신비의 무기에 대해 묻기",
       "en_u4": "Ask Zircon of the mystic arms in {minoc}.",
-      "en_us": "Ask Zircon about the weapons in {minoc}."
+      "en_us": "Ask Zircon about the mystic weapons in {minoc}."
     },
     {
       "id": "lcb.lord-british.eight-virtues",
@@ -418,22 +418,34 @@
       "en_us": "Virtue: Humility"
     },
     {
-      "id": "minoc.zircon.ask-mystics",
+      "id": "minoc.zircon.ask-mystic-weapons",
       "place": "minoc",
       "npc": "Zircon",
       "topic": "SEED",
       "goal": "ask:zircon-mystics",
-      "seed_if_recorded": [
-        "lcb.seesha.zircon-mystics",
-        "lycaeum.scatu.zircon-mystics"
-      ],
+      "seed_if_recorded": "lcb.seesha.zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
-      "en": "Ask Zircon about the mystic arms.",
-      "ko": "지르콘에게 신비의 무기에 대해 묻기",
-      "en_u4": "Ask Zircon of the mystic arms.",
-      "en_us": "Ask Zircon about the mystic arms.",
+      "en": "Ask Zircon about the mystic weapons.",
+      "ko": "신비의 무기에 대해 묻기",
+      "en_u4": "Ask Zircon of the mystic weapons.",
+      "en_us": "Ask Zircon about the mystic weapons.",
       "chain": "minoc.zircon-mystics",
       "chain_order": 5
+    },
+    {
+      "id": "minoc.zircon.ask-mystic-armor",
+      "place": "minoc",
+      "npc": "Zircon",
+      "topic": "SEED",
+      "goal": "ask:zircon-mystics",
+      "seed_if_recorded": "lycaeum.scatu.zircon-mystics",
+      "complete_if_recorded": "minoc.zircon.mystic-arms",
+      "en": "Ask Zircon about the mystic armour.",
+      "ko": "신비의 갑옷에 대해 묻기",
+      "en_u4": "Ask Zircon of the mystic armour.",
+      "en_us": "Ask Zircon about the mystic armour.",
+      "chain": "minoc.zircon-mystics",
+      "chain_order": 6
     },
     {
       "id": "minoc.zircon.mystic-arms",
@@ -2654,9 +2666,9 @@
       "goal": "ask:zircon-mystics",
       "complete_if_recorded": "minoc.zircon.mystic-arms",
       "en": "When you are eight parts Avatar, ask Zircon about the mystics in {minoc}.",
-      "ko": "아바타 여덟 부분이 되면 {minoc}의 지르콘에게 신비에 대해 묻기",
-      "en_u4": "When eight parts Avatar, ask Zircon of the mystics in {minoc}.",
-      "en_us": "When you are eight parts Avatar, ask Zircon about the mystics in {minoc}."
+      "ko": "여덟 미덕을 모두 이룬 뒤 {minoc}의 지르콘에게 신비의 갑옷에 대해 묻기",
+      "en_u4": "When eight parts Avatar, ask Zircon of the mystic armour in {minoc}.",
+      "en_us": "When you have mastered all eight virtues, ask Zircon about mystic armour in {minoc}."
     },
     {
       "id": "lycaeum.tymus.altar-stones",
@@ -2740,6 +2752,58 @@
       "ko": "{yew}의 판사에게 묻기",
       "en_u4": "Ask the judge in {yew}.",
       "en_us": "Ask the judge in {yew}."
+    },
+    {
+      "id": "lycaeum.zajac.chuckles-clue",
+      "place": "lycaeum",
+      "npc": "Zajac",
+      "topic": "UNHA_YES",
+      "goal": "ask:chuckles-clue",
+      "complete_if_recorded": "lcb.chuckles.clue",
+      "en": "Ask Chuckles about the clue at {lcb}.",
+      "ko": "{lcb}의 처클스에게 단서를 물어보기",
+      "en_u4": "Ask Chuckles of his clue at {lcb}.",
+      "en_us": "Ask Chuckles about the clue at {lcb}."
+    },
+    {
+      "id": "lycaeum.zajac.chuckles-clue",
+      "place": "lycaeum",
+      "npc": "Zajac",
+      "topic": "UNHA_NO",
+      "goal": "ask:chuckles-clue",
+      "complete_if_recorded": "lcb.chuckles.clue",
+      "en": "Ask Chuckles about the clue at {lcb}.",
+      "ko": "{lcb}의 처클스에게 단서를 물어보기",
+      "en_u4": "Ask Chuckles of his clue at {lcb}.",
+      "en_us": "Ask Chuckles about the clue at {lcb}."
+    },
+    {
+      "id": "lcb.chuckles.ask-clue",
+      "place": "lcb",
+      "npc": "Chuckles",
+      "topic": "SEED",
+      "goal": "ask:chuckles-clue",
+      "seed_if_recorded": "lycaeum.zajac.chuckles-clue",
+      "complete_if_recorded": "lcb.chuckles.clue",
+      "en": "Ask Chuckles about the clue.",
+      "ko": "처클스에게 단서를 물어보기",
+      "en_u4": "Ask Chuckles of his clue.",
+      "en_us": "Ask Chuckles about the clue.",
+      "chain": "lcb.chuckles-clue",
+      "chain_order": 5
+    },
+    {
+      "id": "lcb.chuckles.clue",
+      "place": "lcb",
+      "npc": "Chuckles",
+      "topic": "CLUE",
+      "chain": "lcb.chuckles-clue",
+      "chain_order": 10,
+      "goal": "",
+      "en": "Speak to the waters of the well and ask of altars.",
+      "ko": "우물물에 말하며 제단에 대해 묻기",
+      "en_u4": "Speak ye unto the waters of the well and ask of altars!",
+      "en_us": "Speak to the waters of the well and ask of altars."
     },
     {
       "id": "serpent.sentri.word-cor",

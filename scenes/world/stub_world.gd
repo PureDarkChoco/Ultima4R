@@ -4845,6 +4845,13 @@ func _talk_keyword_menu_intro_default_key() -> String:
 			"신비" if GameState.lang_short() == "ko" else "mystic"
 		)
 	elif (
+		str(entry.name).strip_edges().to_lower() == "chuckles"
+		and GameState.journal_has_id("lycaeum.zajac.chuckles-clue")
+	):
+		default_key = _talk_keyword_stable_key(
+			"단서" if GameState.lang_short() == "ko" else "clue"
+		)
+	elif (
 		str(entry.name).strip_edges().to_lower() == "pepper"
 		and GameState.journal_has_id("britain.sprite.pepper-rune")
 	):
@@ -5790,6 +5797,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_sacrifice_mantra_chain_keyword()
 	_maybe_offer_antos_relic_keyword()
 	_maybe_offer_zircon_mystic_keyword()
+	_maybe_offer_lcb_chain_keyword()
 	_maybe_offer_britain_chain_keyword()
 	_maybe_offer_moonglow_chain_keyword()
 	_maybe_offer_jhelom_chain_keyword()
@@ -5800,6 +5808,32 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_paws_chain_keyword()
 	_maybe_offer_cove_chain_keyword()
 	_maybe_offer_keep_chain_keyword()
+
+
+func _maybe_offer_lcb_chain_keyword() -> void:
+	## Castle Britannia follow-up keywords from directed journal tips.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "lcb":
+		return
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "chuckles"
+		and (
+			GameState.journal_has_id("lycaeum.zajac.chuckles-clue")
+			or GameState.journal_has_id("lcb.chuckles.ask-clue")
+			or GameState.journal_has_id("lcb.chuckles.clue")
+		)
+	):
+		var clue_key := _talk_keyword_stable_key(
+			"단서" if korean else "clue"
+		)
+		_offer_talk_keyword_item(
+			clue_key,
+			"단서" if korean else "Clue",
+			"단서" if korean else "clue"
+		)
 
 
 func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
@@ -17685,6 +17719,15 @@ func _talk_answer_yn(yes: bool) -> void:
 	):
 		if GameState.journal_try_capture_talk("lycaeum", "Estro", "JUST_NO"):
 			journal_changed = true
+	## Zajac (Lycaeum): Yes/No after Unhappy both point to Chuckles and his clue.
+	if (
+		place_id == "lycaeum"
+		and npc_key == "zajac"
+		and topic2 == "UNHA"
+	):
+		var zajac_topic := "UNHA_YES" if yes else "UNHA_NO"
+		if GameState.journal_try_capture_talk("lycaeum", "Zajac", zajac_topic):
+			journal_changed = true
 	if (
 		not yes
 		and place_id == "serpent"
@@ -20693,6 +20736,14 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_goal("ask:antos-book"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:antos-relics"):
+			refresh = true
+	## Zajac → Chuckles: asking about the clue completes the Lycaeum tip.
+	elif place == "lcb" and npc_key == "chuckles" and topic == "CLUE":
+		if GameState.journal_mark_id("lycaeum.zajac.chuckles-clue"):
+			refresh = true
+		if GameState.journal_mark_id("lcb.chuckles.ask-clue"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:chuckles-clue"):
 			refresh = true
 	elif place == "empath" and npc_key == "brother antos" and topic == "CAND":
 		if GameState.journal_mark_id("lcb.zorin.antos-candle"):
