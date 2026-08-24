@@ -1517,6 +1517,20 @@
       "en_us": "Virtue: Spirituality"
     },
     {
+      "id": "lcb.guard.spirituality-rune",
+      "place": "lcb",
+      "npc": "a guard",
+      "topic": "SEED",
+      "requires_recorded": "skara.ankh.spirituality-rune",
+      "goal": "rune:spirituality",
+      "speaker_en": "a guard",
+      "speaker_ko": "보물 경비",
+      "en": "Search for the Spirituality rune in the castle treasure chamber.",
+      "ko": "성 보물창고에서 영성의 룬 찾기",
+      "en_u4": "Search for the rune of spirituality in the treasure chamber of Britannia!",
+      "en_us": "Search for the Spirituality rune in the castle treasure chamber."
+    },
+    {
       "id": "skara.granted.ankh-rune",
       "place": "skara",
       "npc": "Granted",
@@ -1541,10 +1555,10 @@
       "goal": "rune:spirituality",
       "speaker_en": "the Ankh of Spirituality",
       "speaker_ko": "영성의 앙크",
-      "en": "Search for the rune in the treasure chamber of Britannia.",
-      "ko": "브리타니아 보물창고에서 룬 찾기",
-      "en_u4": "Search for the rune in the treasure chamber of Britannia.",
-      "en_us": "Search for the rune in the treasure chamber of Britannia."
+      "en": "Search for the Spirituality rune.",
+      "ko": "영성의 룬 찾기",
+      "en_u4": "Search for the rune of spirituality!",
+      "en_us": "Search for the Spirituality rune."
     },
     {
       "id": "skara.ankh.full-moon-shrine",

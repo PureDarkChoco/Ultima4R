@@ -207,12 +207,12 @@
         "no": "그럼 영성주의자로군!",
         "topic1": "음식",
         "topic1_aliases": [
-          "food"
+          "food",
+          "cook",
+          "요리"
         ],
-        "topic2": "요리",
-        "topic2_aliases": [
-          "cook"
-        ]
+        "topic2": "",
+        "topic2_aliases": []
       }
     },
     {

@@ -3540,6 +3540,14 @@ func _command_menu_on_city_portal(action: int) -> bool:
 	return not _CityFloorPortals.portal_at(fname, _tile_pos, action).is_empty()
 
 
+func _command_menu_on_city_dungeon_portal(action: int) -> bool:
+	## Castle Britannia → Hythloth (lcb_1) uses DungeonPortals.CITY, not floor ladders.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return false
+	var fname := str(_city_map.source_path).get_file()
+	return not _DungeonPortals.city_portal_at(fname, _tile_pos, action).is_empty()
+
+
 func _command_menu_can_show(cmd: int) -> bool:
 	var in_combat := _combat_active
 	var in_city := _is_in_city() and not in_combat
@@ -3577,6 +3585,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 		U4Commands.Id.DESCEND:
 			return noncombat and (
 				_command_menu_on_city_portal(_CityFloorPortals.Action.DESCEND)
+				or _command_menu_on_city_dungeon_portal(_CityFloorPortals.Action.DESCEND)
 				or _dungeon_can_descend()
 			)
 		U4Commands.Id.ENTER:
@@ -5850,6 +5859,25 @@ func _maybe_offer_lcb_chain_keyword() -> void:
 			"제단" if korean else "Altar",
 			"제단" if korean else "altar"
 		)
+
+
+func _talk_npc_is_lcb_treasure_guard(entry: Variant = null) -> bool:
+	var e := entry if entry != null else _talk_entry
+	if e == null:
+		return false
+	return (
+		str(e.name).strip_edges().to_lower() == "a guard"
+		and str(e.topic2).strip_edges().to_upper() == "TREA"
+	)
+
+
+func _maybe_journal_lcb_treasure_guard_spirituality_rune(entry: Variant) -> bool:
+	## Skara Ankh treasure-chamber clue → LCB journal row when you meet the guard.
+	if not _talk_npc_is_lcb_treasure_guard(entry):
+		return false
+	if not GameState.journal_has_id("skara.ankh.spirituality-rune"):
+		return false
+	return GameState.journal_try_capture_talk("lcb", "a guard", "SEED")
 
 
 func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
@@ -16534,6 +16562,8 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	## Classic xu4: half the time the NPC gives their name unprompted.
 	if (randi() % 2) != 0:
 		_talk_say_name()
+	if _maybe_journal_lcb_treasure_guard_spirituality_rune(entry):
+		_refresh_journal_panel()
 	if _talk_keyword_menu_active:
 		_talk_keyword_menu_apply_intro_default()
 		_layout_command_menu_layer()
