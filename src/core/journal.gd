@@ -602,6 +602,8 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		changed = true
 	if _migrate_magincia_nate_rune_first_heard(gs):
 		changed = true
+	if _migrate_remove_lcb_water_ask_altars(gs):
+		changed = true
 	if seed_referral_rows(gs, false):
 		changed = true
 	return changed
@@ -709,6 +711,11 @@ static func _migrate_magincia_nate_rune_first_heard(gs: Node) -> bool:
 	return true
 
 
+static func _migrate_remove_lcb_water_ask_altars(gs: Node) -> bool:
+	## Same-city duplicate removed from catalog; drop stale save rows.
+	return _remove_entry_id(gs, "lcb.water.ask-altars")
+
+
 static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dictionary) -> bool:
 	## Search / ask tips must stay pending until the action. Old complete-on-record
 	## rows (empty stored goal) are migrated to the catalog goal.
@@ -793,6 +800,11 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "enter:hythloth-castle":
 		## Descended into Hythloth from Castle Britannia (secret entrance).
 		return bool(gs.journal_hythloth_castle)
+	if g == "enter:magincia":
+		var mag_i := _WorldPortals.town_moon_index("magincia")
+		return mag_i >= 0 and (int(gs.journal_known_cities) & (1 << mag_i)) != 0
+	if g == "search:skull":
+		return gs.has_item_flag(gs.ITEM_SKULL) or gs.has_item_flag(gs.ITEM_SKULL_DESTROYED)
 	## talk:first-note / combat:first / shrine:* complete only when the event fires.
 	## mantra:* is a shrine fallback for ask-tips (complete_on_goal), not a pending knowledge goal.
 	return false
@@ -1026,6 +1038,13 @@ static func entry_text(row: Dictionary, lang: String, gs: Node = null) -> String
 	## Catalog wording is authoritative so corrected clues also update old saves.
 	## Upgraded rows use *_upgraded keys when present.
 	var cat := find_catalog_by_id(str(row.get("id", "")))
+	var entry_id := str(row.get("id", ""))
+	if entry_id == "lcb.shawn.magincia-ruins" and not cat.is_empty():
+		var text := _shawn_magincia_ruins_text(cat, lang, gs)
+		var suffix := _progress_suffix(row, cat, gs)
+		if suffix.is_empty():
+			return text
+		return "%s (%s)" % [text, suffix]
 	var upgraded := bool(row.get("upgraded", false))
 	var keys: Array[String] = []
 	if lang == "ko":
@@ -1055,6 +1074,39 @@ static func entry_text(row: Dictionary, lang: String, gs: Node = null) -> String
 	if suffix.is_empty():
 		return text
 	return "%s (%s)" % [text, suffix]
+
+
+static func _shawn_magincia_name_unlocked(gs: Node) -> bool:
+	## Collection page 2: humility virtue and Magincia town both revealed.
+	if gs == null:
+		return false
+	if (int(gs.journal_known_virtues) & (1 << _Virtues.Id.HUMILITY)) == 0:
+		return false
+	var mag_i := _WorldPortals.town_moon_index("magincia")
+	if mag_i < 0:
+		return false
+	return (int(gs.journal_known_cities) & (1 << mag_i)) != 0
+
+
+static func _shawn_magincia_ruins_text(cat: Dictionary, lang: String, gs: Node) -> String:
+	var named := _shawn_magincia_name_unlocked(gs)
+	if lang == "ko":
+		if named:
+			return str(cat.get("ko_upgraded", "마진시아 폐허: 위도 K'J\" 경도 L'L\""))
+		return str(cat.get("ko", "자만의 도시 폐허: 위도 K'J\" 경도 L'L\""))
+	if lang == "en_u4":
+		if named:
+			return str(cat.get(
+				"en_u4_upgraded",
+				"The ruins of Magincia lie on an isle at lat-K'J\" long-L'L\"!"
+			))
+		return str(cat.get(
+			"en_u4",
+			"The ruins of a proud city lie on an isle at lat-K'J\" long-L'L\"!"
+		))
+	if named:
+		return str(cat.get("en_us_upgraded", "Magincia ruins: lat-K'J\" long-L'L\"."))
+	return str(cat.get("en_us", "Proud city's ruins: lat-K'J\" long-L'L\"."))
 
 
 static func entry_speaker(row: Dictionary, lang: String) -> String:

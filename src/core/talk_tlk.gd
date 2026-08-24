@@ -568,6 +568,12 @@ static func should_ask_after(entry: Entry, kind: int) -> bool:
 		and kind == REPLY_TOPIC2
 	):
 		return true
+	if (
+		entry != null
+		and str(entry.name).strip_edges().to_lower() == "shawn"
+		and kind == REPLY_TOPIC2
+	):
+		return true
 	match kind:
 		REPLY_JOB:
 			return entry.ask_after == QT_JOB

@@ -406,6 +406,7 @@
       "no": "My towne was\ndestroyed for\nits pride. The\nruins lie on an\nisle at lat-K'J\"\nlong-L'L\"!",
       "topic1": "WATE",
       "topic2": "PEAC",
+      "ask_after": 6,
       "ko": {
         "name": "숀",
         "pronoun": "그녀",
@@ -485,7 +486,7 @@
         "job": "왕실 광대요.",
         "health": "고맙소,\n좋소.",
         "response1": "{lcb}에\n오신 것을\n환영하오!",
-        "response2": "우물물에 말하며\n제단에 대해\n물으시오!",
+        "response2": "성 우물의 물에\n말을 걸어\n제단에 대해\n물어보시오!",
         "question": "앙크가\n있소?",
         "yes": "평안히\n들어오시오!",
         "no": "그럼 왜\n왔소?",

@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; the same ask:* goal completes both.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; the same ask:* goal completes both.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -550,6 +550,19 @@
       "ko": "알케리온에게 희생의 돌에 대해 묻기",
       "en_u4": "Ask Alkerion of the stone of Sacrifice.",
       "en_us": "Ask Alkerion about the stone of Sacrifice."
+    },
+    {
+      "id": "minoc.jude.skull-location",
+      "place": "minoc",
+      "npc": "Jude",
+      "topic": "SKUL_YES",
+      "goal": "search:skull",
+      "speaker_en": "Jude",
+      "speaker_ko": "주드",
+      "en": "Skull of Mondain: search at lat-P'F\" long-M'F\" on the darkest night.",
+      "ko": "몬데인의 해골: 가장 어두운 밤, 위도 P'F\" 경도 M'F\"에서 찾기",
+      "en_u4": "It can be found at lat-P'F\" long-M'F\" on the darkest night!",
+      "en_us": "Skull of Mondain: search at lat-P'F\" long-M'F\" on the darkest night."
     },
     {
       "id": "minoc.alkerion.sacrifice-stone",
@@ -2799,11 +2812,58 @@
       "topic": "CLUE",
       "chain": "lcb.chuckles-clue",
       "chain_order": 10,
+      "goal": "ask:water-altars",
+      "complete_if_recorded": "lcb.water.altar-rooms",
+      "en": "Speak to the castle well and ask about altars.",
+      "ko": "성 우물에 말을 걸어 제단에 대해 묻기",
+      "en_u4": "Speak ye unto the waters of the castle well and ask of altars!",
+      "en_us": "Speak to the castle well and ask about altars."
+    },
+    {
+      "id": "lcb.water.altar-rooms",
+      "place": "lcb",
+      "npc": "Water",
+      "topic": "ALTA",
+      "chain": "lcb.chuckles-clue",
+      "chain_order": 20,
       "goal": "",
-      "en": "Speak to the waters of the well and ask of altars.",
-      "ko": "우물물에 말하며 제단에 대해 묻기",
-      "en_u4": "Speak ye unto the waters of the well and ask of altars!",
-      "en_us": "Speak to the waters of the well and ask of altars."
+      "en": "Three altar rooms connect the bottom levels of all eight dungeons.",
+      "ko": "여덟 던전 맨 아래를 잇는 제단 방이 세 곳이다.",
+      "en_u4": "There are three altar rooms which connect the bottom levels of all eight dungeons!",
+      "en_us": "Three altar rooms connect the bottom levels of all eight dungeons.",
+      "speaker_en": "Water",
+      "speaker_ko": "우물"
+    },
+    {
+      "id": "lcb.water.altar-key",
+      "place": "lcb",
+      "npc": "Water",
+      "topic": "ALTA_YES",
+      "chain": "lcb.chuckles-clue",
+      "chain_order": 25,
+      "goal": "",
+      "en": "Use the correct stone colors at the altars to gain the key of three parts.",
+      "ko": "제단에 옳은 색 돌을 쓰면 세 조각 열쇠를 얻는다.",
+      "en_u4": "If the correct colors of stones are used in the altars, a key of three parts can be gained!",
+      "en_us": "Use the correct stone colors at the altars to gain the key of three parts.",
+      "speaker_en": "Water",
+      "speaker_ko": "우물"
+    },
+    {
+      "id": "lcb.shawn.magincia-ruins",
+      "place": "lcb",
+      "npc": "Shawn",
+      "topic": "PEAC_NO",
+      "goal": "enter:magincia",
+      "speaker_en": "Shawn",
+      "speaker_ko": "숀",
+      "en": "Proud city's ruins: lat-K'J\" long-L'L\".",
+      "ko": "자만의 도시 폐허: 위도 K'J\" 경도 L'L\"",
+      "en_u4": "The ruins of a proud city lie on an isle at lat-K'J\" long-L'L\"!",
+      "en_us": "Proud city's ruins: lat-K'J\" long-L'L\".",
+      "ko_upgraded": "마진시아 폐허: 위도 K'J\" 경도 L'L\"",
+      "en_u4_upgraded": "The ruins of Magincia lie on an isle at lat-K'J\" long-L'L\"!",
+      "en_us_upgraded": "Magincia ruins: lat-K'J\" long-L'L\"."
     },
     {
       "id": "serpent.sentri.word-cor",

@@ -5834,6 +5834,22 @@ func _maybe_offer_lcb_chain_keyword() -> void:
 			"단서" if korean else "Clue",
 			"단서" if korean else "clue"
 		)
+	elif (
+		npc == "water"
+		and (
+			GameState.journal_has_id("lcb.chuckles.clue")
+			or GameState.journal_has_id("lcb.water.altar-rooms")
+			or GameState.journal_has_id("lcb.water.altar-key")
+		)
+	):
+		var altar_key := _talk_keyword_stable_key(
+			"제단" if korean else "altar"
+		)
+		_offer_talk_keyword_item(
+			altar_key,
+			"제단" if korean else "Altar",
+			"제단" if korean else "altar"
+		)
 
 
 func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
@@ -7551,6 +7567,8 @@ func _do_search() -> void:
 		_push_message(Locale.t("cmd_search_find"), false)
 		_push_message(Locale.t("cmd_search_find_name", [Locale.t(name_key)]), false)
 	var result: Dictionary = _SearchItems.grant(item)
+	if int(item.get("kind", -1)) == _SearchItems.Kind.SKULL:
+		GameState.journal_mark_goal("search:skull")
 	if bool(result.get("dropped", false)):
 		_push_message(Locale.t("cmd_search_dropped"), false)
 	if bool(result.get("telescope", false)):
@@ -12075,6 +12093,8 @@ func _enter_city_from_portal_wipe(portal: Dictionary) -> void:
 func _journal_note_entered_city(fname: String) -> void:
 	var place := _WorldPortals.place_id_for_portal({"fname": fname})
 	var marked := GameState.journal_mark_city(place)
+	if place == "magincia" and GameState.journal_mark_goal("enter:magincia"):
+		marked = true
 	if place == "cove" and GameState.journal_try_upgrade_id("paws.jingles.mentorian-gate"):
 		marked = true
 	if marked:
@@ -17728,6 +17748,33 @@ func _talk_answer_yn(yes: bool) -> void:
 		var zajac_topic := "UNHA_YES" if yes else "UNHA_NO"
 		if GameState.journal_try_capture_talk("lycaeum", "Zajac", zajac_topic):
 			journal_changed = true
+	## Water (LCB): Yes after altars names the three-part key.
+	if (
+		yes
+		and place_id == "lcb"
+		and npc_key == "water"
+		and str(e.topic2).strip_edges().to_upper() == "ALTA"
+	):
+		if GameState.journal_try_capture_talk("lcb", "Water", "ALTA_YES"):
+			journal_changed = true
+	## Shawn (LCB): No after Peace — Magincia ruins coordinates.
+	if (
+		not yes
+		and place_id == "lcb"
+		and npc_key == "shawn"
+		and _talk_ask_kind == _TalkTlk.REPLY_TOPIC2
+	):
+		if GameState.journal_try_capture_talk("lcb", "Shawn", "PEAC_NO"):
+			journal_changed = true
+	## Jude (Minoc): Yes after skull oath — search coordinates.
+	if (
+		yes
+		and place_id == "minoc"
+		and npc_key == "jude"
+		and topic2 == "SKUL"
+	):
+		if GameState.journal_try_capture_talk("minoc", "Jude", "SKUL_YES"):
+			journal_changed = true
 	if (
 		not yes
 		and place_id == "serpent"
@@ -20743,7 +20790,13 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 		if GameState.journal_mark_id("lcb.chuckles.ask-clue"):
 			refresh = true
+		if GameState.journal_mark_id("lcb.chuckles.clue"):
+			refresh = true
 		if GameState.journal_mark_goal("ask:chuckles-clue"):
+			refresh = true
+	## Chuckles → Water: ask the castle well about altars.
+	elif place == "lcb" and npc_key == "water" and topic == "ALTA":
+		if GameState.journal_mark_goal("ask:water-altars"):
 			refresh = true
 	elif place == "empath" and npc_key == "brother antos" and topic == "CAND":
 		if GameState.journal_mark_id("lcb.zorin.antos-candle"):
