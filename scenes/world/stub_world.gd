@@ -405,7 +405,7 @@ var _command_menu_scroll_thumb: ColorRect
 var _command_menu_scroll_up: Label
 var _command_menu_scroll_down: Label
 var _command_menu_rows: Array[ColorRect] = []
-## LOCAL CHEAT — city warp list.
+## LOCAL CHEAT (⌘/Ctrl+P) — city warp list. Do not commit.
 var _city_warp_open := false
 ## Cmd/Ctrl+J: browse the left-pane journal; Esc restores prior side-panel state.
 var _journal_focus_active := false
@@ -6703,10 +6703,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			_do_show_karma()
 			_mark_input_handled()
 			return
-		## Ctrl/⌘+P city warp is unbound — swallow the chord.
-		if _is_mod_chord_key(event) and (
-			event.keycode == KEY_P or event.physical_keycode == KEY_P
-		):
+		## LOCAL CHEAT: Ctrl/⌘+P — warp to a city entrance on the world map.
+		if _is_mod_chord_key(event) and _is_city_warp_key(event):
+			_open_city_warp()
 			_mark_input_handled()
 			return
 		## Waiting for a direction (A/G/J/O/T or ship Yell) — same line as "Attack: Dir?".
@@ -7039,6 +7038,11 @@ func _is_karma_key(event: InputEventKey) -> bool:
 	return event.keycode == KEY_K or event.physical_keycode == KEY_K
 
 
+func _is_city_warp_key(event: InputEventKey) -> bool:
+	## LOCAL CHEAT — do not commit.
+	return event.keycode == KEY_P or event.physical_keycode == KEY_P
+
+
 func _city_warp_visible_count() -> int:
 	return mini(MSG_OPEN_LINES, _city_warp_items.size())
 
@@ -7205,6 +7209,10 @@ func _handle_city_warp_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _is_cancel_event(event):
+		_close_city_warp()
+		return true
+	if event is InputEventKey and _is_mod_chord_key(event as InputEventKey) \
+			and _is_city_warp_key(event as InputEventKey):
 		_close_city_warp()
 		return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
