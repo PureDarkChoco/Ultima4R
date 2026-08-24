@@ -4184,6 +4184,8 @@ func _seed_talk_latent_keywords() -> void:
 		return
 	var korean := GameState.lang_short() == "ko"
 	for word in _TalkLocale.latent_menu_words(_talk_keywords):
+		if _talk_word_is_hidden_menu_interest(word):
+			continue
 		var key := _talk_keyword_stable_key(word)
 		if key.is_empty() or _talk_keyword_menu_seen.has(key):
 			continue
@@ -4528,6 +4530,8 @@ func _discover_talk_keywords(text: String) -> void:
 	for discovery in discoveries:
 		var key := str(discovery.get("key", ""))
 		if key.is_empty():
+			continue
+		if _talk_word_is_hidden_menu_interest(str(discovery.get("input", key))):
 			continue
 		_persist_talk_known_word(str(discovery.get("input", key)))
 		if not _talk_keyword_menu_active:
@@ -5625,6 +5629,30 @@ func _talk_stored_key_belongs_here(stored: String) -> bool:
 	return false
 
 
+func _talk_word_is_hidden_menu_interest(word: String) -> bool:
+	if _talk_entry == null:
+		return false
+	return _TalkLocale.word_is_hidden_menu_interest(
+		word,
+		str(_talk_entry.topic1),
+		str(_talk_entry.topic2),
+		str(_talk_entry.name),
+		_talk_city_id()
+	)
+
+
+func _talk_keyword_menu_has_stored_key(stored: String) -> bool:
+	if stored.is_empty():
+		return false
+	for item in _talk_keyword_menu_items:
+		var item_key := str(item.get("key", ""))
+		if item_key.is_empty():
+			continue
+		if _talk_stored_key_matches(stored, item_key):
+			return true
+	return false
+
+
 func _restore_talk_known_keywords() -> void:
 	if not _talk_keyword_menu_active:
 		return
@@ -5649,9 +5677,13 @@ func _restore_talk_known_keywords() -> void:
 			and not _talk_skara_ankh_om_ready
 		):
 			continue
+		if _talk_word_is_hidden_menu_interest(stored):
+			continue
 		if _reveal_talk_keyword_if_latent(stored) != 0:
 			continue
 		if _talk_keyword_menu_seen.has(stored):
+			continue
+		if _talk_keyword_menu_has_stored_key(stored):
 			continue
 		var word := _talk_label_for_stored_key(stored)
 		if word.is_empty():
@@ -5861,8 +5893,18 @@ func _maybe_offer_lcb_chain_keyword() -> void:
 		)
 
 
+func _talk_npc_is_le_chef(entry: Variant = null) -> bool:
+	var e: RefCounted = _talk_entry if entry == null else entry as RefCounted
+	if e == null:
+		return false
+	return (
+		_talk_city_id() == "lcb"
+		and str(e.name).strip_edges().to_lower() == "le chef"
+	)
+
+
 func _talk_npc_is_lcb_treasure_guard(entry: Variant = null) -> bool:
-	var e := entry if entry != null else _talk_entry
+	var e: RefCounted = _talk_entry if entry == null else entry as RefCounted
 	if e == null:
 		return false
 	return (
@@ -15905,11 +15947,46 @@ func _begin_lord_british_talk(person_i: int) -> void:
 	if not revive.is_empty():
 		_push_talk_script(revive)
 	_talk_stage = 12
+	var repeat_visit := GameState.lb_intro
 	for line in _LordBritish.intro_lines():
 		_push_talk_script(line)
 	_sync_music()
 	_layout_prompt_row()
 	_refresh_party()
+	if repeat_visit:
+		if GameState.lord_british_has_pending_level_up():
+			_lb_levelup_sequence_async()
+		else:
+			_push_talk_script(_LordBritish.ask_of_me())
+
+
+const _LB_LEVELUP_PAUSE_SEC := 0.45
+
+
+func _lb_levelup_sequence_async() -> void:
+	## xu4 C_E4C3 — per member: sfx, name, level line, dspl_Stats.
+	_lb_levelup_sequence()
+
+
+func _lb_levelup_sequence() -> void:
+	_talk_stage = 14
+	_layout_prompt_row()
+	while true:
+		var entry := GameState.lord_british_apply_next_level_up()
+		if entry.is_empty():
+			break
+		await AudioSfx.play_id_wait(AudioSfx.ID_LEVELUP)
+		var nm := str(entry.get("name", "")).strip_edges()
+		var lv := int(entry.get("level", 0))
+		if not nm.is_empty():
+			_push_talk_script(nm, false)
+		if lv > 0:
+			_push_talk_script(_LordBritish.level_up_line(lv), false)
+		_refresh_party()
+		await _death_wait(_LB_LEVELUP_PAUSE_SEC)
+	_push_talk_script(_LordBritish.ask_of_me())
+	_talk_stage = 12
+	_layout_prompt_row()
 
 
 func _begin_hawkwind_talk(person_i: int) -> void:
@@ -16553,6 +16630,17 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_skara_ankh_om_ready = false
 	_talk_requirements_asked = false
 	_talk_keywords = entry.highlight_keywords(_talk_city_id())
+	if _talk_npc_is_le_chef(entry):
+		GameState.talk_forget_npc_keywords(_talk_memory_npc_id())
+		GameState.talk_forget_npc_keywords(_talk_memory_legacy_npc_id())
+	elif not _talk_memory_npc_id().is_empty():
+		GameState.talk_prune_npc_keywords(
+			_talk_memory_npc_id(),
+			str(entry.topic1),
+			str(entry.topic2),
+			str(entry.name),
+			_talk_city_id()
+		)
 	_begin_talk_keyword_menu_if_requested()
 	_city_map.pause_follow(person_i)
 	## Message + character panels (left inventory stays closed unless already Tab-open).
@@ -16902,6 +16990,8 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return _talk_input_lord_british(k)
 		13:
 			return _talk_input_lb_heal_yn(k)
+		14:
+			return true
 		_:
 			return false
 

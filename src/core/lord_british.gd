@@ -211,6 +211,14 @@ static func revive_leader_if_dead() -> String:
 	)
 
 
+static func level_up_line(level: int) -> String:
+	if is_korean():
+		return "이제 %d 레벨이오" % level
+	if str(GameState.language) == "en_u4":
+		return "Thou art now Level %d" % level
+	return "You are now Level %d" % level
+
+
 static func ask_of_me() -> String:
 	return _t("What would thou ask of me?", "내게 무엇을 묻겠소?")
 
@@ -256,7 +264,7 @@ static func heal_bad_answer() -> String:
 
 
 static func intro_lines() -> Array[String]:
-	## Dynamic intro + side effects (lb_intro / level check messages).
+	## Dynamic intro; repeat visits defer level-up lines to stub_world sequence.
 	var out: Array[String] = []
 	var n0 := leader_name()
 	if GameState.lb_intro:
@@ -289,9 +297,6 @@ static func intro_lines() -> Array[String]:
 					"로드 브리티시 말하길:  환영하오\n%s%s 그대의 훌륭한 모험가들이여!" % [n0, wagwa]
 				)
 			)
-		for line in GameState.lord_british_check_levels():
-			out.append(line)
-		out.append(ask_of_me())
 	else:
 		out.append(
 			_t(

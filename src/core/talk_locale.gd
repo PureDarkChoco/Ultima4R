@@ -184,8 +184,16 @@ static func line(en: String) -> String:
 	return _fill_places(_translate_line(en))
 
 
+static func _npc_key(npc_name: String) -> String:
+	## TLK names may embed newlines; packs may use "\\n" or spaces — normalize both.
+	var s := _norm(str(npc_name)).replace("\n", " ")
+	while s.contains("  "):
+		s = s.replace("  ", " ")
+	return s.strip_edges().to_lower()
+
+
 static func _npc_topic_map(store: Dictionary, npc_name: String, city_id: String = "") -> Dictionary:
-	var n := npc_name.strip_edges().to_lower()
+	var n := _npc_key(npc_name)
 	if n.is_empty():
 		return {}
 	var c := city_id.strip_edges().to_lower()
@@ -209,14 +217,18 @@ static func topic_omitted(stem: String, npc_name: String = "", city_id: String =
 
 
 static func match_topic_alias(
-	topic: String, input: String, npc_name: String = "", city_id: String = ""
+	topic: String,
+	input: String,
+	npc_name: String = "",
+	city_id: String = "",
+	allow_omitted: bool = false
 ) -> bool:
 	if topic.is_empty() or input.is_empty():
 		return false
 	var stem := topic.strip_edges().to_upper()
 	if stem.is_empty() or stem == "A":
 		return false
-	if topic_omitted(stem, npc_name, city_id):
+	if not allow_omitted and topic_omitted(stem, npc_name, city_id):
 		return false
 	var h := normalize_interest(input)
 	var n := stem.to_lower()
@@ -228,6 +240,10 @@ static func match_topic_alias(
 	for a in als:
 		var al := normalize_interest(str(a))
 		if al.is_empty():
+			continue
+		if word_has_hangul(str(a)) or word_has_hangul(al):
+			if h == al:
+				return true
 			continue
 		if h.length() >= al.length() and h.substr(0, al.length()) == al:
 			return true
@@ -262,6 +278,85 @@ static func highlight_extras(
 			if not seen.has(k2):
 				seen[k2] = true
 				out.append(w)
+	return out
+
+
+static func word_is_hidden_menu_interest(
+	word: String, topic1: String, topic2: String, npc_name: String = "", city_id: String = ""
+) -> bool:
+	## Omitted TLK topics (menu row dropped) and their aliases stay type-in /
+	## speech-tint only. Also hide Latin aliases when a Hangul primary owns the row.
+	var w := word.strip_edges()
+	if w.is_empty():
+		return false
+	for t in [topic1, topic2]:
+		var stem := str(t).strip_edges().to_upper()
+		if stem.is_empty() or stem == "A":
+			continue
+		if topic_omitted(stem, npc_name, city_id):
+			if match_topic_alias(stem, w, npc_name, city_id, true):
+				return true
+			if normalize_interest(stem) == normalize_interest(w):
+				return true
+			continue
+		if not is_korean():
+			continue
+		var pack := _npc_topic_map(_npc_hl, npc_name, city_id)
+		var hls: Array = pack.get(stem, []) if not pack.is_empty() else _hl.get(stem, [])
+		var hangul_primary := false
+		for h in hls:
+			if word_has_hangul(str(h)):
+				hangul_primary = true
+				break
+		if not hangul_primary:
+			continue
+		if match_topic_alias(stem, w, npc_name, city_id) and not word_has_hangul(w):
+			return true
+	return false
+
+
+static func highlight_omitted_tint(
+	topic1: String, topic2: String, npc_name: String = "", city_id: String = ""
+) -> Array[String]:
+	## Speech tint for omitted topics (e.g. LCB Le Chef COOK → 요리 / cook).
+	var out: Array[String] = []
+	var seen: Dictionary = {}
+	var pack := _npc_topic_map(_npc_aliases, npc_name, city_id)
+	for t in [topic1, topic2]:
+		if not topic_omitted(str(t), npc_name, city_id):
+			continue
+		var stem := str(t).strip_edges().to_upper()
+		if stem.is_empty():
+			continue
+		var als: Array = pack.get(stem, []) if not pack.is_empty() else _aliases.get(stem, [])
+		for a in als:
+			var s := str(a).strip_edges()
+			if s.is_empty() or s.to_lower() == stem.to_lower():
+				continue
+			var k := normalize_interest(s)
+			if k.is_empty() or seen.has(k):
+				continue
+			seen[k] = true
+			out.append(s)
+	return out
+
+
+static func prune_stored_npc_keywords(
+	keys: Array, topic1: String, topic2: String, npc_name: String, city_id: String
+) -> Array:
+	var out: Array = []
+	var seen: Dictionary = {}
+	for raw in keys:
+		var k := str(raw).strip_edges()
+		if k.is_empty():
+			continue
+		if word_is_hidden_menu_interest(k, topic1, topic2, npc_name, city_id):
+			continue
+		var nk := normalize_interest(k)
+		if nk.is_empty() or seen.has(nk):
+			continue
+		seen[nk] = true
+		out.append(k)
 	return out
 
 
@@ -345,7 +440,7 @@ static func extra_npcs_for_map(ult_path: String) -> Array:
 
 static func pack_spec(npc_name: String, city_id: String) -> Dictionary:
 	## City-scoped pack row. No by-name fallback (guards/children collide).
-	var n := npc_name.strip_edges().to_lower()
+	var n := _npc_key(npc_name)
 	var c := city_id.strip_edges().to_lower()
 	if n.is_empty() or c.is_empty():
 		return {}
@@ -362,7 +457,7 @@ static func unescape_pack(s: String) -> String:
 static func _store_npc_spec(npc: Dictionary) -> void:
 	if bool(npc.get("extra", false)):
 		return
-	var n := str(npc.get("name", "")).strip_edges().to_lower()
+	var n := _npc_key(str(npc.get("name", "")))
 	if n.is_empty() or _ingest_city.is_empty():
 		return
 	_npc_specs["%s/%s" % [_ingest_city, n]] = npc
@@ -385,13 +480,26 @@ static func _ingest_npc(npc: Dictionary) -> void:
 		if en_s.is_empty() or ko_s.is_empty():
 			continue
 		_lines[_norm(en_s)] = ko_s
+		if field == "name" and en_s.contains(" ") and not en_s.contains("\n"):
+			_lines[en_s.replace(" ", "\n")] = ko_s
+		if field == "look" and bool(npc.get("replace_look", false)):
+			var classic := _unescape(str(npc.get("look_classic", "")))
+			if not classic.is_empty():
+				_lines[_norm(classic)] = ko_s
 	for ti: String in ["topic1", "topic2"]:
 		var stem := str(npc.get(ti, "")).strip_edges().to_upper()
 		if stem.is_empty() or stem == "A":
 			continue
-		## Empty KO topic drops a dummy TLK stem (no highlight, no match).
+		## Empty KO topic drops a dummy TLK stem (no highlight, no menu row).
 		if ko_d.has(ti) and str(ko_d[ti]).strip_edges().is_empty():
 			_mark_topic_omitted(str(npc.get("name", "")), stem)
+			var omit_als: Array = [stem.to_lower()]
+			var omit_akey: String = ti + "_aliases"
+			if ko_d.has(omit_akey) and typeof(ko_d[omit_akey]) == TYPE_ARRAY:
+				for a in ko_d[omit_akey]:
+					omit_als.append(_fill_places(str(a).strip_edges()).to_lower())
+			_merge_alias(stem, omit_als)
+			_store_npc_topic(str(npc.get("name", "")), stem, omit_als, [])
 			continue
 		var als: Array = [stem.to_lower()]
 		var akey: String = ti + "_aliases"
@@ -404,19 +512,20 @@ static func _ingest_npc(npc: Dictionary) -> void:
 			primary_ko = _fill_places(str(ko_d[ti]).strip_edges())
 			als.append(primary_ko.to_lower())
 		_merge_alias(stem, als)
-		## Latin mantra labels (OM) stay OM on the menu. Extra Hangul type-in
-		## synonyms (없다 for 없음, 옴 for OM) still match typed input but
-		## must not tint speech or win the keyword row.
+		## Latin aliases are type-in only — never duplicate the menu row.
 		var latin_topic := not primary_ko.is_empty() and not word_has_hangul(primary_ko)
 		var primary_ko_l := primary_ko.to_lower()
 		var hls: Array = []
-		for a in als:
-			if str(a).is_empty():
-				continue
-			if word_has_hangul(str(a)):
-				if latin_topic or str(a) != primary_ko_l:
+		if not primary_ko.is_empty() and word_has_hangul(primary_ko):
+			hls.append(primary_ko)
+		else:
+			for a in als:
+				if str(a).is_empty():
 					continue
-			hls.append(str(a))
+				if word_has_hangul(str(a)):
+					if latin_topic or str(a) != primary_ko_l:
+						continue
+				hls.append(str(a))
 		_merge_hl(stem, hls)
 		_store_npc_topic(str(npc.get("name", "")), stem, als, hls)
 
@@ -452,7 +561,7 @@ static func _merge_hl(stem: String, words: Array) -> void:
 
 
 static func _store_npc_topic(npc_name: String, stem: String, als: Array, hls: Array) -> void:
-	var n := npc_name.strip_edges().to_lower()
+	var n := _npc_key(npc_name)
 	if n.is_empty() or stem.is_empty():
 		return
 	var keys: Array[String] = [n]
@@ -468,7 +577,7 @@ static func _store_npc_topic(npc_name: String, stem: String, als: Array, hls: Ar
 
 
 static func _mark_topic_omitted(npc_name: String, stem: String) -> void:
-	var n := npc_name.strip_edges().to_lower()
+	var n := _npc_key(npc_name)
 	var s := stem.strip_edges().to_upper()
 	if n.is_empty() or s.is_empty():
 		return
@@ -481,59 +590,76 @@ static func _mark_topic_omitted(npc_name: String, stem: String) -> void:
 		_npc_omit[key] = pack
 
 
+static func _lookup_line(en: String) -> String:
+	## Pack keys use JSON spacing; TLK often embeds newlines in names/look.
+	if en.is_empty():
+		return en
+	var n := _norm(en)
+	if _lines.has(n):
+		return str(_lines[n])
+	var spaced := n.replace("\n", " ")
+	while spaced.contains("  "):
+		spaced = spaced.replace("  ", " ")
+	if spaced != n and _lines.has(spaced):
+		return str(_lines[spaced])
+	var newline := n.replace(" ", "\n")
+	if newline != n and _lines.has(newline):
+		return str(_lines[newline])
+	return en
+
+
 static func _translate_line(en: String) -> String:
 	var n := _norm(en)
 	if _SHELL_KO.has(n):
 		return str(_SHELL_KO[n])
-	if _lines.has(n):
-		return str(_lines[n])
+	var direct := _lookup_line(en)
+	if direct != en:
+		return direct
 	const MEET := "You meet "
 	if n.begins_with(MEET):
 		var look := n.substr(MEET.length())
-		var look_ko := str(_lines.get(_norm(look), look))
+		var look_ko := _lookup_line(look)
 		## look packs are descriptive predicates ("…다."); "You meet" needs an object clause.
 		return _you_encounter_ko(look_ko, true)
 	const SEE := "You see "
 	if n.begins_with(SEE):
 		var look2 := n.substr(SEE.length())
-		var look2_ko := str(_lines.get(_norm(look2), look2))
+		var look2_ko := _lookup_line(look2)
 		return _you_encounter_ko(look2_ko, false)
 	var says_i := n.find(" says: I am ")
 	if says_i > 0:
 		var pronoun := n.substr(0, says_i)
 		var name := n.substr(says_i + " says: I am ".length())
-		var p_ko := str(_lines.get(_norm(pronoun), pronoun))
-		var n_ko := str(_lines.get(_norm(name), name))
+		var p_ko := _lookup_line(pronoun)
+		var n_ko := _lookup_line(name)
 		return "%s 말하길: 나는 %s" % [p_ko, n_ko]
 	if n.ends_with(" turns away!"):
 		var p2 := n.substr(0, n.length() - " turns away!".length())
-		return "%s 몸을 돌린다!" % str(_lines.get(_norm(p2), p2))
+		return "%s 몸을 돌린다!" % _lookup_line(p2)
 	const GUARD := " says: On guard! Fool!"
 	if n.ends_with(GUARD):
 		var p3 := n.substr(0, n.length() - GUARD.length())
-		return "%s 말하길: 정신 차려라, 이 바보야!" % str(_lines.get(_norm(p3), p3))
+		return "%s 말하길: 정신 차려라, 이 바보야!" % _lookup_line(p3)
 	const NO_GOLD_CHILD := " says: I need no gold! Keep it!"
 	if n.ends_with(NO_GOLD_CHILD):
 		var p4c := n.substr(0, n.length() - NO_GOLD_CHILD.length())
-		return "%s 말하길: 골드는 필요 없어요. 그냥 가져요!" % str(_lines.get(_norm(p4c), p4c))
+		return "%s 말하길: 골드는 필요 없어요. 그냥 가져요!" % _lookup_line(p4c)
 	const NO_GOLD := " says: I do not need thy gold.  Keep it!"
 	if n.ends_with(NO_GOLD):
 		var p4 := n.substr(0, n.length() - NO_GOLD.length())
-		return "%s 말하길: 골드는 필요 없소. 간직하시오!" % str(_lines.get(_norm(p4), p4))
+		return "%s 말하길: 골드는 필요 없소. 간직하시오!" % _lookup_line(p4)
 	const THANKS_GOLD := " says: Oh Thank thee! I shall never forget thy kindness!"
 	if n.ends_with(THANKS_GOLD):
 		var p5 := n.substr(0, n.length() - THANKS_GOLD.length())
-		return "%s 말하길: 오, 고맙소! 그 친절을 결코 잊지 않겠소!" % str(
-			_lines.get(_norm(p5), p5)
-		)
+		return "%s 말하길: 오, 고맙소! 그 친절을 결코 잊지 않겠소!" % _lookup_line(p5)
 	const NO_JOIN_CHILD := " says: I cannot go with thee."
 	if n.ends_with(NO_JOIN_CHILD):
 		var p6c := n.substr(0, n.length() - NO_JOIN_CHILD.length())
-		return "%s 말하길: 같이 갈 수 없어요." % str(_lines.get(_norm(p6c), p6c))
+		return "%s 말하길: 같이 갈 수 없어요." % _lookup_line(p6c)
 	const NO_JOIN := " says: I cannot join thee."
 	if n.ends_with(NO_JOIN):
 		var p6 := n.substr(0, n.length() - NO_JOIN.length())
-		return "%s 말하길: 함께할 수 없소." % str(_lines.get(_norm(p6), p6))
+		return "%s 말하길: 함께할 수 없소." % _lookup_line(p6)
 	if n.begins_with("Thou art not ") and n.ends_with(" enough for me to join thee."):
 		var mid := n.substr(
 			"Thou art not ".length(),

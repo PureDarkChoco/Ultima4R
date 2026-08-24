@@ -291,6 +291,8 @@ class Entry:
 			_add_kw(out, seen, t)
 		for extra in _TalkLocale.highlight_extras(topic1, topic2, name, city_id):
 			_add_kw(out, seen, str(extra))
+		for extra in _TalkLocale.highlight_omitted_tint(topic1, topic2, name, city_id):
+			_add_kw(out, seen, str(extra))
 		return out
 
 	func _add_kw(out: Array[String], seen: Dictionary, s: String) -> void:
@@ -412,6 +414,10 @@ static func apply_pack_fill(entry: Entry, city_id: String) -> void:
 		entry.response1 = _TalkLocale.unescape_pack(str(spec.get("response1", "")))
 	if _unused_talk_text(entry.response2) and not _unused_talk_text(str(spec.get("response2", ""))):
 		entry.response2 = _TalkLocale.unescape_pack(str(spec.get("response2", "")))
+	elif bool(spec.get("replace_response2", false)) and not _unused_talk_text(str(spec.get("response2", ""))):
+		entry.response2 = _TalkLocale.unescape_pack(str(spec.get("response2", "")))
+	if bool(spec.get("replace_look", false)) and not _unused_talk_text(str(spec.get("look", ""))):
+		entry.look = _TalkLocale.unescape_pack(str(spec.get("look", "")))
 	if _unused_talk_text(entry.question) and not _unused_talk_text(str(spec.get("question", ""))):
 		entry.question = _TalkLocale.unescape_pack(str(spec.get("question", "")))
 	if _unused_talk_text(entry.yes) and not _unused_talk_text(str(spec.get("yes", ""))):
@@ -545,11 +551,13 @@ static func match_keyword(entry: Entry, input: String, city_id: String = "") -> 
 		or _TalkLocale.match_topic_alias(entry.topic1, in_s, entry.name, city_id)
 	):
 		return {"kind": REPLY_TOPIC1, "text": entry.response1}
-	if not entry.topic2.is_empty() and not _TalkLocale.topic_omitted(entry.topic2, entry.name, city_id) and (
-		_prefix_ci(entry.topic2, in_s)
-		or _TalkLocale.match_topic_alias(entry.topic2, in_s, entry.name, city_id)
-	):
-		return {"kind": REPLY_TOPIC2, "text": entry.response2}
+	if not entry.topic2.is_empty():
+		var t2_omit := _TalkLocale.topic_omitted(entry.topic2, entry.name, city_id)
+		var t2_alias := _TalkLocale.match_topic_alias(
+			entry.topic2, in_s, entry.name, city_id, t2_omit
+		)
+		if (not t2_omit and (_prefix_ci(entry.topic2, in_s) or t2_alias)) or (t2_omit and t2_alias):
+			return {"kind": REPLY_TOPIC2, "text": entry.response2}
 	## Builtins: Latin + Hangul (language-independent so 직업/이름 always work).
 	var bi := _TalkLocale.match_builtin_interest(in_s)
 	if bi == "job" or _prefix_ci("job", in_s, 3):

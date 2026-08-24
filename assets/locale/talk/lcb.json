@@ -188,7 +188,8 @@
       "job": "I am the chef.",
       "health": "Well.. All but\nmy finger,\nwhich I cut!",
       "response1": "Food, glorious\nfood, to cook is\nmy life!",
-      "response2": "Cooking is a\npracticed art.",
+      "response2": "Cooking is a practiced art.\nTrue food is the\nresult!",
+      "replace_response2": true,
       "question": "Do you eat?",
       "yes": "Then thou should\ntry my soup!",
       "no": "Then thou\nmust be a\nspiritualist!",
@@ -201,18 +202,18 @@
         "job": "나는 요리사요.",
         "health": "괜찮… 손가락만\n빼고. 베었소!",
         "response1": "음식, 영광스러운\n음식, 요리가\n내 삶이오!",
-        "response2": "요리는 익힌\n예술이오.",
+        "response2": "요리는 익힌 예술.\n참된 음식이 그\n결과이오.",
         "question": "먹소?",
         "yes": "그럼 내 수프를\n드셔 보시오!",
         "no": "그럼 영성주의자로군!",
         "topic1": "음식",
         "topic1_aliases": [
-          "food",
-          "cook",
-          "요리"
+          "food"
         ],
-        "topic2": "",
-        "topic2_aliases": []
+        "topic2": "요리",
+        "topic2_aliases": [
+          "cook"
+        ]
       }
     },
     {
@@ -251,13 +252,16 @@
       }
     },
     {
-      "name": "a nameless\nprisoner",
+      "name": "a nameless prisoner",
       "pronoun": "He",
-      "look": "a ragged soul.",
+      "look": "a soul in prison\nfor his crimes.",
+      "look_classic": "a ragged soul.",
+      "replace_look": true,
       "job": "I have none.",
       "health": "Very poor.",
       "response1": "Crime is an\nevil thing!",
-      "response2": "Here I pay for\nmy crimes!",
+      "response2": "In prison I pay\nfor my crimes!",
+      "replace_response2": true,
       "question": "Are you a\npirate?",
       "yes": "You may never\ncomplete thy\nquests, for evil\nmakes not an\navatar!",
       "no": "I hope that\nthis is true!",
@@ -266,11 +270,11 @@
       "ko": {
         "name": "이름 없는 죄수",
         "pronoun": "그",
-        "look": "누더기 차림의 영혼이다.",
+        "look": "감옥에서 범죄값 치르는 영혼이다.",
         "job": "직업 없소.",
         "health": "아주 안 좋소.",
         "response1": "범죄는 악한\n일이오!",
-        "response2": "여기서 죄값을\n치르오!",
+        "response2": "감옥에서 죄값을\n치르오!",
         "question": "해적인가?",
         "yes": "악한 자로는\n아바타가 못 되니\n퀘스트를 못 끝낼지!",
         "no": "진리이기를!",

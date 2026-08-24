@@ -3,6 +3,7 @@ extends Node
 ## Global run state for Ultima4R (autoload: GameState).
 
 const _Journal := preload("res://src/core/journal.gd")
+const _TalkLocale := preload("res://src/core/talk_locale.gd")
 
 signal language_changed(lang: String)
 
@@ -2254,9 +2255,19 @@ func lord_british_heal_party() -> void:
 		healer_heal_member(i, "fullheal")
 
 
-func lord_british_check_levels() -> Array[String]:
-	## xu4 gameLordBritishCheckLevels — advance any member with spare XP.
-	var lines: Array[String] = []
+func lord_british_has_pending_level_up() -> bool:
+	for i in party_size():
+		var mid := party_member_at(i)
+		if mid < 0:
+			continue
+		if level_of_class(mid) < max_level_for_xp(xp_of_class(mid)):
+			return true
+	return false
+
+
+func lord_british_apply_next_level_up() -> Dictionary:
+	## xu4 gameLordBritishCheckLevels — one member per call (name, level).
+	var empty: Dictionary = {}
 	for i in party_size():
 		var mid := party_member_at(i)
 		if mid < 0:
@@ -2268,13 +2279,8 @@ func lord_british_check_levels() -> Array[String]:
 			nm = "아바타" if language == "ko" else "Adventurer"
 		var new_lv := advance_level_for_class(mid)
 		if new_lv > 0:
-			if language == "ko":
-				lines.append("%s\n이제 %d 레벨이오" % [nm, new_lv])
-			elif language == "en_u4":
-				lines.append("%s\nThou art now Level %d" % [nm, new_lv])
-			else:
-				lines.append("%s\nYou are now Level %d" % [nm, new_lv])
-	return lines
+			return {"name": nm, "level": new_lv}
+	return empty
 
 
 func advance_level_for_class(klass: int) -> int:
@@ -3188,6 +3194,8 @@ func apply_save_dict(d: Dictionary) -> void:
 				keys.append(s)
 			if not keys.is_empty():
 				talk_known_keywords[str(npc_id)] = keys
+	## Legacy Le Chef rows keyed by English name — stale food/cook duplicates.
+	talk_known_keywords.erase("lcb/le chef")
 	talk_heard_words.clear()
 	var heard_raw: Variant = d.get("talk_heard_words", [])
 	if typeof(heard_raw) == TYPE_ARRAY:
@@ -3450,6 +3458,36 @@ func journal_try_capture_talk(place: String, npc: String, topic: String) -> bool
 
 func journal_has_id(id: String) -> bool:
 	return _Journal.has_entry_id(self, id)
+
+
+func talk_forget_npc_keywords(npc_id: String) -> void:
+	var id := npc_id.strip_edges().to_lower()
+	if id.is_empty():
+		return
+	talk_known_keywords.erase(id)
+
+
+func talk_prune_npc_keywords(
+	npc_id: String, topic1: String, topic2: String, npc_name: String, city_id: String
+) -> void:
+	var id := npc_id.strip_edges().to_lower()
+	if id.is_empty():
+		return
+	var raw: Variant = talk_known_keywords.get(id, [])
+	if typeof(raw) != TYPE_ARRAY:
+		return
+	var pruned: Array = _TalkLocale.prune_stored_npc_keywords(
+		raw, topic1, topic2, npc_name, city_id
+	)
+	if pruned.size() == raw.size():
+		var same := true
+		for i in pruned.size():
+			if str(pruned[i]) != str(raw[i]):
+				same = false
+				break
+		if same:
+			return
+	talk_known_keywords[id] = pruned
 
 
 func talk_remember_keyword(npc_id: String, key: String) -> void:
