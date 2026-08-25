@@ -197,7 +197,7 @@ const TREMOR_HIT_FLASH_SEC := 0.42
 ## Victory ESC: cascade leave order 1→8 with a short beat between units.
 const COMBAT_VICTORY_EXIT_GAP := 0.2
 ## Poison / fire / lava sequential hits (victory exit stays at 0.2s).
-const PARTY_HIT_GAP := 0.3
+const PARTY_HIT_GAP := 0.2
 var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## U5-style Attack aim: A → move cursor → A/Enter strike; Esc cancels.
