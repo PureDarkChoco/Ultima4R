@@ -85,6 +85,8 @@ func _ready() -> void:
 		_hint.visible = false
 
 	GameState.language_changed.connect(func(_l: String) -> void: _refresh_text())
+	if not GraphicsSettings.tileset_changed.is_connected(_on_tileset_changed):
+		GraphicsSettings.tileset_changed.connect(_on_tileset_changed)
 	_ensure_options_panel()
 	_ensure_licenses_panel()
 	## xu4 introMusic = MUSIC_TOWNS (titles → map → menu).
@@ -534,6 +536,13 @@ func _refresh_text() -> void:
 		_licenses_panel.refresh()
 	if _name_form and _create_open and _name_form.has_method("refresh_labels"):
 		_name_form.refresh_labels()
+
+
+func _on_tileset_changed(_tileset_id: String) -> void:
+	if _intro != null and _intro.has_method("reload_tileset_graphics"):
+		_intro.reload_tileset_graphics()
+	if _options_panel != null and _options_panel.is_open():
+		_options_panel.refresh()
 
 
 func _on_return_view() -> void:

@@ -3,20 +3,21 @@ extends Control
 
 ## In-game Esc → Options submenu.
 ## Also embedded in the title map frame (main menu).
-## Items: language pair, resolution pair, audio pair, then gamepad.
+## Items: language pair, graphics, resolution pair, audio pair, then gamepad.
 ## Left/right (or Enter) cycles the selected item; Esc closes.
 
 enum Item {
 	LANGUAGE = 0,
 	HANGUL_KEYBOARD = 1,
-	RESOLUTION = 2,
-	FULLSCREEN = 3,
-	SFX = 4,
-	MUSIC = 5,
-	GAMEPAD = 6,
+	GRAPHICS = 2,
+	RESOLUTION = 3,
+	FULLSCREEN = 4,
+	SFX = 5,
+	MUSIC = 6,
+	GAMEPAD = 7,
 }
 
-const ITEM_COUNT := 7
+const ITEM_COUNT := 8
 const GROUP_AFTER: Array[int] = [
 	Item.HANGUL_KEYBOARD,
 	Item.FULLSCREEN,
@@ -160,6 +161,8 @@ func cycle_current(delta: int = 1) -> void:
 			HangulInputSettings.cycle_layout(delta)
 			_refresh_labels()
 			_sync_cursor()
+		Item.GRAPHICS:
+			cycle_graphics(delta)
 		Item.GAMEPAD:
 			GamepadSettings.cycle_layout(delta)
 			_refresh_labels()
@@ -174,6 +177,12 @@ func cycle_current(delta: int = 1) -> void:
 			cycle_music(delta)
 		_:
 			pass
+
+
+func cycle_graphics(delta: int = 1) -> void:
+	GraphicsSettings.cycle_tileset(delta)
+	_refresh_labels()
+	_sync_cursor()
 
 
 func cycle_sfx(_delta: int = 1) -> void:
@@ -365,6 +374,8 @@ func _refresh_labels() -> void:
 				Locale.t("esc_options_gamepad"),
 				Locale.t("esc_options_gamepad_" + GamepadSettings.layout_id()),
 			]
+		elif i == Item.GRAPHICS:
+			_row_labs[i].text = _graphics_row_text()
 		elif i == Item.RESOLUTION:
 			_row_labs[i].text = _resolution_row_text()
 		elif i == Item.FULLSCREEN:
@@ -374,6 +385,13 @@ func _refresh_labels() -> void:
 		elif i == Item.MUSIC:
 			_row_labs[i].text = _music_row_text()
 		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
+
+
+func _graphics_row_text() -> String:
+	var key := "esc_options_graphics_new_color"
+	if GraphicsSettings.tileset_id() == "apple2_color":
+		key = "esc_options_graphics_apple2_color"
+	return "%s: ◂ %s ▸" % [Locale.t("esc_options_graphics"), Locale.t(key)]
 
 
 func _resolution_row_text() -> String:

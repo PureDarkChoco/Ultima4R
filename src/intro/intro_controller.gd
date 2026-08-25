@@ -19,14 +19,14 @@ const MAP_W := 19
 const MAP_H := 5
 const TILE_CLASSIC := 16
 const TILE_PX := 32 ## U4TileBank native edge length
-## Match MapView: explore STRETCH_SCALE → ~9:10 cells (slightly taller than wide).
-const TILE_ASPECT := 9.0 / 10.0
-const TILE_CELL_W := TILE_PX
-const TILE_CELL_H := int(round(float(TILE_PX) / TILE_ASPECT)) ## 36
-const MAP_X_BASE := 8
+## Exact Apple II display cell: HGR 14×16 doubled horizontally → 28×32.
+const TILE_ASPECT := 14.0 / 16.0
+const TILE_CELL_H := TILE_PX
+const TILE_CELL_W := int(TILE_CELL_H * TILE_ASPECT)
+const MAP_X_BASE := 8 ## Original 320×200 TITLE.EGA transition coordinates
 const MAP_Y_BASE := 104 ## BORDER + 6×classic tile
-const MAP_X := MAP_X_BASE * SCALE
-## Classic 2× hole is 160px tall; tall cells need 5×36=180 — center in the hole.
+## Center the exact-ratio 532×160 map instead of stretching 32px source cells.
+const MAP_X := (LOGIC_W - MAP_W * TILE_CELL_W) / 2
 const MAP_HOLE_H := 5 * TILE_CLASSIC * SCALE
 const MAP_DRAW_H := MAP_H * TILE_CELL_H
 const MAP_Y := MAP_Y_BASE * SCALE + (MAP_HOLE_H - MAP_DRAW_H) / 2
@@ -74,6 +74,7 @@ const _ResImage := preload("res://src/core/res_image.gd")
 const _IntroBinData := preload("res://src/intro/intro_bin_data.gd")
 const _U4Lzw := preload("res://src/intro/u4_lzw_image.gd")
 const _TileBank := preload("res://src/map/u4_tile_bank.gd")
+const _Apple2HgrNtsc := preload("res://src/map/apple2_hgr_ntsc.gd")
 const _WorldCreatures := preload("res://src/map/world_creatures.gd")
 
 var mode: int = Mode.TITLES
@@ -87,6 +88,8 @@ var _beast0: Array = [] ## 18 Images (display-scale)
 var _beast1: Array = []
 var _tile_cache: Dictionary = {} ## keyed by paint params → Image
 var _shore_cache: Dictionary = {} ## mask name → Image
+var _apple2_map_img: Image ## 19×5 continuous HGR map at final intro aspect
+var _apple2_map_scroll := -1
 var _water_scroll := 0
 var _water_cd := WATER_SCROLL_PERIOD
 var _tile_anim_frame := 0
@@ -297,6 +300,16 @@ func return_to_map() -> void:
 		set_mode(Mode.MAP)
 
 
+func reload_tileset_graphics() -> void:
+	## Options → Graphics: bank already swapped; force a map frame redraw.
+	_TileBank.ensure_loaded()
+	_tile_cache.clear()
+	_moongate_suck_frames.clear()
+	_apple2_map_img = null
+	_apple2_map_scroll = -1
+	_redraw()
+
+
 func _process(delta: float) -> void:
 	if mode == Mode.TITLES:
 		if not _update_titles():
@@ -313,10 +326,12 @@ func _process(delta: float) -> void:
 		if _tile_anim_cd <= 0.0:
 			_tile_anim_cd = TILE_ANIM_PERIOD
 			_tile_anim_frame += 1
-		_moongate_suck_cd -= delta
-		if _moongate_suck_cd <= 0.0:
-			_moongate_suck_cd = MOONGATE_SUCK_PERIOD
-			_moongate_suck_i = (_moongate_suck_i + 1) % maxi(1, MOONGATE_SUCK_FRAMES)
+		## Apple II open-gate art has no EGA glow — keep phase tiles static.
+		if not _TileBank.uses_hgr_ntsc():
+			_moongate_suck_cd -= delta
+			if _moongate_suck_cd <= 0.0:
+				_moongate_suck_cd = MOONGATE_SUCK_PERIOD
+				_moongate_suck_i = (_moongate_suck_i + 1) % maxi(1, MOONGATE_SUCK_FRAMES)
 		while _map_accum >= MAP_TICK:
 			_map_accum -= MAP_TICK
 			if mode == Mode.MAP or mode == Mode.MENU:
@@ -505,9 +520,43 @@ func _draw_map_window_frame() -> void:
 
 
 func _draw_map_static() -> void:
+	if _TileBank.uses_hgr_ntsc():
+		_draw_apple2_map_static()
+		return
 	for y in MAP_H:
 		for x in MAP_W:
 			_paint_intro_cell(x, y)
+
+
+func _draw_apple2_map_static() -> void:
+	## Compose all 19×5 terrain cells as one HGR field, preserving NTSC phase
+	## across tile boundaries exactly like MapView's Apple II path.
+	if _bin == null or _canvas == null:
+		return
+	var scroll_y := int(
+		posmod(_water_scroll, TILE_PX) * _Apple2HgrNtsc.SRC_H / float(TILE_PX)
+	)
+	var content := _map_content_rect()
+	if _apple2_map_img == null or _apple2_map_scroll != scroll_y:
+		var ids := PackedInt32Array()
+		ids.resize(MAP_W * MAP_H)
+		for y in MAP_H:
+			for x in MAP_W:
+				ids[y * MAP_W + x] = _intro_tid(x, y)
+		## OUT_W×OUT_H is the native 28×32 display cell, so this is both exact
+		## 8.75:10 and free of a second scaling pass.
+		var composed: Image = _Apple2HgrNtsc.render_grid_scaled(
+			ids, MAP_W, MAP_H, TILE_CELL_W, scroll_y, false
+		)
+		if composed == null or composed.is_empty():
+			return
+		_apple2_map_img = composed
+		_apple2_map_scroll = scroll_y
+	_canvas.blit_rect(
+		_apple2_map_img,
+		Rect2i(0, 0, content.size.x, content.size.y),
+		content.position
+	)
 
 
 func _draw_map_animated() -> void:
@@ -540,16 +589,22 @@ func _paint_intro_cell(
 ) -> void:
 	if _bin == null or _canvas == null:
 		return
+	var dst_rect := _intro_cell_rect(mx, my)
+	if dst_rect.size.x <= 0 or dst_rect.size.y <= 0:
+		return
 	var ground: int = _intro_tid(mx, my)
 	var cell := Image.create(TILE_PX, TILE_PX, false, Image.FORMAT_RGBA8)
 	cell.fill(Color(0, 0, 0, 0))
-	if ground <= WATER_TILE_MAX:
-		_TileBank.blit_water_to(cell, ground, Vector2i.ZERO, _water_scroll)
-		_apply_water_shore_masks(cell, mx, my)
-	else:
-		## Terrain is fully drawn (black may be ink). Keys only apply to sprites.
-		## Town / keep / castle flags share extra frames — same cycle as MapView.
-		_TileBank.blit_anim_to(cell, ground, Vector2i.ZERO, _tile_anim_frame)
+	## Apple II terrain was already drawn continuously by `_draw_apple2_map_static`.
+	## Animated objects must not redraw an isolated ground tile over that field.
+	if not _TileBank.uses_hgr_ntsc():
+		if ground <= WATER_TILE_MAX:
+			_TileBank.blit_water_to(cell, ground, Vector2i.ZERO, _water_scroll)
+			_apply_water_shore_masks(cell, mx, my)
+		else:
+			## Terrain is fully drawn (black may be ink). Keys only apply to sprites.
+			## Town / keep / castle flags share extra frames — same cycle as MapView.
+			_TileBank.blit_anim_to(cell, ground, Vector2i.ZERO, _tile_anim_frame)
 	if obj_tid >= 0:
 		var o_img: Image = null
 		if moongate:
@@ -560,12 +615,26 @@ func _paint_intro_cell(
 			o_img = _keyed_tile_image(obj_tid, obj_frame)
 		if o_img:
 			cell.blend_rect(o_img, Rect2i(0, 0, TILE_PX, TILE_PX), Vector2i.ZERO)
-	if cell.get_width() != TILE_CELL_W or cell.get_height() != TILE_CELL_H:
-		cell.resize(TILE_CELL_W, TILE_CELL_H, Image.INTERPOLATE_NEAREST)
+	if _TileBank.uses_hgr_ntsc() and obj_tid < 0:
+		return
+	if cell.get_width() != dst_rect.size.x or cell.get_height() != dst_rect.size.y:
+		cell.resize(dst_rect.size.x, dst_rect.size.y, Image.INTERPOLATE_NEAREST)
+	_canvas.blend_rect(
+		cell,
+		Rect2i(0, 0, dst_rect.size.x, dst_rect.size.y),
+		dst_rect.position
+	)
+
+
+func _intro_cell_rect(mx: int, my: int) -> Rect2i:
+	## Exact 28×32 cells: no mixed row heights or per-cell rounding.
 	var content := _map_content_rect()
-	var dx := content.position.x + mx * TILE_CELL_W
-	var dy := content.position.y + my * TILE_CELL_H
-	_canvas.blend_rect(cell, Rect2i(0, 0, TILE_CELL_W, TILE_CELL_H), Vector2i(dx, dy))
+	return Rect2i(
+		content.position.x + mx * TILE_CELL_W,
+		content.position.y + my * TILE_CELL_H,
+		TILE_CELL_W,
+		TILE_CELL_H
+	)
 
 
 func _intro_tid(mx: int, my: int) -> int:
@@ -591,9 +660,10 @@ func _resolve_script_tile_frame(base_id: int, want_frame: int) -> Vector2i:
 
 
 func _moongate_sprite(tid: int) -> Image:
-	## Phase tiles 064–066 are still; full gate 067 uses MapView-style inward swirl.
+	## Phase tiles 064–066 are still; full gate 067 uses MapView-style inward swirl
+	## (skipped on Apple II — NTSC art has no blue/white glow to rotate).
 	var phase := clampi(tid, TILE_MOONGATE_0, TILE_MOONGATE_OPEN)
-	if phase < TILE_MOONGATE_OPEN:
+	if phase < TILE_MOONGATE_OPEN or _TileBank.uses_hgr_ntsc():
 		return _keyed_tile_image(phase, 0)
 	_ensure_moongate_suck_frames()
 	if _moongate_suck_frames.is_empty():
@@ -603,7 +673,7 @@ func _moongate_sprite(tid: int) -> Image:
 
 
 func _ensure_moongate_suck_frames() -> void:
-	if not _moongate_suck_frames.is_empty():
+	if not _moongate_suck_frames.is_empty() or _TileBank.uses_hgr_ntsc():
 		return
 	var base := _keyed_tile_image(TILE_MOONGATE_OPEN, 0)
 	if base == null:
@@ -749,7 +819,9 @@ func _cannonball_sprite() -> Image:
 func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 	if tile_id == TILE_MISSILE:
 		return _cannonball_sprite()
-	var key := "k:%d:%d" % [tile_id, frame]
+	## Apple II: keep opaque black (same as MapView keyed_copy) — no chroma key.
+	var key_prefix := "a2" if _TileBank.uses_hgr_ntsc() else "k"
+	var key := "%s:%d:%d" % [key_prefix, tile_id, frame]
 	if _tile_cache.has(key):
 		return _tile_cache[key] as Image
 	var src: Image = _TileBank.image(tile_id, frame)
@@ -758,11 +830,12 @@ func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 	var img := src.duplicate()
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
-	for y in img.get_height():
-		for x in img.get_width():
-			var c: Color = img.get_pixel(x, y)
-			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	if not _TileBank.uses_hgr_ntsc():
+		for y in img.get_height():
+			for x in img.get_width():
+				var c: Color = img.get_pixel(x, y)
+				if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+					img.set_pixel(x, y, Color(0, 0, 0, 0))
 	_tile_cache[key] = img
 	return img
 
@@ -825,6 +898,8 @@ func _load_shore_land_ref(ref_name: String) -> Image:
 
 
 func _apply_water_shore_masks(target: Image, mx: int, my: int) -> void:
+	if not _TileBank.uses_shore_masks():
+		return
 	var bits := _shore_land_bits_at(mx, my)
 	if bits == 0:
 		return

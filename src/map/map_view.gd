@@ -2,7 +2,7 @@ class_name MapView
 extends TextureRect
 
 ## Renders Ultima IV explore view by blitting per-tile PNGs (U4TileBank) into an ImageTexture.
-## Explore: fixed VIEW_W × VIEW_H grid; STRETCH_SCALE applies mild tall-tile aspect.
+## Explore: fixed VIEW_W × VIEW_H grid; STRETCH_SCALE fills pane at TILE_ASPECT (8.75:10).
 
 ## Preload so MapView parses even if global class cache is stale.
 const _CombatMapDataScript := preload("res://src/map/combat_map_data.gd")
@@ -13,16 +13,33 @@ const _WeaponIconsScript := preload("res://src/core/weapon_icons.gd")
 const _ArmorIconsScript := preload("res://src/core/armor_icons.gd")
 const _DungeonViewScript := preload("res://src/map/dungeon_view.gd")
 const _DungeonPortalsScript := preload("res://src/map/dungeon_portals.gd")
+const _Apple2HgrNtscScript := preload("res://src/map/apple2_hgr_ntsc.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
 const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
 const VIEW_W_MIN := VIEW_W
-## Implied tile width/height when VIEW_W×VIEW_H fills the map pane (~9:10).
-const TILE_ASPECT := 9.0 / 10.0
+## Implied tile width/height when VIEW_W×VIEW_H fills the map pane (Apple II 14×16 → 8.75:10).
+const TILE_ASPECT := 14.0 / 16.0
 ## Legacy atlas path kept for docs / external refs; runtime uses shapes/*.png.
-const U4_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
 const TILE_SRC := 32
+
+
+static func explore_map_height_for_width(width: float) -> float:
+	## Pane height so 25×11 cells display at TILE_ASPECT when stretched to `width`.
+	if width < 1.0:
+		return 0.0
+	return width * float(VIEW_H) / float(VIEW_W) / TILE_ASPECT
+
+
+static func explore_tile_size_for_pane(pane: Vector2) -> Vector2:
+	## Preferred on-screen tile size for a map pane (width-driven, aspect-locked).
+	if pane.x < 1.0:
+		return Vector2.ZERO
+	var tw := pane.x / float(VIEW_W)
+	return Vector2(tw, tw / TILE_ASPECT)
+
+
 const TILE_ID_MAX := 255
 ## Fallback Avatar tiles (when class unknown): 31 ↔ 30.
 const AVATAR_TILE_A := 31
@@ -418,6 +435,9 @@ var _npc_frame_bit: Array[int] = []
 var _npc_frame_cd: Array[float] = []
 var _npc_anim_dirty := false
 var _npc_rebuild_cd := 0.0
+## Reusable Apple II continuous NTSC tile-id grid.
+var _apple2_ids := PackedInt32Array()
+
 const NPC_REBUILD_PERIOD := 0.08 ## Cap map redraws from NPC flips (~12 Hz).
 
 const _TileRulesCamp := preload("res://src/map/tile_rules.gd")
@@ -472,6 +492,29 @@ func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
 	_avatar_frame = 0
 	_roll_frame_cd()
 	_rebuild()
+
+
+func reload_tileset_graphics() -> void:
+	## After GraphicsSettings switches U4TileBank — drop keyed caches and redraw.
+	_avatar_a = null
+	_avatar_b = null
+	_horse_rider_class = -999
+	_horse_rider_w = null
+	_horse_rider_e = null
+	_horse_rider_w_frames.clear()
+	_horse_rider_e_frames.clear()
+	_corpse_slice = null
+	_overlay_slices.clear()
+	_moongate_suck_by_tid.clear()
+	tiles_ready = _U4TileBankScript.ensure_loaded()
+	if tiles_ready:
+		_cache_avatar_icons()
+	if _dungeon_view != null and _dungeon_view.has_method("invalidate_tile_caches"):
+		_dungeon_view.invalidate_tile_caches()
+	if _dungeon_map != null:
+		_rebuild_dungeon()
+	else:
+		_rebuild()
 
 
 func set_view_tiles(cols: int, rows: int = VIEW_H) -> void:
@@ -3130,7 +3173,8 @@ func _process(delta: float) -> void:
 		else:
 			_moongate_px_cd = 0.0
 		## Color rotation while any part of the gate is visible.
-		if _moongate_height_px > 0:
+		## Apple II open-gate art has no EGA glow — keep the static tile.
+		if _moongate_height_px > 0 and not _U4TileBankScript.uses_hgr_ntsc():
 			_moongate_suck_cd -= delta
 			if _moongate_suck_cd <= 0.0:
 				_moongate_suck_cd = MOONGATE_SUCK_PERIOD
@@ -3539,13 +3583,16 @@ func _rebuild() -> void:
 	var half_x := view_w / 2
 	var half_y := view_h / 2
 	# Stage (view+1) so fractional scroll has a strip to reveal.
-	for dy in view_h + 1:
-		for dx in view_w + 1:
-			var mx := base.x - half_x + dx
-			var my := base.y - half_y + dy
-			var tid := _world_display_tid(mx, my)
-			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			_blit_terrain_to(_stage, tid, dst, mx, my)
+	if _U4TileBankScript.uses_hgr_ntsc():
+		_apple2_fill_stage_world(base, half_x, half_y)
+	else:
+		for dy in view_h + 1:
+			for dx in view_w + 1:
+				var mx := base.x - half_x + dx
+				var my := base.y - half_y + dy
+				var tid := _world_display_tid(mx, my)
+				var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+				_blit_terrain_to(_stage, tid, dst, mx, my)
 
 	_refresh_los()
 	_apply_los_blackout_stage(base)
@@ -3630,21 +3677,24 @@ func _rebuild_city() -> void:
 	)
 	var half_x := view_w / 2
 	var half_y := view_h / 2
-	for dy in view_h + 1:
-		for dx in view_w + 1:
-			var mx := base.x - half_x + dx
-			var my := base.y - half_y + dy
-			var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
-			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			if tid == TILE_CHEST:
-				var open: bool = (
-					_city_map != null
-					and _city_map.has_method("is_chest_open")
-					and _city_map.is_chest_open(mx, my)
-				)
-				_blit_chest_tile(_stage, dst, 1 if open else 0, true)
-			else:
-				_blit_terrain_to(_stage, tid, dst, mx, my)
+	if _U4TileBankScript.uses_hgr_ntsc():
+		_apple2_fill_stage_city(base, half_x, half_y)
+	else:
+		for dy in view_h + 1:
+			for dx in view_w + 1:
+				var mx := base.x - half_x + dx
+				var my := base.y - half_y + dy
+				var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
+				var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+				if tid == TILE_CHEST:
+					var open: bool = (
+						_city_map != null
+						and _city_map.has_method("is_chest_open")
+						and _city_map.is_chest_open(mx, my)
+					)
+					_blit_chest_tile(_stage, dst, 1 if open else 0, true)
+				else:
+					_blit_terrain_to(_stage, tid, dst, mx, my)
 
 	_refresh_los()
 	_apply_los_blackout_stage(base)
@@ -4204,20 +4254,35 @@ func _rebuild_camp() -> void:
 	if _camp_bg.size() != view_w * view_h:
 		_build_camp_background()
 
-	for dy in view_h:
-		for dx in view_w:
-			var tid := 4
-			var cx := dx - origin_x
-			var cy := dy - origin_y
-			if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
-				tid = clampi(_camp_map.tile_at(cx, cy), 0, TILE_ID_MAX)
-			else:
+	if _U4TileBankScript.uses_hgr_ntsc():
+		_apple2_fill_buf_grid(
+			func(dx: int, dy: int) -> int:
+				var cx := dx - origin_x
+				var cy := dy - origin_y
+				if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+					return clampi(_camp_map.tile_at(cx, cy), 0, TILE_ID_MAX)
 				var bi := dy * view_w + dx
 				if bi >= 0 and bi < _camp_bg.size():
-					tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
-			var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
-			## View-space for shore masks (bridge side margins + camp water).
-			_blit_terrain_to(_buf, tid, dst, dx, dy)
+					return clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
+				return 4,
+			view_w,
+			view_h
+		)
+	else:
+		for dy in view_h:
+			for dx in view_w:
+				var tid := 4
+				var cx := dx - origin_x
+				var cy := dy - origin_y
+				if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+					tid = clampi(_camp_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+				else:
+					var bi := dy * view_w + dx
+					if bi >= 0 and bi < _camp_bg.size():
+						tid = clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
+				var dst := Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+				## View-space for shore masks (bridge side margins + camp water).
+				_blit_terrain_to(_buf, tid, dst, dx, dy)
 
 	_paint_camp_sleepers(origin_x, origin_y)
 	_paint_camp_guard(origin_x, origin_y)
@@ -4233,7 +4298,40 @@ func _rebuild_combat() -> void:
 	var camp_h := CAMP_H
 	var origin_x := (view_w - camp_w) / 2
 	var origin_y := (view_h - camp_h) / 2
-	if is_in_dungeon():
+	if _U4TileBankScript.uses_hgr_ntsc():
+		if is_in_dungeon():
+			_buf.fill(Color(0, 0, 0, 1))
+			var ids := PackedInt32Array()
+			ids.resize(camp_w * camp_h)
+			for cy in camp_h:
+				for cx in camp_w:
+					ids[cy * camp_w + cx] = clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+			var composed: Image = _Apple2HgrNtscScript.render_grid_scaled(
+				ids, camp_w, camp_h, TILE_SRC, _apple2_water_scroll_src()
+			)
+			if composed != null and not composed.is_empty():
+				_buf.blit_rect(
+					composed,
+					Rect2i(0, 0, composed.get_width(), composed.get_height()),
+					_tile_px(origin_x, origin_y)
+				)
+		else:
+			if _camp_bg.size() != view_w * view_h:
+				_build_camp_background()
+			_apple2_fill_buf_grid(
+				func(dx: int, dy: int) -> int:
+					var cx := dx - origin_x
+					var cy := dy - origin_y
+					if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+						return clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+					var bi := dy * view_w + dx
+					if bi >= 0 and bi < _camp_bg.size():
+						return clampi(int(_camp_bg[bi]), 0, TILE_ID_MAX)
+					return 4,
+				view_w,
+				view_h
+			)
+	elif is_in_dungeon():
 		## xu4 dungeon fight: center arena only — no world/side-strip backdrop.
 		_buf.fill(Color(0, 0, 0, 1))
 		for cy in camp_h:
@@ -5250,6 +5348,85 @@ func _normalize_camp_margin_tile(tid: int) -> int:
 			return TILE_GRASS
 
 
+func _apple2_water_scroll_src() -> int:
+	## Map 32px water scroll clock onto 16 HGR scanlines.
+	return int(posmod(_water_scroll, TILE_SRC) * _Apple2HgrNtscScript.SRC_H / float(TILE_SRC))
+
+
+func _apple2_compose_tid(tid: int, _mx: int, _my: int) -> int:
+	## Tile id stamped into the HGR grid (opaque Apple II art — no keyed underlay).
+	return clampi(tid, 0, TILE_ID_MAX)
+
+
+func _apple2_fill_stage_from_ids(ids: PackedInt32Array, cols: int, rows: int) -> void:
+	var composed: Image = _Apple2HgrNtscScript.render_grid_scaled(
+		ids, cols, rows, TILE_SRC, _apple2_water_scroll_src()
+	)
+	if composed == null or composed.is_empty():
+		_stage.fill(Color(0, 0, 0, 1))
+		return
+	## Always restore the clean composed stage before LOS blackouts. The decoder
+	## itself caches unchanged ids/scroll at 0ms; caching `_stage` here would also
+	## cache the previous frame's destructive LOS mask.
+	_stage.blit_rect(
+		composed,
+		Rect2i(0, 0, composed.get_width(), composed.get_height()),
+		Vector2i.ZERO
+	)
+
+
+func _apple2_fill_stage_world(base: Vector2i, half_x: int, half_y: int) -> void:
+	var cols := view_w + 1
+	var rows := view_h + 1
+	var n := cols * rows
+	if _apple2_ids.size() != n:
+		_apple2_ids.resize(n)
+	for dy in rows:
+		for dx in cols:
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			var tid := _apple2_compose_tid(_world_display_tid(mx, my), mx, my)
+			_apple2_ids[dy * cols + dx] = tid
+	_apple2_fill_stage_from_ids(_apple2_ids, cols, rows)
+
+
+func _apple2_fill_stage_city(base: Vector2i, half_x: int, half_y: int) -> void:
+	var cols := view_w + 1
+	var rows := view_h + 1
+	var n := cols * rows
+	if _apple2_ids.size() != n:
+		_apple2_ids.resize(n)
+	for dy in rows:
+		for dx in cols:
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			var tid := _apple2_compose_tid(
+				clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX), mx, my
+			)
+			_apple2_ids[dy * cols + dx] = tid
+	_apple2_fill_stage_from_ids(_apple2_ids, cols, rows)
+
+
+func _apple2_fill_buf_grid(get_tid: Callable, cols: int, rows: int) -> void:
+	## Combat / camp: fill `_buf` directly (no scroll stage).
+	var ids := PackedInt32Array()
+	ids.resize(cols * rows)
+	for dy in rows:
+		for dx in cols:
+			ids[dy * cols + dx] = _apple2_compose_tid(int(get_tid.call(dx, dy)), dx, dy)
+	var composed: Image = _Apple2HgrNtscScript.render_grid_scaled(
+		ids, cols, rows, TILE_SRC, _apple2_water_scroll_src()
+	)
+	if composed == null or composed.is_empty():
+		_buf.fill(Color(0, 0, 0, 1))
+		return
+	_buf.blit_rect(
+		composed,
+		Rect2i(0, 0, mini(composed.get_width(), _buf.get_width()), mini(composed.get_height(), _buf.get_height())),
+		Vector2i.ZERO
+	)
+
+
 func _blit_terrain_to(
 	target: Image, tid: int, dst: Vector2i, map_x: int = SHORE_NO_CELL, map_y: int = SHORE_NO_CELL
 ) -> void:
@@ -5408,6 +5585,8 @@ func _load_shore_land_ref(ref_name: String) -> Image:
 
 func _apply_water_shore_masks(target: Image, dst: Vector2i, mx: int, my: int) -> void:
 	## Overlay directional `shore_land_*` freckles where N/E/S/W neighbours are land.
+	if not _U4TileBankScript.uses_shore_masks():
+		return
 	var bits := _shore_land_bits_at(mx, my)
 	if bits == 0:
 		return
@@ -5822,6 +6001,9 @@ func _paint_moongate(cam: Vector2) -> void:
 
 func _moongate_draw_slice() -> Image:
 	## Full open-gate tile with blue↔white inward rotation (cropped by height when painting).
+	## Apple II: static open gate — NTSC art has no glow to rotate.
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return _overlay_slice(TILE_MOONGATE_OPEN)
 	var frames := _ensure_moongate_suck_frames_for(TILE_MOONGATE_OPEN)
 	if not frames.is_empty():
 		return frames[_moongate_suck_i % frames.size()]
@@ -5829,6 +6011,8 @@ func _moongate_draw_slice() -> Image:
 
 
 func _ensure_moongate_suck_frames_for(tid: int) -> Array[Image]:
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return []
 	if _moongate_suck_by_tid.has(tid):
 		var cached: Array[Image] = _moongate_suck_by_tid[tid]
 		return cached

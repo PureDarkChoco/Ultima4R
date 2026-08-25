@@ -794,6 +794,21 @@ const _T := {
 		"en_us": "Options",
 		"ko": "옵션",
 	},
+	"esc_options_graphics": {
+		"en_u4": "Graphics",
+		"en_us": "Graphics",
+		"ko": "그래픽",
+	},
+	"esc_options_graphics_new_color": {
+		"en_u4": "New Color",
+		"en_us": "New Color",
+		"ko": "뉴 컬러",
+	},
+	"esc_options_graphics_apple2_color": {
+		"en_u4": "Apple II Color",
+		"en_us": "Apple II Color",
+		"ko": "Apple II 컬러",
+	},
 	"esc_options_resolution": {
 		"en_u4": "Resolution",
 		"en_us": "Resolution",

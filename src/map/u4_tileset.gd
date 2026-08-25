@@ -17,6 +17,10 @@ static func get_tileset() -> TileSet:
 	return _cached
 
 
+static func clear_cache() -> void:
+	_cached = null
+
+
 static func build() -> TileSet:
 	var atlas_img: Image = _U4TileBankScript.stacked_atlas()
 	if atlas_img == null or atlas_img.is_empty():

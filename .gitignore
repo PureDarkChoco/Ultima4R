@@ -13,6 +13,9 @@
 assets/tiles/u6/
 assets/ui/u6/
 
+# Apple II U4 tile dumps (copyrighted original art — local reference only)
+reference/apple2_u4/
+
 # Local Python tooling (Pillow etc.)
 .tools_py/
 

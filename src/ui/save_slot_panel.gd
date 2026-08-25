@@ -64,7 +64,7 @@ var _e_name_w := EMBED_NAME_W_BASE
 var _e_font := EMBED_FONT
 var _e_font_sub := EMBED_FONT_SUB
 ## Map-tile width/height (same stretch as explore / roster).
-var _tile_aspect := 9.0 / 10.0
+var _tile_aspect := 14.0 / 16.0
 
 
 func _ready() -> void:
@@ -172,7 +172,7 @@ func _snap_rect(r: Rect2) -> Rect2:
 
 
 func _icon_size(height: float) -> Vector2:
-	## Explore tile look: 9:10 (slightly tall), not the 25×11 pane stretch.
+	## Explore tile look: 8.75:10 (Apple II 14×16), not the 25×11 pane stretch.
 	var h := maxf(float(int(round(height))), 8.0)
 	var w := maxf(float(int(round(h * _tile_aspect))), 4.0)
 	return Vector2(w, h)
@@ -311,6 +311,7 @@ func _scale_metrics(embed: bool) -> void:
 			_rows[i].custom_minimum_size = Vector2(0, row_h)
 			_rows[i].size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		_face_rects[i].custom_minimum_size = face_sz
+		_face_rects[i].size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_face_rects[i].stretch_mode = TextureRect.STRETCH_SCALE
 		_num_labs[i].custom_minimum_size = Vector2(EMBED_NUM_W if embed else 24.0, 0)
 		_num_labs[i].add_theme_font_size_override("font_size", font)
@@ -331,6 +332,7 @@ func _scale_metrics(embed: bool) -> void:
 		for ch in _comp_rows[i].get_children():
 			if ch is TextureRect:
 				(ch as TextureRect).custom_minimum_size = comp_sz
+				(ch as TextureRect).size_flags_vertical = Control.SIZE_SHRINK_CENTER
 				(ch as TextureRect).stretch_mode = TextureRect.STRETCH_SCALE
 
 
@@ -447,6 +449,7 @@ func _build() -> void:
 
 		var face := TextureRect.new()
 		face.custom_minimum_size = _icon_size(FACE_SZ)
+		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_SCALE
 		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -564,6 +567,7 @@ func _fill_companions(index: int, meta: Dictionary) -> void:
 			continue ## Avatar class tile is already on the left.
 		var icon := TextureRect.new()
 		icon.custom_minimum_size = icon_sz
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST

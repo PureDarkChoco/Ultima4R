@@ -26,6 +26,7 @@ SceneRouter="*res://src/core/scene_router.gd"
 GamepadSettings="*res://src/core/gamepad_settings.gd"
 DisplaySettings="*res://src/core/display_settings.gd"
 HangulInputSettings="*res://src/core/hangul_input_settings.gd"
+GraphicsSettings="*res://src/core/graphics_settings.gd"
 AudioSfx="*res://src/core/audio_sfx.gd"
 QuitConfirm="*res://src/core/quit_confirm.gd"
 

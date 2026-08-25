@@ -100,8 +100,8 @@ const CURSOR_BRIGHTEN := 1.45
 const CURSOR_BRIGHTEN_ADD := 0.12
 ## History-line marker: rendered as charset prompt image, never shown as "►" text.
 const MSG_PROMPT_MARK := "\u0001"
-const LAYOUT_UNITS := 13.0
-const BAR_UNITS := 0.5
+## Top/bottom HUD bars: leftover after aspect-locked map height (min floor).
+const BAR_MIN_H := 16.0
 const SIDE_TWEEN_SEC := 0.18
 const RIGHT_TOP_TILES := 5
 const COMPACT_RIGHT_TILES := 2
@@ -526,6 +526,8 @@ func _ready() -> void:
 	call_deferred("grab_focus")
 	if not GameState.language_changed.is_connected(_on_language_changed):
 		GameState.language_changed.connect(_on_language_changed)
+	if not GraphicsSettings.tileset_changed.is_connected(_on_tileset_changed):
+		GraphicsSettings.tileset_changed.connect(_on_tileset_changed)
 	_JournalScript.ensure_catalog()
 	if _journal_panel != null and _journal_panel.has_method("prepare_session_selection"):
 		var place := _talk_city_id() if _is_in_city() else ""
@@ -998,12 +1000,20 @@ func _resolve_world_map_path() -> String:
 
 
 func _fit_explore_map() -> void:
+	## Full-width map at MapView.TILE_ASPECT (8.75:10); leftover → equal top/bottom HUD.
 	var avail := size
 	if avail.x < 32.0 or avail.y < 32.0:
 		return
-	var unit := avail.y / LAYOUT_UNITS
-	var bar_h := maxf(floorf(unit * BAR_UNITS), 16.0)
-	var map_h := maxf(floorf(avail.y - bar_h * 2.0), 200.0)
+	var map_h := floorf(MapView.explore_map_height_for_width(avail.x))
+	var bar_budget := avail.y - map_h
+	if bar_budget < BAR_MIN_H * 2.0:
+		bar_budget = BAR_MIN_H * 2.0
+		map_h = maxf(floorf(avail.y - bar_budget), 200.0)
+	var bar_h := maxf(floorf(bar_budget * 0.5), BAR_MIN_H)
+	## Absorb odd leftover into bars so VBox doesn't leave a 1px gap under the map.
+	var used := bar_h * 2.0 + map_h
+	if used < avail.y:
+		bar_h += floorf((avail.y - used) * 0.5)
 	if _top_bar:
 		_top_bar.custom_minimum_size = Vector2(0, bar_h)
 		_top_bar.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -1185,8 +1195,8 @@ func _side_geom() -> Dictionary:
 		tile_size = _map.displayed_tile_size()
 		tile_w = tile_size.x
 	if tile_w < 1.0:
-		tile_w = pane_sz.x / float(MapView.VIEW_W)
-		tile_size = Vector2(tile_w, pane_sz.y / float(MapView.VIEW_H))
+		tile_size = MapView.explore_tile_size_for_pane(pane_sz)
+		tile_w = tile_size.x
 	if _compact_roster:
 		_compact_roster.set_tile_size(tile_size)
 	if _roster:
@@ -8036,6 +8046,20 @@ func _on_language_changed(_lang: String) -> void:
 	_layout_prompt_row()
 	if _codex_stage > 0 and _codex_choice_active:
 		_open_codex_choice_menu()
+
+
+func _on_tileset_changed(_tileset_id: String) -> void:
+	## Options → Graphics: live-swap New Color / Apple II Color banks.
+	if _map != null and _map.has_method("reload_tileset_graphics"):
+		_map.reload_tileset_graphics()
+	if _roster != null and _roster.has_method("reload_tile_portraits"):
+		_roster.reload_tile_portraits()
+	if _compact_roster != null and _compact_roster.has_method("reload_tile_portraits"):
+		_compact_roster.reload_tile_portraits()
+	if _foe_roster != null and _foe_roster.has_method("_refresh_icons"):
+		_foe_roster._refresh_icons()
+	if _options_panel != null and _options_panel.is_open():
+		_options_panel.refresh()
 
 
 func _handle_esc_menu_input(event: InputEvent) -> bool:

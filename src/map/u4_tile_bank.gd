@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Per-tile PNG bank for Ultima IV shapes (id 0..255).
 ##
-## Files under SHAPES_DIR:
+## Files under the active tileset shapes dir:
 ##   `NNN.png` / `NNN_name.png`     → tile NNN, frame 0
 ##   `NNN_name_1.png` … `_3.png`   → same tile, extra animation frames
 ##
@@ -11,20 +11,92 @@ extends RefCounted
 ## tile ids. Use `_1` / `_2` / `_3` only when one map byte needs multiple frames
 ## (e.g. white corner tiles 049–052).
 
-const SHAPES_DIR := "res://assets/tiles/u4graphics/shapes"
-const FALLBACK_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
-const SHAPES_PACK := "res://assets/tiles/u4graphics/shapes.u4pack"
+const SET_NEW_COLOR := "new_color"
+const SET_APPLE2_COLOR := "apple2_color"
+const SET_IDS: Array[String] = [SET_NEW_COLOR, SET_APPLE2_COLOR]
+const DEFAULT_SET := SET_NEW_COLOR
+
 const SHAPES_PACK_MAGIC := "U4SP"
 const SHAPES_PACK_VERSION := 1
 const TILE_SIZE := 32
 const COUNT := 256
 const _ResImage := preload("res://src/core/res_image.gd")
+const _Apple2HgrNtsc := preload("res://src/map/apple2_hgr_ntsc.gd")
+
+## Legacy aliases (New Color / u4graphics). Prefer shapes_dir() / shapes_pack().
+const SHAPES_DIR := "res://assets/tiles/u4graphics/shapes"
+const FALLBACK_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
+const SHAPES_PACK := "res://assets/tiles/u4graphics/shapes.u4pack"
+## Apple II: runtime-expanded LC tile banks + Mariani LUT (not PNGs / raw .dsk).
+const APPLE2_HGR_PACK := "res://assets/tiles/apple2_color/shapes.u4hgr"
 
 ## Array[Array] — outer = tile id, inner = frame Images (at least 1 when ready).
 static var _frames: Array = []
 ## Frame-0 path per tile (for debugging / tools).
 static var _paths: PackedStringArray = PackedStringArray()
 static var _loaded := false
+static var _active_set: String = DEFAULT_SET
+
+
+static func normalize_set_id(id: String) -> String:
+	var s := id.strip_edges().to_lower()
+	if s in ["apple2", "apple_ii", "appleii", "a2", SET_APPLE2_COLOR]:
+		return SET_APPLE2_COLOR
+	if s in ["new", "u4graphics", "modern", SET_NEW_COLOR]:
+		return SET_NEW_COLOR
+	return DEFAULT_SET
+
+
+static func active_set() -> String:
+	return _active_set
+
+
+static func shapes_dir(set_id: String = "") -> String:
+	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
+		SET_APPLE2_COLOR:
+			return "res://assets/tiles/apple2_color/shapes"
+		_:
+			return SHAPES_DIR
+
+
+static func shapes_pack(set_id: String = "") -> String:
+	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
+		SET_APPLE2_COLOR:
+			## PNG pack unused for Apple II; HGR pack is the runtime source.
+			return ""
+		_:
+			return SHAPES_PACK
+
+
+static func hgr_pack(set_id: String = "") -> String:
+	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
+		SET_APPLE2_COLOR:
+			return APPLE2_HGR_PACK
+		_:
+			return ""
+
+
+static func uses_hgr_ntsc() -> bool:
+	return _active_set == SET_APPLE2_COLOR
+
+
+static func fallback_atlas(set_id: String = "") -> String:
+	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
+		SET_APPLE2_COLOR:
+			return ""
+		_:
+			return FALLBACK_ATLAS
+
+
+static func set_active_set(set_id: String) -> bool:
+	## Switch tileset and reload. Returns false if the new set failed to load
+	## (previous frames are cleared — caller should fall back if needed).
+	var next := normalize_set_id(set_id)
+	if next == _active_set and is_ready():
+		return true
+	_active_set = next
+	clear_cache()
+	return ensure_loaded()
 
 
 static func is_ready() -> bool:
@@ -40,6 +112,12 @@ static func ensure_loaded() -> bool:
 	for i in COUNT:
 		_paths[i] = ""
 		_frames[i] = []
+	if _active_set == SET_APPLE2_COLOR:
+		if not _load_apple2_hgr():
+			_loaded = false
+			return false
+		_loaded = true
+		return true
 	_scan_dir()
 	var missing := 0
 	for i in COUNT:
@@ -51,17 +129,49 @@ static func ensure_loaded() -> bool:
 	for i in COUNT:
 		var arr: Array = _frames[i]
 		if arr.is_empty() or arr[0] == null or (arr[0] as Image).is_empty():
-			push_error("U4TileBank: missing tile %d" % i)
+			push_error("U4TileBank: missing tile %d (%s)" % [i, _active_set])
 			_loaded = false
 			return false
 	return true
 
 
+static func _load_apple2_hgr() -> bool:
+	## Decode expanded LC banks via Mariani NTSC into 32×32 frames for UI / overlays.
+	## Explore terrain uses continuous compose in MapView (Apple2HgrNtsc.render_grid).
+	_Apple2HgrNtsc.clear_cache()
+	if not _Apple2HgrNtsc.ensure_loaded():
+		push_error("U4TileBank: Apple II HGR pack failed to load")
+		return false
+	var ids := PackedInt32Array()
+	ids.resize(COUNT)
+	for i in COUNT:
+		ids[i] = i
+	## 16×16 atlas of isolated tiles (correct phase pad per cell).
+	var atlas: Image = _Apple2HgrNtsc.render_grid(ids, 16, 16, 0, true)
+	if atlas == null or atlas.is_empty():
+		push_error("U4TileBank: Apple II atlas decode failed")
+		return false
+	var cw: int = _Apple2HgrNtsc.OUT_W
+	var ch: int = _Apple2HgrNtsc.OUT_H
+	for i in COUNT:
+		var tx := i % 16
+		var ty := i / 16
+		var slice := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
+		slice.blit_rect(atlas, Rect2i(tx * cw, ty * ch, cw, ch), Vector2i.ZERO)
+		if cw != TILE_SIZE or ch != TILE_SIZE:
+			slice.resize(TILE_SIZE, TILE_SIZE, Image.INTERPOLATE_NEAREST)
+		_frames[i] = [slice]
+		_paths[i] = "%s#%03d" % [APPLE2_HGR_PACK, i]
+	return true
+
+
 static func clear_cache() -> void:
-	## Call after replacing files on disk if you need a hot reload.
+	## Call after replacing files on disk or switching tileset.
 	_frames.clear()
 	_paths = PackedStringArray()
 	_loaded = false
+	if _active_set == SET_APPLE2_COLOR:
+		_Apple2HgrNtsc.clear_cache()
 
 
 static func path_for(tile_id: int) -> String:
@@ -151,13 +261,15 @@ static func _is_fixed_stone_pixel(c: Color) -> bool:
 
 
 static func keyed_copy(tile_id: int, frame: int = 0) -> Image:
-	## Only black connected to the tile border is background. Enclosed black
-	## pixels belong to the sprite (eyes, neck gaps, clothing outlines, etc.).
+	## New Color: border-connected black → transparent so overlays show underdraw.
+	## Apple II Color: keep opaque black (tiles already include CRT/scanline black).
 	var src := image(tile_id, frame)
 	if src == null:
 		return null
 	var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
 	img.blit_rect(src, Rect2i(0, 0, TILE_SIZE, TILE_SIZE), Vector2i.ZERO)
+	if _active_set == SET_APPLE2_COLOR:
+		return img
 	var queued := PackedByteArray()
 	queued.resize(TILE_SIZE * TILE_SIZE)
 	var pending: Array[Vector2i] = []
@@ -173,6 +285,11 @@ static func keyed_copy(tile_id: int, frame: int = 0) -> Image:
 		for step in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
 			_queue_border_black(img, p + step, queued, pending)
 	return img
+
+
+static func uses_shore_masks() -> bool:
+	## Apple II tiles already include shoreline in the art; skip New Color freckles.
+	return _active_set != SET_APPLE2_COLOR
 
 
 static func _queue_border_black(
@@ -208,16 +325,17 @@ static func _scan_dir() -> void:
 	if _scan_pack(found):
 		_commit_found(found)
 		return
-	var names := _ResImage.list_png_names(SHAPES_DIR)
+	var dir_path := shapes_dir()
+	var names := _ResImage.list_png_names(dir_path)
 	if names.is_empty():
-		push_warning("U4TileBank: no PNGs under %s" % SHAPES_DIR)
+		push_warning("U4TileBank: no PNGs under %s" % dir_path)
 		return
 	for fname in names:
 		var parsed := _parse_filename(fname)
 		var id: int = parsed.x
 		var frame: int = parsed.y
 		if id >= 0 and id < COUNT and frame >= 0:
-			var full := "%s/%s" % [SHAPES_DIR, fname]
+			var full := "%s/%s" % [dir_path, fname]
 			var slot: Dictionary = found[id]
 			if not slot.has(frame) or fname.length() > String(slot[frame]).get_file().length():
 				slot[frame] = full
@@ -225,16 +343,18 @@ static func _scan_dir() -> void:
 
 
 static func _scan_pack(found: Array) -> bool:
-	var file := FileAccess.open(SHAPES_PACK, FileAccess.READ)
+	var pack_path := shapes_pack()
+	var file := FileAccess.open(pack_path, FileAccess.READ)
 	if file == null:
 		return false
 	if file.get_buffer(4).get_string_from_ascii() != SHAPES_PACK_MAGIC:
-		push_warning("U4TileBank: bad shape pack magic")
+		push_warning("U4TileBank: bad shape pack magic (%s)" % pack_path)
 		return false
 	if file.get_32() != SHAPES_PACK_VERSION:
-		push_warning("U4TileBank: unsupported shape pack version")
+		push_warning("U4TileBank: unsupported shape pack version (%s)" % pack_path)
 		return false
 	var entry_count := file.get_32()
+	var dir_path := shapes_dir()
 	for _entry in entry_count:
 		var name_size := file.get_16()
 		var data_size := file.get_32()
@@ -257,7 +377,7 @@ static func _scan_pack(found: Array) -> bool:
 		if not slot.has(frame) or fname.length() > str(slot[frame]["path"]).get_file().length():
 			slot[frame] = {
 				"image": img,
-				"path": "%s/%s" % [SHAPES_DIR, fname],
+				"path": "%s/%s" % [dir_path, fname],
 			}
 	return true
 
@@ -332,7 +452,10 @@ static func _parse_filename(fname: String) -> Vector2i:
 
 
 static func _fill_missing_from_atlas() -> void:
-	var atlas := _load_path(FALLBACK_ATLAS)
+	var atlas_path := fallback_atlas()
+	if atlas_path.is_empty():
+		return
+	var atlas := _load_path(atlas_path)
 	if atlas == null or atlas.is_empty():
 		return
 	if atlas.get_height() < TILE_SIZE * COUNT:

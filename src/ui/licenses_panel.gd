@@ -180,10 +180,19 @@ https://github.com/godotengine/godot-cpp
 
 u4graphics
 
-Ultima IV 타일 그래픽은 jahshuwaa의 u4graphics를 사용합니다.
+Ultima IV 타일 그래픽(New Color)은 jahshuwaa의 u4graphics를 사용합니다.
 https://github.com/jahshuwaa/u4graphics
 
 u4graphics는 The Unlicense에 따라 퍼블릭 도메인으로 공개되었습니다.
+
+Apple II Color
+
+선택 가능한 Apple II Color 모드는 Apple II판 Ultima IV Program 디스크에서
+게임이 애니메이션 타일을 전개한 뒤의 타일 뱅크만 추출한 데이터
+(`shapes.u4hgr`)를 사용합니다.
+원본 디스크 이미지는 배포하지 않으며, 화면은 Mariani/AppleWin 방식의
+NTSC 합성으로 런타임에 재구성합니다. 해당 타일 데이터의 권리는
+Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
 
 Raven Fantasy Icons
 
@@ -248,10 +257,18 @@ https://github.com/godotengine/godot-cpp
 
 u4graphics
 
-Ultima IV tile graphics use jahshuwaa's u4graphics.
+Ultima IV tile graphics (New Color) use jahshuwaa's u4graphics.
 https://github.com/jahshuwaa/u4graphics
 
 u4graphics is dedicated to the public domain under The Unlicense.
+
+Apple II Color
+
+The optional Apple II Color mode uses tile banks extracted after Apple II
+Ultima IV expands its animated tiles, stored as `shapes.u4hgr`. The raw disk
+image is not distributed; the display is reconstructed at runtime with
+Mariani/AppleWin-style NTSC composite decoding. Rights in that tile data
+belong to Origin Systems / Electronic Arts and other respective owners.
 
 Raven Fantasy Icons
 

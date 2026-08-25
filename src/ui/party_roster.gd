@@ -155,7 +155,7 @@ var _order_locked := -1
 ## Guard against resize ↔ distribute feedback loops.
 var _relayouting := false
 ## Map tile aspect (w/h). Size stays ICON_SIZE-based; only ratio follows tiles.
-var _tile_aspect := 9.0 / 10.0
+var _tile_aspect := 14.0 / 16.0
 ## Open Tab panel outer height — compact rows/gaps are derived from this.
 var _open_outer_h := 0.0
 ## xu4 stats->flashPlayers: brief red flash on damaged slots.
@@ -803,6 +803,12 @@ func _load_portraits() -> void:
 		_portraits_a.append(tex_a)
 		_portraits_b.append(tex_b)
 	_corpse = _load_keyed_portrait(CORPSE_PATH)
+
+
+func reload_tile_portraits() -> void:
+	## Graphics tileset swap — class icons come from U4TileBank.
+	_load_portraits()
+	refresh()
 
 
 func _slice_keyed_tile(tile_id: int) -> Texture2D:

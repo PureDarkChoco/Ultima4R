@@ -97,6 +97,15 @@ func set_theme(id: String) -> void:
 	_entrance = _load_png("%s/%s/room_entrance.png" % [ASSET_ROOT, id])
 
 
+func invalidate_tile_caches() -> void:
+	## U4TileBank tileset swap — monster/object keyed copies must rebuild.
+	_keyed_monster_cache.clear()
+	_keyed_stone_cache.clear()
+	_piece_cache.clear()
+	_piece_cache_w = 0
+	_piece_cache_h = 0
+
+
 func paint(
 	buf: Image,
 	dmap,
