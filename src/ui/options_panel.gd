@@ -388,9 +388,14 @@ func _refresh_labels() -> void:
 
 
 func _graphics_row_text() -> String:
+	var tid := GraphicsSettings.tileset_id()
 	var key := "esc_options_graphics_new_color"
-	if GraphicsSettings.tileset_id() == "apple2_color":
+	if tid == "apple2_color":
 		key = "esc_options_graphics_apple2_color"
+	elif tid == "apple2_mono":
+		key = "esc_options_graphics_apple2_mono"
+	elif tid == "apple2_mono_green":
+		key = "esc_options_graphics_apple2_mono_green"
 	return "%s: ◂ %s ▸" % [Locale.t("esc_options_graphics"), Locale.t(key)]
 
 

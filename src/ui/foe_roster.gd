@@ -213,7 +213,8 @@ func _build_slots() -> void:
 		var icon := TextureRect.new()
 		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		## Fill host sized to map tile aspect (8.75:10) — not source 1:1.
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		portrait.add_child(icon)

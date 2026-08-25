@@ -539,8 +539,11 @@ func _refresh_text() -> void:
 
 
 func _on_tileset_changed(_tileset_id: String) -> void:
+	PartyRoster.clear_class_tile_cache()
 	if _intro != null and _intro.has_method("reload_tileset_graphics"):
 		_intro.reload_tileset_graphics()
+	if _save_panel != null and _save_panel.has_method("reload_class_tiles"):
+		_save_panel.reload_class_tiles()
 	if _options_panel != null and _options_panel.is_open():
 		_options_panel.refresh()
 

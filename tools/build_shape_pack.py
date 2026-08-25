@@ -4,6 +4,7 @@
 Examples:
   python3 tools/build_shape_pack.py
   python3 tools/build_shape_pack.py apple2
+  python3 tools/build_shape_pack.py mono
   python3 tools/build_shape_pack.py all
 """
 
@@ -21,6 +22,10 @@ SETS = {
 	"apple2": (
 		ROOT / "assets/tiles/apple2_color/shapes",
 		ROOT / "assets/tiles/apple2_color/shapes.u4pack",
+	),
+	"mono": (
+		ROOT / "assets/tiles/apple2_mono/shapes",
+		ROOT / "assets/tiles/apple2_mono/shapes.u4pack",
 	),
 }
 MAGIC = b"U4SP"
@@ -50,11 +55,14 @@ def pack_set(source: Path, output: Path) -> None:
 def main() -> None:
 	which = (sys.argv[1] if len(sys.argv) > 1 else "new").strip().lower()
 	if which in ("all", "both"):
-		for key in ("new", "apple2"):
+		for key in ("new", "apple2", "mono"):
 			pack_set(*SETS[key])
 		return
 	if which in ("apple2", "apple", "a2", "apple2_color"):
 		pack_set(*SETS["apple2"])
+		return
+	if which in ("mono", "apple2_mono", "monochrome", "apple2_mono_white"):
+		pack_set(*SETS["mono"])
 		return
 	pack_set(*SETS["new"])
 

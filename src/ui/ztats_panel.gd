@@ -50,7 +50,6 @@ const FACE_ASPECT := 240.0 / 300.0
 ## Top (above name) and bottom (below bars) — keep equal, keep modest so bars fit.
 const OUTER_PAD := 4
 const IDENT_SEP := 6
-const TEXT_INDENT := TILE_SIZE + IDENT_SEP
 ## Extra space between the four zones is shared equally (collapses if tight).
 const SECTION_GAP_MIN := 0
 const BAR_H := 13
@@ -120,6 +119,9 @@ var _face_sync_gen := 0
 var _tile_host: Control
 var _tile: TextureRect
 var _sleep_zz: Label
+## Width spacers that must match class-tile display width (map aspect).
+var _tile_w_slots: Array[Control] = []
+var _bar_indent_slots: Array[Control] = []
 var _face: TextureRect
 var _face_slot: Control
 var _sex: Label
@@ -152,6 +154,13 @@ var _slot := -1
 var _status_code := PartyRoster.Status.OK
 var _hp_critical := false
 var _anim_t := 0.0
+## Class-tile blink (same cadence as PartyRoster).
+var _tile_a: Texture2D
+var _tile_b: Texture2D
+var _frame_bit := 0
+var _frame_cd := 0.0
+const FRAME_MIN := 0.28
+const FRAME_MAX := 0.55
 
 
 func _ready() -> void:
@@ -180,13 +189,25 @@ func open_member(slot: int) -> void:
 	_slot = slot
 	_inv_page = InvPage.NONE
 	_show_char(true)
+	_sync_tile_aspect()
 	_refresh()
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = true
 	move_to_front()
-	set_process(_needs_status_pulse())
+	set_process(_needs_process())
 	## First open: layout isn't ready in the same idle as visible=true.
 	_request_face_sync()
+
+
+func sync_tileset_graphics() -> void:
+	## Options → Graphics: re-tint class tile + reflow 8.75:10 host.
+	_sync_tile_aspect()
+	if not is_open():
+		return
+	if is_inventory_page():
+		_refresh_inventory()
+	else:
+		_refresh()
 
 
 func open_inventory(page: int, restore_scroll: bool = true, shop_pick: bool = false) -> void:
@@ -360,16 +381,47 @@ func _needs_status_pulse() -> bool:
 	return _hp_critical and _status_code == PartyRoster.Status.OK
 
 
+func _needs_tile_anim() -> bool:
+	## Blink while the character sheet is up (not dead / sleep / inventory).
+	if not visible or _inv_page != InvPage.NONE or _slot < 0:
+		return false
+	if _status_code == PartyRoster.Status.DEAD or _status_code == PartyRoster.Status.SLEEPING:
+		return false
+	return _tile_a != null
+
+
+func _needs_process() -> bool:
+	return _needs_status_pulse() or _needs_tile_anim()
+
+
 func _process(delta: float) -> void:
-	if not visible or not _needs_status_pulse():
+	if not visible:
 		return
 	_anim_t += delta
+	if _needs_tile_anim():
+		_frame_cd -= delta
+		if _frame_cd <= 0.0:
+			_frame_bit = 1 - _frame_bit
+			_frame_cd = randf_range(FRAME_MIN, FRAME_MAX)
+			_apply_tile_frame()
 	if _tile == null:
+		return
+	if not _needs_status_pulse():
 		return
 	if _status_code == PartyRoster.Status.POISONED:
 		_tile.modulate = _status_tint_pulse(COL_POISON)
 	elif _hp_critical:
 		_tile.modulate = _status_tint_pulse(COL_HP)
+
+
+func _apply_tile_frame() -> void:
+	if _tile == null:
+		return
+	if _status_code == PartyRoster.Status.DEAD or _status_code == PartyRoster.Status.SLEEPING:
+		_tile.texture = _tile_a
+		return
+	var use_b := _frame_bit == 1 and _tile_b != null
+	_tile.texture = _tile_b if use_b else _tile_a
 
 
 func _status_tint_pulse(tint_color: Color) -> Color:
@@ -402,7 +454,7 @@ func _apply_status_visuals(st: int, hp_critical: bool) -> void:
 	_status.add_theme_color_override("font_color", status_col)
 	if _sleep_zz:
 		_sleep_zz.visible = st == PartyRoster.Status.SLEEPING
-	set_process(visible and _needs_status_pulse())
+	set_process(visible and _needs_process())
 
 
 func _add_section_spacer(parent: VBoxContainer) -> void:
@@ -468,7 +520,7 @@ func _build() -> void:
 	head.add_child(ident)
 
 	_tile_host = Control.new()
-	_tile_host.custom_minimum_size = Vector2(TILE_SIZE, TILE_SIZE)
+	_tile_host.custom_minimum_size = _tile_display_size()
 	_tile_host.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_tile_host.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_tile_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -477,7 +529,8 @@ func _build() -> void:
 	_tile = TextureRect.new()
 	_tile.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_tile.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_tile.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	## Host is map-tile aspect; fill it (same as party roster / explore map).
+	_tile.stretch_mode = TextureRect.STRETCH_SCALE
 	_tile.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tile_host.add_child(_tile)
@@ -576,10 +629,11 @@ func _build() -> void:
 	root.add_child(attrs_align)
 
 	var attrs_tile_slot := Control.new()
-	attrs_tile_slot.custom_minimum_size = Vector2(TILE_SIZE, 0)
+	attrs_tile_slot.custom_minimum_size = Vector2(_tile_display_w(), 0)
 	attrs_tile_slot.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	attrs_tile_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	attrs_align.add_child(attrs_tile_slot)
+	_tile_w_slots.append(attrs_tile_slot)
 
 	var attrs_col := VBoxContainer.new()
 	attrs_col.add_theme_constant_override("separation", 4)
@@ -618,10 +672,11 @@ func _build() -> void:
 	root.add_child(gear_align)
 
 	var gear_tile_slot := Control.new()
-	gear_tile_slot.custom_minimum_size = Vector2(TILE_SIZE, 0)
+	gear_tile_slot.custom_minimum_size = Vector2(_tile_display_w(), 0)
 	gear_tile_slot.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	gear_tile_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gear_align.add_child(gear_tile_slot)
+	_tile_w_slots.append(gear_tile_slot)
 
 	var gear_col := VBoxContainer.new()
 	gear_col.add_theme_constant_override("separation", 4)
@@ -955,6 +1010,32 @@ func _make_gear_label(col_w: float) -> Label:
 	return lab
 
 
+func _tile_display_w() -> float:
+	return maxf(float(TILE_SIZE) * MapView.display_aspect(), 4.0)
+
+
+func _tile_display_size() -> Vector2:
+	return Vector2(_tile_display_w(), float(TILE_SIZE))
+
+
+func _text_indent_w() -> float:
+	return _tile_display_w() + float(IDENT_SEP)
+
+
+func _sync_tile_aspect() -> void:
+	var tw := _tile_display_w()
+	var ts := _tile_display_size()
+	var indent := _text_indent_w()
+	if _tile_host:
+		_tile_host.custom_minimum_size = ts
+	for slot in _tile_w_slots:
+		if slot:
+			slot.custom_minimum_size = Vector2(tw, 0)
+	for slot in _bar_indent_slots:
+		if slot:
+			slot.custom_minimum_size = Vector2(indent, 0)
+
+
 func _make_labeled_bar(caption: String) -> Dictionary:
 	## HP/MP/Exp caption aligns to Lv. (tile + sep). Bar track/right pad unchanged.
 	var wrap := HBoxContainer.new()
@@ -964,10 +1045,11 @@ func _make_labeled_bar(caption: String) -> Dictionary:
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var tile_slot := Control.new()
-	tile_slot.custom_minimum_size = Vector2(TILE_SIZE, 0)
+	tile_slot.custom_minimum_size = Vector2(_tile_display_w(), 0)
 	tile_slot.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	tile_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(tile_slot)
+	_tile_w_slots.append(tile_slot)
 
 	var label_gap := Control.new()
 	label_gap.custom_minimum_size = Vector2(IDENT_SEP, 0)
@@ -1022,10 +1104,11 @@ func _make_labeled_bar(caption: String) -> Dictionary:
 	track.add_child(lab)
 
 	var indent_r := Control.new()
-	indent_r.custom_minimum_size = Vector2(TEXT_INDENT, 0)
+	indent_r.custom_minimum_size = Vector2(_text_indent_w(), 0)
 	indent_r.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	indent_r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(indent_r)
+	_bar_indent_slots.append(indent_r)
 
 	track.resized.connect(func() -> void: _apply_fill_width(fill))
 	return {"row": wrap, "fill": fill, "lab": lab}
@@ -1087,6 +1170,8 @@ func _refresh() -> void:
 			_def_kind.text = ""
 		_tile.texture = null
 		_face.texture = null
+		_tile_a = null
+		_tile_b = null
 		_tile.modulate = Color.WHITE
 		_status_code = PartyRoster.Status.OK
 		_hp_critical = false
@@ -1151,7 +1236,13 @@ func _refresh() -> void:
 	_def_kind.text = Locale.t("ztats_def")
 	_atk.text = str(int(data.get("atk", 0)))
 	_def.text = str(int(data.get("def", 0)))
-	_tile.texture = data.get("tile") as Texture2D
+	_tile_a = data.get("tile") as Texture2D
+	_tile_b = data.get("tile_b") as Texture2D
+	if _tile_b == null:
+		_tile_b = _tile_a
+	_frame_bit = randi() & 1
+	_frame_cd = randf_range(FRAME_MIN, FRAME_MAX)
+	_apply_tile_frame()
 	_face.texture = data.get("portrait") as Texture2D
 	_apply_status_visuals(st, hp_critical)
 	call_deferred("_relayout_bars")

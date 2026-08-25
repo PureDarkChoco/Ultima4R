@@ -1000,7 +1000,7 @@ func _resolve_world_map_path() -> String:
 
 
 func _fit_explore_map() -> void:
-	## Full-width map at MapView.TILE_ASPECT (8.75:10); leftover → equal top/bottom HUD.
+	## Full-width map at active tileset aspect; leftover → equal top/bottom HUD.
 	var avail := size
 	if avail.x < 32.0 or avail.y < 32.0:
 		return
@@ -8049,7 +8049,8 @@ func _on_language_changed(_lang: String) -> void:
 
 
 func _on_tileset_changed(_tileset_id: String) -> void:
-	## Options → Graphics: live-swap New Color / Apple II Color banks.
+	## Options → Graphics: live-swap tileset banks and reflow map aspect.
+	PartyRoster.clear_class_tile_cache()
 	if _map != null and _map.has_method("reload_tileset_graphics"):
 		_map.reload_tileset_graphics()
 	if _roster != null and _roster.has_method("reload_tile_portraits"):
@@ -8058,6 +8059,11 @@ func _on_tileset_changed(_tileset_id: String) -> void:
 		_compact_roster.reload_tile_portraits()
 	if _foe_roster != null and _foe_roster.has_method("_refresh_icons"):
 		_foe_roster._refresh_icons()
+	if _ztats_panel != null and _ztats_panel.has_method("sync_tileset_graphics"):
+		_ztats_panel.sync_tileset_graphics()
+	if _save_panel != null and _save_panel.has_method("reload_class_tiles"):
+		_save_panel.reload_class_tiles()
+	_fit_explore_map()
 	if _options_panel != null and _options_panel.is_open():
 		_options_panel.refresh()
 

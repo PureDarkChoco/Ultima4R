@@ -1,6 +1,6 @@
 extends Node
 
-## Map / HUD tile graphics style (New Color vs Apple II Color).
+## Map / HUD tile graphics style.
 
 signal tileset_changed(tileset_id: String)
 
@@ -12,6 +12,8 @@ const _U4TileBank := preload("res://src/map/u4_tile_bank.gd")
 const TILESET_IDS: Array[String] = [
 	_U4TileBank.SET_NEW_COLOR,
 	_U4TileBank.SET_APPLE2_COLOR,
+	_U4TileBank.SET_APPLE2_MONO,
+	_U4TileBank.SET_APPLE2_MONO_GREEN,
 ]
 const DEFAULT_TILESET := _U4TileBank.SET_NEW_COLOR
 

@@ -520,7 +520,8 @@ func _build_slots() -> void:
 		var icon := TextureRect.new()
 		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		## Fill host sized to map tile aspect (8.75:10) — not source 1:1.
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		portrait.add_child(icon)
@@ -665,10 +666,12 @@ static func member_ztats(slot: int) -> Dictionary:
 		## Classic companions: Mariah/Jaana/Julia/Katrina female.
 		sex = "F"
 	var st: int = GameState.status_of_class(mid)
-	## Class tile: corpse when dead (same as roster). Face: always the painted portrait.
+	## Class tile pair: corpse when dead (same as roster). Face: always the painted portrait.
 	var tile: Texture2D = _ztats_class_tile(mid)
+	var tile_b: Texture2D = _ztats_class_tile_b(mid)
 	if st == Status.DEAD:
 		tile = _load_texture_file(CORPSE_PATH)
+		tile_b = tile
 	var face: Texture2D = _ztats_face_portrait(mid, mid == player_cls)
 	var lang := GameState.lang_short()
 	var wid := GameState.weapon_of_class(mid)
@@ -697,21 +700,36 @@ static func member_ztats(slot: int) -> Dictionary:
 		"atk": WeaponIcons.damage_of(wid),
 		"def": ArmorIcons.defense_of(aid),
 		"tile": tile,
+		"tile_b": tile_b if tile_b != null else tile,
 		"portrait": face,
 	}
 
 
 ## Cached class tiles for Ztats & save-slot UI (avoid reloading PNGs).
+## Cleared on tileset swap so Mono White/Green (and Color) never share stale tints.
 static var _class_tile_tex: Array[Texture2D] = []
+static var _class_tile_tex_b: Array[Texture2D] = []
 
 
-static func _ztats_class_tile(klass: int) -> Texture2D:
-	## Same class tile used in the party roster strip.
-	if klass < 0 or klass >= PORTRAIT_PATHS.size():
-		return null
+static func clear_class_tile_cache() -> void:
+	_class_tile_tex.clear()
+	_class_tile_tex_b.clear()
+
+
+static func _ensure_class_tile_cache() -> void:
 	if _class_tile_tex.size() != PORTRAIT_PATHS.size():
 		_class_tile_tex.clear()
 		_class_tile_tex.resize(PORTRAIT_PATHS.size())
+	if _class_tile_tex_b.size() != PORTRAIT_PATHS.size():
+		_class_tile_tex_b.clear()
+		_class_tile_tex_b.resize(PORTRAIT_PATHS.size())
+
+
+static func _ztats_class_tile(klass: int) -> Texture2D:
+	## Same class tile used in the party roster strip (even / frame A).
+	if klass < 0 or klass >= PORTRAIT_PATHS.size():
+		return null
+	_ensure_class_tile_cache()
 	if _class_tile_tex[klass] != null:
 		return _class_tile_tex[klass]
 	if _U4TileBankScript.ensure_loaded():
@@ -724,6 +742,26 @@ static func _ztats_class_tile(klass: int) -> Texture2D:
 	var fallback := _load_texture_file(PORTRAIT_PATHS[klass])
 	_class_tile_tex[klass] = fallback
 	return fallback
+
+
+static func _ztats_class_tile_b(klass: int) -> Texture2D:
+	## Odd / frame B — same blink pair as the party roster strip.
+	if klass < 0 or klass >= PORTRAIT_PATHS.size():
+		return null
+	_ensure_class_tile_cache()
+	if _class_tile_tex_b[klass] != null:
+		return _class_tile_tex_b[klass]
+	if _U4TileBankScript.ensure_loaded():
+		var odd: int = CLASS_TILE_EVEN[klass] + 1
+		var slice: Image = _U4TileBankScript.keyed_copy(odd)
+		if slice != null and not slice.is_empty():
+			var tex := ImageTexture.create_from_image(slice)
+			_class_tile_tex_b[klass] = tex
+			return tex
+	## No odd frame → reuse A.
+	var a := _ztats_class_tile(klass)
+	_class_tile_tex_b[klass] = a
+	return a
 
 
 static func _ztats_face_portrait(klass: int, is_avatar: bool) -> Texture2D:
@@ -807,6 +845,7 @@ func _load_portraits() -> void:
 
 func reload_tile_portraits() -> void:
 	## Graphics tileset swap — class icons come from U4TileBank.
+	clear_class_tile_cache()
 	_load_portraits()
 	refresh()
 

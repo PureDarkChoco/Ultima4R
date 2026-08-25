@@ -194,6 +194,15 @@ Apple II Color
 NTSC 합성으로 런타임에 재구성합니다. 해당 타일 데이터의 권리는
 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
 
+Apple II Mono
+
+선택 가능한 Apple II Mono White/Green 모드는 같은 Apple II Ultima IV
+타일에서 미리 렌더한 모노크롬 PNG(`shapes.u4pack`)를 공유합니다.
+Green 모드는 첨부된 녹색 모니터 화면에서 추출한 색으로 런타임에 명도만
+치환합니다. 타일은 원본 HGR 표시 비율인 28×32(8.75:10)로 추출되며
+스캔라인도 그대로 유지됩니다. 해당 타일 데이터의 권리는 Origin Systems /
+Electronic Arts 등 각 권리자에게 있습니다.
+
 Raven Fantasy Icons
 
 일부 UI 아이콘은 Clockwork Raven의 Raven Fantasy Icons를 사용합니다.
@@ -269,6 +278,15 @@ Ultima IV expands its animated tiles, stored as `shapes.u4hgr`. The raw disk
 image is not distributed; the display is reconstructed at runtime with
 Mariani/AppleWin-style NTSC composite decoding. Rights in that tile data
 belong to Origin Systems / Electronic Arts and other respective owners.
+
+Apple II Mono
+
+The optional Apple II Mono White/Green modes share pre-rendered monochrome
+PNGs from the same Apple II Ultima IV tiles (`shapes.u4pack`). Green replaces
+only luminance at runtime with a color sampled from the supplied green-monitor
+image. Tiles are extracted at the native HGR display geometry of 28×32
+(8.75:10), with baked scanlines preserved. Rights in that tile data belong to Origin Systems /
+Electronic Arts and other respective owners.
 
 Raven Fantasy Icons
 

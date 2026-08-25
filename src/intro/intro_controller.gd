@@ -19,14 +19,11 @@ const MAP_W := 19
 const MAP_H := 5
 const TILE_CLASSIC := 16
 const TILE_PX := 32 ## U4TileBank native edge length
-## Exact Apple II display cell: HGR 14×16 doubled horizontally → 28×32.
+## Native Apple II display aspect used by every tileset.
 const TILE_ASPECT := 14.0 / 16.0
 const TILE_CELL_H := TILE_PX
-const TILE_CELL_W := int(TILE_CELL_H * TILE_ASPECT)
 const MAP_X_BASE := 8 ## Original 320×200 TITLE.EGA transition coordinates
 const MAP_Y_BASE := 104 ## BORDER + 6×classic tile
-## Center the exact-ratio 532×160 map instead of stretching 32px source cells.
-const MAP_X := (LOGIC_W - MAP_W * TILE_CELL_W) / 2
 const MAP_HOLE_H := 5 * TILE_CLASSIC * SCALE
 const MAP_DRAW_H := MAP_H * TILE_CELL_H
 const MAP_Y := MAP_Y_BASE * SCALE + (MAP_HOLE_H - MAP_DRAW_H) / 2
@@ -326,8 +323,8 @@ func _process(delta: float) -> void:
 		if _tile_anim_cd <= 0.0:
 			_tile_anim_cd = TILE_ANIM_PERIOD
 			_tile_anim_frame += 1
-		## Apple II open-gate art has no EGA glow — keep phase tiles static.
-		if not _TileBank.uses_hgr_ntsc():
+		## Apple II Color/Mono keep their static source tile.
+		if _TileBank.uses_moongate_suck():
 			_moongate_suck_cd -= delta
 			if _moongate_suck_cd <= 0.0:
 				_moongate_suck_cd = MOONGATE_SUCK_PERIOD
@@ -465,6 +462,15 @@ func map_frame_inner_rect() -> Rect2i:
 	)
 
 
+func _tile_cell_w() -> int:
+	## 32px height × 14/16 = native 28px display width.
+	return maxi(1, int(round(float(TILE_CELL_H) * _TileBank.display_aspect())))
+
+
+func _map_x() -> int:
+	return (LOGIC_W - MAP_W * _tile_cell_w()) / 2
+
+
 ## Half of leftover empty space under the design (logos + map panel) → equal top/bottom bands.
 ## Beasts ignore this offset so they stay glued to the screen top corners.
 func _content_y_offset() -> int:
@@ -485,7 +491,8 @@ func _present_scaled(base: Image) -> void:
 
 
 func _map_content_rect() -> Rect2i:
-	return Rect2i(MAP_X, MAP_Y + _content_y_offset(), MAP_W * TILE_CELL_W, MAP_DRAW_H)
+	var cw := _tile_cell_w()
+	return Rect2i(_map_x(), MAP_Y + _content_y_offset(), MAP_W * cw, MAP_DRAW_H)
 
 
 func _map_frame_outer_rect() -> Rect2i:
@@ -546,7 +553,7 @@ func _draw_apple2_map_static() -> void:
 		## OUT_W×OUT_H is the native 28×32 display cell, so this is both exact
 		## 8.75:10 and free of a second scaling pass.
 		var composed: Image = _Apple2HgrNtsc.render_grid_scaled(
-			ids, MAP_W, MAP_H, TILE_CELL_W, scroll_y, false
+			ids, MAP_W, MAP_H, _tile_cell_w(), scroll_y, false
 		)
 		if composed == null or composed.is_empty():
 			return
@@ -627,12 +634,13 @@ func _paint_intro_cell(
 
 
 func _intro_cell_rect(mx: int, my: int) -> Rect2i:
-	## Exact 28×32 cells: no mixed row heights or per-cell rounding.
+	## Every tileset uses the native 28×32 display cell.
 	var content := _map_content_rect()
+	var cw := _tile_cell_w()
 	return Rect2i(
-		content.position.x + mx * TILE_CELL_W,
+		content.position.x + mx * cw,
 		content.position.y + my * TILE_CELL_H,
-		TILE_CELL_W,
+		cw,
 		TILE_CELL_H
 	)
 
@@ -661,9 +669,9 @@ func _resolve_script_tile_frame(base_id: int, want_frame: int) -> Vector2i:
 
 func _moongate_sprite(tid: int) -> Image:
 	## Phase tiles 064–066 are still; full gate 067 uses MapView-style inward swirl
-	## (skipped on Apple II — NTSC art has no blue/white glow to rotate).
+	## (skipped on Apple II Color/Mono — art has no blue/white glow to rotate).
 	var phase := clampi(tid, TILE_MOONGATE_0, TILE_MOONGATE_OPEN)
-	if phase < TILE_MOONGATE_OPEN or _TileBank.uses_hgr_ntsc():
+	if phase < TILE_MOONGATE_OPEN or not _TileBank.uses_moongate_suck():
 		return _keyed_tile_image(phase, 0)
 	_ensure_moongate_suck_frames()
 	if _moongate_suck_frames.is_empty():
@@ -673,7 +681,7 @@ func _moongate_sprite(tid: int) -> Image:
 
 
 func _ensure_moongate_suck_frames() -> void:
-	if not _moongate_suck_frames.is_empty() or _TileBank.uses_hgr_ntsc():
+	if not _moongate_suck_frames.is_empty() or not _TileBank.uses_moongate_suck():
 		return
 	var base := _keyed_tile_image(TILE_MOONGATE_OPEN, 0)
 	if base == null:
@@ -819,8 +827,8 @@ func _cannonball_sprite() -> Image:
 func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 	if tile_id == TILE_MISSILE:
 		return _cannonball_sprite()
-	## Apple II: keep opaque black (same as MapView keyed_copy) — no chroma key.
-	var key_prefix := "a2" if _TileBank.uses_hgr_ntsc() else "k"
+	## Apple II Color/Mono: keep opaque black (same as MapView keyed_copy).
+	var key_prefix := "a2" if _TileBank.keeps_opaque_black() else "k"
 	var key := "%s:%d:%d" % [key_prefix, tile_id, frame]
 	if _tile_cache.has(key):
 		return _tile_cache[key] as Image
@@ -830,7 +838,7 @@ func _keyed_tile_image(tile_id: int, frame: int) -> Image:
 	var img := src.duplicate()
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
-	if not _TileBank.uses_hgr_ntsc():
+	if not _TileBank.keeps_opaque_black():
 		for y in img.get_height():
 			for x in img.get_width():
 				var c: Color = img.get_pixel(x, y)

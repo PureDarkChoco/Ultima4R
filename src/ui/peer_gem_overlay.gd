@@ -11,7 +11,7 @@ const GEM_PATH := "res://assets/tiles/u4graphics/gem.png"
 const GEM_VIEW_H := 33
 ## ~GEM_VIEW_H × 16/9, forced odd (59/33 ≈ 16:9).
 const GEM_VIEW_W := 59
-## Explore tiles are slightly tall (MapView.TILE_ASPECT 8.75:10 / Apple II 14×16).
+## Explore tiles follow MapView.display_aspect() (8.75:10).
 const TILE_ASPECT := 14.0 / 16.0
 ## Native gem.png / dungeon glyph cell.
 const GEM_CHIP := 8

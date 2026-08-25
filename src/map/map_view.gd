@@ -2,7 +2,8 @@ class_name MapView
 extends TextureRect
 
 ## Renders Ultima IV explore view by blitting per-tile PNGs (U4TileBank) into an ImageTexture.
-## Explore: fixed VIEW_W × VIEW_H grid; STRETCH_SCALE fills pane at TILE_ASPECT (8.75:10).
+## Explore: fixed VIEW_W × VIEW_H grid; STRETCH_SCALE fills pane at display_aspect().
+## Every mode presents the Apple II 14×16 cell geometry → 8.75:10.
 
 ## Preload so MapView parses even if global class cache is stale.
 const _CombatMapDataScript := preload("res://src/map/combat_map_data.gd")
@@ -19,17 +20,21 @@ const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
 const VIEW_W := 25 ## Tuned between CRT 5:6 (~27) and square 1:1 (~23).
 const VIEW_W_MIN := VIEW_W
-## Implied tile width/height when VIEW_W×VIEW_H fills the map pane (Apple II 14×16 → 8.75:10).
+## Default stretched aspect (Apple II 14×16). Prefer display_aspect() for live layout.
 const TILE_ASPECT := 14.0 / 16.0
 ## Legacy atlas path kept for docs / external refs; runtime uses shapes/*.png.
 const TILE_SRC := 32
 
 
+static func display_aspect() -> float:
+	return _U4TileBankScript.display_aspect()
+
+
 static func explore_map_height_for_width(width: float) -> float:
-	## Pane height so 25×11 cells display at TILE_ASPECT when stretched to `width`.
+	## Pane height so 25×11 cells display at the active tileset aspect.
 	if width < 1.0:
 		return 0.0
-	return width * float(VIEW_H) / float(VIEW_W) / TILE_ASPECT
+	return width * float(VIEW_H) / float(VIEW_W) / display_aspect()
 
 
 static func explore_tile_size_for_pane(pane: Vector2) -> Vector2:
@@ -37,7 +42,7 @@ static func explore_tile_size_for_pane(pane: Vector2) -> Vector2:
 	if pane.x < 1.0:
 		return Vector2.ZERO
 	var tw := pane.x / float(VIEW_W)
-	return Vector2(tw, tw / TILE_ASPECT)
+	return Vector2(tw, tw / display_aspect())
 
 
 const TILE_ID_MAX := 255
@@ -3173,8 +3178,8 @@ func _process(delta: float) -> void:
 		else:
 			_moongate_px_cd = 0.0
 		## Color rotation while any part of the gate is visible.
-		## Apple II open-gate art has no EGA glow — keep the static tile.
-		if _moongate_height_px > 0 and not _U4TileBankScript.uses_hgr_ntsc():
+		## Apple II Color/Mono keep their static source tile.
+		if _moongate_height_px > 0 and _U4TileBankScript.uses_moongate_suck():
 			_moongate_suck_cd -= delta
 			if _moongate_suck_cd <= 0.0:
 				_moongate_suck_cd = MOONGATE_SUCK_PERIOD
@@ -6001,8 +6006,8 @@ func _paint_moongate(cam: Vector2) -> void:
 
 func _moongate_draw_slice() -> Image:
 	## Full open-gate tile with blue↔white inward rotation (cropped by height when painting).
-	## Apple II: static open gate — NTSC art has no glow to rotate.
-	if _U4TileBankScript.uses_hgr_ntsc():
+	## Apple II Color/Mono: static open gate — art has no EGA glow to rotate.
+	if not _U4TileBankScript.uses_moongate_suck():
 		return _overlay_slice(TILE_MOONGATE_OPEN)
 	var frames := _ensure_moongate_suck_frames_for(TILE_MOONGATE_OPEN)
 	if not frames.is_empty():
@@ -6011,7 +6016,7 @@ func _moongate_draw_slice() -> Image:
 
 
 func _ensure_moongate_suck_frames_for(tid: int) -> Array[Image]:
-	if _U4TileBankScript.uses_hgr_ntsc():
+	if not _U4TileBankScript.uses_moongate_suck():
 		return []
 	if _moongate_suck_by_tid.has(tid):
 		var cached: Array[Image] = _moongate_suck_by_tid[tid]

@@ -809,6 +809,16 @@ const _T := {
 		"en_us": "Apple II Color",
 		"ko": "Apple II 컬러",
 	},
+	"esc_options_graphics_apple2_mono": {
+		"en_u4": "Apple II Mono White",
+		"en_us": "Apple II Mono White",
+		"ko": "Apple II 모노 화이트",
+	},
+	"esc_options_graphics_apple2_mono_green": {
+		"en_u4": "Apple II Mono Green",
+		"en_us": "Apple II Mono Green",
+		"ko": "Apple II 모노 그린",
+	},
 	"esc_options_resolution": {
 		"en_u4": "Resolution",
 		"en_us": "Resolution",

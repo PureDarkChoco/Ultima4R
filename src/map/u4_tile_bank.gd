@@ -1,9 +1,13 @@
 class_name U4TileBank
 extends RefCounted
 
-## Per-tile PNG bank for Ultima IV shapes (id 0..255).
+## Ultima IV shape bank (id 0..255), with four independent pipelines:
+## - New Color: packed PNGs, 8.75:10 display stretch, keyed black + shore masks.
+## - Apple II Color: runtime HGR/Mariani NTSC, 8.75:10, continuous map decode.
+## - Apple II Mono: native 28×32 PNGs, 8.75:10 display, opaque black.
+## - Apple II Mono Green: same native PNGs tinted to sampled green phosphor.
 ##
-## Files under the active tileset shapes dir:
+## PNG pipelines use files under their active shapes dir:
 ##   `NNN.png` / `NNN_name.png`     → tile NNN, frame 0
 ##   `NNN_name_1.png` … `_3.png`   → same tile, extra animation frames
 ##
@@ -13,13 +17,37 @@ extends RefCounted
 
 const SET_NEW_COLOR := "new_color"
 const SET_APPLE2_COLOR := "apple2_color"
-const SET_IDS: Array[String] = [SET_NEW_COLOR, SET_APPLE2_COLOR]
+const SET_APPLE2_MONO := "apple2_mono"
+const SET_APPLE2_MONO_GREEN := "apple2_mono_green"
+const SET_IDS: Array[String] = [
+	SET_NEW_COLOR,
+	SET_APPLE2_COLOR,
+	SET_APPLE2_MONO,
+	SET_APPLE2_MONO_GREEN,
+]
 const DEFAULT_SET := SET_NEW_COLOR
+
+## Keep source/renderer policy explicit; callers query capabilities below instead
+## of inferring behavior from a set id.
+enum RenderPipeline {
+	NEW_COLOR_PNG,
+	APPLE2_COLOR_HGR,
+	APPLE2_MONO_PNG,
+	APPLE2_MONO_GREEN_PNG,
+}
 
 const SHAPES_PACK_MAGIC := "U4SP"
 const SHAPES_PACK_VERSION := 1
 const TILE_SIZE := 32
 const COUNT := 256
+## All displayed tiles use the Apple II 14×16 (8.75:10) cell geometry.
+const DISPLAY_ASPECT_STRETCH := 14.0 / 16.0
+const MONO_SOURCE_W := 28
+const MONO_SOURCE_H := 32
+## Representative bright foreground sampled from the supplied green monitor image.
+const MONO_GREEN_R := 128
+const MONO_GREEN_G := 253
+const MONO_GREEN_B := 165
 const _ResImage := preload("res://src/core/res_image.gd")
 const _Apple2HgrNtsc := preload("res://src/map/apple2_hgr_ntsc.gd")
 
@@ -27,8 +55,10 @@ const _Apple2HgrNtsc := preload("res://src/map/apple2_hgr_ntsc.gd")
 const SHAPES_DIR := "res://assets/tiles/u4graphics/shapes"
 const FALLBACK_ATLAS := "res://assets/tiles/u4graphics/shapes.png"
 const SHAPES_PACK := "res://assets/tiles/u4graphics/shapes.u4pack"
-## Apple II: runtime-expanded LC tile banks + Mariani LUT (not PNGs / raw .dsk).
+## Apple II Color: runtime-expanded LC tile banks + Mariani LUT (not PNGs / raw .dsk).
 const APPLE2_HGR_PACK := "res://assets/tiles/apple2_color/shapes.u4hgr"
+const APPLE2_MONO_DIR := "res://assets/tiles/apple2_mono/shapes"
+const APPLE2_MONO_PACK := "res://assets/tiles/apple2_mono/shapes.u4pack"
 
 ## Array[Array] — outer = tile id, inner = frame Images (at least 1 when ready).
 static var _frames: Array = []
@@ -36,11 +66,20 @@ static var _frames: Array = []
 static var _paths: PackedStringArray = PackedStringArray()
 static var _loaded := false
 static var _active_set: String = DEFAULT_SET
+static var _mono_green_r := PackedByteArray()
+static var _mono_green_g := PackedByteArray()
+static var _mono_green_b := PackedByteArray()
 
 
 static func normalize_set_id(id: String) -> String:
 	var s := id.strip_edges().to_lower()
-	if s in ["apple2", "apple_ii", "appleii", "a2", SET_APPLE2_COLOR]:
+	if s in [
+		"apple2_mono_green", "mono_green", "green", "green_mono", "a2_mono_green"
+	]:
+		return SET_APPLE2_MONO_GREEN
+	if s in ["apple2_mono", "apple2_mono_white", "mono", "monochrome", "a2_mono"]:
+		return SET_APPLE2_MONO
+	if s in ["apple2", "apple_ii", "appleii", "a2", SET_APPLE2_COLOR, "apple2_color"]:
 		return SET_APPLE2_COLOR
 	if s in ["new", "u4graphics", "modern", SET_NEW_COLOR]:
 		return SET_NEW_COLOR
@@ -51,10 +90,24 @@ static func active_set() -> String:
 	return _active_set
 
 
+static func render_pipeline(set_id: String = "") -> int:
+	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
+		SET_APPLE2_COLOR:
+			return RenderPipeline.APPLE2_COLOR_HGR
+		SET_APPLE2_MONO:
+			return RenderPipeline.APPLE2_MONO_PNG
+		SET_APPLE2_MONO_GREEN:
+			return RenderPipeline.APPLE2_MONO_GREEN_PNG
+		_:
+			return RenderPipeline.NEW_COLOR_PNG
+
+
 static func shapes_dir(set_id: String = "") -> String:
 	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
 		SET_APPLE2_COLOR:
 			return "res://assets/tiles/apple2_color/shapes"
+		SET_APPLE2_MONO, SET_APPLE2_MONO_GREEN:
+			return APPLE2_MONO_DIR
 		_:
 			return SHAPES_DIR
 
@@ -62,8 +115,10 @@ static func shapes_dir(set_id: String = "") -> String:
 static func shapes_pack(set_id: String = "") -> String:
 	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
 		SET_APPLE2_COLOR:
-			## PNG pack unused for Apple II; HGR pack is the runtime source.
+			## PNG pack unused for Apple II Color; HGR pack is the runtime source.
 			return ""
+		SET_APPLE2_MONO, SET_APPLE2_MONO_GREEN:
+			return APPLE2_MONO_PACK
 		_:
 			return SHAPES_PACK
 
@@ -77,12 +132,26 @@ static func hgr_pack(set_id: String = "") -> String:
 
 
 static func uses_hgr_ntsc() -> bool:
-	return _active_set == SET_APPLE2_COLOR
+	return render_pipeline() == RenderPipeline.APPLE2_COLOR_HGR
+
+
+static func display_aspect() -> float:
+	return DISPLAY_ASPECT_STRETCH
+
+
+static func keeps_opaque_black() -> bool:
+	## Apple II Color/Mono: black is ink / CRT, not a chroma key.
+	return render_pipeline() != RenderPipeline.NEW_COLOR_PNG
+
+
+static func uses_moongate_suck() -> bool:
+	## Procedural blue/white glow belongs only to the New Color artwork.
+	return render_pipeline() == RenderPipeline.NEW_COLOR_PNG
 
 
 static func fallback_atlas(set_id: String = "") -> String:
 	match normalize_set_id(set_id if not set_id.is_empty() else _active_set):
-		SET_APPLE2_COLOR:
+		SET_APPLE2_COLOR, SET_APPLE2_MONO, SET_APPLE2_MONO_GREEN:
 			return ""
 		_:
 			return FALLBACK_ATLAS
@@ -112,13 +181,17 @@ static func ensure_loaded() -> bool:
 	for i in COUNT:
 		_paths[i] = ""
 		_frames[i] = []
-	if _active_set == SET_APPLE2_COLOR:
-		if not _load_apple2_hgr():
-			_loaded = false
-			return false
-		_loaded = true
-		return true
-	_scan_dir()
+	match render_pipeline():
+		RenderPipeline.APPLE2_COLOR_HGR:
+			if not _load_apple2_hgr():
+				_loaded = false
+				return false
+			_loaded = true
+			return true
+		RenderPipeline.NEW_COLOR_PNG, \
+		RenderPipeline.APPLE2_MONO_PNG, \
+		RenderPipeline.APPLE2_MONO_GREEN_PNG:
+			_scan_dir()
 	var missing := 0
 	for i in COUNT:
 		if (_frames[i] as Array).is_empty():
@@ -170,8 +243,8 @@ static func clear_cache() -> void:
 	_frames.clear()
 	_paths = PackedStringArray()
 	_loaded = false
-	if _active_set == SET_APPLE2_COLOR:
-		_Apple2HgrNtsc.clear_cache()
+	## Also release a previous Color pipeline when switching away from it.
+	_Apple2HgrNtsc.clear_cache()
 
 
 static func path_for(tile_id: int) -> String:
@@ -262,13 +335,13 @@ static func _is_fixed_stone_pixel(c: Color) -> bool:
 
 static func keyed_copy(tile_id: int, frame: int = 0) -> Image:
 	## New Color: border-connected black → transparent so overlays show underdraw.
-	## Apple II Color: keep opaque black (tiles already include CRT/scanline black).
+	## Apple II Color/Mono: keep opaque black (CRT / scanline ink).
 	var src := image(tile_id, frame)
 	if src == null:
 		return null
 	var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
 	img.blit_rect(src, Rect2i(0, 0, TILE_SIZE, TILE_SIZE), Vector2i.ZERO)
-	if _active_set == SET_APPLE2_COLOR:
+	if keeps_opaque_black():
 		return img
 	var queued := PackedByteArray()
 	queued.resize(TILE_SIZE * TILE_SIZE)
@@ -288,8 +361,8 @@ static func keyed_copy(tile_id: int, frame: int = 0) -> Image:
 
 
 static func uses_shore_masks() -> bool:
-	## Apple II tiles already include shoreline in the art; skip New Color freckles.
-	return _active_set != SET_APPLE2_COLOR
+	## Shore freckles are an explicit New Color compositing feature.
+	return render_pipeline() == RenderPipeline.NEW_COLOR_PNG
 
 
 static func _queue_border_black(
@@ -416,9 +489,66 @@ static func _commit_found(found: Array) -> void:
 
 
 static func _image_from_found(value: Variant) -> Image:
+	var img: Image = null
 	if value is Dictionary:
-		return value.get("image") as Image
-	return _load_path(str(value))
+		img = value.get("image") as Image
+	else:
+		img = _load_path(str(value))
+	_apply_pipeline_palette(img)
+	_normalize_runtime_tile(img)
+	return img
+
+
+static func _apply_pipeline_palette(img: Image) -> void:
+	if img == null or img.is_empty():
+		return
+	if render_pipeline() != RenderPipeline.APPLE2_MONO_GREEN_PNG:
+		return
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	_ensure_mono_green_lut()
+	var data := img.get_data()
+	var i := 0
+	while i < data.size():
+		## Source is grayscale. Preserve its baked scanline luminance while
+		## replacing white with the sampled green phosphor color.
+		var lum := int(data[i])
+		data[i] = _mono_green_r[lum]
+		data[i + 1] = _mono_green_g[lum]
+		data[i + 2] = _mono_green_b[lum]
+		i += 4
+	img.set_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
+
+
+static func _ensure_mono_green_lut() -> void:
+	if _mono_green_r.size() == 256:
+		return
+	_mono_green_r.resize(256)
+	_mono_green_g.resize(256)
+	_mono_green_b.resize(256)
+	for lum in 256:
+		_mono_green_r[lum] = int(round(float(lum * MONO_GREEN_R) / 255.0))
+		_mono_green_g[lum] = int(round(float(lum * MONO_GREEN_G) / 255.0))
+		_mono_green_b[lum] = int(round(float(lum * MONO_GREEN_B) / 255.0))
+
+
+static func _normalize_runtime_tile(img: Image) -> void:
+	if img == null or img.is_empty():
+		return
+	var pipeline := render_pipeline()
+	if pipeline not in [
+		RenderPipeline.APPLE2_MONO_PNG,
+		RenderPipeline.APPLE2_MONO_GREEN_PNG,
+	]:
+		return
+	if img.get_width() != MONO_SOURCE_W or img.get_height() != MONO_SOURCE_H:
+		push_warning(
+			"U4TileBank: expected mono source %dx%d, got %dx%d"
+			% [MONO_SOURCE_W, MONO_SOURCE_H, img.get_width(), img.get_height()]
+		)
+	## MapView's shared compositor is 32×32 internally; the final 8.75:10 pane
+	## mapping restores the native 28×32 display geometry for all layers.
+	img.resize(TILE_SIZE, TILE_SIZE, Image.INTERPOLATE_NEAREST)
 
 
 static func _path_from_found(value: Variant) -> String:

@@ -70,18 +70,27 @@ var _tile_aspect := 14.0 / 16.0
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_tile_aspect = MapView.TILE_ASPECT
+	_tile_aspect = MapView.display_aspect()
 	_build()
 	visible = false
 
 
-func _cache_class_tiles() -> void:
+func _cache_class_tiles(force: bool = false) -> void:
 	## Lazy + shared with PartyRoster cache (do not reload class tiles 8× on boot).
-	if _class_tiles.size() == 8:
+	if not force and _class_tiles.size() == 8:
 		return
 	_class_tiles.clear()
 	for i in 8:
 		_class_tiles.append(PartyRoster._ztats_class_tile(i))
+
+
+func reload_class_tiles() -> void:
+	## Graphics tileset swap — drop Mono White/Green (etc.) stale tints.
+	PartyRoster.clear_class_tile_cache()
+	_cache_class_tiles(true)
+	_tile_aspect = MapView.display_aspect()
+	if visible:
+		_refresh_rows()
 
 
 func is_open() -> bool:
@@ -98,6 +107,7 @@ func mode() -> int:
 
 func open_panel(p_mode: int = Mode.SAVE, default_cursor: int = 0) -> void:
 	_cache_class_tiles()
+	_tile_aspect = MapView.display_aspect()
 	_mode = p_mode
 	_embedded = false
 	_embed_rect = Rect2()
@@ -112,6 +122,7 @@ func open_panel(p_mode: int = Mode.SAVE, default_cursor: int = 0) -> void:
 ## Show the slot list inside `rect` (main-menu map frame) — no modal backdrop.
 func open_embedded(p_mode: int, rect: Rect2, default_cursor: int = 0) -> void:
 	_cache_class_tiles()
+	_tile_aspect = MapView.display_aspect()
 	_mode = p_mode
 	_embedded = true
 	_embed_rect = _snap_rect(rect)
@@ -172,7 +183,7 @@ func _snap_rect(r: Rect2) -> Rect2:
 
 
 func _icon_size(height: float) -> Vector2:
-	## Explore tile look: 8.75:10 (Apple II 14×16), not the 25×11 pane stretch.
+	## Follow the shared 8.75:10 tile display aspect.
 	var h := maxf(float(int(round(height))), 8.0)
 	var w := maxf(float(int(round(h * _tile_aspect))), 4.0)
 	return Vector2(w, h)
