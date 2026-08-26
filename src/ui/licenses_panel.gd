@@ -185,23 +185,9 @@ https://github.com/jahshuwaa/u4graphics
 
 u4graphics는 The Unlicense에 따라 퍼블릭 도메인으로 공개되었습니다.
 
-Apple II Color
+Apple II
 
-선택 가능한 Apple II Color 모드는 Apple II판 Ultima IV Program 디스크에서
-게임이 애니메이션 타일을 전개한 뒤의 타일 뱅크만 추출한 데이터
-(`shapes.u4hgr`)를 사용합니다.
-원본 디스크 이미지는 배포하지 않으며, 화면은 Mariani/AppleWin 방식의
-NTSC 합성으로 런타임에 재구성합니다. 해당 타일 데이터의 권리는
-Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
-
-Apple II Mono
-
-선택 가능한 Apple II Mono White/Green 모드는 같은 Apple II Ultima IV
-타일에서 미리 렌더한 모노크롬 PNG(`shapes.u4pack`)를 공유합니다.
-Green 모드는 첨부된 녹색 모니터 화면에서 추출한 색으로 런타임에 명도만
-치환합니다. 타일은 원본 HGR 표시 비율인 28×32(8.75:10)로 추출되며
-스캔라인도 그대로 유지됩니다. 해당 타일 데이터의 권리는 Origin Systems /
-Electronic Arts 등 각 권리자에게 있습니다.
+선택 가능한 Apple II Color / Mono White / Mono Green 모드는 Apple II판 Ultima IV에서 추출한 타일 데이터를 사용합니다. 원본 디스크는 배포하지 않습니다. 해당 타일 데이터의 권리는 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
 
 Raven Fantasy Icons
 
@@ -271,22 +257,9 @@ https://github.com/jahshuwaa/u4graphics
 
 u4graphics is dedicated to the public domain under The Unlicense.
 
-Apple II Color
+Apple II
 
-The optional Apple II Color mode uses tile banks extracted after Apple II
-Ultima IV expands its animated tiles, stored as `shapes.u4hgr`. The raw disk
-image is not distributed; the display is reconstructed at runtime with
-Mariani/AppleWin-style NTSC composite decoding. Rights in that tile data
-belong to Origin Systems / Electronic Arts and other respective owners.
-
-Apple II Mono
-
-The optional Apple II Mono White/Green modes share pre-rendered monochrome
-PNGs from the same Apple II Ultima IV tiles (`shapes.u4pack`). Green replaces
-only luminance at runtime with a color sampled from the supplied green-monitor
-image. Tiles are extracted at the native HGR display geometry of 28×32
-(8.75:10), with baked scanlines preserved. Rights in that tile data belong to Origin Systems /
-Electronic Arts and other respective owners.
+The optional Apple II Color / Mono White / Mono Green modes use tile data extracted from Apple II Ultima IV. The original disk image is not distributed. Rights in that tile data belong to Origin Systems / Electronic Arts and other respective owners.
 
 Raven Fantasy Icons
 

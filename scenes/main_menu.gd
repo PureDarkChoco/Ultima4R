@@ -37,6 +37,8 @@ var _load_open := false
 var _create_open := false
 var _options_open := false
 var _licenses_open := false
+## Korean menu: show R)/J)/… prefixes only after keyboard use (hide on gamepad).
+var _menu_hotkeys_visible := false
 var _hold_arm := 0.0
 var _move_cd := 0.0
 var _held_dir := Vector2i.ZERO
@@ -395,6 +397,7 @@ func _mark_input_handled() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	_note_menu_input_device(event)
 	## Cancel/confirm on load/options list — use _input so Esc is not lost to GUI.
 	if _load_open:
 		if _handle_load_input(event):
@@ -462,6 +465,7 @@ func _move_main_menu_focus(step: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	_note_menu_input_device(event)
 	if _load_open or _options_open or _licenses_open:
 		## Already handled in _input when active.
 		return
@@ -513,15 +517,44 @@ func _unhandled_input(event: InputEvent) -> void:
 			accept_event()
 
 
+func _note_menu_input_device(event: InputEvent) -> void:
+	## Korean labels: letter prefixes appear with keyboard, hide with gamepad.
+	var want := _menu_hotkeys_visible
+	if event is InputEventKey and event.is_pressed() and not event.is_echo():
+		want = true
+	elif event is InputEventJoypadButton and event.is_pressed():
+		want = false
+	elif event is InputEventJoypadMotion:
+		var stick := _GameInput.stick_direction_step(event)
+		if stick != Vector2i.ZERO:
+			want = false
+	if want == _menu_hotkeys_visible:
+		return
+	_menu_hotkeys_visible = want
+	if GameState.language == "ko":
+		_refresh_menu_button_labels()
+
+
+func _menu_line(letter: String, key: String) -> String:
+	var label := Locale.t(key)
+	if GameState.language != "ko" or not _menu_hotkeys_visible or letter.is_empty():
+		return label
+	return "%s) %s" % [letter, label]
+
+
+func _refresh_menu_button_labels() -> void:
+	_btn_return.text = _menu_line("R", "menu_return")
+	_btn_journey.text = _menu_line("J", "menu_journey")
+	_btn_new.text = _menu_line("I", "menu_new")
+	_btn_options.text = _menu_line("O", "esc_options_title")
+	_btn_licenses.text = _menu_line("A", "menu_licenses")
+	_btn_quit.text = _menu_line("Q", "menu_quit")
+
+
 func _refresh_text() -> void:
 	_tagline.text = Locale.t("menu_tagline")
 	_options_head.text = Locale.t("menu_options")
-	_btn_return.text = Locale.t("menu_return")
-	_btn_journey.text = Locale.t("menu_journey")
-	_btn_new.text = Locale.t("menu_new")
-	_btn_options.text = Locale.t("esc_options_title")
-	_btn_licenses.text = Locale.t("menu_licenses")
-	_btn_quit.text = Locale.t("menu_quit")
+	_refresh_menu_button_labels()
 	_copyright.text = "%s  ·  %s\n%s" % [
 		Locale.t("menu_copyright"),
 		Locale.t("menu_version", [APP_DISPLAY_VERSION]),

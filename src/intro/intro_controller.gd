@@ -35,10 +35,12 @@ const MAP_FRAME_BORDER := 2 ## dialogue-like line thickness (logic px)
 const MAP_FRAME_PAD := 4 ## gap between border and tiles / menu content
 ## User title plate (640×400): Lord British through Quest, above the map bezel.
 const TITLE_PLATE_PATH := "res://assets/intro/title_plate.png"
+## Plate art: Quest of the Avatar runs through ~y=190; map bezel begins at y=192.
 const TITLE_PLATE_H := 192
-## Just below "Quest of the Avatar" (y=80, h=13). TITLE.EGA's thick map bezel
-## starts in this gap; wiping from band y=96 left the top edge overlapping our frame.
-const MAP_CHROME_Y0 := 94 * SCALE
+## Wipe classic TITLE.EGA map hole/bezel from the first bezel row. EGA Quest ended at
+## y=93 (base), so 94*SCALE used to work — title_plate Quest extends to ~190, so wipe
+## must start at 96*SCALE (= TITLE_PLATE_H) or the subtitle bottom is clipped.
+const MAP_CHROME_Y0 := 96 * SCALE
 ## Shore freckles (same rules/assets as MapView).
 const WATER_TILE_MAX := 2
 const SHORE_MASK_DIR := "res://assets/tiles/u4graphics/masks"
