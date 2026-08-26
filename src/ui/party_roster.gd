@@ -3,7 +3,7 @@ extends VBoxContainer
 
 ## Full: portrait | Lv.N | name | HP | MP | Exp
 ## Compact: portrait | HP/MP ratio bars (no numbers)
-## Status: dead → corpse · poison → green · sleep → purple
+## Status: dead/sleep → lying tile (056) · poison → green · sleep → purple tint
 
 enum Status { OK, POISONED, SLEEPING, DEAD }
 
@@ -37,6 +37,9 @@ const ZTATS_COMPANION_PATHS := [
 const AVATAR_CLASS_NAMES := [
 	"mage", "bard", "fighter", "druid", "tinker", "paladin", "ranger", "shepherd",
 ]
+## Lying-down / corpse map tile (shapes index — same as MapView / GameState).
+const TILE_CORPSE := 56
+## New Color fallback when U4TileBank is unavailable (title / editor).
 const CORPSE_PATH := "res://assets/portraits/classes/corpse.png"
 
 const COMPANION_NAMES := [
@@ -669,8 +672,8 @@ static func member_ztats(slot: int) -> Dictionary:
 	## Class tile pair: corpse when dead (same as roster). Face: always the painted portrait.
 	var tile: Texture2D = _ztats_class_tile(mid)
 	var tile_b: Texture2D = _ztats_class_tile_b(mid)
-	if st == Status.DEAD:
-		tile = _load_texture_file(CORPSE_PATH)
+	if st == Status.DEAD or st == Status.SLEEPING:
+		tile = _ztats_corpse_tile()
 		tile_b = tile
 	var face: Texture2D = _ztats_face_portrait(mid, mid == player_cls)
 	var lang := GameState.lang_short()
@@ -709,11 +712,13 @@ static func member_ztats(slot: int) -> Dictionary:
 ## Cleared on tileset swap so Mono White/Green (and Color) never share stale tints.
 static var _class_tile_tex: Array[Texture2D] = []
 static var _class_tile_tex_b: Array[Texture2D] = []
+static var _corpse_tile_tex: Texture2D
 
 
 static func clear_class_tile_cache() -> void:
 	_class_tile_tex.clear()
 	_class_tile_tex_b.clear()
+	_corpse_tile_tex = null
 
 
 static func _ensure_class_tile_cache() -> void:
@@ -723,6 +728,20 @@ static func _ensure_class_tile_cache() -> void:
 	if _class_tile_tex_b.size() != PORTRAIT_PATHS.size():
 		_class_tile_tex_b.clear()
 		_class_tile_tex_b.resize(PORTRAIT_PATHS.size())
+
+
+static func _ztats_corpse_tile() -> Texture2D:
+	## Active tileset lying-down tile (056) — not the static New Color PNG.
+	if _corpse_tile_tex != null:
+		return _corpse_tile_tex
+	if _U4TileBankScript.ensure_loaded():
+		var slice: Image = _U4TileBankScript.keyed_copy(TILE_CORPSE)
+		if slice != null and not slice.is_empty():
+			_corpse_tile_tex = ImageTexture.create_from_image(slice)
+			return _corpse_tile_tex
+	var fallback := _load_texture_file(CORPSE_PATH)
+	_corpse_tile_tex = fallback
+	return fallback
 
 
 static func _ztats_class_tile(klass: int) -> Texture2D:
@@ -840,7 +859,9 @@ func _load_portraits() -> void:
 			tex_b = tex_a
 		_portraits_a.append(tex_a)
 		_portraits_b.append(tex_b)
-	_corpse = _load_keyed_portrait(CORPSE_PATH)
+	_corpse = _slice_keyed_tile(TILE_CORPSE)
+	if _corpse == null:
+		_corpse = _load_keyed_portrait(CORPSE_PATH)
 
 
 func reload_tile_portraits() -> void:
@@ -1048,8 +1069,15 @@ func _apply_portrait_anim() -> void:
 				_sleep_zz[i].visible = false
 			continue
 
+		if st == Status.SLEEPING:
+			icon.texture = _corpse
+			icon.modulate = Color(0.78, 0.55, 0.95, 1)
+			if i < _sleep_zz.size():
+				_sleep_zz[i].visible = true
+			continue
+
 		var use_b := false
-		if st != Status.SLEEPING and i < _frame_bit.size():
+		if i < _frame_bit.size():
 			use_b = _frame_bit[i] == 1
 
 		var tex_a: Texture2D = _portraits_a[mid] if mid < _portraits_a.size() else null
@@ -1058,15 +1086,12 @@ func _apply_portrait_anim() -> void:
 		icon.modulate = Color.WHITE
 
 		if i < _sleep_zz.size():
-			_sleep_zz[i].visible = st == Status.SLEEPING
+			_sleep_zz[i].visible = false
 
-		# Status beats low-HP: poison / sleep before red pulse.
+		# Status beats low-HP: poison before red pulse.
 		match st:
 			Status.POISONED:
 				icon.modulate = _status_tint_pulse(COL_POISON)
-			Status.SLEEPING:
-				# Static purple filter only — no frame blink, no tint pulse.
-				icon.modulate = Color(0.78, 0.55, 0.95, 1)
 			_:
 				if hp_critical:
 					icon.modulate = _status_tint_pulse(COL_HP_OK)
