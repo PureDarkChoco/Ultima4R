@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: ask:* completed by Journal.mark_id or mark_goal when the follow-up talk happens. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; the same ask:* goal completes both.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: meet:* completes when the NPC speaks their name (random intro or Name keyword); ask:* completes when the matching topic is asked. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; meet:* and ask:* goals are separate when both apply.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -71,7 +71,7 @@
       "place": "lcb",
       "npc": "The Way of the Avatar",
       "topic": "ENTER",
-      "goal": "ask:zorin",
+      "goal": "meet:zorin",
       "speaker_en": "The Way of the Avatar",
       "speaker_ko": "아바타의 길",
       "en": "Meet Zorin inside the castle.",
@@ -526,11 +526,7 @@
       "topic": "RETURN",
       "chain": "minoc.sacrifice-rune",
       "chain_order": 30,
-      "goal": "confirm:mischief-rune",
-      "complete_if_recorded": [
-        "minoc.mischief.alkerion-stone",
-        "minoc.alkerion.sacrifice-stone"
-      ],
+      "goal": "meet:mischief-rune",
       "en": "Meet Mischief with the rune of Sacrifice.",
       "ko": "희생의 룬을 가지고 미시프 만나기",
       "en_u4": "Seek Mischief with the rune of Sacrifice.",
@@ -804,8 +800,7 @@
       "place": "britain",
       "npc": "Thevel",
       "topic": "ORBS_NO",
-      "goal": "ask:roderick-orbs",
-      "complete_if_recorded": "serpent.roderick.blue-orbs",
+      "goal": "meet:roderick-orbs",
       "en": "Meet the one-handed beggar at {serpent}.",
       "ko": "{serpent}에서 한 손 거지 만나기",
       "en_u4": "Seek the one-handed beggar at {serpent}.",
@@ -936,10 +931,9 @@
       "place": "moonglow",
       "npc": "Shazom",
       "topic": "NIGE_YES",
-      "goal": "ask:nigel-recall",
-      "complete_if_recorded": "lycaeum.nigel.resurrection",
+      "goal": "meet:nigel-recall",
       "en": "Meet Nigel at the {lycaeum}.",
-      "ko": "{lycaeum}에서 나이절 만나기",
+      "ko": "{lycaeum}에서 나이젤 만나기",
       "en_u4": "Seek Nigel at the {lycaeum}.",
       "en_us": "Meet Nigel at the {lycaeum}."
     },
@@ -948,10 +942,9 @@
       "place": "moonglow",
       "npc": "Shazom",
       "topic": "NIGE_NO",
-      "goal": "ask:nigel-recall",
-      "complete_if_recorded": "lycaeum.nigel.resurrection",
+      "goal": "meet:nigel-recall",
       "en": "Meet Nigel at the {lycaeum}.",
-      "ko": "{lycaeum}에서 나이절 만나기",
+      "ko": "{lycaeum}에서 나이젤 만나기",
       "en_u4": "Seek Nigel at the {lycaeum}.",
       "en_us": "Meet Nigel at the {lycaeum}."
     },
@@ -1491,8 +1484,7 @@
       "topic": "WHITE STONE",
       "chain": "trinsic.white-stone",
       "chain_order": 10,
-      "goal": "ask:sloven-stone",
-      "complete_if_recorded": "cove.sloven.isaac-stone",
+      "goal": "meet:sloven-stone",
       "complete_on_goal": "stone:white",
       "speaker_en": "Terran",
       "speaker_ko": "테란",
@@ -2393,9 +2385,8 @@
       "place": "cove",
       "npc": "Sloven",
       "topic": "SEED",
-      "goal": "ask:sloven-stone",
+      "goal": "meet:sloven-stone",
       "seed_if_recorded": "trinsic.terran.sloven-white-stone",
-      "complete_if_recorded": "cove.sloven.isaac-stone",
       "en": "Meet Sloven the hermit.",
       "ko": "은자 슬로벤 만나기",
       "en_u4": "Seek Sloven the hermit.",
@@ -2716,17 +2707,18 @@
       "ko": "사원 명상: 1·2·3 주기로 선의 길을 안다."
     },
     {
-      "id": "lycaeum.fighter.altar-links-yes",
+      "id": "lycaeum.fighter.altar-links",
       "place": "lycaeum",
       "npc": "a fighter",
       "topic": "WOUN_YES",
+      "upgrade": true,
       "speaker_en": "a fighter",
       "speaker_ko": "전사",
       "en": "Altar rooms: each of the three connects to four dungeons.",
       "ko": "제단 방: 세 방 각각이 던전 넷과 연결된다."
     },
     {
-      "id": "lycaeum.fighter.altar-links-no",
+      "id": "lycaeum.fighter.altar-links",
       "place": "lycaeum",
       "npc": "a fighter",
       "topic": "WOUN_NO",
@@ -2743,12 +2735,12 @@
       "goal": "ask:nigel-recall",
       "seed_if_recorded": "moonglow.shazom.nigel-recall",
       "complete_if_recorded": "lycaeum.nigel.resurrection",
-      "en": "Meet Nigel.",
-      "ko": "나이절 만나기",
-      "en_u4": "Seek Nigel.",
-      "en_us": "Meet Nigel.",
+      "en": "Ask Nigel about recall.",
+      "ko": "나이젤에게 부활에 대해 묻기",
+      "en_u4": "Ask Nigel of recall.",
+      "en_us": "Ask Nigel about recall.",
       "speaker_en": "Nigel",
-      "speaker_ko": "나이절"
+      "speaker_ko": "나이젤"
     },
     {
       "id": "lycaeum.nigel.resurrection",
@@ -2756,7 +2748,7 @@
       "npc": "Nigel, at thy\nservice.",
       "topic": "RECA",
       "speaker_en": "Nigel",
-      "speaker_ko": "나이절",
+      "speaker_ko": "나이젤",
       "en": "Resurrection: ash, ginseng, garlic, silk, bloodmoss, and mandrake.",
       "ko": "부활: 재·인삼·마늘·거미실·블러드모스·맨드레이크."
     },

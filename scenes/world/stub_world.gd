@@ -10,6 +10,8 @@ const _TileRules := preload("res://src/map/tile_rules.gd")
 const _MixPanel := preload("res://src/ui/mix_panel.gd")
 const _CastPanel := preload("res://src/ui/cast_panel.gd")
 const _UsePanel := preload("res://src/ui/use_panel.gd")
+const _CountChoiceRow := preload("res://src/ui/count_choice_row.gd")
+const _PartyTargetPicker := preload("res://src/ui/party_target_picker.gd")
 const _UseItems := preload("res://src/core/use_items.gd")
 const _CombatMapData := preload("res://src/map/combat_map_data.gd")
 const _SaveSlotPanel := preload("res://src/ui/save_slot_panel.gd")
@@ -68,6 +70,9 @@ var _wear_panel: WearPanel
 var _mix_panel # MixPanel — preloaded script instance
 var _cast_panel # CastPanel — preloaded script instance
 var _use_panel # UsePanel — preloaded script instance
+var _party_target_picker = _PartyTargetPicker.new()
+enum PartyTargetKind { NONE, READY, WEAR, CAST_CASTER, CAST_TARGET, CAMP, CHEST, FOUNTAIN, ORB, HEALER }
+var _party_target_kind: int = PartyTargetKind.NONE
 var _locate_label: Label
 var _locate_on := false
 var _ship_hull_hud: HBoxContainer
@@ -358,6 +363,7 @@ var _enter_prompt_choice := 0 ## selected button index in the dialogue choice ro
 ## After No, suppress while still on this portal tile; cleared when you leave.
 var _enter_prompt_declined := Vector2i(-99999, -99999)
 var _enter_btn_row: HBoxContainer
+var _count_choice_row: Control
 var _choice_btns: Array[Button] = []
 ## Prevent one A press from accepting both the current and immediately rebuilt prompt.
 var _choice_resolved_frame := -1
@@ -430,10 +436,13 @@ var _talk_keyword_menu_scroll := 0
 var _talk_keyword_menu_await_neutral := false
 var _talk_keyword_menu_items: Array[Dictionary] = []
 var _talk_keyword_menu_seen: Dictionary = {}
+## Numeric follow-up temporarily hides, then restores, the gamepad keyword menu.
+var _talk_count_return_to_menu := false
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
 ## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel / 12 Lord British /
-## 13 LB heal confirm (Art thou well?).
+## 13 LB heal confirm (Art thou well?) / 15 numeric count (Tymus cities).
+const TALK_STAGE_COUNT := 15
 var _talk_stage := 0
 var _talk_person_i := -1
 var _talk_entry: RefCounted = null ## _TalkTlk.Entry
@@ -1366,14 +1375,22 @@ func _ensure_enter_prompt_buttons() -> void:
 	## Choice button row in the dialogue prompt slot (town enter / shop / talk).
 	if _msg_prompt_row == null:
 		return
-	if _enter_btn_row != null and is_instance_valid(_enter_btn_row):
-		return
-	_enter_btn_row = HBoxContainer.new()
-	_enter_btn_row.visible = false
-	_enter_btn_row.mouse_filter = Control.MOUSE_FILTER_STOP
-	_enter_btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_enter_btn_row.add_theme_constant_override("separation", 12)
-	_msg_prompt_row.add_child(_enter_btn_row)
+	if _enter_btn_row == null or not is_instance_valid(_enter_btn_row):
+		_enter_btn_row = HBoxContainer.new()
+		_enter_btn_row.visible = false
+		_enter_btn_row.mouse_filter = Control.MOUSE_FILTER_STOP
+		_enter_btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		_enter_btn_row.add_theme_constant_override("separation", 12)
+		_msg_prompt_row.add_child(_enter_btn_row)
+	if _count_choice_row == null or not is_instance_valid(_count_choice_row):
+		_count_choice_row = _CountChoiceRow.new()
+		_count_choice_row.visible = false
+		_count_choice_row.choice_requested.connect(
+			func(index: int) -> void:
+				_set_enter_prompt_choice(index)
+				_resolve_prompt_choice_index(index)
+		)
+		_msg_prompt_row.add_child(_count_choice_row)
 
 
 func _rebuild_choice_buttons(count: int) -> void:
@@ -2090,6 +2107,14 @@ func _prompt_row_text() -> String:
 			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
 			if _talk_native_hangul_active() else ""
 		)
+	if _talk_stage == TALK_STAGE_COUNT:
+		if _talk_count_return_to_menu:
+			return ""
+		var say_count := "당신은 말한다: " if str(GameState.language) == "ko" else "You say: "
+		return say_count + (
+			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
+			if _talk_native_hangul_active() else ""
+		)
 	if _talk_stage == 4:
 		## "How much?" already written to history; live row is the amount only.
 		return _talk_buffer
@@ -2145,6 +2170,8 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		return
 	if _enter_btn_row != null:
 		_enter_btn_row.visible = false
+	if _count_choice_row != null:
+		_count_choice_row.visible = false
 	if _msg_prompt_row != null:
 		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var text := _prompt_row_text()
@@ -2207,7 +2234,10 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	var keys := _prompt_choice_keys()
 	if keys.is_empty():
 		return
-	_rebuild_choice_buttons(keys.length())
+	var count_mode := _talk_stage == TALK_STAGE_COUNT
+	_ensure_enter_prompt_buttons()
+	if not count_mode:
+		_rebuild_choice_buttons(keys.length())
 	if _msg_prompt_icon != null:
 		_msg_prompt_icon.visible = false
 	if _msg_prompt_label != null:
@@ -2220,11 +2250,23 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 		_msg_cursor.visible = false
 	if _msg_prompt_row != null:
 		_msg_prompt_row.mouse_filter = Control.MOUSE_FILTER_STOP
-	if _enter_btn_row == null:
+	if _enter_btn_row == null or _count_choice_row == null:
 		return
+	var row_w := maxf(_msg_prompt_row.size.x, 8.0)
+	var row_h := maxf(_msg_pitch, 14.0)
+	if count_mode:
+		_enter_btn_row.visible = false
+		_count_choice_row.visible = true
+		_count_choice_row.position = Vector2.ZERO
+		_count_choice_row.size = Vector2(row_w, row_h)
+		_count_choice_row.custom_minimum_size = Vector2.ZERO
+		_count_choice_row.set_selected(_enter_prompt_choice)
+		_count_choice_row.queue_redraw()
+		return
+	_count_choice_row.visible = false
 	_enter_btn_row.visible = true
 	_enter_btn_row.position = Vector2.ZERO
-	_enter_btn_row.size = Vector2(maxf(_msg_prompt_row.size.x, 8.0), maxf(_msg_pitch, 14.0))
+	_enter_btn_row.size = Vector2(row_w, row_h)
 	_enter_btn_row.custom_minimum_size = Vector2.ZERO
 	var btn_h := maxf(_msg_pitch - 2.0, 14.0)
 	var min_w := 48.0 if keys.length() >= 3 else 58.0
@@ -2233,9 +2275,9 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 	if keys == "abc" or keys == "fa" or keys == "plfs":
 		min_w = 72.0
 	elif keys == "12345678":
-		## Gate 1–8: one compact row, not city names.
-		min_w = 28.0
-		sep = 4
+		## Gate / Tymus 1–8: full-width digit row (no separate text label).
+		min_w = 0.0
+		sep = 0
 		expand = true
 	_enter_btn_row.add_theme_constant_override("separation", sep)
 	_enter_prompt_choice = clampi(_enter_prompt_choice, 0, maxi(keys.length() - 1, 0))
@@ -2252,12 +2294,13 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 		btn.custom_minimum_size = Vector2(min_w, btn_h)
 		btn.text = _prompt_choice_label(keys.substr(i, 1))
 	_sync_enter_prompt_style()
-	_sync_enter_prompt_style()
 
 
 func _set_enter_prompt_choice(index: int) -> void:
 	var n := maxi(_prompt_choice_keys().length(), 1)
 	_enter_prompt_choice = clampi(index, 0, n - 1)
+	if _count_choice_row != null and _talk_stage == TALK_STAGE_COUNT:
+		_count_choice_row.set_selected(_enter_prompt_choice)
 	_sync_enter_prompt_style()
 
 
@@ -2269,6 +2312,10 @@ func _shop_choice_keys() -> String:
 		return ""
 	if bool(_shop.is_sell_letter_pick()):
 		return ""
+	## Healer "Who is in need?" uses the highlighted right-side party roster.
+	## Number keys remain accepted directly by _talk_input_shop.
+	if bool(_shop.is_healer_target_pick()):
+		return ""
 	var keys := str(_shop.choice_keys).to_lower().strip_edges()
 	if keys == "ny":
 		return "yn"
@@ -2277,16 +2324,8 @@ func _shop_choice_keys() -> String:
 	## Yes/No, Buy/Sell, tavern Food/Ale, Minoc inn beds 1/2/3, healer A/B/C.
 	if keys == "yn" or keys == "bs" or keys == "fa" or keys == "123" or keys == "abc":
 		return keys
-	## Healer "Who is in need?" — one digit per living party member.
-	if keys.length() >= 1 and keys.length() <= 8:
-		var all_digits := true
-		for i in keys.length():
-			var ch := keys.unicode_at(i)
-			if ch < 49 or ch > 56: ## '1'..'8'
-				all_digits = false
-				break
-		if all_digits:
-			return keys
+	## Dynamic 1..party-size choices are party targets and belong in a vertical
+	## roster/list. Never turn them back into horizontal number buttons here.
 	return ""
 
 
@@ -2306,6 +2345,8 @@ func _prompt_choice_keys() -> String:
 		return "yn"
 	if _enter_prompt_stage == 1:
 		return "yn"
+	if _talk_stage == TALK_STAGE_COUNT:
+		return "12345678" if _talk_count_return_to_menu else ""
 	if _talk_gamepad_yes_no_active():
 		return "yn"
 	return _shop_choice_keys()
@@ -2383,6 +2424,13 @@ func _resolve_prompt_choice_index(index: int) -> void:
 		_push_talk_player_input(lb_answer)
 		_talk_answer_lb_heal_yn(ch == "y")
 		return
+	if _talk_stage == TALK_STAGE_COUNT:
+		var picked := int(ch)
+		_talk_buffer = ""
+		_reset_talk_hangul()
+		_push_talk_player_input(_talk_count_label(picked))
+		_talk_answer_count(picked)
+		return
 	if _talk_gamepad_yes_no_active():
 		var answer := Locale.t("cmd_yes" if ch == "y" else "cmd_no")
 		_talk_buffer = ""
@@ -2407,12 +2455,35 @@ func _resolve_visible_yes_no_choice(left: bool) -> void:
 func _sync_enter_prompt_style() -> void:
 	var keys := _prompt_choice_keys()
 	var n := keys.length()
+	var compact_digits := keys == "12345678"
 	for i in _choice_btns.size():
 		var btn := _choice_btns[i]
 		if btn == null:
 			continue
 		var active := i < n and i == _enter_prompt_choice
 		UiTheme.style_choice_button(btn, active)
+		if compact_digits:
+			## The dialogue strip is narrow. The shared button style carries
+			## 16 px horizontal margins, which makes eight buttons overflow.
+			## Use a zero-margin digit style and keep hover identical to the
+			## current selection state so mouse hover cannot show a second cursor.
+			var digit_style := StyleBoxFlat.new()
+			digit_style.bg_color = Color("1a3548") if active else UiTheme.BG_PANEL
+			digit_style.border_color = UiTheme.SELECT if active else UiTheme.BORDER
+			digit_style.set_border_width_all(1)
+			digit_style.content_margin_left = 0
+			digit_style.content_margin_right = 0
+			digit_style.content_margin_top = 0
+			digit_style.content_margin_bottom = 0
+			for style_name in ["normal", "hover", "pressed", "focus"]:
+				btn.add_theme_stylebox_override(style_name, digit_style.duplicate())
+			var digit_color := UiTheme.SELECT if active else UiTheme.TEXT
+			for color_name in [
+				"font_color", "font_hover_color", "font_pressed_color", "font_focus_color"
+			]:
+				btn.add_theme_color_override(color_name, digit_color)
+			btn.add_theme_font_size_override("font_size", 9)
+			continue
 		## Global menu buttons have 10 px vertical padding and an 18 px font.
 		## The terminal prompt is only one text row tall, so use compact copies.
 		btn.add_theme_font_size_override("font_size", 11)
@@ -2437,7 +2508,10 @@ func _talk_text_stage_active() -> bool:
 	if _talk_stage == 10 and _shop != null:
 		## Tavern topic after an ale tip is free text inside the vendor session.
 		return int(_shop.mode) == _VendorShop.Mode.TEXT
-	return _talk_stage in [1, 3, 11, 12, 13]
+	return (
+		_talk_stage in [1, 3, 11, 12, 13]
+		or (_talk_stage == TALK_STAGE_COUNT and not _talk_count_return_to_menu)
+	)
 
 
 func _ensure_talk_hangul() -> void:
@@ -2474,7 +2548,7 @@ func _talk_ime_max_length() -> int:
 	):
 		return 16
 	match _talk_stage:
-		3, 13:
+		3, 13, TALK_STAGE_COUNT:
 			return 8
 		_:
 			return 24 if str(GameState.language) == "ko" else 16
@@ -2917,13 +2991,15 @@ func _process(delta: float) -> void:
 	if _combat_active:
 		_move_cd = maxf(0.0, _move_cd - delta)
 		_hold_arm = maxf(0.0, _hold_arm - delta)
-		if _cast_stage == 4:
+		if _party_target_picker.active:
+			_tick_select_cursor()
+		elif _cast_stage == 4:
 			_tick_cast_dir()
 		elif _cast_stage == 5 or _cast_stage == 7:
 			_tick_dialogue_choice_nav()
 		elif _cast_stage == 6:
 			_tick_combat_aim_move()
-		elif _ztats_stage == 1 or _ready_stage == 1 or _cast_stage == 1 or _cast_stage == 2 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _orb_touch_stage == 1:
+		elif _ztats_stage == 1 or _cast_stage == 1:
 			_tick_select_cursor()
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor()
@@ -2980,10 +3056,13 @@ func _process(delta: float) -> void:
 	if _journal_focus_active:
 		_tick_journal_browse_nav()
 		return
+	if _party_target_picker.active:
+		_tick_select_cursor()
+		return
 	if _cast_stage == 4:
 		_tick_cast_dir()
 		return
-	if _ztats_stage == 1 or _order_stage != 0 or _ready_stage == 1 or _wear_stage == 1 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _cast_stage == 2 or _cast_stage == 3 or _use_stage == 1 or _abyss_altar_choice_active or _codex_choice_active or _camp_stage == 3 or _chest_open_stage == 1 or _fountain_drink_stage == 1 or _orb_touch_stage == 1 or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
+	if _ztats_stage == 1 or _order_stage != 0 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _use_stage == 1 or _abyss_altar_choice_active or _codex_choice_active or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
 		_tick_select_cursor()
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
@@ -3237,8 +3316,147 @@ func _arm_hold_after_step(world_move: bool = false) -> void:
 		_hold_arm = MOVE_HOLD_DELAY
 
 
+func _begin_party_target_pick(
+	kind: int,
+	initial_slot: int,
+	skip_unavailable: bool = false
+) -> void:
+	_party_target_kind = kind
+	_party_target_picker.begin(
+		GameState.party_size(),
+		initial_slot,
+		skip_unavailable,
+		Callable(self, "_party_slot_awake_living")
+	)
+	_open_order_roster()
+	_reset_hold_state()
+	if _roster:
+		_roster.visible = true
+	_sync_party_target_cursor()
+
+
+func _stop_party_target_pick(close_roster: bool = false) -> void:
+	if _party_target_kind == PartyTargetKind.NONE and not _party_target_picker.active:
+		return
+	_party_target_picker.stop()
+	_party_target_kind = PartyTargetKind.NONE
+	_clear_order_selection()
+	if close_roster and not _sides_open:
+		_close_order_roster()
+
+
+func _sync_party_target_cursor() -> void:
+	if not _party_target_picker.active:
+		return
+	var slot: int = int(_party_target_picker.cursor)
+	match _party_target_kind:
+		PartyTargetKind.READY:
+			_ready_cursor = slot
+		PartyTargetKind.WEAR:
+			_wear_cursor = slot
+		PartyTargetKind.CAST_CASTER, PartyTargetKind.CAST_TARGET:
+			_cast_cursor = slot
+		PartyTargetKind.CAMP:
+			_camp_guard_cursor = slot
+		PartyTargetKind.CHEST:
+			_chest_open_cursor = slot
+		PartyTargetKind.FOUNTAIN:
+			_fountain_drink_cursor = slot
+		PartyTargetKind.ORB:
+			_orb_touch_cursor = slot
+	if _roster:
+		_roster.set_order_selection(slot, -1)
+	_layout_prompt_row()
+
+
+func _handle_party_target_input(event: InputEvent) -> bool:
+	if not _party_target_picker.active:
+		return false
+	var result: int = int(_party_target_picker.handle_input(event))
+	if result == _PartyTargetPicker.RESULT_NONE:
+		return false
+	_sync_party_target_cursor()
+	match result:
+		_PartyTargetPicker.RESULT_ACCEPT:
+			_accept_party_target(int(_party_target_picker.cursor))
+		_PartyTargetPicker.RESULT_CANCEL:
+			_cancel_party_target()
+		_PartyTargetPicker.RESULT_INVALID:
+			_invalid_party_target()
+	return true
+
+
+func _accept_party_target(slot: int) -> void:
+	var kind := _party_target_kind
+	if (
+		kind in [PartyTargetKind.CAMP, PartyTargetKind.CHEST]
+		and not _party_slot_awake_living(slot)
+	):
+		_push_message(Locale.t("cmd_cant"), false)
+		_layout_prompt_row()
+		return
+	_stop_party_target_pick(false)
+	match kind:
+		PartyTargetKind.READY:
+			_accept_ready_slot(slot)
+		PartyTargetKind.WEAR:
+			_accept_wear_slot(slot)
+		PartyTargetKind.CAST_CASTER:
+			_accept_cast_caster_slot(slot)
+		PartyTargetKind.CAST_TARGET:
+			_accept_cast_who_slot(slot)
+		PartyTargetKind.CAMP:
+			_accept_camp_guard_slot(slot)
+		PartyTargetKind.CHEST:
+			_accept_chest_open_slot(slot)
+		PartyTargetKind.FOUNTAIN:
+			_accept_fountain_drink_slot(slot)
+		PartyTargetKind.ORB:
+			_accept_orb_touch_slot(slot)
+		PartyTargetKind.HEALER:
+			if _shop != null and bool(_shop.is_healer_target_pick()):
+				_push_talk_player_input(GameState.party_member_display_name(slot))
+				_shop.submit_choice(str(slot + 1))
+				_flush_shop_output()
+
+
+func _cancel_party_target() -> void:
+	var kind := _party_target_kind
+	_stop_party_target_pick(false)
+	match kind:
+		PartyTargetKind.READY:
+			_close_ready(true)
+		PartyTargetKind.WEAR:
+			_close_wear(true)
+		PartyTargetKind.CAST_CASTER, PartyTargetKind.CAST_TARGET:
+			_close_cast(true, not _combat_active)
+		PartyTargetKind.CAMP:
+			_cancel_camp(true)
+		PartyTargetKind.CHEST:
+			_cancel_chest_open(true)
+		PartyTargetKind.FOUNTAIN:
+			_cancel_fountain_drink(true)
+		PartyTargetKind.ORB:
+			_cancel_orb_touch(true)
+		PartyTargetKind.HEALER:
+			if _shop != null:
+				_shop.on_escape()
+				_flush_shop_output()
+
+
+func _invalid_party_target() -> void:
+	if _party_target_kind == PartyTargetKind.READY:
+		_close_ready(true)
+		return
+	if _party_target_kind == PartyTargetKind.WEAR:
+		_close_wear(true)
+		return
+	_push_message(Locale.t("cmd_who"), false)
+	_layout_prompt_row()
+
+
 func _tick_select_cursor() -> void:
-	## ↑↓ while picking a party member (Ztats / New Order).
+	## Shared ↑↓ hold-repeat for party targets and other roster/list cursors.
 	var step := _read_select_step()
 	if step == 0:
 		_reset_hold_state()
@@ -3252,34 +3470,21 @@ func _tick_select_cursor() -> void:
 		return
 	if _move_repeating and _hold_arm > 0.0:
 		return
-	if _ztats_stage == 1:
+	if _party_target_picker.active:
+		if _party_target_picker.nudge(step):
+			_sync_party_target_cursor()
+	elif _ztats_stage == 1:
 		_nudge_ztats_cursor(step)
-	elif _ready_stage == 1:
-		_nudge_ready_cursor(step)
-	elif _wear_stage == 1:
-		_nudge_wear_cursor(step)
 	elif _mix_stage == 1 or _mix_stage == 2:
 		_nudge_mix_cursor(step)
 	elif _cast_stage == 1:
 		_nudge_cast_cursor(step)
-	elif _cast_stage == 2:
-		_nudge_cast_party_cursor(step, false)
-	elif _cast_stage == 3:
-		_nudge_cast_party_cursor(step, true)
 	elif _use_stage == 1:
 		_nudge_use_cursor(step)
 	elif _abyss_altar_choice_active:
 		_nudge_abyss_altar_choice(step)
 	elif _codex_choice_active:
 		_nudge_codex_choice(step)
-	elif _camp_stage == 3:
-		_nudge_camp_guard_cursor(step)
-	elif _fountain_drink_stage == 1:
-		_nudge_fountain_drink_cursor(step)
-	elif _orb_touch_stage == 1:
-		_nudge_orb_touch_cursor(step)
-	elif _chest_open_stage == 1:
-		_nudge_chest_open_cursor(step)
 	elif _save_stage == 1 or _save_stage == 2:
 		_nudge_save_cursor(step)
 	elif _esc_menu_is_open():
@@ -3293,6 +3498,9 @@ func _tick_select_cursor() -> void:
 
 func _dialogue_choice_hold_active() -> bool:
 	## Talk keyword list, shop rows, sell letter pick, or horizontal choice buttons.
+	## Tymus uses deliberate one-step input so a single tilt cannot skip 1 → 3.
+	if _talk_stage == TALK_STAGE_COUNT:
+		return false
 	if _talk_keyword_menu_can_select():
 		return true
 	if _talk_stage == 10 and _shop != null:
@@ -4556,6 +4764,9 @@ func _sync_tavern_topic_keyword_menu() -> void:
 
 
 func _sync_talk_keyword_menu_visibility() -> void:
+	if _talk_stage == TALK_STAGE_COUNT:
+		_hide_command_menu_layer(false)
+		return
 	if not _talk_keyword_menu_active:
 		return
 	_ensure_command_menu_layer()
@@ -4989,6 +5200,17 @@ func _talk_keyword_menu_intro_default_key() -> String:
 	):
 		default_key = _talk_keyword_stable_key(
 			"룬" if GameState.lang_short() == "ko" else "rune"
+		)
+	elif (
+		_talk_npc_key(entry).begins_with("nigel")
+		and (
+			GameState.journal_has_id("lycaeum.nigel.ask-recall")
+			or GameState.journal_has_id("moonglow.shazom.nigel-recall")
+		)
+		and not GameState.journal_has_id("lycaeum.nigel.resurrection")
+	):
+		default_key = _talk_keyword_stable_key(
+			"부활" if GameState.lang_short() == "ko" else "recall"
 		)
 	elif (
 		str(entry.name).strip_edges().to_lower() == "nostro"
@@ -5947,6 +6169,33 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_paws_chain_keyword()
 	_maybe_offer_cove_chain_keyword()
 	_maybe_offer_keep_chain_keyword()
+	_maybe_offer_lycaeum_chain_keyword()
+
+
+func _maybe_offer_lycaeum_chain_keyword() -> void:
+	## Shazom → Nigel: ask about recall / resurrection after the meet tip.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "lycaeum":
+		return
+	if not _talk_npc_key(_talk_entry).begins_with("nigel"):
+		return
+	if GameState.journal_has_id("lycaeum.nigel.resurrection"):
+		return
+	if not (
+		GameState.journal_has_id("lycaeum.nigel.ask-recall")
+		or GameState.journal_has_id("moonglow.shazom.nigel-recall")
+	):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var key := _talk_keyword_stable_key(
+		"부활" if korean else "recall"
+	)
+	_offer_talk_keyword_item(
+		key,
+		"부활" if korean else "Recall",
+		"부활" if korean else "recall"
+	)
 
 
 func _maybe_offer_lcb_chain_keyword() -> void:
@@ -6018,6 +6267,59 @@ func _maybe_journal_lcb_treasure_guard_spirituality_rune(entry: Variant) -> bool
 	if not GameState.journal_has_id("skara.ankh.spirituality-rune"):
 		return false
 	return GameState.journal_try_capture_talk("lcb", "a guard", "SEED")
+
+
+func _talk_npc_key(entry: Variant) -> String:
+	if entry == null:
+		return ""
+	return str(entry.name).replace("\n", " ").replace("\r", " ").strip_edges().to_lower()
+
+
+func _maybe_complete_meet_journal_on_name() -> bool:
+	## Meet tips (만나기): complete once the NPC speaks their name.
+	if _talk_entry == null or _city_map == null:
+		return false
+	var place := _talk_city_id()
+	var npc_key := _talk_npc_key(_talk_entry)
+	if place.is_empty() or npc_key.is_empty():
+		return false
+	var changed := false
+	if place == "lcb" and npc_key == "zorin":
+		if GameState.journal_mark_id("lcb.manual.zorin"):
+			changed = true
+		if GameState.journal_mark_goal("meet:zorin"):
+			changed = true
+	if place == "lycaeum" and npc_key.begins_with("nigel"):
+		if GameState.journal_try_capture_talk("lycaeum", "Nigel", "SEED"):
+			changed = true
+		if GameState.journal_mark_id("moonglow.shazom.nigel-recall"):
+			changed = true
+		if GameState.journal_mark_goal("meet:nigel-recall"):
+			changed = true
+	if place == "serpent" and npc_key == "roderick":
+		if GameState.journal_mark_id("britain.thevel.roderick-orbs"):
+			changed = true
+		if GameState.journal_mark_goal("meet:roderick-orbs"):
+			changed = true
+	if place == "cove" and npc_key == "sloven":
+		if GameState.journal_try_capture_talk("cove", "Sloven", "SEED"):
+			changed = true
+		if GameState.journal_mark_id("trinsic.terran.sloven-white-stone"):
+			changed = true
+		if GameState.journal_mark_id("cove.sloven.meet"):
+			changed = true
+		if GameState.journal_mark_goal("meet:sloven-stone"):
+			changed = true
+	if (
+		place == "minoc"
+		and npc_key == "mischief"
+		and GameState.has_rune(GameState.RUNE_SACRIFICE)
+	):
+		if GameState.journal_mark_id("minoc.mischief.return-with-rune"):
+			changed = true
+		if GameState.journal_mark_goal("meet:mischief-rune"):
+			changed = true
+	return changed
 
 
 func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
@@ -6718,6 +7020,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_pressed():
 			_mark_input_handled()
 		return
+	if _party_target_picker.active:
+		if _handle_party_target_input(event):
+			_mark_input_handled()
+		elif event.is_pressed() or event is InputEventJoypadMotion:
+			_mark_input_handled()
+		return
 	if _talk_stage != 0:
 		if (
 			_talk_stage == 2
@@ -6825,9 +7133,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_mark_input_handled()
 			return
 		if _chest_open_stage != 0:
-			if _handle_chest_open_input(event):
-				_mark_input_handled()
-			elif event.is_pressed():
+			if event.is_pressed() or event is InputEventJoypadMotion:
 				_mark_input_handled()
 			return
 		if _pending_cmd != U4Commands.Id.NONE:
@@ -6891,21 +7197,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			_mark_input_handled()
 		return
 	if _fountain_drink_stage != 0:
-		if _handle_fountain_drink_input(event):
-			_mark_input_handled()
-		elif event.is_pressed():
+		if event.is_pressed() or event is InputEventJoypadMotion:
 			_mark_input_handled()
 		return
 	if _orb_touch_stage != 0:
-		if _handle_orb_touch_input(event):
-			_mark_input_handled()
-		elif event.is_pressed():
+		if event.is_pressed() or event is InputEventJoypadMotion:
 			_mark_input_handled()
 		return
 	if _chest_open_stage != 0:
-		if _handle_chest_open_input(event):
-			_mark_input_handled()
-		elif event.is_pressed():
+		if event.is_pressed() or event is InputEventJoypadMotion:
 			_mark_input_handled()
 		return
 	if _mix_stage != 0:
@@ -9398,16 +9698,12 @@ func _do_ready() -> void:
 		_do_ready_combat_self()
 		return
 	_ready_self_only = false
-	_open_order_roster()
 	_ready_stage = 1
 	_ready_cursor = 0
 	_ready_slot = -1
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
 	if _ready_panel:
 		_ready_panel.close_panel()
-	_sync_ready_selection()
+	_begin_party_target_pick(PartyTargetKind.READY, _ready_cursor)
 	_layout_prompt_row()
 
 
@@ -9442,38 +9738,8 @@ func _handle_ready_input(event: InputEvent) -> bool:
 		return false
 	if event.is_echo():
 		return false
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			_on_escape()
-			return true
 	if _ready_stage == 2:
 		return _handle_ready_weapon_input(event)
-	## Stage 1: pick member (explore only — combat starts at stage 2).
-	if _ready_self_only:
-		_close_ready(true)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
-		_close_ready(true)
-		return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_close_ready(true)
-		return true
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_ready_slot(_ready_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_ready_slot(_ready_cursor)
-		return true
-	if event is InputEventKey:
-		var ke := event as InputEventKey
-		var pick := _player_slot_from_key(ke)
-		if pick < 0:
-			if _is_digit_key(ke):
-				_close_ready(true)
-			return true
-		_accept_ready_slot(pick)
-		return true
 	return true
 
 
@@ -9543,14 +9809,6 @@ func _tick_ready_weapon_cursor() -> void:
 	_arm_hold_after_step()
 
 
-func _nudge_ready_cursor(delta: int) -> void:
-	if _ready_self_only:
-		return
-	var n := maxi(GameState.party_size(), 1)
-	_ready_cursor = posmod(_ready_cursor + delta, n)
-	_sync_ready_selection()
-
-
 func _ready_member_switchable() -> bool:
 	return not _ready_self_only and GameState.party_size() > 1
 
@@ -9571,11 +9829,6 @@ func _nudge_ready_member(delta: int) -> void:
 	if _ready_panel:
 		_ready_panel.open_for(slot, _ready_member_switchable())
 	_layout_prompt_row()
-
-
-func _sync_ready_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_ready_cursor, -1)
 
 
 func _accept_ready_slot(slot: int) -> void:
@@ -9625,7 +9878,7 @@ func _return_ready_to_pick() -> void:
 	if _compact_pane:
 		_compact_pane.visible = false
 	_order_opened_roster = true
-	_sync_ready_selection()
+	_begin_party_target_pick(PartyTargetKind.READY, _ready_cursor)
 	_layout_prompt_row()
 
 
@@ -9685,6 +9938,8 @@ func _weapon_starts_vowel(name: String) -> bool:
 func _close_ready(show_none: bool) -> void:
 	var was := _ready_stage
 	var self_only := _ready_self_only
+	if _party_target_kind == PartyTargetKind.READY:
+		_stop_party_target_pick(false)
 	_ready_stage = 0
 	_ready_cursor = 0
 	_ready_slot = -1
@@ -9733,16 +9988,12 @@ func _do_wear() -> void:
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
 		return
-	_open_order_roster()
 	_wear_stage = 1
 	_wear_cursor = 0
 	_wear_slot = -1
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
 	if _wear_panel:
 		_wear_panel.close_panel()
-	_sync_wear_selection()
+	_begin_party_target_pick(PartyTargetKind.WEAR, _wear_cursor)
 	_layout_prompt_row()
 
 
@@ -9751,34 +10002,8 @@ func _handle_wear_input(event: InputEvent) -> bool:
 		return false
 	if event.is_echo():
 		return false
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			_on_escape()
-			return true
 	if _wear_stage == 2:
 		return _handle_wear_armor_input(event)
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
-		_close_wear(true)
-		return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_close_wear(true)
-		return true
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_wear_slot(_wear_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_wear_slot(_wear_cursor)
-		return true
-	if event is InputEventKey:
-		var ke := event as InputEventKey
-		var pick := _player_slot_from_key(ke)
-		if pick < 0:
-			if _is_digit_key(ke):
-				_close_wear(true)
-			return true
-		_accept_wear_slot(pick)
-		return true
 	return true
 
 
@@ -9845,12 +10070,6 @@ func _tick_wear_armor_cursor() -> void:
 	_arm_hold_after_step()
 
 
-func _nudge_wear_cursor(delta: int) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	_wear_cursor = posmod(_wear_cursor + delta, n)
-	_sync_wear_selection()
-
-
 func _wear_member_switchable() -> bool:
 	return GameState.party_size() > 1
 
@@ -9871,11 +10090,6 @@ func _nudge_wear_member(delta: int) -> void:
 	if _wear_panel:
 		_wear_panel.open_for(slot, _wear_member_switchable())
 	_layout_prompt_row()
-
-
-func _sync_wear_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_wear_cursor, -1)
 
 
 func _accept_wear_slot(slot: int) -> void:
@@ -9921,7 +10135,7 @@ func _return_wear_to_pick() -> void:
 	if _compact_pane:
 		_compact_pane.visible = false
 	_order_opened_roster = true
-	_sync_wear_selection()
+	_begin_party_target_pick(PartyTargetKind.WEAR, _wear_cursor)
 	_layout_prompt_row()
 
 
@@ -9962,6 +10176,8 @@ func _wear_restricted_message(slot: int, armor_id: int) -> String:
 
 func _close_wear(show_none: bool) -> void:
 	var was := _wear_stage
+	if _party_target_kind == PartyTargetKind.WEAR:
+		_stop_party_target_pick(false)
 	_wear_stage = 0
 	_wear_cursor = 0
 	_wear_slot = -1
@@ -10368,15 +10584,15 @@ func _do_cast() -> void:
 	_cast_caster_slot = -1
 	_cast_cursor = _first_living_party_slot()
 	_cast_stage = 3
-	_open_order_roster()
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
-	_sync_cast_selection()
+	_begin_party_target_pick(
+		PartyTargetKind.CAST_CASTER, _cast_cursor, true
+	)
 	_layout_prompt_row()
 
 
 func _open_cast_spell_list() -> void:
+	if _party_target_kind == PartyTargetKind.CAST_CASTER:
+		_stop_party_target_pick(false)
 	_ensure_cast_panel()
 	_open_order_roster()
 	if _roster:
@@ -10395,26 +10611,6 @@ func _nudge_cast_cursor(step: int) -> void:
 	if _cast_panel == null:
 		return
 	_cast_panel.nudge_cursor(step)
-
-
-func _nudge_cast_party_cursor(step: int, able_only: bool) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	if not able_only:
-		_cast_cursor = posmod(_cast_cursor + step, n)
-		_sync_cast_selection()
-		return
-	var slot := _cast_cursor
-	for _i in n:
-		slot = posmod(slot + step, n)
-		if _camp_guard_slot_eligible(slot):
-			_cast_cursor = slot
-			_sync_cast_selection()
-			return
-
-
-func _sync_cast_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_cast_cursor, -1)
 
 
 func _handle_cast_input(event: InputEvent) -> bool:
@@ -10439,10 +10635,6 @@ func _handle_cast_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_close_cast(true, not _combat_active)
 		return true
-	if _cast_stage == 2:
-		return _handle_cast_who_input(event)
-	if _cast_stage == 3:
-		return _handle_cast_caster_input(event)
 	if _cast_stage == 4:
 		return _handle_cast_dir_input(event)
 	if _cast_stage == 5:
@@ -10464,52 +10656,6 @@ func _handle_cast_input(event: InputEvent) -> bool:
 			_try_cast_spell(spell)
 			return true
 		if _is_direction_key(ke):
-			return true
-	return true
-
-
-func _handle_cast_caster_input(event: InputEvent) -> bool:
-	## xu4 gameGetPlayer(false, true) — able casters only.
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_cast_caster_slot(_cast_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_cast_caster_slot(_cast_cursor)
-		return true
-	if event is InputEventKey:
-		var ke := event as InputEventKey
-		var pick := _player_slot_from_key(ke)
-		if pick >= 0:
-			_cast_cursor = pick
-			_sync_cast_selection()
-			_accept_cast_caster_slot(pick)
-			return true
-		if _is_digit_key(ke):
-			_push_message(Locale.t("cmd_who"), false)
-			_layout_prompt_row()
-			return true
-	return true
-
-
-func _handle_cast_who_input(event: InputEvent) -> bool:
-	## xu4 gameGetPlayer(true, false) — sleeping / dead targets allowed.
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_cast_who_slot(_cast_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_cast_who_slot(_cast_cursor)
-		return true
-	if event is InputEventKey:
-		var ke := event as InputEventKey
-		var pick := _player_slot_from_key(ke)
-		if pick >= 0:
-			_cast_cursor = pick
-			_sync_cast_selection()
-			_accept_cast_who_slot(pick)
-			return true
-		if _is_digit_key(ke):
-			_push_message(Locale.t("cmd_who"), false)
-			_layout_prompt_row()
 			return true
 	return true
 
@@ -10625,11 +10771,7 @@ func _begin_cast_who() -> void:
 		_cast_panel.close_panel()
 	_cast_stage = 2
 	_cast_cursor = 0
-	_reset_hold_state()
-	_open_order_roster()
-	if _roster:
-		_roster.visible = true
-	_sync_cast_selection()
+	_begin_party_target_pick(PartyTargetKind.CAST_TARGET, _cast_cursor)
 	_layout_prompt_row()
 
 
@@ -11695,6 +11837,8 @@ func _close_cast(show_none: bool, spend_turn: bool) -> void:
 		return
 	if was == 6:
 		_clear_cast_aim_cursor()
+	if _party_target_kind in [PartyTargetKind.CAST_CASTER, PartyTargetKind.CAST_TARGET]:
+		_stop_party_target_pick(false)
 	_cast_stage = 0
 	_cast_caster_slot = -1
 	_cast_spell_id = -1
@@ -12362,16 +12506,6 @@ func _maybe_capture_manual_zorin_tip(fname: String) -> void:
 	if not GameState.journal_try_capture("lcb", "The Way of the Avatar", "ENTER"):
 		return
 	_refresh_journal_panel()
-
-
-func _maybe_complete_manual_zorin_tip() -> bool:
-	## Talking to Zorin fulfills the manual hint.
-	var changed := false
-	if GameState.journal_mark_id("lcb.manual.zorin"):
-		changed = true
-	if GameState.journal_mark_goal("ask:zorin"):
-		changed = true
-	return changed
 
 
 func _open_sides_for_dungeon() -> void:
@@ -13309,62 +13443,8 @@ func _begin_orb_touch() -> void:
 		_complete_orb_touch(_orb_touch_cursor)
 		return
 	_orb_touch_stage = 1
-	_open_order_roster()
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
-	_sync_orb_touch_selection()
+	_begin_party_target_pick(PartyTargetKind.ORB, _orb_touch_cursor)
 	_layout_prompt_row()
-
-
-func _handle_orb_touch_input(event: InputEvent) -> bool:
-	if not event.is_pressed() or event.is_echo():
-		return false
-	if event is InputEventKey:
-		var key := event as InputEventKey
-		if key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
-			_cancel_orb_touch(true)
-			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
-		_cancel_orb_touch(true)
-		return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_orb_touch(true)
-		return true
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_orb_touch_slot(_orb_touch_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_orb_touch_slot(_orb_touch_cursor)
-		return true
-	if event is InputEventKey:
-		var key_event := event as InputEventKey
-		var digit := _player_digit_index_from_key(key_event)
-		if digit >= 0:
-			if digit >= GameState.party_size():
-				_push_message(Locale.t("cmd_who"), false)
-				_layout_prompt_row()
-				return true
-			_orb_touch_cursor = digit
-			_sync_orb_touch_selection()
-			_accept_orb_touch_slot(digit)
-			return true
-		if _is_digit_key(key_event):
-			_push_message(Locale.t("cmd_who"), false)
-			_layout_prompt_row()
-			return true
-	return true
-
-
-func _nudge_orb_touch_cursor(delta: int) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	_orb_touch_cursor = posmod(_orb_touch_cursor + delta, n)
-	_sync_orb_touch_selection()
-
-
-func _sync_orb_touch_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_orb_touch_cursor, -1)
 
 
 func _accept_orb_touch_slot(slot: int) -> void:
@@ -13418,6 +13498,8 @@ func _cancel_orb_touch(show_none: bool) -> void:
 
 
 func _clear_orb_touch_ui() -> void:
+	if _party_target_kind == PartyTargetKind.ORB:
+		_stop_party_target_pick(false)
 	_orb_touch_stage = 0
 	_orb_touch_cursor = 0
 	_clear_order_selection()
@@ -13538,62 +13620,8 @@ func _begin_fountain_drink() -> void:
 		_complete_fountain_drink(_fountain_drink_cursor)
 		return
 	_fountain_drink_stage = 1
-	_open_order_roster()
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
-	_sync_fountain_drink_selection()
+	_begin_party_target_pick(PartyTargetKind.FOUNTAIN, _fountain_drink_cursor)
 	_layout_prompt_row()
-
-
-func _handle_fountain_drink_input(event: InputEvent) -> bool:
-	if not event.is_pressed() or event.is_echo():
-		return false
-	if event is InputEventKey:
-		var key := event as InputEventKey
-		if key.keycode == KEY_ESCAPE or key.physical_keycode == KEY_ESCAPE:
-			_cancel_fountain_drink(true)
-			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
-		_cancel_fountain_drink(true)
-		return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_fountain_drink(true)
-		return true
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_fountain_drink_slot(_fountain_drink_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_fountain_drink_slot(_fountain_drink_cursor)
-		return true
-	if event is InputEventKey:
-		var key_event := event as InputEventKey
-		var digit := _player_digit_index_from_key(key_event)
-		if digit >= 0:
-			if digit >= GameState.party_size():
-				_push_message(Locale.t("cmd_who"), false)
-				_layout_prompt_row()
-				return true
-			_fountain_drink_cursor = digit
-			_sync_fountain_drink_selection()
-			_accept_fountain_drink_slot(digit)
-			return true
-		if _is_digit_key(key_event):
-			_push_message(Locale.t("cmd_who"), false)
-			_layout_prompt_row()
-			return true
-	return true
-
-
-func _nudge_fountain_drink_cursor(delta: int) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	_fountain_drink_cursor = posmod(_fountain_drink_cursor + delta, n)
-	_sync_fountain_drink_selection()
-
-
-func _sync_fountain_drink_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_fountain_drink_cursor, -1)
 
 
 func _accept_fountain_drink_slot(slot: int) -> void:
@@ -13661,6 +13689,8 @@ func _cancel_fountain_drink(show_none: bool) -> void:
 
 
 func _clear_fountain_drink_ui() -> void:
+	if _party_target_kind == PartyTargetKind.FOUNTAIN:
+		_stop_party_target_pick(false)
 	_fountain_drink_stage = 0
 	_fountain_drink_cursor = 0
 	_clear_order_selection()
@@ -14850,7 +14880,7 @@ func _handle_camp_input(event: InputEvent) -> bool:
 	if _camp_stage == 2:
 		return _handle_camp_watch_yn(event)
 	if _camp_stage == 3:
-		return _handle_camp_guard_pick(event)
+		return true
 	## Resting… — swallow all input except Tab (handled in _input).
 	return true
 
@@ -14893,71 +14923,13 @@ func _accept_camp_set_watch(yes: bool) -> void:
 		return
 	_camp_stage = 3
 	_camp_guard_cursor = _first_living_party_slot()
-	_open_order_roster()
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
-	_sync_camp_guard_selection()
+	_begin_party_target_pick(
+		PartyTargetKind.CAMP, _camp_guard_cursor, true
+	)
 	_layout_prompt_row()
 
 
-func _handle_camp_guard_pick(event: InputEvent) -> bool:
-	## Who will guard? — list cursor + digits both work; bad picks stay on prompt.
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			_cancel_camp(true)
-			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
-		_cancel_camp(true)
-		return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_camp(true)
-		return true
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_camp_guard_slot(_camp_guard_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_camp_guard_slot(_camp_guard_cursor)
-		return true
-	if event is InputEventKey:
-		var ke := event as InputEventKey
-		var dig := _player_digit_index_from_key(ke)
-		if dig >= 0:
-			## Keys 1–8: in-range → try accept; out of party → Who? and re-prompt.
-			if dig >= GameState.party_size():
-				_push_message(Locale.t("cmd_who"), false)
-				_layout_prompt_row()
-				return true
-			_camp_guard_cursor = dig
-			_sync_camp_guard_selection()
-			_accept_camp_guard_slot(dig)
-			return true
-		if _is_digit_key(ke):
-			## 0 / 9 / etc. — not a party number.
-			_push_message(Locale.t("cmd_who"), false)
-			_layout_prompt_row()
-			return true
-	return true
-
-
-func _nudge_camp_guard_cursor(delta: int) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	var slot := _camp_guard_cursor
-	for _i in n:
-		slot = posmod(slot + delta, n)
-		if _camp_guard_slot_eligible(slot):
-			_camp_guard_cursor = slot
-			_sync_camp_guard_selection()
-			return
-
-
-func _sync_camp_guard_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_camp_guard_cursor, -1)
-
-
-func _camp_guard_slot_eligible(slot: int) -> bool:
+func _party_slot_awake_living(slot: int) -> bool:
 	## Awake, living party members only (xu4 isDisabled → dead / sleeping).
 	if slot < 0 or slot >= GameState.party_size():
 		return false
@@ -14974,7 +14946,7 @@ func _accept_camp_guard_slot(slot: int) -> void:
 		_push_message(Locale.t("cmd_who"), false)
 		_layout_prompt_row()
 		return
-	if not _camp_guard_slot_eligible(slot):
+	if not _party_slot_awake_living(slot):
 		_push_message(Locale.t("cmd_cant"), false)
 		_layout_prompt_row()
 		return
@@ -14990,14 +14962,14 @@ func _accept_camp_guard_slot(slot: int) -> void:
 func _living_party_slot_count() -> int:
 	var n := 0
 	for i in GameState.party_size():
-		if _camp_guard_slot_eligible(i):
+		if _party_slot_awake_living(i):
 			n += 1
 	return n
 
 
 func _first_living_party_slot() -> int:
 	for i in GameState.party_size():
-		if _camp_guard_slot_eligible(i):
+		if _party_slot_awake_living(i):
 			return i
 	return 0
 
@@ -15145,6 +15117,8 @@ func _cancel_camp(show_none: bool) -> void:
 	if _camp_stage == 0:
 		return
 	var was := _camp_stage
+	if _party_target_kind == PartyTargetKind.CAMP:
+		_stop_party_target_pick(false)
 	if was == 1:
 		GameState.wake_party()
 		_refresh_party()
@@ -15166,6 +15140,8 @@ func _cancel_camp(show_none: bool) -> void:
 
 
 func _close_camp(_show_none: bool) -> void:
+	if _party_target_kind == PartyTargetKind.CAMP:
+		_stop_party_target_pick(false)
 	## Silent abort when another command preempts camp.
 	if _camp_stage == 0:
 		return
@@ -15660,6 +15636,7 @@ func _set_death_blackout(on: bool) -> void:
 func _close_ui_for_death() -> void:
 	## Drop modal UIs so the message log owns the sequence.
 	## Avoid helpers that call `_finish_party_turn` (would re-enter death).
+	_stop_party_target_pick(false)
 	if _journal_focus_active:
 		_close_journal_focus(false)
 	if _peer_overlay != null and _peer_overlay.is_open():
@@ -16253,6 +16230,24 @@ func _flush_shop_output() -> void:
 	_refresh_inventory_bars()
 	_refresh_party()
 	_sync_shop_character_inv()
+	_sync_healer_target_picker()
+
+
+func _sync_healer_target_picker() -> void:
+	var choosing := (
+		_talk_stage == 10
+		and _shop != null
+		and bool(_shop.is_healer_target_pick())
+	)
+	if choosing:
+		if (
+			_party_target_kind != PartyTargetKind.HEALER
+			or not _party_target_picker.active
+		):
+			_begin_party_target_pick(PartyTargetKind.HEALER, 0)
+		return
+	if _party_target_kind == PartyTargetKind.HEALER:
+		_stop_party_target_pick(false)
 
 
 func _sync_shop_item_menu() -> void:
@@ -16552,6 +16547,8 @@ func _handle_shop_number_input(event: InputEvent) -> bool:
 func _end_shop() -> void:
 	if _shop == null and _talk_stage != 10:
 		return
+	if _party_target_kind == PartyTargetKind.HEALER:
+		_stop_party_target_pick(false)
 	## Apply deferred world effects before clearing session.
 	var horse := false
 	var rel := Vector2i(-1, -1)
@@ -16920,9 +16917,8 @@ func _talk_say_name() -> void:
 	_push_talk_script("%s says: I am %s" % [str(e.pronoun), str(e.name)])
 	_offer_named_npc_journal_keywords()
 	_talk_keyword_menu_apply_intro_default()
-	if str(e.name).strip_edges().to_lower() == "zorin":
-		if _maybe_complete_manual_zorin_tip():
-			_refresh_journal_panel()
+	if _maybe_complete_meet_journal_on_name():
+		_refresh_journal_panel()
 
 
 func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
@@ -17154,6 +17150,8 @@ func _handle_talk_input(event: InputEvent) -> bool:
 			return true
 		3:
 			return _talk_input_yn(k)
+		TALK_STAGE_COUNT:
+			return _talk_input_count(k)
 		4:
 			return _talk_input_give(k)
 		10:
@@ -17475,6 +17473,46 @@ func _talk_input_yn(k: InputEventKey) -> bool:
 	return true
 
 
+func _talk_input_count(k: InputEventKey) -> bool:
+	## Keyboard talks answer Tymus by typing 1–8 or the localized number word.
+	## Gamepad talks resolve through the dedicated eight-cell choice row.
+	if _talk_count_return_to_menu:
+		return true
+	if _is_talk_enter(k):
+		var submitted := _talk_buffer.strip_edges()
+		_talk_buffer = ""
+		if submitted.is_empty():
+			_layout_prompt_row()
+			return true
+		_push_talk_player_input(submitted)
+		var picked := int(submitted) if submitted.is_valid_int() else 0
+		if picked < 1 or picked > 8:
+			var normalized := _TalkLocale.normalize_interest(submitted)
+			for i in 8:
+				if normalized == _TalkLocale.normalize_interest(_talk_count_label(i + 1)):
+					picked = i + 1
+					break
+		if picked >= 1 and picked <= 8:
+			_talk_answer_count(picked)
+			return true
+		_push_talk_script(Locale.t("talk_count_retry"), false)
+		_layout_prompt_row()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if not _talk_buffer.is_empty():
+			_talk_buffer_backspace()
+			_layout_prompt_row()
+		return true
+	var ch := _key_printable_char(k)
+	if ch.is_empty():
+		return false
+	if _talk_buffer.length() >= 8:
+		return true
+	_talk_append_char(ch)
+	_layout_prompt_row()
+	return true
+
+
 func _talk_input_give(k: InputEventKey) -> bool:
 	## Gold amount for Give — digits only; Esc ends talk above.
 	if _is_talk_enter(k):
@@ -17680,6 +17718,12 @@ func _talk_prompt_interest() -> void:
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
 	_sync_talk_ime_edit()
+	## Follow-up Y/N and numeric choices only hide the gamepad keyword panel.
+	## Rebuild its rows on returning to Interest so temporary choice UIs can
+	## never leave behind an empty or world-command menu.
+	if _talk_keyword_menu_active:
+		_rebuild_command_menu_rows()
+		_sync_talk_keyword_menu_visibility()
 
 
 func _talk_ask_question() -> void:
@@ -17689,14 +17733,65 @@ func _talk_ask_question() -> void:
 		return
 	_push_talk_script(str(e.question))
 	_maybe_offer_wheatpin_rune_keyword()
-	_talk_stage = 3
 	_talk_buffer = ""
 	_reset_talk_hangul()
 	_talk_pending_ask = false
-	if _talk_keyword_menu_active:
+	if _TalkTlk.question_wants_count(e):
+		_talk_count_return_to_menu = _talk_keyword_menu_active
+		_talk_stage = TALK_STAGE_COUNT
 		_enter_prompt_choice = 0
+		_talk_buffer = ""
 		_GameInput.reset_stick_navigation()
+		_hide_command_menu_layer(false)
+	else:
+		_talk_count_return_to_menu = false
+		_talk_stage = 3
+		if _talk_keyword_menu_active:
+			_enter_prompt_choice = 0
+			_GameInput.reset_stick_navigation()
 	_layout_prompt_row()
+
+
+func _talk_count_label(n: int) -> String:
+	match clampi(n, 1, 8):
+		1:
+			return Locale.t("talk_count_one")
+		2:
+			return Locale.t("talk_count_two")
+		3:
+			return Locale.t("talk_count_three")
+		4:
+			return Locale.t("talk_count_four")
+		5:
+			return Locale.t("talk_count_five")
+		6:
+			return Locale.t("talk_count_six")
+		7:
+			return Locale.t("talk_count_seven")
+		_:
+			return Locale.t("talk_count_eight")
+
+
+func _talk_answer_count(n: int) -> void:
+	var e := _talk_entry
+	if e == null:
+		_end_talk(false)
+		return
+	var correct := _TalkTlk.count_answer_from_topic(str(e.topic2))
+	var reply := str(e.response2 if n == correct and correct > 0 else e.no)
+	_push_talk_script(reply)
+	if n == correct and correct > 0:
+		_try_journal_talk_capture(e, _TalkTlk.REPLY_TOPIC2)
+	_talk_prompt_interest()
+	if _talk_count_return_to_menu:
+		if not _talk_keyword_menu_active:
+			_talk_gamepad_requested = true
+			_begin_talk_keyword_menu_if_requested()
+		_talk_keyword_menu_await_neutral = true
+		_GameInput.latch_current_stick_navigation()
+		_rebuild_command_menu_rows()
+		_sync_talk_keyword_menu_visibility()
+	_talk_count_return_to_menu = false
 
 
 func _talk_answer_yn(yes: bool) -> void:
@@ -17737,10 +17832,6 @@ func _talk_answer_yn(yes: bool) -> void:
 	## Mischief's Rune question: confirming possession advances the chain
 	## to Alkerion's information about the sacrifice stone.
 	if yes and npc_key == "mischief":
-		if GameState.journal_mark_id("minoc.mischief.return-with-rune"):
-			journal_changed = true
-		if GameState.journal_mark_goal("confirm:mischief-rune"):
-			journal_changed = true
 		if GameState.journal_try_capture_talk("minoc", "Mischief", "RUNE_YES"):
 			journal_changed = true
 	## Zorin (LCB): Yes names Antos and the bell / book / candle.
@@ -17764,6 +17855,8 @@ func _talk_answer_yn(yes: bool) -> void:
 		var shazom_topic := "NIGE_YES" if yes else "NIGE_NO"
 		if GameState.journal_try_capture_talk("moonglow", "Shazom", shazom_topic):
 			journal_changed = true
+		GameState.talk_remember_heard_word("recall")
+		GameState.talk_remember_heard_word("부활")
 	## Learning child (Britain): No on the mantra points to Cricket.
 	if (
 		not yes
@@ -18255,6 +18348,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_turn_away = 0
 	_talk_pending_ask = false
 	_talk_ask_kind = 0
+	_talk_count_return_to_menu = false
 	_talk_reagent_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
@@ -20475,67 +20569,10 @@ func _begin_chest_open_who(target: Vector2i) -> void:
 	## Roster + digits, same affordances as camp "Who will guard?".
 	_chest_open_cursor = _first_living_party_slot()
 	_chest_open_stage = 1
-	_open_order_roster()
-	_reset_hold_state()
-	if _roster:
-		_roster.visible = true
-	_sync_chest_open_selection()
+	_begin_party_target_pick(
+		PartyTargetKind.CHEST, _chest_open_cursor, true
+	)
 	_layout_prompt_row()
-
-
-func _handle_chest_open_input(event: InputEvent) -> bool:
-	if not event.is_pressed() or event.is_echo():
-		return false
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			_cancel_chest_open(true)
-			return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.cancel_button():
-		_cancel_chest_open(true)
-		return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_chest_open(true)
-		return true
-	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
-		_accept_chest_open_slot(_chest_open_cursor)
-		return true
-	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_accept_chest_open_slot(_chest_open_cursor)
-		return true
-	if event is InputEventKey:
-		var ke := event as InputEventKey
-		var dig := _player_digit_index_from_key(ke)
-		if dig >= 0:
-			if dig >= GameState.party_size():
-				_push_message(Locale.t("cmd_who"), false)
-				_layout_prompt_row()
-				return true
-			_chest_open_cursor = dig
-			_sync_chest_open_selection()
-			_accept_chest_open_slot(dig)
-			return true
-		if _is_digit_key(ke):
-			_push_message(Locale.t("cmd_who"), false)
-			_layout_prompt_row()
-			return true
-	return true
-
-
-func _nudge_chest_open_cursor(delta: int) -> void:
-	var n := maxi(GameState.party_size(), 1)
-	var slot := _chest_open_cursor
-	for _i in n:
-		slot = posmod(slot + delta, n)
-		if _camp_guard_slot_eligible(slot):
-			_chest_open_cursor = slot
-			_sync_chest_open_selection()
-			return
-
-
-func _sync_chest_open_selection() -> void:
-	if _roster:
-		_roster.set_order_selection(_chest_open_cursor, -1)
 
 
 func _accept_chest_open_slot(slot: int) -> void:
@@ -20545,7 +20582,7 @@ func _accept_chest_open_slot(slot: int) -> void:
 		_push_message(Locale.t("cmd_who"), false)
 		_layout_prompt_row()
 		return
-	if not _camp_guard_slot_eligible(slot):
+	if not _party_slot_awake_living(slot):
 		_push_message(Locale.t("cmd_cant"), false)
 		_layout_prompt_row()
 		return
@@ -20608,6 +20645,8 @@ func _cancel_chest_open(show_none: bool) -> void:
 
 
 func _clear_chest_open_ui() -> void:
+	if _party_target_kind == PartyTargetKind.CHEST:
+		_stop_party_target_pick(false)
 	_chest_open_stage = 0
 	_chest_open_target = Vector2i(-1, -1)
 	_chest_open_cursor = 0
@@ -21037,10 +21076,6 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 	if place == "trinsic" and npc_key == "sailor sam" and topic == "SEXT":
 		GameState.talk_remember_heard_word("sextant")
 		GameState.talk_remember_heard_word("육분의")
-	## Manual → Zorin: any talk with Zorin completes the Way of the Avatar tip.
-	if place == "lcb" and npc_key == "zorin":
-		if _maybe_complete_manual_zorin_tip():
-			refresh = true
 	## Gimble → Azure: asking Azure about the rune completes Gimble's tip.
 	if place == "minoc" and npc_key == "azure" and topic in ["RUNE", "SACR"]:
 		if GameState.journal_mark_id("minoc.gimble.azure-rune"):
@@ -21092,6 +21127,20 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_goal("ask:antos-book"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:antos-relics"):
+			refresh = true
+	## Shazom → Nigel: Nigel topic mentions resurrection / recall (RECA).
+	if place == "moonglow" and npc_key == "shazom" and topic == "NIGE":
+		GameState.talk_remember_heard_word("recall")
+		GameState.talk_remember_heard_word("부활")
+	## Nigel: recall / resurrection reagents complete the Lycaeum ask tip.
+	if (
+		place == "lycaeum"
+		and topic == "RECA"
+		and npc_key.replace("\n", " ").replace("\r", " ").begins_with("nigel")
+	):
+		if GameState.journal_mark_id("lycaeum.nigel.ask-recall"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:nigel-recall"):
 			refresh = true
 	## Zajac → Chuckles: asking about the clue completes the Lycaeum tip.
 	elif place == "lcb" and npc_key == "chuckles" and topic == "CLUE":
@@ -21150,7 +21199,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_goal("ask:julio-compassion"):
 			refresh = true
 	if place == "serpent" and npc_key == "roderick" and topic == "ORBS":
-		if GameState.journal_mark_id("britain.thevel.roderick-orbs"):
+		if GameState.journal_mark_id("serpent.roderick.ask-orbs"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:roderick-orbs"):
 			refresh = true
@@ -21159,16 +21208,6 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("moonglow.christen.william-rune"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:william-rune"):
-			refresh = true
-	## Lycaeum: Nigel's Recall/Resurrection reagents complete Shazom's tip.
-	if (
-		place == "lycaeum"
-		and topic == "RECA"
-		and npc_key.replace("\n", " ").replace("\r", " ").begins_with("nigel")
-	):
-		if GameState.journal_mark_id("moonglow.shazom.nigel-recall"):
-			refresh = true
-		if GameState.journal_mark_goal("ask:nigel-recall"):
 			refresh = true
 	## Jhelom: Nostro / Aesop complete prior name-directed tips.
 	if place == "jhelom" and npc_key == "nostro" and topic == "RUNE":
@@ -21274,9 +21313,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_goal("ask:isaac-stone"):
 			refresh = true
 	if place == "cove" and npc_key == "sloven" and topic == "STON":
-		if GameState.journal_mark_id("trinsic.terran.sloven-white-stone"):
-			refresh = true
-		if GameState.journal_mark_goal("ask:sloven-stone"):
+		if GameState.journal_try_capture_talk("cove", "Sloven", "STON"):
 			refresh = true
 	if place == "paws" and npc_key == "zair the wise" and topic == "WORD":
 		if GameState.journal_mark_id("skara.romasco.zair-word"):

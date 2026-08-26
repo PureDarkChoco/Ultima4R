@@ -278,6 +278,11 @@ func is_sell_letter_pick() -> bool:
 	return _phase == "w_sell_key" or _phase == "a_sell_key"
 
 
+func is_healer_target_pick() -> bool:
+	## Party member list after choosing Curing / Healing / Resurrection.
+	return mode == Mode.CHOICE and _phase == "h_who"
+
+
 func is_tavern_topic_prompt() -> bool:
 	return mode == Mode.TEXT and _phase == "t_topic"
 

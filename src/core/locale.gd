@@ -1215,6 +1215,51 @@ const _T := {
 		"en_us": "No",
 		"ko": "아니오",
 	},
+	"talk_count_one": {
+		"en_u4": "One",
+		"en_us": "One",
+		"ko": "하나",
+	},
+	"talk_count_two": {
+		"en_u4": "Two",
+		"en_us": "Two",
+		"ko": "둘",
+	},
+	"talk_count_three": {
+		"en_u4": "Three",
+		"en_us": "Three",
+		"ko": "셋",
+	},
+	"talk_count_four": {
+		"en_u4": "Four",
+		"en_us": "Four",
+		"ko": "넷",
+	},
+	"talk_count_five": {
+		"en_u4": "Five",
+		"en_us": "Five",
+		"ko": "다섯",
+	},
+	"talk_count_six": {
+		"en_u4": "Six",
+		"en_us": "Six",
+		"ko": "여섯",
+	},
+	"talk_count_seven": {
+		"en_u4": "Seven",
+		"en_us": "Seven",
+		"ko": "일곱",
+	},
+	"talk_count_eight": {
+		"en_u4": "Eight",
+		"en_us": "Eight",
+		"ko": "여덟",
+	},
+	"talk_count_retry": {
+		"en_u4": "Answer from one unto eight.",
+		"en_us": "Enter a number from one to eight.",
+		"ko": "하나부터 여덟 중에서 답하시오.",
+	},
 	"cmd_buy": {
 		"en_u4": "Buy",
 		"en_us": "Buy",

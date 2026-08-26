@@ -567,6 +567,39 @@ static func match_keyword(entry: Entry, input: String, city_id: String = "") -> 
 	return {}
 
 
+static func question_wants_count(entry: Entry) -> bool:
+	## TLK yes-slot "How many?" / "몇이오?" — not a Y/N gate (e.g. Lycaeum Tymus).
+	if entry == null:
+		return false
+	var yes_t := str(entry.yes).replace("\n", " ").replace("\r", " ").strip_edges().to_lower()
+	if yes_t in ["how many?", "how many", "몇이오?", "몇이오"]:
+		return true
+	return _speaker_key(entry) == "tymus"
+
+
+static func count_answer_from_topic(topic2: String) -> int:
+	## Classic 4-letter stems ONE … EIGHT for numeric follow-ups.
+	match topic2.strip_edges().to_upper():
+		"ONE":
+			return 1
+		"TWO":
+			return 2
+		"THREE":
+			return 3
+		"FOUR":
+			return 4
+		"FIVE":
+			return 5
+		"SIX":
+			return 6
+		"SEVEN":
+			return 7
+		"EIGHT":
+			return 8
+		_:
+			return 0
+
+
 static func should_ask_after(entry: Entry, kind: int) -> bool:
 	## SKARA.TLK stores Shamino's truth question, but ask_after is 0 so classic
 	## U4 never asked it. Remake asks after TRUT so Yes can offer Join.

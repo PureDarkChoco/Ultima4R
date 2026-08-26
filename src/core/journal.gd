@@ -604,6 +604,8 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		changed = true
 	if _migrate_remove_lcb_water_ask_altars(gs):
 		changed = true
+	if _migrate_lycaeum_fighter_altar_links(gs):
+		changed = true
 	if seed_referral_rows(gs, false):
 		changed = true
 	return changed
@@ -716,6 +718,58 @@ static func _migrate_remove_lcb_water_ask_altars(gs: Node) -> bool:
 	return _remove_entry_id(gs, "lcb.water.ask-altars")
 
 
+static func _migrate_lycaeum_fighter_altar_links(gs: Node) -> bool:
+	## The NO answer is the base clue; YES replaces it with exact room counts.
+	## Merge legacy saves that recorded the old answers as separate rows.
+	if gs == null:
+		return false
+	const SHARED := "lycaeum.fighter.altar-links"
+	const OLD_YES := "lycaeum.fighter.altar-links-yes"
+	const OLD_NO := "lycaeum.fighter.altar-links-no"
+	var rows: Array = gs.journal_entries
+	var first_index := -1
+	var source: Dictionary = {}
+	var heard_yes := false
+	var found_legacy := false
+	for i in rows.size():
+		var row: Variant = rows[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		var id := str(d.get("id", "")).strip_edges()
+		if id not in [SHARED, OLD_YES, OLD_NO]:
+			continue
+		if first_index < 0:
+			first_index = i
+		if id == OLD_YES or (id == SHARED and bool(d.get("upgraded", false))):
+			heard_yes = true
+			source = d.duplicate(true)
+		elif source.is_empty():
+			source = d.duplicate(true)
+		if id == OLD_YES or id == OLD_NO:
+			found_legacy = true
+	if not found_legacy:
+		return false
+	var topic := "WOUN_YES" if heard_yes else "WOUN_NO"
+	var cat := find_catalog("lycaeum", "a fighter", topic)
+	if cat.is_empty():
+		return false
+	source["id"] = SHARED
+	source["en"] = str(cat.get("en", source.get("en", "")))
+	source["ko"] = str(cat.get("ko", source.get("ko", "")))
+	source["upgraded"] = heard_yes
+	var kept: Array = []
+	for row in rows:
+		if typeof(row) == TYPE_DICTIONARY:
+			var id := str((row as Dictionary).get("id", "")).strip_edges()
+			if id in [SHARED, OLD_YES, OLD_NO]:
+				continue
+		kept.append(row)
+	kept.insert(clampi(first_index, 0, kept.size()), source)
+	gs.journal_entries = kept
+	return true
+
+
 static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dictionary) -> bool:
 	## Search / ask tips must stay pending until the action. Old complete-on-record
 	## rows (empty stored goal) are migrated to the catalog goal.
@@ -747,7 +801,7 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 			row["done"] = false
 			return true
 		return changed
-	if catalog_goal.begins_with("ask:"):
+	if catalog_goal.begins_with("ask:") or catalog_goal.begins_with("meet:"):
 		if inventory_done and not bool(row.get("done", false)):
 			row["done"] = true
 			return true
