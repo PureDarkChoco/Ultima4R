@@ -69,16 +69,38 @@ static func find_catalog(place: String, npc: String, topic: String) -> Dictionar
 	return {}
 
 
-static func find_catalog_by_id(id: String) -> Dictionary:
+static func find_catalog_by_id(id: String, upgrade_variant: int = -1) -> Dictionary:
+	## upgrade_variant: -1 = first row (unique ids), 0 = base clue, 1 = upgrade clue.
 	ensure_catalog()
 	var want := id.strip_edges()
 	if want.is_empty():
 		return {}
+	var matches: Array = []
 	for item in _catalog:
 		var d: Dictionary = item
-		if str(d.get("id", "")).strip_edges() == want:
+		if str(d.get("id", "")).strip_edges() != want:
+			continue
+		matches.append(d)
+	if matches.is_empty():
+		return {}
+	if matches.size() == 1 or upgrade_variant < 0:
+		return matches[0] as Dictionary
+	for item in matches:
+		var d: Dictionary = item
+		var is_up := bool(d.get("upgrade", false))
+		if upgrade_variant == 1 and is_up:
 			return d
-	return {}
+		if upgrade_variant == 0 and not is_up:
+			return d
+	return matches[0] as Dictionary
+
+
+static func find_catalog_for_row(row: Dictionary) -> Dictionary:
+	var id := str(row.get("id", "")).strip_edges()
+	if id.is_empty():
+		return {}
+	var variant := 1 if bool(row.get("upgraded", false)) else 0
+	return find_catalog_by_id(id, variant)
 
 
 static func seed_new_game(gs: Node) -> void:
@@ -286,7 +308,7 @@ static func _upgrade_catalog_capture(
 		gs.journal_entries = rows
 		return true
 	## Heard the later tip first — record the expanded clue directly.
-	var base := find_catalog_by_id(id)
+	var base := find_catalog_by_id(id, 0)
 	var goal := str(cat.get("goal", base.get("goal", ""))).strip_edges()
 	var complete_on_goal := str(cat.get("complete_on_goal", base.get("complete_on_goal", ""))).strip_edges()
 	var done := (
@@ -496,7 +518,7 @@ static func mark_goal(gs: Node, goal: String) -> bool:
 		var d: Dictionary = row
 		var completes_on := str(d.get("complete_on_goal", "")).strip_edges()
 		if completes_on.is_empty():
-			var cat := find_catalog_by_id(str(d.get("id", "")))
+			var cat := find_catalog_for_row(d)
 			completes_on = str(cat.get("complete_on_goal", "")).strip_edges()
 		if str(d.get("goal", "")) != g and completes_on != g:
 			continue
@@ -574,7 +596,7 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 		var d: Dictionary = row
 		var goal := str(d.get("goal", ""))
 		var met := not goal.is_empty() and goal_already_met(gs, goal)
-		var cat := find_catalog_by_id(str(d.get("id", "")))
+		var cat := find_catalog_for_row(d)
 		## Catalog now treats this as knowledge (complete on record).
 		if not cat.is_empty() and str(cat.get("goal", "")).strip_edges().is_empty():
 			met = true
@@ -859,8 +881,35 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return mag_i >= 0 and (int(gs.journal_known_cities) & (1 << mag_i)) != 0
 	if g == "search:skull":
 		return gs.has_item_flag(gs.ITEM_SKULL) or gs.has_item_flag(gs.ITEM_SKULL_DESTROYED)
+	if g == "meet:yew-judge":
+		return _yew_judge_already_met(gs)
+	if g == "ask:talfourd-rune":
+		return _talfourd_rune_ask_already_met(gs)
 	## talk:first-note / combat:first / shrine:* complete only when the event fires.
 	## mantra:* is a shrine fallback for ask-tips (complete_on_goal), not a pending knowledge goal.
+	return false
+
+
+static func _yew_judge_already_met(gs: Node) -> bool:
+	## Estro → Yew judge: persist on first Talfourd talk; legacy keyword memory counts.
+	if gs == null:
+		return false
+	if gs.talk_has_heard_word("meet:yew-judge"):
+		return true
+	var legacy: Variant = gs.talk_known_keywords.get("yew/talfourd", null)
+	if typeof(legacy) == TYPE_ARRAY and not (legacy as Array).is_empty():
+		return true
+	return false
+
+
+static func _talfourd_rune_ask_already_met(gs: Node) -> bool:
+	## Estro or druid → Talfourd rune/crime clue; jail tip completes the ask.
+	if gs == null:
+		return false
+	if has_entry_id(gs, "yew.talfourd.justice-rune"):
+		return true
+	if gs.talk_has_heard_word("ask:talfourd-rune"):
+		return true
 	return false
 
 
@@ -1039,7 +1088,7 @@ static func place_for_entry_id(gs: Node, id: String) -> String:
 
 static func entry_chain(row: Dictionary) -> String:
 	## Catalog is authoritative so renamed local chains also update old saves.
-	var cat := find_catalog_by_id(str(row.get("id", "")))
+	var cat := find_catalog_for_row(row)
 	if not cat.is_empty():
 		return str(cat.get("chain", "")).strip_edges()
 	return str(row.get("chain", "")).strip_edges()
@@ -1047,7 +1096,7 @@ static func entry_chain(row: Dictionary) -> String:
 
 static func entry_chain_order(row: Dictionary) -> int:
 	## Catalog is authoritative so reordered local chains also update old saves.
-	var cat := find_catalog_by_id(str(row.get("id", "")))
+	var cat := find_catalog_for_row(row)
 	if not cat.is_empty():
 		return int(cat.get("chain_order", 0))
 	return int(row.get("chain_order", 0))
@@ -1091,7 +1140,7 @@ static func _rows_with_chains_grouped(rows: Array) -> Array:
 static func entry_text(row: Dictionary, lang: String, gs: Node = null) -> String:
 	## Catalog wording is authoritative so corrected clues also update old saves.
 	## Upgraded rows use *_upgraded keys when present.
-	var cat := find_catalog_by_id(str(row.get("id", "")))
+	var cat := find_catalog_for_row(row)
 	var entry_id := str(row.get("id", ""))
 	if entry_id == "lcb.shawn.magincia-ruins" and not cat.is_empty():
 		var text := _shawn_magincia_ruins_text(cat, lang, gs)
@@ -1194,7 +1243,7 @@ static func sync_known(gs: Node) -> void:
 			continue
 		var d: Dictionary = row
 		mark_known_city(gs, str(d.get("place", "")))
-		var cat := find_catalog_by_id(str(d.get("id", "")))
+		var cat := find_catalog_for_row(d)
 		if cat.is_empty():
 			continue
 		_apply_know(gs, cat.get("know", ""))

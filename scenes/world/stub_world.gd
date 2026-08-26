@@ -5228,7 +5228,7 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		)
 	elif (
 		str(entry.name).strip_edges().to_lower() == "talfourd"
-		and GameState.journal_has_id("yew.druid.talfourd-rune")
+		and _talfourd_rune_tip_ready()
 	):
 		default_key = _talk_keyword_stable_key(
 			"룬" if GameState.lang_short() == "ko" else "rune"
@@ -5510,6 +5510,16 @@ func _maybe_offer_jhelom_chain_keyword() -> void:
 		)
 
 
+func _talfourd_rune_tip_ready() -> bool:
+	## Estro book-of-justice chain or druid shrine tip — unlock Talfourd's rune topic.
+	return (
+		GameState.journal_has_id("yew.druid.talfourd-rune")
+		or GameState.journal_has_id("lycaeum.estro.yew-judge")
+		or GameState.journal_has_id("yew.talfourd.meet-judge")
+		or GameState.journal_has_id("yew.talfourd.ask-rune")
+	)
+
+
 func _maybe_offer_yew_chain_keyword() -> void:
 	## Yew name-directed tips: Talfourd (rune) / Silent (mantra via job) /
 	## Calumny (mandrake after Folley tavern rumor).
@@ -5532,7 +5542,7 @@ func _maybe_offer_yew_chain_keyword() -> void:
 		)
 	elif (
 		npc == "talfourd"
-		and GameState.journal_has_id("yew.druid.talfourd-rune")
+		and _talfourd_rune_tip_ready()
 	):
 		var rune_key := _talk_keyword_stable_key("룬" if korean else "rune")
 		_offer_talk_keyword_item(
@@ -6273,6 +6283,22 @@ func _talk_npc_key(entry: Variant) -> String:
 	if entry == null:
 		return ""
 	return str(entry.name).replace("\n", " ").replace("\r", " ").strip_edges().to_lower()
+
+
+func _maybe_complete_meet_journal_on_intro(entry: Variant) -> bool:
+	## Look-on-meet tips: complete when talk opens ("You meet …").
+	if entry == null or _city_map == null:
+		return false
+	var place := _talk_city_id()
+	var npc_key := _talk_npc_key(entry)
+	if place.is_empty() or npc_key.is_empty():
+		return false
+	var changed := false
+	if place == "yew" and npc_key == "talfourd":
+		GameState.talk_remember_heard_word("meet:yew-judge")
+		if GameState.journal_mark_goal("meet:yew-judge"):
+			changed = true
+	return changed
 
 
 func _maybe_complete_meet_journal_on_name() -> bool:
@@ -16818,6 +16844,8 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_open_talk_message_panel()
 	## "You meet %s"
 	_push_talk_script("You meet %s" % str(entry.look))
+	if _maybe_complete_meet_journal_on_intro(entry):
+		_refresh_journal_panel()
 	## Classic xu4: half the time the NPC gives their name unprompted.
 	if (randi() % 2) != 0:
 		_talk_say_name()
@@ -17925,14 +17953,15 @@ func _talk_answer_yn(yes: bool) -> void:
 	):
 		if GameState.journal_try_capture_talk("yew", "Druid", "SHRI_YES"):
 			journal_changed = true
-	## Talfourd (Yew): No after Rune reveals the jail-cell search.
+	## Talfourd (Yew): No after Rune → crime question → jail-cell search.
 	if (
 		not yes
 		and npc_key == "talfourd"
-		and str(e.topic2).strip_edges().to_upper() == "RUNE"
+		and _talk_ask_kind == _TalkTlk.REPLY_TOPIC2
 	):
 		if GameState.journal_try_capture_talk("yew", "Talfourd", "RUNE_NO"):
 			journal_changed = true
+		GameState.talk_remember_heard_word("ask:talfourd-rune")
 		if GameState.journal_mark_id("yew.druid.talfourd-rune"):
 			journal_changed = true
 		if GameState.journal_mark_goal("ask:talfourd-rune"):
