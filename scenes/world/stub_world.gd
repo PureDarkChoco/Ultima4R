@@ -8543,6 +8543,59 @@ func _sync_creatures_to_map() -> void:
 	_map.set_creatures(_world_creatures.as_paint_items())
 
 
+func _ensure_engage_foe_visible_for_wipe(foe: Dictionary) -> void:
+	## Combat wipe "from" frame should still show the engaged monster / townsfolk.
+	if _map == null or foe.is_empty():
+		return
+	if bool(foe.get("city_person", false)) and _city_map != null and _city_map.loaded:
+		var fx := int(foe.get("x", -1))
+		var fy := int(foe.get("y", -1))
+		if fx >= 0 and fy >= 0 and int(_city_map.person_index_at(fx, fy)) < 0:
+			_city_map.restore_person(foe)
+		if _map.has_method("refresh"):
+			_map.refresh()
+		return
+	if _is_in_city() or _is_in_dungeon():
+		return
+	var fx2 := int(foe.get("x", -1))
+	var fy2 := int(foe.get("y", -1))
+	var tid := int(foe.get("tile", -1))
+	if fx2 < 0 or fy2 < 0 or tid < 0:
+		return
+	var items: Array = _map.get_creatures() if _map.has_method("get_creatures") else []
+	for it in items:
+		if typeof(it) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = it
+		if int(d.get("x", -1)) == fx2 and int(d.get("y", -1)) == fy2:
+			return
+	var paint_tid := tid
+	if tid == _WorldCreaturesScript.TILE_PIRATE:
+		paint_tid = tid + clampi(int(foe.get("facing", 0)), 0, 3)
+	items.append({
+		"x": fx2,
+		"y": fy2,
+		"tid": paint_tid,
+		"hp": int(foe.get("hp", 0)),
+		"max_hp": int(foe.get("max_hp", 1)),
+		"show_hp": false,
+	})
+	_map.set_creatures(items)
+
+
+func _clear_engage_foe_from_explore(foe: Dictionary) -> void:
+	## After the wipe snapshot, drop the engage target from explore paint.
+	if bool(foe.get("city_person", false)) and _city_map != null and _city_map.loaded:
+		var fx := int(foe.get("x", -1))
+		var fy := int(foe.get("y", -1))
+		if fx >= 0 and fy >= 0 and int(_city_map.person_index_at(fx, fy)) >= 0:
+			_city_map.take_person_at(fx, fy)
+		if _map != null and _map.has_method("refresh"):
+			_map.refresh()
+		return
+	_sync_creatures_to_map()
+
+
 func _creature_spawn_blocked(pos: Vector2i) -> bool:
 	## Do not stack on parked horses/ships or an existing creature.
 	if _world_creatures != null and _world_creatures.creature_at(pos) >= 0:
@@ -8890,7 +8943,7 @@ func _update_world_creatures() -> void:
 		var foe := _world_creatures.take_at(apos)
 		if foe.is_empty():
 			foe = attacker
-		_sync_creatures_to_map()
+		## Keep explore paint until combat wipe snapshots the engage tile.
 		await _begin_combat(foe, false)
 		return
 	if _world_creatures.cleanup(_tile_pos):
@@ -15749,8 +15802,7 @@ func _move_city_persons() -> void:
 	var foe: Dictionary = _city_map.take_person_at_index(attacker_i)
 	if foe.is_empty():
 		return
-	if _map != null and _map.has_method("refresh"):
-		_map.refresh()
+	## Defer refresh — attacker stays painted until the combat wipe snapshot.
 	await _begin_combat(foe, false)
 
 
@@ -18238,7 +18290,7 @@ func _do_attack(dir: Vector2i) -> String:
 	var foe := _world_creatures.take_at(target)
 	if foe.is_empty():
 		return Locale.t("cmd_nothing_to_attack")
-	_sync_creatures_to_map()
+	## Keep explore paint until combat wipe snapshots the engage tile.
 	await _begin_combat(foe, true)
 	return ""
 
@@ -18276,8 +18328,7 @@ func _do_city_attack(dir: Vector2i) -> String:
 	var foe: Dictionary = _city_map.take_person_at_index(idx)
 	if foe.is_empty():
 		return Locale.t("cmd_nothing_to_attack")
-	if _map != null and _map.has_method("refresh"):
-		_map.refresh()
+	## Defer refresh — person stays painted until the combat wipe snapshot.
 	await _begin_combat(foe, true)
 	return ""
 
@@ -18304,6 +18355,19 @@ func _begin_combat(
 	if _world_creatures != null:
 		_world_creatures.clear_hp_bars()
 	_combat_foe = foe.duplicate(true)
+	## City NPC frames rebuild from live person lists — put the engage target
+	## back until the wipe snapshot so they don't blink out for a frame.
+	if (
+		bool(foe.get("city_person", false))
+		and _city_map != null
+		and _city_map.loaded
+	):
+		var cx := int(foe.get("x", -1))
+		var cy := int(foe.get("y", -1))
+		if cx >= 0 and cy >= 0 and int(_city_map.person_index_at(cx, cy)) < 0:
+			_city_map.restore_person(foe)
+			if _map != null and _map.has_method("refresh"):
+				_map.refresh()
 	var foe_tid := int(foe.get("tile", 0))
 	var foe_pos := Vector2i(int(foe.get("x", _tile_pos.x)), int(foe.get("y", _tile_pos.y)))
 	var force_standard := bool(foe.get("force_standard_encounters", false))
@@ -18410,7 +18474,10 @@ func _begin_combat(
 			"priority": 0,
 		})
 	if _map != null:
+		## Keep the engaged foe on the explore frame used for the wipe.
+		_ensure_engage_foe_visible_for_wipe(foe)
 		var from_img: Image = _map.snapshot_frame()
+		_clear_engage_foe_from_explore(foe)
 		_map.enter_combat(cmap, party_units, foe_units)
 		_map.suppress_combat_chests = _combat_suppress_chests
 		## First living party member has the turn (xu4 beginCombat focus).
