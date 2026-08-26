@@ -8063,6 +8063,8 @@ func _on_tileset_changed(_tileset_id: String) -> void:
 		_ztats_panel.sync_tileset_graphics()
 	if _save_panel != null and _save_panel.has_method("reload_class_tiles"):
 		_save_panel.reload_class_tiles()
+	if _peer_overlay != null and _peer_overlay.has_method("invalidate_tileset"):
+		_peer_overlay.invalidate_tileset()
 	_fit_explore_map()
 	if _options_panel != null and _options_panel.is_open():
 		_options_panel.refresh()

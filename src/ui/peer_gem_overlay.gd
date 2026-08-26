@@ -3,10 +3,13 @@ extends Control
 
 ## Peer gem map overlay. xu4 Standard is 32×32; we keep an odd vertical
 ## span and widen to ~16:9 so more terrain shows left/right (party #1 centered).
+## New Color terrain uses classic gem.png; Apple II Color/Mono downscale the
+## active U4TileBank so Peer matches the current graphics mode.
 
 signal closed
 
 const GEM_PATH := "res://assets/tiles/u4graphics/gem.png"
+const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
 ## Odd so center.x/y land on one middle cell (xu4's 32 is even → off-center).
 const GEM_VIEW_H := 33
 ## ~GEM_VIEW_H × 16/9, forced odd (59/33 ≈ 16:9).
@@ -64,6 +67,10 @@ var _cell_w := GEM_CHIP
 var _cell_h := GEM_CHIP
 var _scaled_chips: Array = []
 var _scaled_chip_size := Vector2i.ZERO
+## Downscaled U4TileBank chips for Apple II / live tileset mode.
+var _bank_chips: Array = []
+var _bank_chip_size := Vector2i.ZERO
+var _bank_chip_set := ""
 
 
 func _ready() -> void:
@@ -76,6 +83,20 @@ func _ready() -> void:
 
 func is_open() -> bool:
 	return _open
+
+
+func invalidate_tileset() -> void:
+	## Options → Graphics: drop cached chips so the next Peer uses the active set.
+	_scaled_chips.clear()
+	_scaled_chip_size = Vector2i.ZERO
+	_bank_chips.clear()
+	_bank_chip_size = Vector2i.ZERO
+	_bank_chip_set = ""
+
+
+func _uses_classic_gem_sheet() -> bool:
+	## DOS gem.png matches New Color only. Apple II Color/Mono use live bank art.
+	return _U4TileBankScript.render_pipeline() == _U4TileBankScript.RenderPipeline.NEW_COLOR_PNG
 
 
 func open_peer(
@@ -233,7 +254,9 @@ func _party_gem_tile() -> int:
 
 
 func _blit_gem_map(world: WorldMapData, center: Vector2i, map_view = null) -> void:
-	if _buf == null or _gem_sheet == null or _gem_sheet.is_empty():
+	if _buf == null:
+		return
+	if _uses_classic_gem_sheet() and (_gem_sheet == null or _gem_sheet.is_empty()):
 		return
 	_buf.fill(Color(0, 0, 0, 1))
 	## Odd spans → half lands on the true center cell for party #1.
@@ -453,7 +476,9 @@ func _draw_dungeon_avatar(origin: Vector2i) -> void:
 
 func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 	## Center the 32×32 .ULT in the wider gem viewport; void outside is black.
-	if _buf == null or _gem_sheet == null or _gem_sheet.is_empty():
+	if _buf == null:
+		return
+	if _uses_classic_gem_sheet() and (_gem_sheet == null or _gem_sheet.is_empty()):
 		return
 	_buf.fill(Color(0, 0, 0, 1))
 	var city_w := 32
@@ -509,24 +534,24 @@ func _blit_gem_object(gx: int, gy: int, tile_id: int) -> void:
 	_blit_gem_actor(gx, gy, tile_id)
 
 
-func _blit_bank_chip(gx: int, gy: int, tile_id: int) -> bool:
-	if tile_id < 0 or not U4TileBank.ensure_loaded():
+func _blit_bank_chip(gx: int, gy: int, tile_id: int, blend: bool = true) -> bool:
+	var chip := _scaled_bank_chip(tile_id)
+	if chip == null:
 		return false
-	var img := U4TileBank.keyed_copy(tile_id)
-	if img == null:
-		return false
-	img.resize(_cell_w, _cell_h, Image.INTERPOLATE_NEAREST)
-	_buf.blend_rect(
-		img, Rect2i(0, 0, _cell_w, _cell_h), Vector2i(gx * _cell_w, gy * _cell_h)
-	)
+	var dest := Vector2i(gx * _cell_w, gy * _cell_h)
+	var src := Rect2i(0, 0, _cell_w, _cell_h)
+	if blend:
+		_buf.blend_rect(chip, src, dest)
+	else:
+		_buf.blit_rect(chip, src, dest)
 	return true
 
 
 func _blit_gem_actor(gx: int, gy: int, tile_id: int) -> void:
-	## People and party: downscale the in-game shape, not the DOS gem sheet.
+	## People and party: always the active tileset (downscaled), not DOS gem.png.
 	if tile_id < 0:
 		return
-	if _blit_bank_chip(gx, gy, tile_id):
+	if _blit_bank_chip(gx, gy, tile_id, true):
 		return
 	var tid := tile_id
 	if tid >= 128:
@@ -536,6 +561,15 @@ func _blit_gem_actor(gx: int, gy: int, tile_id: int) -> void:
 
 func _blit_gem_cell(gx: int, gy: int, tile_id: int) -> void:
 	var dest := Vector2i(gx * _cell_w, gy * _cell_h)
+	if not _uses_classic_gem_sheet():
+		## Apple II Color / Mono: terrain matches the explore map tileset.
+		if tile_id < 0:
+			_buf.fill_rect(Rect2i(dest, Vector2i(_cell_w, _cell_h)), Color(0, 0, 0, 1))
+			return
+		if _blit_bank_chip(gx, gy, tile_id, false):
+			return
+		_buf.fill_rect(Rect2i(dest, Vector2i(_cell_w, _cell_h)), Color(0, 0, 0, 1))
+		return
 	if tile_id < 0 or tile_id >= 128:
 		## xu4: ids ≥ 128 are drawn black on the gem.
 		_buf.fill_rect(Rect2i(dest, Vector2i(_cell_w, _cell_h)), Color(0, 0, 0, 1))
@@ -544,6 +578,36 @@ func _blit_gem_cell(gx: int, gy: int, tile_id: int) -> void:
 	if chip == null:
 		return
 	_buf.blit_rect(chip, Rect2i(0, 0, _cell_w, _cell_h), dest)
+
+
+func _scaled_bank_chip(tile_id: int) -> Image:
+	if tile_id < 0 or not _U4TileBankScript.ensure_loaded():
+		return null
+	var want := Vector2i(_cell_w, _cell_h)
+	var set_id := _U4TileBankScript.active_set()
+	if (
+		_bank_chip_size != want
+		or _bank_chip_set != set_id
+		or _bank_chips.size() != _U4TileBankScript.COUNT
+	):
+		_bank_chips.clear()
+		_bank_chips.resize(_U4TileBankScript.COUNT)
+		_bank_chip_size = want
+		_bank_chip_set = set_id
+	if tile_id >= _bank_chips.size():
+		return null
+	if _bank_chips[tile_id] != null:
+		return _bank_chips[tile_id]
+	## keyed_copy: New Color keys border black; Apple II keeps opaque CRT ink.
+	var img := _U4TileBankScript.keyed_copy(tile_id)
+	if img == null or img.is_empty():
+		return null
+	var chip := Image.create(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8)
+	chip.blit_rect(img, Rect2i(0, 0, img.get_width(), img.get_height()), Vector2i.ZERO)
+	if chip.get_width() != want.x or chip.get_height() != want.y:
+		chip.resize(want.x, want.y, Image.INTERPOLATE_NEAREST)
+	_bank_chips[tile_id] = chip
+	return chip
 
 
 func _scaled_gem_chip(tile_id: int) -> Image:
