@@ -192,7 +192,7 @@ func is_toggle_fullscreen_event(event: InputEvent) -> bool:
 		return false
 	if event.is_action_pressed("toggle_fullscreen"):
 		return true
-	## Same pattern as ⌘S quick-save in stub_world.
+	## Same pattern as ⌘S slot picker in stub_world.
 	if k.alt_pressed or k.shift_pressed:
 		return false
 	if not (k.ctrl_pressed or k.meta_pressed or k.is_command_or_control_pressed()):

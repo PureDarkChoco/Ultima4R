@@ -13,7 +13,6 @@ enum Item {
 
 const ITEM_COUNT := 5
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
-const COL_DIM := Color(0.55, 0.58, 0.55, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
@@ -28,12 +27,12 @@ const ITEM_KEYS := [
 	"esc_menu_option",
 	"esc_menu_quit",
 ]
+const ITEM_LETTERS := ["S", "L", "R", "O", "Q"]
 
 var _backdrop: ColorRect
 var _panel: PanelContainer
 var _title: Label
 var _status: Label
-var _hint: Label
 var _row_labs: Array[Label] = []
 var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[TextureRect] = []
@@ -57,7 +56,7 @@ func cursor() -> int:
 
 func open_panel(default_cursor: int = 0) -> void:
 	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
-	_status.text = ""
+	set_status("")
 	_refresh_labels()
 	_sync_cursor()
 	visible = true
@@ -66,11 +65,12 @@ func open_panel(default_cursor: int = 0) -> void:
 
 func close_panel() -> void:
 	visible = false
-	_status.text = ""
+	set_status("")
 
 
 func set_status(text: String) -> void:
 	_status.text = text
+	_status.visible = not text.is_empty()
 
 
 func nudge_cursor(delta: int) -> void:
@@ -104,7 +104,9 @@ func _build() -> void:
 
 	_panel = PanelContainer.new()
 	_panel.custom_minimum_size = Vector2(PANEL_W, 0)
-	_panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
+	var panel_sb := UiTheme.make_panel()
+	panel_sb.content_margin_bottom = 8
+	_panel.add_theme_stylebox_override("panel", panel_sb)
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	center.add_child(_panel)
 
@@ -146,9 +148,10 @@ func _build() -> void:
 
 		var lab := Label.new()
 		lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		lab.offset_left = 12
+		lab.offset_left = 8
 		lab.offset_right = -8
 		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lab.add_theme_font_override("font", UiTheme.font())
 		lab.add_theme_font_size_override("font_size", FONT_SIZE)
 		lab.add_theme_color_override("font_color", COL_TEXT)
@@ -165,24 +168,16 @@ func _build() -> void:
 	_status.add_theme_color_override("font_color", COL_ACCENT)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status.visible = false
 	col.add_child(_status)
-
-	_hint = Label.new()
-	_hint.add_theme_font_override("font", UiTheme.font())
-	_hint.add_theme_font_size_override("font_size", FONT_SIZE - 2)
-	_hint.add_theme_color_override("font_color", COL_DIM)
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_hint)
 
 	_refresh_labels()
 
 
 func _refresh_labels() -> void:
 	_title.text = Locale.t("esc_menu_title")
-	_hint.text = Locale.t("esc_menu_hint")
 	for i in ITEM_COUNT:
-		_row_labs[i].text = Locale.t(ITEM_KEYS[i])
+		_row_labs[i].text = "%s) %s" % [ITEM_LETTERS[i], Locale.t(ITEM_KEYS[i])]
 		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
 
 

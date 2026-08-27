@@ -16,8 +16,23 @@ const SETTINGS_SECTION := "prefs"
 
 ## External Ultima IV DOS data (never committed).
 const U4_DATA_RES := "res://data/u4"
-const U4_DATA_ABS := "/Applications/Ultima IV™.app/Contents/Resources/game"
-const U4_DATA_GOG_WIN := "C:/Program Files/GOG Galaxy/Games/Ultima 4"
+## macOS GOG bundles — probe order: free, then paid (see _macos_gog_u4_dirs).
+const U4_DATA_MACOS_GOG_FREE := "/Applications/Ultima™ 4 Quest of the Avatar.app/Contents/Resources/game"
+const U4_DATA_MACOS_GOG_PAID: Array[String] = [
+	"/Applications/Ultima IV™.app/Contents/Resources/game",
+	"/Applications/Ultima IV.app/Contents/Resources/game",
+]
+const U4_DATA_ABS := U4_DATA_MACOS_GOG_FREE
+## Windows GOG — probe order: free, then paid (see _windows_gog_u4_dirs).
+const U4_DATA_WIN_GOG_FREE := "C:/GOG Games/Ultima 4 - Quest of the Avatar"
+const U4_DATA_WIN_GOG_PAID: Array[String] = [
+	"C:/GOG Games/Ultima 4",
+	"C:/GOG Games/Ultima Second Trilogy/Ultima 4",
+	"C:/Program Files (x86)/GOG.com/Ultima Second Trilogy/Ultima 4",
+	"C:/Program Files/GOG Galaxy/Games/Ultima 4",
+]
+## Legacy alias — prefer U4_DATA_WIN_GOG_* lists.
+const U4_DATA_GOG_WIN := U4_DATA_WIN_GOG_PAID[3]
 
 var u4_data_path: String = U4_DATA_RES
 
@@ -323,6 +338,8 @@ var is_new_game: bool = false
 var u4_data_ok: bool = false
 ## True when settings.cfg already had u4_data_path (even if that folder is now empty/missing).
 var u4_data_pref_set: bool = false
+## macOS: saved path exists but is unreadable until the user re-picks via the native folder dialog.
+var u4_data_needs_macos_permission: bool = false
 ## Session save/load cursor hints (not written into slot JSON).
 var session_loaded_slot: int = 0 ## 1..4 if Journey loaded a slot this run
 var session_did_save: bool = false
@@ -3342,6 +3359,7 @@ func try_set_u4_data_path(path: String) -> bool:
 		return false
 	u4_data_path = resolved
 	u4_data_ok = true
+	u4_data_needs_macos_permission = false
 	_persist_u4_data_path()
 	_load_intro_from_u4()
 	return true
@@ -3409,6 +3427,15 @@ func _persist_u4_data_path() -> void:
 func _probe_u4_data() -> bool:
 	## If settings already has a path: only verify that location (no hunting).
 	## First run (no key): search known install spots once, then persist or fail.
+	u4_data_needs_macos_permission = false
+
+	if OS.get_name() == "macOS":
+		for path in _macos_granted_u4_data_dirs():
+			if is_valid_u4_data_dir(path):
+				u4_data_path = path
+				_persist_u4_data_path()
+				return true
+
 	var saved := _load_u4_data_path_pref()
 	if not saved.is_empty():
 		u4_data_pref_set = true
@@ -3420,46 +3447,108 @@ func _probe_u4_data() -> bool:
 			u4_data_path = resolved
 			_persist_u4_data_path()
 			return true
-		## Editor leftover (res://) or a moved folder — keep hunting.
+		if OS.get_name() == "macOS" and not saved.begins_with("res://") and OS.is_sandboxed():
+			u4_data_needs_macos_permission = true
+			return false
+		## Stale settings (moved GOG install, old app name) — hunt again.
 		u4_data_pref_set = false
 
 	u4_data_pref_set = false
 	var exe_dir := OS.get_executable_path().get_base_dir()
 	var bundled_beside_exe := exe_dir.path_join("game")
 	var bundled_macos := exe_dir.get_base_dir().path_join("Resources/game")
-	var candidates: Array[String] = []
-	candidates.append_array(_windows_gog_u4_dirs())
-	candidates.append(bundled_beside_exe)
-	candidates.append(bundled_macos)
-	candidates.append(U4_DATA_RES)
-	candidates.append(U4_DATA_ABS)
-	candidates.append(resolve_u4_data_dir("/Applications/Ultima IV™.app"))
-	var seen: Dictionary = {}
-	for path in candidates:
-		if path.is_empty() or seen.has(path):
-			continue
-		seen[path] = true
-		if is_valid_u4_data_dir(path):
-			u4_data_path = path
-			_persist_u4_data_path()
-			return true
-		var resolved := resolve_u4_data_dir(path)
-		if not resolved.is_empty() and not seen.has(resolved) and is_valid_u4_data_dir(resolved):
-			seen[resolved] = true
-			u4_data_path = resolved
-			_persist_u4_data_path()
+	if OS.get_name() == "macOS":
+		for path in _macos_gog_u4_dirs():
+			if _try_adopt_u4_data_dir(path):
+				return true
+		for path in [bundled_beside_exe, bundled_macos, U4_DATA_RES]:
+			if _try_adopt_u4_data_dir(path):
+				return true
+		return false
+
+	if OS.get_name() == "Windows":
+		for path in _windows_gog_u4_dirs():
+			if _try_adopt_u4_data_dir(path):
+				return true
+		for path in [bundled_beside_exe, U4_DATA_RES]:
+			if _try_adopt_u4_data_dir(path):
+				return true
+		return false
+
+	for path in [bundled_beside_exe, bundled_macos, U4_DATA_RES]:
+		if _try_adopt_u4_data_dir(path):
 			return true
 	return false
 
 
+func _try_adopt_u4_data_dir(path: String) -> bool:
+	if path.is_empty():
+		return false
+	if is_valid_u4_data_dir(path):
+		u4_data_path = path
+		_persist_u4_data_path()
+		return true
+	var resolved := resolve_u4_data_dir(path)
+	if not resolved.is_empty() and is_valid_u4_data_dir(resolved):
+		u4_data_path = resolved
+		_persist_u4_data_path()
+		return true
+	return false
+
+
+func _macos_granted_u4_data_dirs() -> Array[String]:
+	var out: Array[String] = []
+	if OS.get_name() != "macOS":
+		return out
+	for raw in OS.get_granted_permissions():
+		var path := str(raw)
+		if path.begins_with("macos.permission."):
+			continue
+		var resolved := resolve_u4_data_dir(path)
+		if not resolved.is_empty():
+			out.append(resolved)
+		elif not path.is_empty():
+			out.append(path)
+	return out
+
+
+func _macos_gog_u4_dirs() -> Array[String]:
+	## Free GOG bundle first, then paid retail GOG names — no broad /Applications scan.
+	var out: Array[String] = []
+	var seen: Dictionary = {}
+	for path in [U4_DATA_MACOS_GOG_FREE] + U4_DATA_MACOS_GOG_PAID:
+		if path.is_empty() or seen.has(path):
+			continue
+		seen[path] = true
+		out.append(path)
+	return out
+
+
 func _windows_gog_u4_dirs() -> Array[String]:
-	## Default GOG Galaxy install, then the same folder under %ProgramFiles% / (x86).
-	var out: Array[String] = [U4_DATA_GOG_WIN]
+	## Free GOG installer first, then paid / trilogy / legacy Galaxy paths.
+	var out: Array[String] = []
+	var seen: Dictionary = {}
+	for path in [U4_DATA_WIN_GOG_FREE] + U4_DATA_WIN_GOG_PAID:
+		if path.is_empty() or seen.has(path):
+			continue
+		seen[path] = true
+		out.append(path)
 	for env_key in ["PROGRAMFILES", "PROGRAMFILES(X86)"]:
 		var root := OS.get_environment(env_key)
 		if root.is_empty():
 			continue
-		out.append(root.path_join("GOG Galaxy/Games/Ultima 4"))
+		var galaxy_free := root.path_join("GOG Galaxy/Games/Ultima 4 - Quest of the Avatar")
+		var galaxy_paid := root.path_join("GOG Galaxy/Games/Ultima 4")
+		for path in [galaxy_free, galaxy_paid]:
+			if path.is_empty() or seen.has(path):
+				continue
+			seen[path] = true
+			out.append(path)
+		if env_key == "PROGRAMFILES(X86)":
+			var trilogy := root.path_join("GOG.com/Ultima Second Trilogy/Ultima 4")
+			if not trilogy.is_empty() and not seen.has(trilogy):
+				seen[trilogy] = true
+				out.append(trilogy)
 	return out
 
 

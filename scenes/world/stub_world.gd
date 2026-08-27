@@ -1000,11 +1000,9 @@ func _ship_facing_dir() -> Vector2i:
 
 
 func _resolve_world_map_path() -> String:
-	var candidates: Array[String] = [
-		GameState.u4_data_path.path_join("WORLD.MAP"),
-		GameState.U4_DATA_ABS.path_join("WORLD.MAP"),
-		"/Applications/Ultima IV™.app/Contents/Resources/game/WORLD.MAP",
-	]
+	var candidates: Array[String] = [GameState.u4_data_path.path_join("WORLD.MAP")]
+	for gog in GameState._macos_gog_u4_dirs():
+		candidates.append(gog.path_join("WORLD.MAP"))
 	for path in candidates:
 		if FileAccess.file_exists(path):
 			var bytes := FileAccess.get_file_as_bytes(path)
@@ -7454,9 +7452,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_escape()
 			_mark_input_handled()
 			return
-		## ⌘S / Ctrl+S — quick save to loaded/last slot (or open picker on new game).
-		if _is_quick_save_key(event):
-			_do_quick_save()
+		## ⌘S / Ctrl+S — save slot picker (classic Q behavior).
+		if _is_mod_chord_s_key(event):
+			_do_quit_save()
 			_mark_input_handled()
 			return
 		## ⌘F / Ctrl+F — toggle fullscreen (before F=Fire). Match ⌘S detection style.
@@ -7682,7 +7680,7 @@ func _handle_command(cmd: int) -> void:
 			]))
 		_finish_party_turn()
 	elif cmd == U4Commands.Id.QUIT_SAVE:
-		_do_quit_save()
+		_do_quick_save()
 	elif cmd == U4Commands.Id.VOLUME:
 		_do_volume()
 	elif cmd == U4Commands.Id.PASS:
@@ -8466,13 +8464,13 @@ func _close_peer_overlay() -> void:
 
 
 func _do_quit_save() -> void:
-	## Q → slot picker popup; pick 1–4 / ↑↓+Enter to write JSON save.
+	## ⌘S / Ctrl+S → slot picker popup; pick 1–4 / ↑↓+Enter to write JSON save.
 	_push_message(Locale.t("cmd_quit_save"), false)
 	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
 	_open_slot_picker(_SaveSlotPanel.Mode.SAVE, false)
 
 
-func _is_quick_save_key(event: InputEventKey) -> bool:
+func _is_mod_chord_s_key(event: InputEventKey) -> bool:
 	## ⌘S (macOS) or Ctrl+S (Windows/Linux).
 	if not _is_mod_chord_key(event):
 		return false
@@ -8482,7 +8480,7 @@ func _is_quick_save_key(event: InputEventKey) -> bool:
 
 
 func _is_fullscreen_key(event: InputEventKey) -> bool:
-	## ⌘F (macOS) or Ctrl+F (Windows/Linux) — same modifier check as quick-save.
+	## ⌘F (macOS) or Ctrl+F (Windows/Linux) — same modifier check as ⌘S slot picker.
 	if not _is_mod_chord_key(event):
 		return false
 	var code := event.keycode
@@ -8491,14 +8489,14 @@ func _is_fullscreen_key(event: InputEventKey) -> bool:
 
 
 func _do_quick_save() -> void:
-	## Cmd/Ctrl+S: overwrite the session slot, or open the picker if never saved/loaded.
+	## Q — overwrite the session slot, or open the picker if never saved/loaded.
 	if _save_stage != 0:
 		return
 	if _esc_menu_is_open():
 		_close_esc_menu()
 	var slot_n := GameState.session_loaded_slot
 	if slot_n < 1 or slot_n > _SaveGame.SLOT_COUNT:
-		## New game — no slot yet → same picker as Q (without quit copy).
+		## New game — no slot yet → same picker as ⌘S / Ctrl+S (without quit copy).
 		_push_message(Locale.t("save_title"), false)
 		_open_slot_picker(_SaveSlotPanel.Mode.SAVE, false)
 		return
@@ -21208,8 +21206,8 @@ func _handle_journal_focus_input(event: InputEvent) -> bool:
 		return false
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key := event as InputEventKey
-		if _is_quick_save_key(key):
-			_do_quick_save()
+		if _is_mod_chord_s_key(key):
+			_do_quit_save()
 			return true
 		if _is_fullscreen_key(key):
 			DisplaySettings.toggle_fullscreen()

@@ -31,14 +31,19 @@ const _T := {
 		"ko": "울티마 IV (DOS) 게임 폴더를 선택하세요:",
 	},
 	"boot_path_hint": {
-		"en_u4": "Folder with WORLD.MAP · or the Ultima IV.app bundle",
-		"en_us": "Folder containing WORLD.MAP, or the Ultima IV.app bundle",
-		"ko": "WORLD.MAP 이 있는 폴더, 또는 Ultima IV.app 번들",
+		"en_u4": "Folder with WORLD.MAP · or the Ultima IV GOG .app bundle",
+		"en_us": "Folder containing WORLD.MAP, or the Ultima IV GOG .app bundle",
+		"ko": "WORLD.MAP 이 있는 폴더, 또는 GOG Ultima IV .app 번들",
 	},
 	"boot_path_reselect": {
 		"en_u4": "The configured path no longer hath the game files.\nPlease choose the Ultima IV (DOS) folder again.",
 		"en_us": "The configured path is missing game files.\nPlease choose the Ultima IV (DOS) folder again.",
 		"ko": "설정된 경로에 게임 파일이 없습니다.\n울티마 IV (DOS) 폴더를 다시 지정해 주세요.",
+	},
+	"boot_path_macos_permission": {
+		"en_u4": "macOS hath denied access to the saved game folder.\nChoose Folder and select Ultima IV.app or the folder containing WORLD.MAP.",
+		"en_us": "macOS blocked access to the saved game folder.\nChoose Folder and select Ultima IV.app or the folder containing WORLD.MAP.",
+		"ko": "macOS에서 저장된 게임 폴더 접근이 거부되었습니다.\n「폴더 선택」으로 Ultima IV.app 또는 WORLD.MAP이 있는 폴더를 지정해 주세요.",
 	},
 	"boot_path_choose": {
 		"en_u4": "Choose Folder…",
@@ -800,9 +805,9 @@ const _T := {
 		"ko": "그래픽",
 	},
 	"esc_options_graphics_new_color": {
-		"en_u4": "New Color",
-		"en_us": "New Color",
-		"ko": "뉴 컬러",
+		"en_u4": "Joshua Steele",
+		"en_us": "Joshua Steele",
+		"ko": "Joshua Steele",
 	},
 	"esc_options_graphics_apple2_color": {
 		"en_u4": "Apple II Color",

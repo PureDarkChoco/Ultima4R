@@ -45,7 +45,9 @@ func _ready() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.custom_minimum_size = Vector2(560, 0)
 	_status.add_theme_color_override("font_color", UiTheme.DANGER)
-	if GameState.u4_data_pref_set:
+	if GameState.u4_data_needs_macos_permission:
+		_status.text = Locale.t("boot_path_macos_permission")
+	elif GameState.u4_data_pref_set:
 		_status.text = Locale.t("boot_path_reselect")
 	else:
 		_status.text = Locale.t("boot_path_prompt")
@@ -79,8 +81,8 @@ func _ensure_folder_ui() -> void:
 		_file_dialog = FileDialog.new()
 		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
-		## Exported macOS native panels often fail silently (not TCC). In-game picker.
-		_file_dialog.use_native_dialog = false
+		## macOS export / sandbox: native picker grants security-scoped access to GOG .app bundles.
+		_file_dialog.use_native_dialog = _use_native_folder_dialog()
 		_file_dialog.title = Locale.t("boot_path_prompt")
 		_file_dialog.ok_button_text = Locale.t("boot_path_select")
 		_file_dialog.cancel_button_text = Locale.t("boot_path_cancel")
@@ -92,6 +94,12 @@ func _ensure_folder_ui() -> void:
 		add_child(_file_dialog)
 
 	_choose_btn.visible = true
+
+
+func _use_native_folder_dialog() -> bool:
+	if OS.get_name() != "macOS":
+		return false
+	return OS.is_sandboxed() or not OS.has_feature("editor")
 
 
 func _open_folder_dialog() -> void:
@@ -106,11 +114,21 @@ func _open_folder_dialog() -> void:
 				if DirAccess.dir_exists_absolute(gog):
 					start = gog
 					break
+			if start.is_empty() and DirAccess.dir_exists_absolute("C:/GOG Games"):
+				start = "C:/GOG Games"
+		elif OS.get_name() == "macOS":
+			for gog in GameState._macos_gog_u4_dirs():
+				var app := gog.path_join("..").path_join("..").path_join("..").simplify_path()
+				if DirAccess.dir_exists_absolute(app):
+					start = app
+					break
+			if start.is_empty() and DirAccess.dir_exists_absolute("/Applications"):
+				start = "/Applications"
 		if start.is_empty():
 			start = OS.get_environment("HOME")
 		if start.is_empty():
 			start = OS.get_environment("USERPROFILE")
-	if not start.is_empty():
+	if not start.is_empty() and not _file_dialog.use_native_dialog:
 		_file_dialog.current_dir = start
 	_file_dialog.popup_centered_ratio(0.65)
 
@@ -118,6 +136,7 @@ func _open_folder_dialog() -> void:
 func _on_dir_selected(dir: String) -> void:
 	_picking_folder = false
 	if GameState.try_set_u4_data_path(dir):
+		GameState.u4_data_needs_macos_permission = false
 		await _proceed_ok()
 		return
 	## Wrong / empty folder — ask again via the folder picker.

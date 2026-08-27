@@ -550,7 +550,7 @@ func _draw_apple2_map_static() -> void:
 	ids.resize(MAP_W * MAP_H)
 	for y in MAP_H:
 		for x in MAP_W:
-			ids[y * MAP_W + x] = _intro_tid(x, y)
+			ids[y * MAP_W + x] = _intro_apple2_ground_tid(_intro_tid(x, y))
 	for i in _obj_active.size():
 		if _obj_active[i] == 0 or _intro_obj_is_cannon(i):
 			continue
@@ -558,10 +558,10 @@ func _draw_apple2_map_static() -> void:
 		var oy: int = _obj_y[i]
 		if ox < 0 or ox >= MAP_W or oy < 0 or oy >= MAP_H:
 			continue
-		var tid: int = _obj_tile[i]
-		if tid < TILE_MOONGATE_0 or tid > TILE_MOONGATE_OPEN:
-			tid = _WorldCreatures.resolve_paint_tile(tid, _tile_anim_frame)
-		ids[oy * MAP_W + ox] = tid
+		## TITLE.EXE script already resolved shape id + walk frames via
+		## `_resolve_script_tile_frame`. World creature cycling would replace
+		## ship facings / intro props with unrelated walk frames.
+		ids[oy * MAP_W + ox] = clampi(_obj_tile[i], 0, _TileBank.COUNT - 1)
 	## OUT_W×OUT_H is the native 28×32 display cell, so this is both exact
 	## 8.75:10 and free of a second scaling pass.
 	var composed: Image = _Apple2HgrNtsc.render_grid_scaled(
@@ -665,6 +665,17 @@ func _intro_tid(mx: int, my: int) -> int:
 	if _bin == null or mx < 0 or my < 0 or mx >= MAP_W or my >= MAP_H:
 		return 0
 	return int(_bin.intro_map[mx + my * MAP_W])
+
+
+## Apple II HGR grid cell for static intro terrain (water scroll is grid-wide).
+func _intro_apple2_ground_tid(raw: int) -> int:
+	var tid := clampi(raw, 0, _TileBank.COUNT - 1)
+	if tid <= WATER_TILE_MAX:
+		return tid
+	var n := _TileBank.frame_count(tid)
+	if n <= 1:
+		return tid
+	return tid + posmod(_tile_anim_frame, n)
 
 
 ## Classic shapes store each pose as its own id (1 PNG frame). Walk the bank like

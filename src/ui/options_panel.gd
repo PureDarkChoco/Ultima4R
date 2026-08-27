@@ -349,8 +349,8 @@ func _apply_presentation() -> void:
 		for i in ITEM_COUNT:
 			_row_wraps[i].custom_minimum_size = Vector2(0, ROW_H)
 			_row_labs[i].add_theme_font_size_override("font_size", FONT_SIZE)
-			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-			_row_labs[i].offset_left = 12
+			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_row_labs[i].offset_left = 8
 			_row_labs[i].offset_right = -8
 		for gap in _group_gaps:
 			gap.custom_minimum_size = Vector2(0, GROUP_GAP)

@@ -366,7 +366,8 @@ static func _resolve_data_file(fname: String) -> String:
 		if gs != null and not str(gs.u4_data_path).is_empty():
 			roots.append(str(gs.u4_data_path))
 	roots.append("res://data/u4")
-	roots.append("/Applications/Ultima IV™.app/Contents/Resources/game")
+	for gog in GameState._macos_gog_u4_dirs():
+		roots.append(gog)
 	var candidates: Array[String] = []
 	for r in roots:
 		for n in names:
