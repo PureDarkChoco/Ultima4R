@@ -6,6 +6,8 @@ extends Control
 
 const RESULT_SEC := 0.35
 const BODY_W := 620.0
+const SECTION_GAP := 18.0
+const START_GAP := 20.0
 
 var _dos_lab: Label
 var _apple2_lab: Label
@@ -90,6 +92,13 @@ func _style_body(lab: Label) -> void:
 	lab.custom_minimum_size = Vector2(BODY_W, 0)
 
 
+func _add_gap(height: float) -> void:
+	var gap := Control.new()
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gap.custom_minimum_size = Vector2(0, height)
+	_vbox.add_child(gap)
+
+
 func _ensure_folder_ui() -> void:
 	if _dos_lab == null:
 		_dos_lab = Label.new()
@@ -103,6 +112,7 @@ func _ensure_folder_ui() -> void:
 		_choose_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		_choose_btn.pressed.connect(_open_folder_dialog)
 		_vbox.add_child(_choose_btn)
+		_add_gap(SECTION_GAP)
 
 	if _file_dialog == null:
 		_file_dialog = FileDialog.new()
@@ -136,6 +146,7 @@ func _ensure_apple2_ui() -> void:
 		_apple2_choose_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		_apple2_choose_btn.pressed.connect(_open_apple2_dialog)
 		_vbox.add_child(_apple2_choose_btn)
+		_add_gap(START_GAP)
 
 	if _continue_btn == null:
 		_continue_btn = Button.new()

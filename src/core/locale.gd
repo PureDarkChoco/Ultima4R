@@ -26,9 +26,9 @@ const _T := {
 		"ko": "울티마 IV 데이터가 없습니다. data/u4 에 GOG 파일을 연결하세요.",
 	},
 	"boot_setup_intro": {
-		"en_u4": "This remake readeth the original Ultima IV files.\nSet the DOS path to begin. Apple II graphics are optional.",
-		"en_us": "This remake reads the original Ultima IV files.\nSet the DOS path to begin. Apple II graphics are optional.",
-		"ko": "이 리메이크는 원작 울티마 IV 파일을 읽습니다.\nDOS 경로를 지정해야 시작할 수 있습니다. Apple II 그래픽은 선택입니다.",
+		"en_u4": "This remake readeth the original Ultima IV files.\nSet the DOS path to begin.",
+		"en_us": "This remake reads the original Ultima IV files.\nSet the DOS path to begin.",
+		"ko": "이 리메이크는 원작 울티마 IV 파일을 읽습니다.\nDOS 경로를 지정해야 시작할 수 있습니다.",
 	},
 	"boot_path_prompt": {
 		"en_u4": "Ultima IV (DOS) path is required.\nClick the button and choose the folder with WORLD.MAP,\nor the GOG Ultima IV .app bundle.",
