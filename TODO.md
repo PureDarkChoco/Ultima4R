@@ -42,6 +42,14 @@
 
 **주문 A–Z:** 던전 전용 **L Light / X X-it / Y Y-up / Z Z-down** 포함해 모두 동작함.
 
+**최근 완료 (2026-08-27):**
+- [x] 리케움 대화 패스 (한국어 토픽·여행 기록·망원경 Search · Estro/Yew 정의 연쇄)
+- [x] GOG 데이터 자동 탐색 (macOS/Windows, 무료 → 유료 → 수동 지정)
+- [x] macOS export 샌드박스 · 네이티브 폴더 선택 · security-scoped bookmark
+- [x] GOG `TITLE.EXE` 타이틀 intro blob 오프셋 · Apple II 타이틀 맵 타일
+- [x] 지명 ko **리케움** (`place_lycaeum`)
+- [x] Esc/옵션 메뉴 가운데 정렬 · Q↔⌘S 저장 단축키 교환
+
 **최근 완료 (2026-08-22):**
 - [x] 던전 1인칭 탐험 (층·방·분수·오브·함정·필드 · L/X/Y/Z)
 - [x] 심연 제단 시험 · Bell/Book/Candle 세션 조건
@@ -70,7 +78,7 @@
 ## Phase 0 — 프로젝트 기반 `[P0]`
 
 - [x] `✅` 폴더 구조 (`src/`, `scenes/`, `assets/`, `data/` + `.gdignore`)
-- [x] `✅` GOG 데이터 경로 설정 (`data/u4` 심볼릭 링크 + 절대경로 폴백)
+- [x] `✅` GOG 데이터 경로 설정 (`data/u4` 심볼릭 링크 + 무료/유료 GOG 자동 탐색 + macOS 샌드박스 폴더 선택)
 - [ ] `⬜` xu4 참고 포인터 정리 (`FileFormats.md`, maploader, imageloader_u4, savegame) — 문서화만
 - [x] `✅` Godot 프로젝트 설정 (픽셀 필터 nearest, stretch, 1280×720)
 - [x] `✅` 입력맵 초안 (confirm/cancel/choice_a/b/move_* · 키보드+패드)
@@ -184,9 +192,9 @@
 - [ ] `⬜` 포즈
 - [ ] `⬜` 코브
 - [ ] `⬜` 베스퍼
-- [ ] `⬜` 부코 데님
+- [ ] `⬜` 해적 소굴
 - [ ] `⬜` 브리타니아 성
-- [ ] `⬜` 리케이움
+- [x] `✅` 리케움
 - [ ] `⬜` 엠패스 애비
 - [ ] `⬜` 서펀츠 홀드
 
@@ -318,7 +326,7 @@
 - [x] `✅` 옵션 음악 볼륨
 - [ ] `🔄` 설정 확장 (효과음 독립 볼륨 · 전투 조준 모드 등)
 - [ ] `⬜` 접근성 (텍스트 크기, 고대비 UI — 여유 시)
-- [x] `✅` 원본 데이터 미검출 시 부트 안내 (골조)
+- [x] `✅` 원본 데이터 미검출 시 부트 안내 (GOG 폴더 선택 · macOS 권한 안내)
 - [ ] `⬜` 빌드/배포 노트 (GOG 데이터 필요 안내, 라이선스)
 
 ---
@@ -359,7 +367,7 @@
 |------|------|
 | Godot 프로젝트 | `/Users/hexley/Documents/Ultima4R` |
 | xu4 소스 | `/Users/hexley/Documents/xu4-engine` |
-| GOG Ultima IV 데이터 | `/Applications/Ultima IV™.app/Contents/Resources/game` |
+| GOG Ultima IV 데이터 | macOS: `/Applications/Ultima™ 4 Quest of the Avatar.app/Contents/Resources/game` (무료) · 유료 `Ultima IV™.app` · Windows: `C:/GOG Games/Ultima 4 - Quest of the Avatar` |
 | 포맷 문서 | `xu4-engine/doc/FileFormats.md` |
 
 ---
@@ -375,4 +383,4 @@
 
 ---
 
-*마지막 정리: 2026-08-22 — 던전·주문 A–Z·코덱스 엔딩·타이틀 플레이트/SFX. 남은 큰 덩어리는 대화 패스·패드·PP 아트*
+*마지막 정리: 2026-08-27 — 리케움 대화 패스·GOG 경로/샌드박스·타이틀 intro. 남은 큰 덩어리는 남은 도시 대화·패드·PP 아트*
