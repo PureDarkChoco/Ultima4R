@@ -3722,6 +3722,10 @@ func _rebuild_city() -> void:
 
 func _paint_city_persons(cam: Vector2) -> void:
 	## Draw .ULT townsfolk with 2-frame walk cycles (tile ↔ prev / even↔odd).
+	## Apple II Color townsfolk are inserted into the HGR grid before the single
+	## Mariani pass so color phase and delayed edge bits continue into neighbours.
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return
 	if _city_map == null or not tiles_ready:
 		return
 	if _city_map.persons.is_empty():
@@ -5405,11 +5409,53 @@ func _apple2_fill_stage_city(base: Vector2i, half_x: int, half_y: int) -> void:
 		for dx in cols:
 			var mx := base.x - half_x + dx
 			var my := base.y - half_y + dy
-			var tid := _apple2_compose_tid(
-				clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX), mx, my
-			)
+			var tid := _apple2_city_display_tid(mx, my)
 			_apple2_ids[dy * cols + dx] = tid
 	_apple2_fill_stage_from_ids(_apple2_ids, cols, rows)
+
+
+func _apple2_city_display_tid(mx: int, my: int) -> int:
+	## Build the final opaque Apple II HGR cell before NTSC decoding. Unlike the
+	## PNG pipelines, drawing a person afterward as an isolated tile resets the
+	## signal/phase at both edges, visibly shortening guard tile 80's right arm.
+	var tid := clampi(_city_tile_or_outside(mx, my), 0, TILE_ID_MAX)
+	if _city_map != null:
+		for i in _city_map.persons.size():
+			var p: Vector3i = _city_map.persons[i]
+			if p.x != mx or p.y != my:
+				continue
+			var prev := -1
+			if i < _city_map.person_prev.size():
+				prev = int(_city_map.person_prev[i])
+			tid = _npc_frame_tile(int(p.z), prev, i)
+			break
+	var party_tid := _apple2_party_grid_tid(mx, my)
+	if party_tid >= 0:
+		tid = party_tid
+	return _apple2_compose_tid(tid, mx, my)
+
+
+func _apple2_party_grid_tid(mx: int, my: int) -> int:
+	## While the camera is between cells the party remains a fixed screen-space
+	## overlay. Once settled, include raw HGR art in the row for correct borders.
+	if _scroll_frames_left > 0 or mx != center.x or my != center.y:
+		return -1
+	if _transport_tile >= 0:
+		## Mounted art is a runtime horse+rider composite, not one raw HGR tile.
+		if is_horse_tile(_transport_tile):
+			return -1
+		return clampi(_transport_tile, 0, TILE_ID_MAX)
+	var pair := _avatar_tile_pair()
+	return pair.y if _avatar_frame == 1 else pair.x
+
+
+func _apple2_party_is_grid_composed() -> bool:
+	return (
+		_U4TileBankScript.uses_hgr_ntsc()
+		and is_in_city()
+		and _scroll_frames_left <= 0
+		and (_transport_tile < 0 or not is_horse_tile(_transport_tile))
+	)
 
 
 func _apple2_fill_buf_grid(get_tid: Callable, cols: int, rows: int) -> void:
@@ -6370,6 +6416,8 @@ func _overlay_slice(tile_id: int) -> Image:
 func _paint_party_marker() -> void:
 	## Center tile: transport sprite, or class/Avatar 2-frame walk cycle.
 	## Explore quakes shift the whole buffer in `_apply_view_shake`.
+	if _apple2_party_is_grid_composed():
+		return
 	var dst := Vector2i((view_w / 2) * TILE_SRC, (view_h / 2) * TILE_SRC)
 	if _transport_tile >= 0:
 		var ride: Image = null

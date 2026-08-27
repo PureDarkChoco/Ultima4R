@@ -219,20 +219,22 @@ static func _load_apple2_hgr() -> bool:
 	ids.resize(COUNT)
 	for i in COUNT:
 		ids[i] = i
-	## 16×16 atlas of isolated tiles (correct phase pad per cell).
-	var atlas: Image = _Apple2HgrNtsc.render_grid(ids, 16, 16, 0, true)
+	## 16×16 atlas of isolated tiles (correct phase pad per cell). Scale inside
+	## the decoder so its endpoint-preserving xmap32 keeps src column 27 at the
+	## right edge; generic Image.resize can visually shorten edge details.
+	var atlas: Image = _Apple2HgrNtsc.render_grid_scaled(
+		ids, 16, 16, TILE_SIZE, 0, true
+	)
 	if atlas == null or atlas.is_empty():
 		push_error("U4TileBank: Apple II atlas decode failed")
 		return false
-	var cw: int = _Apple2HgrNtsc.OUT_W
-	var ch: int = _Apple2HgrNtsc.OUT_H
+	var cw := TILE_SIZE
+	var ch := TILE_SIZE
 	for i in COUNT:
 		var tx := i % 16
 		var ty := i / 16
 		var slice := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
 		slice.blit_rect(atlas, Rect2i(tx * cw, ty * ch, cw, ch), Vector2i.ZERO)
-		if cw != TILE_SIZE or ch != TILE_SIZE:
-			slice.resize(TILE_SIZE, TILE_SIZE, Image.INTERPOLATE_NEAREST)
 		_frames[i] = [slice]
 		_paths[i] = "%s#%03d" % [APPLE2_HGR_PACK, i]
 	return true

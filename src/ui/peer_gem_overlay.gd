@@ -10,6 +10,7 @@ signal closed
 
 const GEM_PATH := "res://assets/tiles/u4graphics/gem.png"
 const _U4TileBankScript := preload("res://src/map/u4_tile_bank.gd")
+const _Apple2HgrNtsc := preload("res://src/map/apple2_hgr_ntsc.gd")
 ## Odd so center.x/y land on one middle cell (xu4's 32 is even → off-center).
 const GEM_VIEW_H := 33
 ## ~GEM_VIEW_H × 16/9, forced odd (59/33 ≈ 16:9).
@@ -262,6 +263,33 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i, map_view = null) -> vo
 	## Odd spans → half lands on the true center cell for party #1.
 	var half_x := GEM_VIEW_W / 2
 	var half_y := GEM_VIEW_H / 2
+	if _U4TileBankScript.uses_hgr_ntsc():
+		var ids := PackedInt32Array()
+		ids.resize(GEM_VIEW_W * GEM_VIEW_H)
+		for gy in GEM_VIEW_H:
+			for gx in GEM_VIEW_W:
+				var wx := center.x + gx - half_x
+				var wy := center.y + gy - half_y
+				ids[gy * GEM_VIEW_W + gx] = world.tile_at(wx, wy)
+		if map_view != null:
+			if map_view.has_method("get_overlays"):
+				for item in map_view.get_overlays():
+					_set_apple2_world_object(ids, center, item)
+			if map_view.has_method("peer_moongate"):
+				var gate: Vector3i = map_view.peer_moongate()
+				if gate.z >= 0:
+					_set_apple2_world_object(ids, center, gate)
+			if map_view.has_method("get_creatures"):
+				for creature in map_view.get_creatures():
+					_set_apple2_world_object(
+						ids,
+						center,
+						Vector3i(int(creature.x), int(creature.y), int(creature.tid))
+					)
+		ids[half_y * GEM_VIEW_W + half_x] = _party_gem_tile()
+		_blit_apple2_grid(ids, GEM_VIEW_W, GEM_VIEW_H, Vector2i.ZERO)
+		_tex.update(_buf)
+		return
 	for gy in GEM_VIEW_H:
 		for gx in GEM_VIEW_W:
 			var wx := center.x + gx - half_x
@@ -486,6 +514,36 @@ func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 	var origin_x := int((GEM_VIEW_W - city_w) / 2)
 	var origin_y := int((GEM_VIEW_H - city_h) / 2)
 	var live: bool = party_pos.x >= 0 and bool(city.has_method("effective_tile_at"))
+	if _U4TileBankScript.uses_hgr_ntsc():
+		var ids := PackedInt32Array()
+		ids.resize(city_w * city_h)
+		for cy in city_h:
+			for cx in city_w:
+				if live:
+					ids[cy * city_w + cx] = int(city.effective_tile_at(cx, cy))
+				else:
+					ids[cy * city_w + cx] = int(city.tile_at(cx, cy))
+		if city.get("persons") != null:
+			for p in city.persons:
+				var px := int(p.x)
+				var py := int(p.y)
+				if px >= 0 and py >= 0 and px < city_w and py < city_h:
+					ids[py * city_w + px] = int(p.z)
+		if (
+			party_pos.x >= 0
+			and party_pos.x < city_w
+			and party_pos.y >= 0
+			and party_pos.y < city_h
+		):
+			ids[party_pos.y * city_w + party_pos.x] = _party_gem_tile()
+		_blit_apple2_grid(
+			ids,
+			city_w,
+			city_h,
+			Vector2i(origin_x * _cell_w, origin_y * _cell_h)
+		)
+		_tex.update(_buf)
+		return
 	for cy in city_h:
 		for cx in city_w:
 			var tid: int
@@ -504,6 +562,31 @@ func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 	if party_pos.x >= 0 and party_pos.x < city_w and party_pos.y >= 0 and party_pos.y < city_h:
 		_blit_gem_actor(origin_x + party_pos.x, origin_y + party_pos.y, _party_gem_tile())
 	_tex.update(_buf)
+
+
+func _set_apple2_world_object(
+	ids: PackedInt32Array, center: Vector2i, item: Vector3i
+) -> void:
+	var d := _wrap_delta(center, Vector2i(item.x, item.y))
+	var gx := d.x + GEM_VIEW_W / 2
+	var gy := d.y + GEM_VIEW_H / 2
+	if gx < 0 or gy < 0 or gx >= GEM_VIEW_W or gy >= GEM_VIEW_H:
+		return
+	ids[gy * GEM_VIEW_W + gx] = clampi(item.z, 0, _U4TileBankScript.COUNT - 1)
+
+
+func _blit_apple2_grid(
+	ids: PackedInt32Array, cols: int, rows: int, dest: Vector2i
+) -> void:
+	## Decode the final terrain+actor field in one pass so NTSC state continues
+	## through every tile boundary, matching the explore and title maps.
+	var composed: Image = _Apple2HgrNtsc.render_grid(ids, cols, rows, 0, false)
+	if composed == null or composed.is_empty():
+		return
+	var want := Vector2i(cols * _cell_w, rows * _cell_h)
+	if composed.get_size() != want:
+		composed.resize(want.x, want.y, Image.INTERPOLATE_NEAREST)
+	_buf.blit_rect(composed, Rect2i(Vector2i.ZERO, want), dest)
 
 
 func _wrap_delta(from: Vector2i, to: Vector2i) -> Vector2i:

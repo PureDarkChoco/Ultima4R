@@ -538,29 +538,39 @@ func _draw_map_static() -> void:
 
 
 func _draw_apple2_map_static() -> void:
-	## Compose all 19×5 terrain cells as one HGR field, preserving NTSC phase
-	## across tile boundaries exactly like MapView's Apple II path.
+	## Compose the final 19×5 terrain+object field in one HGR pass, preserving
+	## NTSC phase across every tile boundary exactly like MapView's Apple II path.
 	if _bin == null or _canvas == null:
 		return
 	var scroll_y := int(
 		posmod(_water_scroll, TILE_PX) * _Apple2HgrNtsc.SRC_H / float(TILE_PX)
 	)
 	var content := _map_content_rect()
-	if _apple2_map_img == null or _apple2_map_scroll != scroll_y:
-		var ids := PackedInt32Array()
-		ids.resize(MAP_W * MAP_H)
-		for y in MAP_H:
-			for x in MAP_W:
-				ids[y * MAP_W + x] = _intro_tid(x, y)
-		## OUT_W×OUT_H is the native 28×32 display cell, so this is both exact
-		## 8.75:10 and free of a second scaling pass.
-		var composed: Image = _Apple2HgrNtsc.render_grid_scaled(
-			ids, MAP_W, MAP_H, _tile_cell_w(), scroll_y, false
-		)
-		if composed == null or composed.is_empty():
-			return
-		_apple2_map_img = composed
-		_apple2_map_scroll = scroll_y
+	var ids := PackedInt32Array()
+	ids.resize(MAP_W * MAP_H)
+	for y in MAP_H:
+		for x in MAP_W:
+			ids[y * MAP_W + x] = _intro_tid(x, y)
+	for i in _obj_active.size():
+		if _obj_active[i] == 0 or _intro_obj_is_cannon(i):
+			continue
+		var ox: int = _obj_x[i]
+		var oy: int = _obj_y[i]
+		if ox < 0 or ox >= MAP_W or oy < 0 or oy >= MAP_H:
+			continue
+		var tid: int = _obj_tile[i]
+		if tid < TILE_MOONGATE_0 or tid > TILE_MOONGATE_OPEN:
+			tid = _WorldCreatures.resolve_paint_tile(tid, _tile_anim_frame)
+		ids[oy * MAP_W + ox] = tid
+	## OUT_W×OUT_H is the native 28×32 display cell, so this is both exact
+	## 8.75:10 and free of a second scaling pass.
+	var composed: Image = _Apple2HgrNtsc.render_grid_scaled(
+		ids, MAP_W, MAP_H, _tile_cell_w(), scroll_y, false
+	)
+	if composed == null or composed.is_empty():
+		return
+	_apple2_map_img = composed
+	_apple2_map_scroll = scroll_y
 	_canvas.blit_rect(
 		_apple2_map_img,
 		Rect2i(0, 0, content.size.x, content.size.y),
@@ -578,6 +588,10 @@ func _draw_map_animated() -> void:
 			continue
 		var tid: int = _obj_tile[i]
 		var fr: int = _obj_frame[i]
+		## Apple II raw objects were already stamped into the continuous HGR grid.
+		## Only the custom cannonball has no source tile and remains an overlay.
+		if _TileBank.uses_hgr_ntsc() and not _intro_obj_is_cannon(i):
+			continue
 		## Moongates: script selects phase tiles 064–067; open gate (067) swirls continuously.
 		if tid >= TILE_MOONGATE_0 and tid <= TILE_MOONGATE_OPEN:
 			_paint_intro_cell(ox, oy, tid, fr, true)
