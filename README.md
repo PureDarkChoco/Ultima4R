@@ -43,9 +43,9 @@ That data remains subject to the license and terms under which you acquired it.
 
 ### Ultima IV (DOS) 게임 데이터
 
-이 프로젝트를 플레이하려면 사용자가 합법적으로 취득한 Ultima IV DOS 버전의 원본 게임 데이터가 필요합니다. 이 프로젝트는 해당 게임 데이터를 배포하지 않습니다.
+이 프로젝트를 플레이하려면 사용자가 합법적으로 취득한 Ultima IV DOS 버전의 원본 게임 데이터가 필요합니다. 이 프로젝트는 해당 게임 데이터를 배포하지 않습니다. 원본 데이터는 사용자가 취득한 라이선스 및 배포처의 이용 조건을 따릅니다.
 
-Ultima, Ultima IV, Britannia, Origin Systems 및 관련 명칭과 자산의 권리는 각 권리자에게 있습니다.
+Ultima, Ultima IV, Britannia, Origin Systems 및 관련 명칭과 자산의 권리는 각 권리자에게 있습니다. 이 팬 프로젝트는 Electronic Arts 또는 원 권리자와 제휴하거나 승인받은 제품이 아닙니다.
 
 ### xu4
 
@@ -66,19 +66,23 @@ libhangul은 GNU Lesser General Public License version 2.1 이상 (LGPL-2.1-or-l
 
 ### u4graphics
 
-Ultima IV 타일 그래픽은 [jahshuwaa의 u4graphics](https://github.com/jahshuwaa/u4graphics)를 사용합니다.  
+Ultima IV 타일 그래픽(New Color)은 [jahshuwaa의 u4graphics](https://github.com/jahshuwaa/u4graphics)를 사용합니다.  
 The Unlicense에 따라 퍼블릭 도메인으로 공개되었습니다.
+
+### Apple II
+
+선택 가능한 Apple II Color / Mono White / Mono Green 모드는 Apple II판 Ultima IV에서 추출한 타일 데이터를 사용합니다. 원본 디스크는 배포하지 않습니다. 해당 타일 데이터의 권리는 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
 
 ### Raven Fantasy Icons
 
 일부 UI 아이콘은 Clockwork Raven의 [Raven Fantasy Icons](https://clockworkraven.itch.io/raven-fantasy-icons)를 사용합니다.
 
-itch.io 상품 페이지의 이용 조건을 따릅니다. 수정 및 프로젝트 내 사용은 허용되지만, 에셋 자체를 별도 상품으로 재배포하거나 판매할 수 없습니다.
+해당 에셋은 제작자가 itch.io 상품 페이지에서 제시한 이용 조건에 따라 사용됩니다. 수정 및 프로젝트 내 사용은 허용되지만, 에셋 자체를 별도 상품으로 재배포하거나 판매할 수 없습니다. 표시는 필수가 아니지만 감사의 뜻으로 출처를 기재합니다.
 
 ### Freesound
 
 일부 효과음은 [Freesound](https://freesound.org/)에서 제공하는 무료 음원을 사용합니다.  
-각 음원의 라이선스와 제작자 표시는 해당 음원 페이지를 따릅니다.
+각 음원의 라이선스와 제작자 표시는 Freesound의 해당 음원 페이지를 따릅니다.
 
 ### 배경음악
 
@@ -101,9 +105,9 @@ UI 글꼴은 SIL Open Font License (OFL)의 [D2Coding](https://github.com/naver/
 
 ### Ultima IV (DOS) game data
 
-This project requires original Ultima IV for DOS game data lawfully obtained by the user. No original game data is distributed with this project.
+This project requires original Ultima IV for DOS game data lawfully obtained by the user. No original game data is distributed with this project. That data remains subject to the license and terms under which the user acquired it.
 
-Ultima, Ultima IV, Britannia, Origin Systems, and related names and assets belong to their respective owners.
+Ultima, Ultima IV, Britannia, Origin Systems, and related names and assets belong to their respective owners. This fan project is not affiliated with or endorsed by Electronic Arts or the original rights holders.
 
 ### xu4
 
@@ -124,16 +128,22 @@ This project uses the MIT-licensed [Godot Engine](https://godotengine.org) and i
 
 ### u4graphics
 
-Tile graphics use [jahshuwaa's u4graphics](https://github.com/jahshuwaa/u4graphics), dedicated to the public domain under The Unlicense.
+Ultima IV tile graphics (New Color) use [jahshuwaa's u4graphics](https://github.com/jahshuwaa/u4graphics), dedicated to the public domain under The Unlicense.
+
+### Apple II
+
+The optional Apple II Color / Mono White / Mono Green modes use tile data extracted from Apple II Ultima IV. The original disk image is not distributed. Rights in that tile data belong to Origin Systems / Electronic Arts and other respective owners.
 
 ### Raven Fantasy Icons
 
-Some UI icons use [Raven Fantasy Icons](https://clockworkraven.itch.io/raven-fantasy-icons) by Clockwork Raven, under the terms on the itch.io product page. Modification and use within a project are permitted; the asset may not be redistributed or sold as a separate product.
+Some UI icons use [Raven Fantasy Icons](https://clockworkraven.itch.io/raven-fantasy-icons) by Clockwork Raven.
+
+The assets are used under the terms presented by the creator on the itch.io product page. Modification and use within a project are permitted, but the asset may not be redistributed or sold as a separate product. Attribution is not required, but is included with thanks.
 
 ### Freesound
 
 Some sound effects use free audio from [Freesound](https://freesound.org/).  
-License and attribution for each clip follow that clip's page.
+License and attribution for each clip follow that clip's page on Freesound.
 
 ### Background music
 

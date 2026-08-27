@@ -1,0 +1,32 @@
+---
+description: Keep in-game About and GitHub README license/attribution text in sync
+globs: src/ui/licenses_panel.gd,README.md
+alwaysApply: false
+---
+
+# About ↔ README sync
+
+The in-game **About** screen (`src/ui/licenses_panel.gd`, `_text_ko()` / `_text_en()`) and the **About** section of `README.md` must stay aligned.
+
+## When to update both
+
+Any change to credits, disclaimers, third-party licenses, URLs, or AI-usage wording in either file requires the same change in the other in the **same edit**.
+
+## How to mirror content
+
+| In-game About | README.md |
+|---------------|-----------|
+| `_text_ko()` | Korean blocks under `## About` (before the English `### Ultima IV (DOS) game data` section) |
+| `_text_en()` | English blocks under `## About` (from `### Ultima IV (DOS) game data` through `### AI usage`) |
+
+Keep section order and meaning the same. README may use `###` headings and markdown links; About uses plain text with URLs on their own lines — wording should match.
+
+## Checklist before finishing
+
+1. Every section in `_text_ko()` / `_text_en()` has a README counterpart (e.g. xu4, libhangul, Godot, u4graphics, **Apple II**, Raven, Freesound, music, D2Coding, disclaimer, AI).
+2. No About-only or README-only attribution left behind.
+3. If GOG / game-data requirements change in About, also update `## 플레이하려면` / `## To play` in README when relevant.
+
+## Source of truth
+
+Prefer editing `licenses_panel.gd` first (player-facing), then copy the substance into `README.md`.
