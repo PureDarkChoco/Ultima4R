@@ -1103,7 +1103,7 @@ const _T := {
 	"place_paws": {
 		"en_u4": "Paws",
 		"en_us": "Paws",
-		"ko": "포우즈",
+		"ko": "포즈",
 	},
 	"place_trinsic": {
 		"en_u4": "Trinsic",
@@ -1123,7 +1123,7 @@ const _T := {
 	"place_minoc": {
 		"en_u4": "Minoc",
 		"en_us": "Minoc",
-		"ko": "미녹",
+		"ko": "마이녹",
 	},
 	"place_skara": {
 		"en_u4": "Skara Brae",
@@ -1138,7 +1138,7 @@ const _T := {
 	"place_den": {
 		"en_u4": "Buccaneers Den",
 		"en_us": "Buccaneers Den",
-		"ko": "해적굴",
+		"ko": "해적 소굴",
 	},
 	"place_vesper": {
 		"en_u4": "Vesper",
@@ -1168,7 +1168,7 @@ const _T := {
 	"place_shame": {
 		"en_u4": "Shame",
 		"en_us": "Shame",
-		"ko": "수치",
+		"ko": "치욕",
 	},
 	"place_wrong": {
 		"en_u4": "Wrong",
