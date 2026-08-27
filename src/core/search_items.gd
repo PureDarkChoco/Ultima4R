@@ -50,6 +50,8 @@ const CITY_LABELS := {
 	"cove.ult": {"22,1": "candle"},
 }
 
+const LYCAEUM_TELESCOPE := Vector2i(22, 3)
+
 ## label → { kind, data, conditions, name_key }
 const ITEMS := {
 	"mandrake1": {
@@ -139,6 +141,13 @@ const TELESCOPE_CITIES := [
 	"vesper.ult",
 	"cove.ult",
 ]
+
+
+static func is_lycaeum_telescope(city_fname: String, pos: Vector2i) -> bool:
+	return (
+		city_fname.get_file().to_lower() == "lycaeum.ult"
+		and pos == LYCAEUM_TELESCOPE
+	)
 
 
 static func label_at(city_fname: String, pos: Vector2i) -> String:

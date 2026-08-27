@@ -159,6 +159,8 @@ var lastcamp: int = 0
 var lastreagent: int = 0
 ## One-shot Search labels already taken (save-persistent; independent of pack count).
 var search_taken: Dictionary = {}
+## Lycaeum telescope end: Palamar's dial hint or one prior Search there.
+var lycaeum_telescope_hint: bool = false
 ## xu4 SaveGame.lastvirtue — (moves / 16) & 0xffff when a timed +karma last applied.
 var lastvirtue: int = 0
 ## xu4 SaveGame.lastmeditation — (moves / 100) & 0xffff when shrine meditation began.
@@ -444,6 +446,7 @@ func reset_party() -> void:
 	ship_hull = 50
 	lastreagent = 0
 	search_taken.clear()
+	lycaeum_telescope_hint = false
 	items = 0
 	abyss_bbc_open = false
 	stones = 0
@@ -885,6 +888,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	lb_intro = false
 	lastreagent = 0
 	search_taken.clear()
+	lycaeum_telescope_hint = false
 	has_sextant = false
 	guild_sextant_listed = false
 	moves = 0
@@ -2685,6 +2689,14 @@ func has_search_taken(label: String) -> bool:
 	return not label.is_empty() and bool(search_taken.get(label, false))
 
 
+func mark_lycaeum_telescope_hint() -> void:
+	lycaeum_telescope_hint = true
+
+
+func has_lycaeum_telescope_hint() -> bool:
+	return lycaeum_telescope_hint
+
+
 func mark_search_taken(label: String) -> void:
 	if label.is_empty():
 		return
@@ -3084,6 +3096,7 @@ func to_save_dict() -> Dictionary:
 		"talk_heard_words": talk_heard_words.duplicate(),
 		"lastreagent": lastreagent,
 		"search_taken": search_taken.keys(),
+		"lycaeum_telescope_hint": lycaeum_telescope_hint,
 		"has_sextant": has_sextant,
 		"guild_sextant_listed": guild_sextant_listed,
 		"weapons": weapons.duplicate(),
@@ -3210,6 +3223,7 @@ func apply_save_dict(d: Dictionary) -> void:
 				continue
 			talk_heard_words.append(hs)
 	lastreagent = maxi(0, int(d.get("lastreagent", 0)))
+	lycaeum_telescope_hint = bool(d.get("lycaeum_telescope_hint", false))
 	search_taken.clear()
 	var taken_raw: Variant = d.get("search_taken", [])
 	if typeof(taken_raw) == TYPE_ARRAY:

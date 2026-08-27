@@ -4072,6 +4072,8 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 		return items[0]
 	if _is_in_dungeon():
 		return _command_menu_default_cmd_dungeon(items)
+	if _lycaeum_telescope_search_focus() and items.has(U4Commands.Id.SEARCH):
+		return U4Commands.Id.SEARCH
 	## Context priority is intentionally ordered to match the gamepad UX spec.
 	var priority: Array[int] = []
 	if _command_menu_can_show(U4Commands.Id.TALK):
@@ -4154,6 +4156,14 @@ func _command_menu_default_cmd_dungeon(items: Array[int]) -> int:
 	if items.has(_command_menu_last_cmd):
 		return _command_menu_last_cmd
 	return items[0]
+
+
+func _lycaeum_telescope_search_focus() -> bool:
+	## Lycaeum telescope end only — after Palamar's dial hint or one prior Search.
+	if not _is_in_city() or _city_map == null or not GameState.has_lycaeum_telescope_hint():
+		return false
+	var city_fname := str(_city_map.source_path).get_file()
+	return _SearchItems.is_lycaeum_telescope(city_fname, _tile_pos)
 
 
 func _dungeon_search_focus() -> bool:
@@ -8235,6 +8245,7 @@ func _do_search() -> void:
 	if bool(result.get("dropped", false)):
 		_push_message(Locale.t("cmd_search_dropped"), false)
 	if bool(result.get("telescope", false)):
+		GameState.mark_lycaeum_telescope_hint()
 		_search_busy = false
 		_begin_telescope()
 		return
@@ -21355,6 +21366,8 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		GameState.talk_remember_heard_word("recall")
 		GameState.talk_remember_heard_word("부활")
 	## Nigel: recall / resurrection reagents complete the Lycaeum ask tip.
+	if place == "lycaeum" and npc_key == "palamar" and topic == "TELE":
+		GameState.mark_lycaeum_telescope_hint()
 	if (
 		place == "lycaeum"
 		and topic == "RECA"
