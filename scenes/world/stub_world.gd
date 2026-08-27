@@ -8705,6 +8705,8 @@ func _handle_options_input(event: InputEvent) -> bool:
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			if _options_panel != null and _options_panel.has_method("is_picking_file") and _options_panel.is_picking_file():
+				return true
 			_close_options_panel(true)
 			return true
 		if _is_order_confirm_key(k):
@@ -8713,6 +8715,8 @@ func _handle_options_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
 		if jb.button_index == _GameInput.cancel_button():
+			if _options_panel != null and _options_panel.has_method("is_picking_file") and _options_panel.is_picking_file():
+				return true
 			_close_options_panel(true)
 			return true
 		if jb.button_index == _GameInput.confirm_button():

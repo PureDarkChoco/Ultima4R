@@ -4,13 +4,20 @@ extends Control
 @onready var _brand: Label = %Brand
 @onready var _vbox: VBoxContainer = %VBox
 
-## Only used when we need a visible "found / missing" beat — not on warm starts.
 const RESULT_SEC := 0.35
+const BODY_W := 620.0
 
+var _dos_lab: Label
+var _apple2_lab: Label
 var _choose_btn: Button
+var _apple2_choose_btn: Button
+var _continue_btn: Button
 var _file_dialog: FileDialog
+var _apple2_dialog: FileDialog
 var _waiting_quit_key := false
 var _picking_folder := false
+var _picking_apple2 := false
+var _setup_open := false
 
 
 func _ready() -> void:
@@ -18,57 +25,77 @@ func _ready() -> void:
 	$ColorRect.color = UiTheme.BG
 	UiTheme.style_label(_brand, 42, UiTheme.ACCENT)
 	UiTheme.style_label(_status, 18, UiTheme.MUTED)
-	## style_label enables word-wrap; in a centered VBox that collapses
-	## width to ~1 glyph and stacks the title vertically.
 	_brand.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_brand.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_status.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_brand.text = Locale.t("app_title")
 
-	## Path probe already ran in GameState._ready — no theatrical "searching" wait.
-	if GameState.u4_data_ok:
-		## Warm start (path already in settings): skip splash delays entirely.
-		if GameState.u4_data_pref_set:
-			## Deferred — change_scene during _ready can fail (parent busy).
-			SceneRouter.to_menu.call_deferred()
-			return
-		## First-time auto-discover: brief OK flash, then menu.
-		_status.text = Locale.t("boot_ok")
-		_status.add_theme_color_override("font_color", UiTheme.ACCENT)
-		await get_tree().create_timer(RESULT_SEC).timeout
-		SceneRouter.to_menu()
+	if GameState.u4_data_ok and GameState.u4_data_pref_set and GameState.apple2_dsk_prompted:
+		SceneRouter.to_menu.call_deferred()
 		return
 
-	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.custom_minimum_size = Vector2(560, 0)
-	_status.add_theme_color_override("font_color", UiTheme.DANGER)
-	if GameState.u4_data_needs_macos_permission:
-		_status.text = Locale.t("boot_path_macos_permission")
-	elif GameState.u4_data_pref_set:
-		_status.text = Locale.t("boot_path_reselect")
-	else:
-		_status.text = Locale.t("boot_path_prompt")
+	_show_setup()
 
+
+func _show_setup() -> void:
+	_setup_open = true
+	_status.custom_minimum_size = Vector2(BODY_W, 0)
+	_status.add_theme_color_override("font_color", UiTheme.MUTED)
+	_status.text = Locale.t("boot_setup_intro")
 	_ensure_folder_ui()
-	## After the window finishes its first layout — popup during _ready can be 0-size.
-	call_deferred("_open_folder_dialog")
+	_ensure_apple2_ui()
+	_refresh_setup_copy()
 
 
-func _proceed_ok() -> void:
-	_status.text = Locale.t("boot_ok")
-	_status.add_theme_color_override("font_color", UiTheme.ACCENT)
-	_status.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_status.custom_minimum_size = Vector2.ZERO
-	if _choose_btn:
-		_choose_btn.visible = false
-	await get_tree().create_timer(RESULT_SEC).timeout
-	SceneRouter.to_menu()
+func _refresh_setup_copy() -> void:
+	if _dos_lab:
+		if GameState.u4_data_ok:
+			_dos_lab.add_theme_color_override("font_color", UiTheme.ACCENT)
+			_dos_lab.text = Locale.t("boot_path_ready")
+		elif GameState.u4_data_needs_macos_permission:
+			_dos_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+			_dos_lab.text = Locale.t("boot_path_macos_permission")
+		elif GameState.u4_data_pref_set:
+			_dos_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+			_dos_lab.text = Locale.t("boot_path_reselect")
+		else:
+			_dos_lab.add_theme_color_override("font_color", UiTheme.MUTED)
+			_dos_lab.text = Locale.t("boot_path_prompt")
+
+	if _apple2_lab:
+		if GameState.apple2_dsk_ok:
+			_apple2_lab.add_theme_color_override("font_color", UiTheme.ACCENT)
+			_apple2_lab.text = Locale.t("boot_apple2_ready")
+		elif GameState.apple2_dsk_needs_macos_permission:
+			_apple2_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+			_apple2_lab.text = Locale.t("boot_apple2_prompt") + "\n" + Locale.t("boot_path_macos_permission")
+		else:
+			_apple2_lab.add_theme_color_override("font_color", UiTheme.MUTED)
+			_apple2_lab.text = Locale.t("boot_apple2_prompt") + "\n" + Locale.t("boot_apple2_hint")
+
+	if _continue_btn:
+		_continue_btn.visible = true
+		_continue_btn.disabled = not GameState.u4_data_ok
+		_continue_btn.modulate = Color.WHITE if GameState.u4_data_ok else Color(1, 1, 1, 0.45)
+
+
+func _style_body(lab: Label) -> void:
+	UiTheme.style_label(lab, 16, UiTheme.MUTED)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	lab.custom_minimum_size = Vector2(BODY_W, 0)
 
 
 func _ensure_folder_ui() -> void:
+	if _dos_lab == null:
+		_dos_lab = Label.new()
+		_style_body(_dos_lab)
+		_vbox.add_child(_dos_lab)
+
 	if _choose_btn == null:
 		_choose_btn = Button.new()
 		_choose_btn.text = Locale.t("boot_path_choose")
@@ -81,7 +108,6 @@ func _ensure_folder_ui() -> void:
 		_file_dialog = FileDialog.new()
 		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
-		## macOS export / sandbox: native picker grants security-scoped access to GOG .app bundles.
 		_file_dialog.use_native_dialog = _use_native_folder_dialog()
 		_file_dialog.title = Locale.t("boot_path_prompt")
 		_file_dialog.ok_button_text = Locale.t("boot_path_select")
@@ -93,7 +119,51 @@ func _ensure_folder_ui() -> void:
 		_file_dialog.canceled.connect(_on_folder_canceled)
 		add_child(_file_dialog)
 
+	_dos_lab.visible = true
 	_choose_btn.visible = true
+
+
+func _ensure_apple2_ui() -> void:
+	if _apple2_lab == null:
+		_apple2_lab = Label.new()
+		_style_body(_apple2_lab)
+		_vbox.add_child(_apple2_lab)
+
+	if _apple2_choose_btn == null:
+		_apple2_choose_btn = Button.new()
+		_apple2_choose_btn.text = Locale.t("boot_apple2_choose")
+		UiTheme.style_button(_apple2_choose_btn)
+		_apple2_choose_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		_apple2_choose_btn.pressed.connect(_open_apple2_dialog)
+		_vbox.add_child(_apple2_choose_btn)
+
+	if _continue_btn == null:
+		_continue_btn = Button.new()
+		_continue_btn.text = Locale.t("boot_continue")
+		UiTheme.style_button(_continue_btn)
+		_continue_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		_continue_btn.pressed.connect(_continue_to_menu)
+		_vbox.add_child(_continue_btn)
+
+	if _apple2_dialog == null:
+		_apple2_dialog = FileDialog.new()
+		_apple2_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		_apple2_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_apple2_dialog.use_native_dialog = _use_native_folder_dialog()
+		_apple2_dialog.title = Locale.t("boot_apple2_prompt")
+		_apple2_dialog.ok_button_text = Locale.t("boot_apple2_select")
+		_apple2_dialog.cancel_button_text = Locale.t("boot_path_cancel")
+		_apple2_dialog.min_size = Vector2i(760, 480)
+		_apple2_dialog.exclusive = true
+		_apple2_dialog.unresizable = false
+		_apple2_dialog.add_filter("*.dsk", "Apple II disk")
+		_apple2_dialog.file_selected.connect(_on_apple2_file_selected)
+		_apple2_dialog.canceled.connect(_on_apple2_canceled)
+		add_child(_apple2_dialog)
+
+	_apple2_lab.visible = true
+	_apple2_choose_btn.visible = true
+	_continue_btn.visible = true
 
 
 func _use_native_folder_dialog() -> bool:
@@ -133,30 +203,95 @@ func _open_folder_dialog() -> void:
 	_file_dialog.popup_centered_ratio(0.65)
 
 
+func _open_apple2_dialog() -> void:
+	if _apple2_dialog == null:
+		_ensure_apple2_ui()
+	_picking_apple2 = true
+	var start := GameState.apple2_dsk_path.get_base_dir()
+	if start.is_empty() or not DirAccess.dir_exists_absolute(start):
+		start = OS.get_environment("HOME")
+		if start.is_empty():
+			start = OS.get_environment("USERPROFILE")
+	if not start.is_empty() and not _apple2_dialog.use_native_dialog:
+		_apple2_dialog.current_dir = start
+	_apple2_dialog.popup_centered_ratio(0.65)
+
+
 func _on_dir_selected(dir: String) -> void:
 	_picking_folder = false
 	if GameState.try_set_u4_data_path(dir):
 		GameState.u4_data_needs_macos_permission = false
-		await _proceed_ok()
+		_refresh_setup_copy()
 		return
-	## Wrong / empty folder — ask again via the folder picker.
-	_status.text = Locale.t("boot_path_invalid") + "\n" + Locale.t("boot_path_hint")
-	_status.add_theme_color_override("font_color", UiTheme.DANGER)
+	if _dos_lab:
+		_dos_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+		_dos_lab.text = Locale.t("boot_path_invalid") + "\n" + Locale.t("boot_path_hint")
+	if _continue_btn:
+		_continue_btn.disabled = true
+		_continue_btn.modulate = Color(1, 1, 1, 0.45)
+
+
+func _on_apple2_file_selected(path: String) -> void:
+	_picking_apple2 = false
+	if _apple2_lab:
+		_apple2_lab.add_theme_color_override("font_color", UiTheme.MUTED)
+		_apple2_lab.text = Locale.t("boot_apple2_building")
+	await get_tree().process_frame
+	if GameState.try_set_apple2_dsk_path(path):
+		_refresh_setup_copy()
+		return
+	if _apple2_lab:
+		_apple2_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+		_apple2_lab.text = Locale.t("boot_apple2_invalid") + "\n" + Locale.t("boot_apple2_hint")
+
+
+func _on_apple2_canceled() -> void:
+	if not _picking_apple2:
+		return
+	_picking_apple2 = false
+
+
+func _continue_to_menu() -> void:
+	if not GameState.u4_data_ok:
+		return
+	GameState.skip_apple2_dsk_prompt()
+	_setup_open = false
+	_status.text = Locale.t("boot_ok")
+	_status.add_theme_color_override("font_color", UiTheme.ACCENT)
+	_status.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_status.custom_minimum_size = Vector2.ZERO
+	if _dos_lab:
+		_dos_lab.visible = false
+	if _apple2_lab:
+		_apple2_lab.visible = false
 	if _choose_btn:
-		_choose_btn.visible = true
+		_choose_btn.visible = false
+	if _apple2_choose_btn:
+		_apple2_choose_btn.visible = false
+	if _continue_btn:
+		_continue_btn.visible = false
+	await get_tree().create_timer(RESULT_SEC).timeout
+	SceneRouter.to_menu()
 
 
 func _on_folder_canceled() -> void:
-	## Folder dialog closed without a selection.
 	if not _picking_folder:
 		return
 	_picking_folder = false
-	_show_required_and_quit()
 
 
 func _show_required_and_quit() -> void:
+	_setup_open = false
+	if _dos_lab:
+		_dos_lab.visible = false
+	if _apple2_lab:
+		_apple2_lab.visible = false
 	if _choose_btn:
 		_choose_btn.visible = false
+	if _apple2_choose_btn:
+		_apple2_choose_btn.visible = false
+	if _continue_btn:
+		_continue_btn.visible = false
 	_status.text = Locale.t("boot_required")
 	_status.add_theme_color_override("font_color", UiTheme.DANGER)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -176,8 +311,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_tree().quit()
 		return
 
-	## Esc while waiting on the choose-folder button → quit path.
-	if _choose_btn != null and _choose_btn.visible and not _picking_folder:
-		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
-			get_viewport().set_input_as_handled()
+	if not _setup_open or _picking_folder or _picking_apple2:
+		return
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
+		get_viewport().set_input_as_handled()
+		if GameState.u4_data_ok:
+			_continue_to_menu()
+		else:
 			_show_required_and_quit()

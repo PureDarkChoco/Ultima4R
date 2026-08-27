@@ -50,6 +50,7 @@ const MONO_GREEN_G := 253
 const MONO_GREEN_B := 165
 const _ResImage := preload("res://src/core/res_image.gd")
 const _Apple2HgrNtsc := preload("res://src/map/apple2_hgr_ntsc.gd")
+const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
 
 ## Legacy aliases (New Color / u4graphics). Prefer shapes_dir() / shapes_pack().
 const SHAPES_DIR := "res://assets/tiles/u4graphics/shapes"
@@ -188,9 +189,14 @@ static func ensure_loaded() -> bool:
 				return false
 			_loaded = true
 			return true
-		RenderPipeline.NEW_COLOR_PNG, \
 		RenderPipeline.APPLE2_MONO_PNG, \
 		RenderPipeline.APPLE2_MONO_GREEN_PNG:
+			if not _load_apple2_mono_from_dsk():
+				_loaded = false
+				return false
+			_loaded = true
+			return true
+		RenderPipeline.NEW_COLOR_PNG:
 			_scan_dir()
 	var missing := 0
 	for i in COUNT:
@@ -236,7 +242,23 @@ static func _load_apple2_hgr() -> bool:
 		var slice := Image.create(cw, ch, false, Image.FORMAT_RGBA8)
 		slice.blit_rect(atlas, Rect2i(tx * cw, ty * ch, cw, ch), Vector2i.ZERO)
 		_frames[i] = [slice]
-		_paths[i] = "%s#%03d" % [APPLE2_HGR_PACK, i]
+		_paths[i] = "%s#%03d" % [_Apple2ProgramDisk.PACK_PATH, i]
+	return true
+
+
+static func _load_apple2_mono_from_dsk() -> bool:
+	## Build 28×32 Mariani-scanline tiles from the same Program-disk SHP banks.
+	if not _Apple2HgrNtsc.ensure_loaded():
+		push_error("U4TileBank: Apple II mono needs Program-disk tile cache")
+		return false
+	for i in COUNT:
+		var img := _Apple2ProgramDisk.render_mono_tile(
+			_Apple2HgrNtsc.shp0(), _Apple2HgrNtsc.shp1(), i
+		)
+		_apply_pipeline_palette(img)
+		_normalize_runtime_tile(img)
+		_frames[i] = [img]
+		_paths[i] = "%s#mono%03d" % [_Apple2ProgramDisk.PACK_PATH, i]
 	return true
 
 

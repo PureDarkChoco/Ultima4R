@@ -15,6 +15,11 @@ assets/ui/u6/
 
 # Apple II U4 tile dumps (copyrighted original art — local reference only)
 reference/apple2_u4/
+assets/tiles/apple2_color/shapes.u4hgr
+assets/tiles/apple2_color/shapes.u4pack
+assets/tiles/apple2_color/shapes/
+assets/tiles/apple2_mono/shapes.u4pack
+assets/tiles/apple2_mono/shapes/
 
 # Local Python tooling (Pillow etc.)
 .tools_py/

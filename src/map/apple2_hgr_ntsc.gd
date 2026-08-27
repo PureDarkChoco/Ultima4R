@@ -2,10 +2,11 @@ class_name Apple2HgrNtsc
 extends RefCounted
 
 ## Runtime Mariani / AppleWin Color-Monitor NTSC for Apple II Ultima IV tiles.
-## Loads SHP0/SHP1 (+ hue LUT) from shapes.u4hgr — not the Program .dsk.
+## Loads SHP0/SHP1 (+ hue LUT) from a user:// pack built from the Program .dsk.
 ## Explore/city terrain: compose a continuous HGR bitfield, then one NTSC pass.
 
-const PACK_PATH := "res://assets/tiles/apple2_color/shapes.u4hgr"
+const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
+const PACK_PATH := "user://apple2/shapes.u4hgr"
 const MAGIC := "U4HG"
 const VERSION := 1
 const BANK_SIZE := 4096
@@ -37,6 +38,14 @@ static func is_ready() -> bool:
 	return _loaded and _shp0.size() == BANK_SIZE and _shp1.size() == BANK_SIZE
 
 
+static func shp0() -> PackedByteArray:
+	return _shp0
+
+
+static func shp1() -> PackedByteArray:
+	return _shp1
+
+
 static func ensure_loaded() -> bool:
 	if is_ready():
 		return true
@@ -59,6 +68,9 @@ static func clear_cache() -> void:
 
 static func _load_pack() -> bool:
 	clear_cache()
+	if not _Apple2ProgramDisk.pack_is_ready():
+		push_error("Apple2HgrNtsc: missing Program-disk tile cache")
+		return false
 	var f := FileAccess.open(PACK_PATH, FileAccess.READ)
 	if f == null:
 		push_error("Apple2HgrNtsc: missing %s" % PACK_PATH)

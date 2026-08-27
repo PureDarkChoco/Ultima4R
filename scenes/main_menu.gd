@@ -752,6 +752,8 @@ func _handle_options_input(event: InputEvent) -> bool:
 	if _options_horizontal_nudge(event):
 		return true
 	if _GameInput.is_cancel(event):
+		if _options_panel != null and _options_panel.has_method("is_picking_file") and _options_panel.is_picking_file():
+			return true
 		_close_options()
 		return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):

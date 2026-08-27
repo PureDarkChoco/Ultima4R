@@ -1,24 +1,18 @@
 # Apple II Monochrome (White / Green)
 
-Optional **Apple II Mono White** and **Apple II Mono Green** graphics modes
-share pre-rendered white monochrome tile PNGs (`shapes/*.png`, packed as
-`shapes.u4pack`).
+Optional **Apple II Mono White** and **Apple II Mono Green** modes use the same
+Program-disk `SHP0` / `SHP1` banks as Color. This repository does **not** ship
+pre-rendered PNG tiles or `shapes.u4pack`.
 
-Source frames are native-display **28×32**: each 14×16 HGR shape bit is
-doubled horizontally and each source row receives a 25%-brightness
-Mariani-style scanline.
-Green is produced at load time by preserving source luminance and mapping full
-white to RGB `(128, 253, 165)`, sampled from the supplied green-monitor image.
-No duplicate green assets are stored. Both modes are displayed at the native
-**8.75:10** aspect.
+When a Program `.dsk` is set, tiles are built at load time as native-display
+**28×32** frames: each 14×16 HGR bit is doubled horizontally and each source
+row receives a 25%-brightness Mariani-style scanline. Green remaps luminance to
+RGB `(128, 253, 165)` at load. Both modes use the **8.75:10** aspect.
 
-**Copyright:** Origin Systems / Electronic Arts — derived from a lawfully
-obtained Apple II Ultima IV Program disk for this fan project’s optional
-graphics mode. Do not redistribute the raw `.dsk`.
+**Copyright:** Origin Systems / Electronic Arts — tile data belongs to the
+rights holders. Do not redistribute the raw `.dsk` or extracted tiles.
 
-Rebuild the native tiles and pack from disk SHP + runtime-expanded animated
-banks (water/fields/lava). The builder merges SHP0/SHP1 with bank1/bank2 so
-static shapes stay authoritative:
+Developer rebuild (local only, never commit):
 
 ```bash
 python3 tools/build_a2_u4_mono_tiles.py

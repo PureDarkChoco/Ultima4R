@@ -1,30 +1,25 @@
 # Apple II Color (runtime HGR → Mariani NTSC)
 
-In-game **Apple II Color** mode does **not** use per-tile PNG atlases.
-It loads `shapes.u4hgr` — only the two 4096-byte Ultima IV Apple II
-language-card tile banks plus an embedded AppleWin/Mariani Color Monitor hue
-LUT.
+Optional **Apple II Color** mode is unlocked only when the player supplies a
+lawfully obtained Ultima IV **Program** disk (`.dsk`, Side A). This repository
+does **not** ship extracted tile banks.
 
-The banks are dumped after the original game has loaded and expanded its
-animated shapes. Raw Program-disk `SHP0` / `SHP1` are not sufficient by
-themselves: water, magic fields, spit and lava are generated or transformed in
-memory, and several raw field slots are blank.
+At runtime the game reads `SHP0` / `SHP1` from that disk and writes a cache
+under `user://apple2/shapes.u4hgr` (banks + AppleWin/Mariani Color Monitor hue
+LUT). Explore/city/combat terrain is composed as a continuous HGR bitfield and
+decoded with one NTSC pass.
 
-At runtime the explore/city/combat terrain grid is composed as a continuous HGR
-bitfield and decoded with one NTSC pass (so wall/water seams keep correct
-artifact color). HUD / roster / overlays use the same banks decoded per tile.
+Raw Program-disk `SHP0` / `SHP1` do not include every in-memory animated shape
+(water, magic fields, lava). Those slots may stay blank until a later LC-expand
+step.
 
-**Copyright:** Origin Systems / Electronic Arts — tile data extracted from a
-lawfully obtained Apple II Ultima IV Program disk for this fan project’s
-optional graphics mode. Do not redistribute the raw `.dsk`.
+**Copyright:** Origin Systems / Electronic Arts — tile data belongs to the
+rights holders. Do not redistribute the raw `.dsk` or extracted banks.
 
-Rebuild the pack from runtime-expanded language-card bank dumps:
+Developer rebuild (local only, never commit):
 
 ```bash
 python3 tools/build_a2_u4_hgr_pack.py \
     --bank1 reference/apple2_u4/bank1.bin \
     --bank2 reference/apple2_u4/bank2.bin
 ```
-
-Runtime: `assets/tiles/apple2_color/shapes.u4hgr`  
-Loader: `Apple2HgrNtsc` + `U4TileBank` when Graphics → Apple II Color is selected.

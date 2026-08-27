@@ -10,14 +10,15 @@ enum Item {
 	LANGUAGE = 0,
 	HANGUL_KEYBOARD = 1,
 	GRAPHICS = 2,
-	RESOLUTION = 3,
-	FULLSCREEN = 4,
-	SFX = 5,
-	MUSIC = 6,
-	GAMEPAD = 7,
+	APPLE2_DISK = 3,
+	RESOLUTION = 4,
+	FULLSCREEN = 5,
+	SFX = 6,
+	MUSIC = 7,
+	GAMEPAD = 8,
 }
 
-const ITEM_COUNT := 8
+const ITEM_COUNT := 9
 const GROUP_AFTER: Array[int] = [
 	Item.HANGUL_KEYBOARD,
 	Item.FULLSCREEN,
@@ -46,6 +47,8 @@ var _group_gaps: Array[Control] = []
 var _cursor := 0
 var _embedded := false
 var _embed_rect := Rect2()
+var _apple2_dialog: FileDialog
+var _picking_apple2 := false
 
 
 func _ready() -> void:
@@ -65,6 +68,10 @@ func _on_fullscreen_changed(_active: bool) -> void:
 
 func is_open() -> bool:
 	return visible
+
+
+func is_picking_file() -> bool:
+	return _picking_apple2
 
 
 func is_embedded() -> bool:
@@ -163,6 +170,8 @@ func cycle_current(delta: int = 1) -> void:
 			_sync_cursor()
 		Item.GRAPHICS:
 			cycle_graphics(delta)
+		Item.APPLE2_DISK:
+			cycle_apple2_disk(delta)
 		Item.GAMEPAD:
 			GamepadSettings.cycle_layout(delta)
 			_refresh_labels()
@@ -183,6 +192,67 @@ func cycle_graphics(delta: int = 1) -> void:
 	GraphicsSettings.cycle_tileset(delta)
 	_refresh_labels()
 	_sync_cursor()
+
+
+func cycle_apple2_disk(delta: int = 1) -> void:
+	if GameState.apple2_dsk_ok and delta < 0:
+		GameState.clear_apple2_dsk()
+		_refresh_labels()
+		_sync_cursor()
+		return
+	_open_apple2_dialog()
+
+
+func _open_apple2_dialog() -> void:
+	_ensure_apple2_dialog()
+	_picking_apple2 = true
+	var start := GameState.apple2_dsk_path.get_base_dir()
+	if start.is_empty() or not DirAccess.dir_exists_absolute(start):
+		start = OS.get_environment("HOME")
+		if start.is_empty():
+			start = OS.get_environment("USERPROFILE")
+	if not start.is_empty() and not _apple2_dialog.use_native_dialog:
+		_apple2_dialog.current_dir = start
+	_apple2_dialog.popup_centered_ratio(0.65)
+
+
+func _ensure_apple2_dialog() -> void:
+	if _apple2_dialog != null:
+		return
+	_apple2_dialog = FileDialog.new()
+	_apple2_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_apple2_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_apple2_dialog.use_native_dialog = _use_native_file_dialog()
+	_apple2_dialog.title = Locale.t("boot_apple2_prompt")
+	_apple2_dialog.ok_button_text = Locale.t("boot_apple2_select")
+	_apple2_dialog.cancel_button_text = Locale.t("boot_path_cancel")
+	_apple2_dialog.min_size = Vector2i(760, 480)
+	_apple2_dialog.exclusive = true
+	_apple2_dialog.unresizable = false
+	_apple2_dialog.add_filter("*.dsk", "Apple II disk")
+	_apple2_dialog.file_selected.connect(_on_apple2_file_selected)
+	_apple2_dialog.canceled.connect(_on_apple2_canceled)
+	add_child(_apple2_dialog)
+
+
+func _use_native_file_dialog() -> bool:
+	if OS.get_name() != "macOS":
+		return false
+	return OS.is_sandboxed() or not OS.has_feature("editor")
+
+
+func _on_apple2_file_selected(path: String) -> void:
+	_picking_apple2 = false
+	if GameState.try_set_apple2_dsk_path(path):
+		_refresh_labels()
+		_sync_cursor()
+		return
+	_refresh_labels()
+	_sync_cursor()
+
+
+func _on_apple2_canceled() -> void:
+	_picking_apple2 = false
 
 
 func cycle_sfx(_delta: int = 1) -> void:
@@ -376,6 +446,8 @@ func _refresh_labels() -> void:
 			]
 		elif i == Item.GRAPHICS:
 			_row_labs[i].text = _graphics_row_text()
+		elif i == Item.APPLE2_DISK:
+			_row_labs[i].text = _apple2_disk_row_text()
 		elif i == Item.RESOLUTION:
 			_row_labs[i].text = _resolution_row_text()
 		elif i == Item.FULLSCREEN:
@@ -397,6 +469,15 @@ func _graphics_row_text() -> String:
 	elif tid == "apple2_mono_green":
 		key = "esc_options_graphics_apple2_mono_green"
 	return "%s: ◂ %s ▸" % [Locale.t("esc_options_graphics"), Locale.t(key)]
+
+
+func _apple2_disk_row_text() -> String:
+	var state := (
+		Locale.t("esc_options_apple2_disk_set")
+		if GameState.apple2_dsk_ok
+		else Locale.t("esc_options_apple2_disk_none")
+	)
+	return "%s: ◂ %s ▸" % [Locale.t("esc_options_apple2_disk"), state]
 
 
 func _resolution_row_text() -> String:

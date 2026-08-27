@@ -25,15 +25,25 @@ const _T := {
 		"en_us": "Ultima IV data not found. Link GOG files to data/u4.",
 		"ko": "울티마 IV 데이터가 없습니다. data/u4 에 GOG 파일을 연결하세요.",
 	},
+	"boot_setup_intro": {
+		"en_u4": "This remake readeth the original Ultima IV files.\nSet the DOS path to begin. Apple II graphics are optional.",
+		"en_us": "This remake reads the original Ultima IV files.\nSet the DOS path to begin. Apple II graphics are optional.",
+		"ko": "이 리메이크는 원작 울티마 IV 파일을 읽습니다.\nDOS 경로를 지정해야 시작할 수 있습니다. Apple II 그래픽은 선택입니다.",
+	},
 	"boot_path_prompt": {
-		"en_u4": "Choose your Ultima IV (DOS) game folder:",
-		"en_us": "Choose your Ultima IV (DOS) game folder:",
-		"ko": "울티마 IV (DOS) 게임 폴더를 선택하세요:",
+		"en_u4": "Ultima IV (DOS) path is required.\nClick the button and choose the folder with WORLD.MAP,\nor the GOG Ultima IV .app bundle.",
+		"en_us": "Ultima IV (DOS) path is required.\nClick the button and choose the folder with WORLD.MAP,\nor the GOG Ultima IV .app bundle.",
+		"ko": "울티마 IV DOS 버전 경로는 필수입니다.\n아래를 눌러 WORLD.MAP이 있는 폴더,\n또는 GOG Ultima IV .app을 지정하세요.",
 	},
 	"boot_path_hint": {
 		"en_u4": "Folder with WORLD.MAP · or the Ultima IV GOG .app bundle",
 		"en_us": "Folder containing WORLD.MAP, or the Ultima IV GOG .app bundle",
 		"ko": "WORLD.MAP 이 있는 폴더, 또는 GOG Ultima IV .app 번들",
+	},
+	"boot_path_ready": {
+		"en_u4": "Ultima IV (DOS) folder is set.",
+		"en_us": "Ultima IV (DOS) folder is set.",
+		"ko": "울티마 IV (DOS) 폴더가 지정되었습니다.",
 	},
 	"boot_path_reselect": {
 		"en_u4": "The configured path no longer hath the game files.\nPlease choose the Ultima IV (DOS) folder again.",
@@ -46,9 +56,14 @@ const _T := {
 		"ko": "macOS에서 저장된 게임 폴더 접근이 거부되었습니다.\n「폴더 선택」으로 Ultima IV.app 또는 WORLD.MAP이 있는 폴더를 지정해 주세요.",
 	},
 	"boot_path_choose": {
-		"en_u4": "Choose Folder…",
-		"en_us": "Choose Folder…",
-		"ko": "폴더 선택…",
+		"en_u4": "Choose DOS Folder…",
+		"en_us": "Choose DOS Folder…",
+		"ko": "DOS 폴더 선택…",
+	},
+	"boot_continue": {
+		"en_u4": "Begin",
+		"en_us": "Start",
+		"ko": "시작",
 	},
 	"boot_path_select": {
 		"en_u4": "Select",
@@ -69,6 +84,51 @@ const _T := {
 		"en_u4": "Ultima IV (DOS) is required to play.\nPress any key to quit.",
 		"en_us": "Ultima IV (DOS) is required to play.\nPress any key to quit.",
 		"ko": "울티마 IV DOS 버전이 필요합니다.\n아무 키나 누르면 종료합니다.",
+	},
+	"boot_apple2_prompt": {
+		"en_u4": "To see Apple II Color / Mono graphics, choose the Program disk\n(.dsk, Side A — not the Britannia save disk).",
+		"en_us": "To see Apple II Color / Mono graphics, choose the Program disk\n(.dsk, Side A — not the Britannia save disk).",
+		"ko": "Apple II 컬러/모노 그래픽을 보려면 Program 디스크\n(.dsk, Side A)를 지정하세요. Britannia(세이브) 디스크가 아닙니다.",
+	},
+	"boot_apple2_hint": {
+		"en_u4": "This is not required. Skip now, or set it later in Options.",
+		"en_us": "This is not required. Skip now, or set it later in Options.",
+		"ko": "필수는 아닙니다. 지금은 건너뛰어도 되고,\n나중에 옵션에서 설정할 수 있습니다.",
+	},
+	"boot_apple2_choose": {
+		"en_u4": "Choose Program Disk…",
+		"en_us": "Choose Program Disk…",
+		"ko": "Program 디스크 선택…",
+	},
+	"boot_apple2_skip": {
+		"en_u4": "Continue",
+		"en_us": "Continue",
+		"ko": "계속",
+	},
+	"boot_apple2_ready": {
+		"en_u4": "Apple II Program disk is set.",
+		"en_us": "Apple II Program disk is set.",
+		"ko": "Apple II Program 디스크가 지정되었습니다.",
+	},
+	"boot_apple2_select": {
+		"en_u4": "Select",
+		"en_us": "Select",
+		"ko": "선택",
+	},
+	"boot_apple2_invalid": {
+		"en_u4": "That is not the Program disk (no SHP0/SHP1).\nBritannia / Towne / Dungeon sides will not work.",
+		"en_us": "That is not the Program disk (no SHP0/SHP1).\nBritannia / Towne / Dungeon sides will not work.",
+		"ko": "Program 디스크가 아닙니다 (SHP0/SHP1 없음).\nBritannia / Towne / Dungeon 면은 사용할 수 없습니다.",
+	},
+	"boot_apple2_ok": {
+		"en_u4": "Apple II Program disk accepted.",
+		"en_us": "Apple II Program disk accepted.",
+		"ko": "Apple II Program 디스크를 확인했습니다.",
+	},
+	"boot_apple2_building": {
+		"en_u4": "Reading Program disk…",
+		"en_us": "Reading Program disk…",
+		"ko": "Program 디스크를 읽는 중…",
 	},
 	"menu_tagline": {
 		"en_u4": "In another world, in a time to come.",
@@ -823,6 +883,21 @@ const _T := {
 		"en_u4": "Apple II Mono Green",
 		"en_us": "Apple II Mono Green",
 		"ko": "Apple II 모노 그린",
+	},
+	"esc_options_apple2_disk": {
+		"en_u4": "Apple II Disk",
+		"en_us": "Apple II Disk",
+		"ko": "Apple II 디스크",
+	},
+	"esc_options_apple2_disk_none": {
+		"en_u4": "Not set",
+		"en_us": "Not set",
+		"ko": "지정 안 됨",
+	},
+	"esc_options_apple2_disk_set": {
+		"en_u4": "Program disk",
+		"en_us": "Program disk",
+		"ko": "Program 디스크",
 	},
 	"esc_options_resolution": {
 		"en_u4": "Resolution",

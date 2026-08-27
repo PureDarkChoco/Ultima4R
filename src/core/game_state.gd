@@ -4,6 +4,7 @@ extends Node
 
 const _Journal := preload("res://src/core/journal.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
+const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
 
 signal language_changed(lang: String)
 
@@ -340,6 +341,13 @@ var u4_data_ok: bool = false
 var u4_data_pref_set: bool = false
 ## macOS: saved path exists but is unreadable until the user re-picks via the native folder dialog.
 var u4_data_needs_macos_permission: bool = false
+## Optional Apple II Program .dsk (Side A) — gates Apple II Color / Mono tilesets.
+var apple2_dsk_path: String = ""
+var apple2_dsk_ok: bool = false
+## True after the user picked a disk or skipped the boot prompt.
+var apple2_dsk_prompted: bool = false
+## Saved path exists but cannot be read until the native file dialog grants access.
+var apple2_dsk_needs_macos_permission: bool = false
 ## Session save/load cursor hints (not written into slot JSON).
 var session_loaded_slot: int = 0 ## 1..4 if Journey loaded a slot this run
 var session_did_save: bool = false
@@ -372,6 +380,7 @@ func _ready() -> void:
 	_load_language_pref()
 	reset_party()
 	u4_data_ok = _probe_u4_data()
+	apple2_dsk_ok = _probe_apple2_dsk()
 	## Defer heavier intro I/O so the first frame / menu can appear sooner.
 	call_deferred("_boot_load_intro_assets")
 
@@ -3350,6 +3359,64 @@ func _load_intro_from_u4() -> void:
 	var title_path := u4_data_path.path_join("TITLE.EXE")
 	if not intro_data.load_from_path(title_path):
 		push_warning("GameState: TITLE.EXE intro strings not loaded from %s" % title_path)
+
+
+func try_set_apple2_dsk_path(path: String) -> bool:
+	## Validate a Program .dsk (SHP0/SHP1), bake user:// tile cache, persist.
+	var resolved := path.strip_edges()
+	if not _Apple2ProgramDisk.looks_like_program_dsk(resolved):
+		return false
+	if not _Apple2ProgramDisk.ensure_pack_from_dsk(resolved):
+		return false
+	apple2_dsk_path = resolved
+	apple2_dsk_ok = true
+	apple2_dsk_prompted = true
+	apple2_dsk_needs_macos_permission = false
+	_persist_apple2_dsk()
+	return true
+
+
+func skip_apple2_dsk_prompt() -> void:
+	apple2_dsk_prompted = true
+	_persist_apple2_dsk()
+
+
+func clear_apple2_dsk() -> void:
+	apple2_dsk_path = ""
+	apple2_dsk_ok = false
+	apple2_dsk_needs_macos_permission = false
+	apple2_dsk_prompted = true
+	_Apple2ProgramDisk.clear_pack()
+	_persist_apple2_dsk()
+	if GraphicsSettings != null and GraphicsSettings.has_method("ensure_available_tileset"):
+		GraphicsSettings.ensure_available_tileset()
+
+
+func _probe_apple2_dsk() -> bool:
+	apple2_dsk_needs_macos_permission = false
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) == OK:
+		apple2_dsk_prompted = bool(cfg.get_value(SETTINGS_SECTION, "apple2_dsk_prompted", false))
+		apple2_dsk_path = str(cfg.get_value(SETTINGS_SECTION, "apple2_dsk_path", "")).strip_edges()
+	if apple2_dsk_path.is_empty():
+		return false
+	apple2_dsk_prompted = true
+	if _Apple2ProgramDisk.looks_like_program_dsk(apple2_dsk_path):
+		if _Apple2ProgramDisk.ensure_pack_from_dsk(apple2_dsk_path):
+			return true
+	if OS.get_name() == "macOS" and OS.is_sandboxed() and FileAccess.file_exists(apple2_dsk_path):
+		## Path remembered but unreadable until the user re-picks the file.
+		if not _Apple2ProgramDisk.is_dsk_image(apple2_dsk_path):
+			apple2_dsk_needs_macos_permission = true
+	return false
+
+
+func _persist_apple2_dsk() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value(SETTINGS_SECTION, "apple2_dsk_path", apple2_dsk_path)
+	cfg.set_value(SETTINGS_SECTION, "apple2_dsk_prompted", apple2_dsk_prompted)
+	cfg.save(SETTINGS_PATH)
 
 
 func try_set_u4_data_path(path: String) -> bool:
