@@ -4504,6 +4504,8 @@ func _seed_talk_latent_keywords() -> void:
 			continue
 		if _talk_should_hide_zair_word(word):
 			continue
+		if _talk_should_hide_antos_foreign_relic_word(word):
+			continue
 		var revealed := (
 			_talk_npc_is_iolo()
 			and _talk_word_is_compassion(word)
@@ -5005,35 +5007,97 @@ func _maybe_offer_sacrifice_mantra_chain_keyword() -> void:
 		)
 
 
-func _journal_has_any_zorin_antos_tip() -> bool:
-	## Zorin names all three relics; any tip (or legacy row) unlocks the set.
+func _journal_has_antos_book_tip() -> bool:
 	return (
 		GameState.journal_has_id("lcb.zorin.antos-book")
-		or GameState.journal_has_id("lcb.zorin.antos-candle")
-		or GameState.journal_has_id("lcb.zorin.antos-bell")
+		or GameState.journal_has_id("lycaeum.father-antos.ask-book")
 		or GameState.journal_has_id("lcb.zorin.antos-relics")
 	)
 
 
+func _journal_has_antos_candle_tip() -> bool:
+	return (
+		GameState.journal_has_id("lcb.zorin.antos-candle")
+		or GameState.journal_has_id("empath.brother-antos.ask-candle")
+		or GameState.journal_has_id("lcb.zorin.antos-relics")
+	)
+
+
+func _journal_has_antos_bell_tip() -> bool:
+	return (
+		GameState.journal_has_id("lcb.zorin.antos-bell")
+		or GameState.journal_has_id("serpent.sister-antos.ask-bell")
+		or GameState.journal_has_id("lcb.zorin.antos-relics")
+	)
+
+
+func _talk_antos_allowed_relic_word() -> String:
+	## One relic per Antos / keep — empty when not talking to them.
+	if _talk_entry == null:
+		return ""
+	var place := _talk_city_id()
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	var korean := GameState.lang_short() == "ko"
+	if place == "lycaeum" and npc == "father antos":
+		return "책" if korean else "book"
+	if place == "empath" and npc == "brother antos":
+		return "촛대" if korean else "candle"
+	if place == "serpent" and npc == "sister antos":
+		return "종" if korean else "bell"
+	return ""
+
+
+func _talk_word_is_antos_relic(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["책", "book", "촛대", "candle", "cand", "종", "bell"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_should_hide_antos_foreign_relic_word(word: String) -> bool:
+	## Lycaeum Father Antos must not keep Empath/Serpent relics from older unlocks.
+	if not _talk_word_is_antos_relic(word):
+		return false
+	var allowed := _talk_antos_allowed_relic_word()
+	if allowed.is_empty():
+		return false
+	return not _talk_stored_key_matches(
+		_talk_keyword_stable_key(word),
+		_talk_keyword_stable_key(allowed)
+	)
+
+
+func _talk_antos_relic_tip_ready() -> bool:
+	var place := _talk_city_id()
+	var npc := (
+		str(_talk_entry.name).strip_edges().to_lower() if _talk_entry != null else ""
+	)
+	if place == "lycaeum" and npc == "father antos":
+		return _journal_has_antos_book_tip()
+	if place == "empath" and npc == "brother antos":
+		return _journal_has_antos_candle_tip()
+	if place == "serpent" and npc == "sister antos":
+		return _journal_has_antos_bell_tip()
+	return false
+
+
 func _maybe_offer_antos_relic_keyword() -> void:
-	## Player knows the three relics, not which Antos answers which — offer all.
+	## Each Antos only unlocks their own relic keyword (place + name).
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
-	var npc := str(_talk_entry.name).strip_edges().to_lower()
-	if npc not in ["father antos", "brother antos", "sister antos"]:
+	if not _talk_antos_relic_tip_ready():
 		return
-	if not _journal_has_any_zorin_antos_tip():
+	var word := _talk_antos_allowed_relic_word()
+	if word.is_empty():
 		return
 	var korean := GameState.lang_short() == "ko"
-	## Same order as Zorin's line: bell, book, candle / 종·책·촛대.
-	var words: Array[String] = (
-		["종", "책", "촛대"] if korean else ["bell", "book", "candle"]
+	var key := _talk_keyword_stable_key(word)
+	_offer_talk_keyword_item(
+		key, word.capitalize() if not korean else word, word
 	)
-	for word in words:
-		var key := _talk_keyword_stable_key(word)
-		_offer_talk_keyword_item(
-			key, word.capitalize() if not korean else word, word
-		)
 
 
 func _maybe_offer_zircon_mystic_keyword() -> void:
@@ -5211,6 +5275,33 @@ func _talk_keyword_menu_intro_default_key() -> String:
 	):
 		default_key = _talk_keyword_stable_key(
 			"부활" if GameState.lang_short() == "ko" else "recall"
+		)
+	elif (
+		_talk_city_id() == "lycaeum"
+		and str(entry.name).strip_edges().to_lower() == "father antos"
+		and _journal_has_antos_book_tip()
+		and not GameState.journal_has_id("lycaeum.father-antos.book")
+	):
+		default_key = _talk_keyword_stable_key(
+			"책" if GameState.lang_short() == "ko" else "book"
+		)
+	elif (
+		_talk_city_id() == "empath"
+		and str(entry.name).strip_edges().to_lower() == "brother antos"
+		and _journal_has_antos_candle_tip()
+		and not GameState.journal_has_id("empath.brother-antos.candle")
+	):
+		default_key = _talk_keyword_stable_key(
+			"촛대" if GameState.lang_short() == "ko" else "candle"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "sister antos"
+		and _journal_has_antos_bell_tip()
+		and not GameState.journal_has_id("serpent.sister-antos.bell")
+	):
+		default_key = _talk_keyword_stable_key(
+			"종" if GameState.lang_short() == "ko" else "bell"
 		)
 	elif (
 		str(entry.name).strip_edges().to_lower() == "nostro"
@@ -6008,6 +6099,8 @@ func _restore_talk_known_keywords() -> void:
 		):
 			continue
 		if _talk_word_is_hidden_menu_interest(stored):
+			continue
+		if _talk_should_hide_antos_foreign_relic_word(stored):
 			continue
 		if _reveal_talk_keyword_if_latent(stored) != 0:
 			continue
@@ -8071,6 +8164,19 @@ func _do_search() -> void:
 	var result: Dictionary = _SearchItems.grant(item)
 	if int(item.get("kind", -1)) == _SearchItems.Kind.SKULL:
 		GameState.journal_mark_goal("search:skull")
+	## Quest relics (Book of Truth under Lycaeum 'T', etc.).
+	var quest_flag := int(item.get("data", 0))
+	if int(item.get("kind", -1)) == _SearchItems.Kind.QUEST_ITEM:
+		if quest_flag == GameState.ITEM_BOOK:
+			GameState.journal_mark_goal("item:book")
+		elif quest_flag == GameState.ITEM_CANDLE:
+			GameState.journal_mark_goal("item:candle")
+		elif quest_flag == GameState.ITEM_BELL:
+			GameState.journal_mark_goal("item:bell")
+		elif quest_flag == GameState.ITEM_HORN:
+			GameState.journal_mark_goal("item:horn")
+		elif quest_flag == GameState.ITEM_WHEEL:
+			GameState.journal_mark_goal("item:wheel")
 	if bool(result.get("dropped", false)):
 		_push_message(Locale.t("cmd_search_dropped"), false)
 	if bool(result.get("telescope", false)):

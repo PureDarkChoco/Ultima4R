@@ -813,6 +813,7 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 		catalog_goal.begins_with("rune:")
 		or catalog_goal.begins_with("stone:")
 		or catalog_goal.begins_with("use:stone:")
+		or catalog_goal.begins_with("item:")
 	):
 		if bool(row.get("done", false)) != inventory_done:
 			row["done"] = inventory_done
@@ -873,6 +874,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return gs.is_person_joined("Dupre")
 	if g == "item:sextant" or g == "sextant":
 		return bool(gs.has_sextant)
+	if g == "item:book" or g == "book":
+		return gs.has_item_flag(gs.ITEM_BOOK)
 	if g == "enter:hythloth-castle":
 		## Descended into Hythloth from Castle Britannia (secret entrance).
 		return bool(gs.journal_hythloth_castle)

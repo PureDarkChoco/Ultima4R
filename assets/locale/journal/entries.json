@@ -143,11 +143,11 @@
       "topic": "BOOK",
       "chain": "lycaeum.antos-book",
       "chain_order": 10,
-      "goal": "",
-      "en": "Search where other books are.",
-      "ko": "다른 책들이 있는 곳에서 찾기",
-      "en_u4": "Search where other books lie.",
-      "en_us": "Search where other books are."
+      "goal": "item:book",
+      "en": "Find the Book of Truth where other books are.",
+      "ko": "책이 있는 곳에서 진리의 책 찾기",
+      "en_u4": "Seek the Book of Truth where other books lie.",
+      "en_us": "Find the Book of Truth where other books are."
     },
     {
       "id": "empath.brother-antos.ask-candle",
@@ -2671,10 +2671,13 @@
       "place": "lycaeum",
       "npc": "Lord Terence",
       "topic": "TRUT",
-      "en": "Search under 't'.",
-      "ko": "‘t’ 아래에서 찾기",
-      "en_u4": "Search under 't'.",
-      "en_us": "Search under 't'."
+      "chain": "lycaeum.antos-book",
+      "chain_order": 20,
+      "goal": "item:book",
+      "en": "Search under 'T'.",
+      "ko": "‘T’에서 찾기",
+      "en_u4": "Search under 'T'.",
+      "en_us": "Search under 'T'."
     },
     {
       "id": "lycaeum.scatu.zircon-mystics",
