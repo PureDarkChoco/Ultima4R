@@ -43,6 +43,10 @@
 **주문 A–Z:** 던전 전용 **L Light / X X-it / Y Y-up / Z Z-down** 포함해 모두 동작함.
 
 **최근 완료 (2026-08-27):**
+- [x] Apple II Color / Mono — 추출 타일을 repo에서 제거, 플레이어 Program `.dsk`에서 SHP0/SHP1 로드
+- [x] 부트 한 화면: DOS 폴더(필수) + Apple II Program 디스크(선택) · 옵션에서 재지정
+- [x] Apple II Color NTSC 연속 합성 (타일 경계 · AppleWin/Mariani hue)
+- [x] About / README Apple II 출처 (추출 타일 미배포 · AppleWin GPL)
 - [x] 리케움 대화 패스 (한국어 토픽·여행 기록·망원경 Search · Estro/Yew 정의 연쇄)
 - [x] GOG 데이터 자동 탐색 (macOS/Windows, 무료 → 유료 → 수동 지정)
 - [x] macOS export 샌드박스 · 네이티브 폴더 선택 · security-scoped bookmark
@@ -91,7 +95,7 @@
 목표: 메뉴 → 미덕 질문 → 이름/성별 → 월드 진입.
 
 ### I1. 플로우 골격
-- [x] `✅` `boot.tscn` — 데이터 탐지 후 메뉴
+- [x] `✅` `boot.tscn` — DOS 폴더(필수) + Apple II Program `.dsk`(선택) 지정 후 메뉴
 - [x] `✅` `main_menu.tscn` — New Game / Journey / Options / Quit (옵션 = 맵 프레임 임베드)
 - [x] `✅` `virtue_questions.tscn` — 7라운드 토너먼트 (xu4 알고리즘)
 - [x] `✅` `name_gender.tscn` — 이름·성별 (메뉴 프레임 임베드 가능)
@@ -121,6 +125,8 @@
 
 ### A1. 원본 데이터 로더
 - [x] `✅` u4graphics `shapes` → 타일 뱅크 (32×32 × 256, Nearest)
+- [x] `✅` Apple II Color / Mono — Program `.dsk` SHP0/SHP1 → `user://` 캐시 (repo 미배포)
+- [x] `✅` Apple II Color NTSC 연속 합성 (타일 경계)
 - [x] `✅` `WORLD.MAP` 로드 · 래핑 · 맵 페인팅
 - [x] `✅` 타일 속성(통과/물/산/지형 피해 등) — `tile_rules.gd`
 - [x] `✅` 도시/성 `.ULT` 로드 & 월드 진입 포털 (`world_portals`, `city_map_data`)
@@ -326,8 +332,10 @@
 - [x] `✅` 옵션 음악 볼륨
 - [ ] `🔄` 설정 확장 (효과음 독립 볼륨 · 전투 조준 모드 등)
 - [ ] `⬜` 접근성 (텍스트 크기, 고대비 UI — 여유 시)
-- [x] `✅` 원본 데이터 미검출 시 부트 안내 (GOG 폴더 선택 · macOS 권한 안내)
-- [ ] `⬜` 빌드/배포 노트 (GOG 데이터 필요 안내, 라이선스)
+- [x] `✅` 원본 데이터 미검출 시 부트 안내 (GOG 폴더 선택 · Apple II `.dsk` 선택 · macOS 권한 안내)
+- [x] `✅` About / README 출처 (xu4 · AppleWin · u4graphics · DOS/Apple II 데이터 미배포)
+- [ ] `⬜` 루트 `LICENSE` + 서드파티 고지 (xu4 GPL-3 · AppleWin GPL-2+ · libhangul LGPL)
+- [ ] `⬜` 빌드/배포 노트 (GOG DOS 데이터 · 선택 Apple II Program `.dsk` 안내)
 
 ---
 
@@ -357,7 +365,7 @@
 - xu4 C++ 코드를 Godot으로 1:1 포트
 - 원작 EGA만 고집하는 “완전 올드스쿨” 비주얼 (개발 중 임시 사용은 OK)
 - 세이브 파일 원작 바이너리 완전 호환을 **필수**로 둠
-- GOG/원작 에셋을 git에 커밋
+- GOG/원작 에셋·추출 Apple II 타일을 git에 커밋
 
 ---
 
@@ -380,7 +388,8 @@
 - [ ] 대화 키워드: 언어별 트리거 문자열 vs 내부 ID 통일
 - [ ] 음악: 원작 MIDI/모듈 vs 신규 OST (미정)
 - [ ] 월드 원거리 미구현이 맞는 몬스터(닉시·오징어·해마 등) — 전투맵 only 유지
+- [ ] Apple II raw SHP: 물/필드/용암 등 애니 프레임이 비는 경우 보완
 
 ---
 
-*마지막 정리: 2026-08-27 — 리케움 대화 패스·GOG 경로/샌드박스·타이틀 intro. 남은 큰 덩어리는 남은 도시 대화·패드·PP 아트*
+*마지막 정리: 2026-08-27 — Apple II Program `.dsk` 런타임 로드·부트 지정 화면·About 동기화. 남은 큰 덩어리는 남은 도시 대화·패드·PP 아트·루트 LICENSE*

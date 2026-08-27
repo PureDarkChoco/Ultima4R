@@ -86,9 +86,9 @@ const _T := {
 		"ko": "울티마 IV DOS 버전이 필요합니다.\n아무 키나 누르면 종료합니다.",
 	},
 	"boot_apple2_prompt": {
-		"en_u4": "To see Apple II Color / Mono graphics, choose the Program disk\n(.dsk, Side A — not the Britannia save disk).",
-		"en_us": "To see Apple II Color / Mono graphics, choose the Program disk\n(.dsk, Side A — not the Britannia save disk).",
-		"ko": "Apple II 컬러/모노 그래픽을 보려면 Program 디스크\n(.dsk, Side A)를 지정하세요. Britannia(세이브) 디스크가 아닙니다.",
+		"en_u4": "To see Apple II Color / Mono graphics, choose the Program disk (.dsk).",
+		"en_us": "To see Apple II Color / Mono graphics, choose the Program disk (.dsk).",
+		"ko": "Apple II 컬러/모노 그래픽을 보려면 Program 디스크(.dsk)를 지정하세요.",
 	},
 	"boot_apple2_hint": {
 		"en_u4": "This is not required. Skip now, or set it later in Options.",

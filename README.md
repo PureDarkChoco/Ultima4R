@@ -15,7 +15,7 @@ This fan project is not affiliated with or endorsed by Electronic Arts or the or
 
 원작 **Ultima IV DOS** 데이터가 필요합니다. 이 저장소는 그 데이터를 배포하지 않습니다. GOG 등에서 합법적으로 구한 뒤, 게임 데이터 폴더를 `data/u4`로 연결하거나 실행 시 경로를 지정하세요.
 
-Apple II Color / Mono 그래픽은 별도로 Apple II **Program** 디스크(`.dsk`, Side A)가 필요합니다. 없어도 DOS 데이터만으로 플레이할 수 있고, 나중에 옵션에서 지정할 수 있습니다.
+Apple II Color / Mono 그래픽은 별도로 Apple II **Program** 디스크(`.dsk`)가 필요합니다. 없어도 DOS 데이터만으로 플레이할 수 있고, 나중에 옵션에서 지정할 수 있습니다.
 
 원본 데이터는 사용자가 취득한 라이선스와 배포처 조건을 따릅니다.
 
@@ -23,7 +23,7 @@ Apple II Color / Mono 그래픽은 별도로 Apple II **Program** 디스크(`.ds
 
 You need original **Ultima IV for DOS** game data. This repository does not ship that data. Obtain it lawfully (for example from GOG), then point the game at it with a `data/u4` link or a path at runtime.
 
-Apple II Color / Mono graphics also need an Apple II **Program** disk (`.dsk`, Side A). The game is playable without it; you can set the disk later in Options.
+Apple II Color / Mono graphics also need an Apple II **Program** disk (`.dsk`). The game is playable without it; you can set the disk later in Options.
 
 That data remains subject to the license and terms under which you acquired it.
 
@@ -75,7 +75,7 @@ The Unlicense에 따라 퍼블릭 도메인으로 공개되었습니다.
 
 ### Apple II
 
-선택 가능한 Apple II Color / Mono White / Mono Green 모드는 사용자가 합법적으로 구한 Apple II판 Ultima IV Program 디스크(.dsk, Side A)에서 타일을 읽습니다. Britannia(세이브) 디스크가 아닙니다. 원본 디스크는 배포하지 않습니다. 해당 타일 데이터의 권리는 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
+선택 가능한 Apple II Color / Mono White / Mono Green 모드는 사용자가 합법적으로 구한 Apple II판 Ultima IV Program 디스크(.dsk)에서 타일을 읽습니다. 원본 디스크는 배포하지 않습니다. 해당 타일 데이터의 권리는 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
 
 Apple II Color의 NTSC 합성 색상 디코딩은 AppleWin의 Color Monitor 경로(NTSC.cpp, William S. Simms / Michael Pohoreski)를 참고했으며, Mariani/AppleWin Composite Monitor hue LUT를 사용합니다.  
 [AppleWin](https://github.com/AppleWin/AppleWin) — GNU General Public License version 2 (GPL-2.0) 이상.
@@ -139,7 +139,7 @@ Ultima IV tile graphics (New Color) use [jahshuwaa's u4graphics](https://github.
 
 ### Apple II
 
-The optional Apple II Color / Mono White / Mono Green modes read tiles from a lawfully obtained Apple II Ultima IV Program disk (.dsk, Side A). That is not the Britannia (save) disk. The original disk image is not distributed. Rights in that tile data belong to Origin Systems / Electronic Arts and other respective owners.
+The optional Apple II Color / Mono White / Mono Green modes read tiles from a lawfully obtained Apple II Ultima IV Program disk (.dsk). The original disk image is not distributed. Rights in that tile data belong to Origin Systems / Electronic Arts and other respective owners.
 
 Apple II Color NTSC composite decoding consults AppleWin's Color Monitor path (NTSC.cpp, William S. Simms / Michael Pohoreski) and uses a Mariani/AppleWin Composite Monitor hue LUT.  
 [AppleWin](https://github.com/AppleWin/AppleWin) — GNU General Public License version 2 (GPL-2.0) or later.
