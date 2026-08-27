@@ -390,6 +390,9 @@ func _mark_input_handled() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _GameInput.should_block_event(event):
+		_mark_input_handled()
+		return
 	_note_menu_input_device(event)
 	## Cancel/confirm on load/options list — use _input so Esc is not lost to GUI.
 	if _load_open:
@@ -463,6 +466,9 @@ func _move_main_menu_focus(step: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _GameInput.should_block_event(event):
+		get_viewport().set_input_as_handled()
+		return
 	_note_menu_input_device(event)
 	if _load_open or _options_open or _licenses_open:
 		## Already handled in _input when active.

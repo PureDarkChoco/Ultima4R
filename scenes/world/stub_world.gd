@@ -7047,6 +7047,9 @@ func _mark_input_handled() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _GameInput.should_block_event(event):
+		_mark_input_handled()
+		return
 	## L2 opens journal browse (left pane only if sides are closed).
 	## R2 mirrors Tab — open/close the side panels.
 	## Axis events repeat while held, so fire once after crossing the
@@ -7155,6 +7158,9 @@ func _handle_panel_toggle() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _GameInput.should_block_event(event):
+		_mark_input_handled()
+		return
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
 		_mark_input_handled()

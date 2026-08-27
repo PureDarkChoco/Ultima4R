@@ -13,6 +13,31 @@ const STICK_NAV_RELEASE := 0.30
 static var _stick_nav_latches: Dictionary = {}
 static var _select_x_latches: Dictionary = {}
 static var _select_y_latches: Dictionary = {}
+static var _application_focused := true
+
+
+static func set_application_focused(focused: bool) -> void:
+	if _application_focused == focused:
+		return
+	_application_focused = focused
+	reset_stick_navigation()
+	if not focused:
+		Input.flush_buffered_events()
+
+
+static func application_focused() -> bool:
+	return _application_focused
+
+
+static func should_block_event(event: InputEvent) -> bool:
+	## Background windows must not react to pad motion/buttons still routed here.
+	return not _application_focused and (
+		event is InputEventJoypadButton or event is InputEventJoypadMotion
+	)
+
+
+static func _poll_allowed() -> bool:
+	return _application_focused
 
 
 static func ensure_input_map() -> void:
@@ -44,6 +69,8 @@ static func rebind_confirm_cancel() -> void:
 
 
 static func is_cancel(event: InputEvent) -> bool:
+	if should_block_event(event):
+		return false
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event.is_action_pressed("cancel") or event.is_action_pressed("ui_cancel"):
@@ -55,6 +82,8 @@ static func is_cancel(event: InputEvent) -> bool:
 
 static func is_select(event: InputEvent) -> bool:
 	## Confirm face button / Enter — Space is Pass only, never confirm.
+	if should_block_event(event):
+		return false
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
@@ -72,6 +101,8 @@ static func is_select(event: InputEvent) -> bool:
 
 static func is_pass(event: InputEvent) -> bool:
 	## West-face (X) is the direct Pass shortcut in explore and combat.
+	if should_block_event(event):
+		return false
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
@@ -81,6 +112,8 @@ static func is_pass(event: InputEvent) -> bool:
 
 static func is_victory_exit(event: InputEvent) -> bool:
 	## North-face (Y) opens the post-combat battlefield exit confirmation.
+	if should_block_event(event):
+		return false
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
@@ -90,6 +123,8 @@ static func is_victory_exit(event: InputEvent) -> bool:
 
 static func is_foe_roster_next(event: InputEvent) -> bool:
 	## Right bumper / > (or .) — cycle down the combat foe list.
+	if should_block_event(event):
+		return false
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
@@ -105,6 +140,8 @@ static func is_foe_roster_next(event: InputEvent) -> bool:
 
 static func is_foe_roster_prev(event: InputEvent) -> bool:
 	## Left bumper / < (or ,) — cycle up the combat foe list.
+	if should_block_event(event):
+		return false
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if event is InputEventJoypadButton:
@@ -122,6 +159,8 @@ static func dir_from_event(event: InputEvent) -> Vector2i:
 	## Single-step dir from a pressed key / d-pad / stick threshold.
 	## Stick: one step per tilt (must return near-neutral first). Without this,
 	## JoypadMotion floods while held and combat / Dir? / aim jump many tiles.
+	if should_block_event(event):
+		return Vector2i.ZERO
 	if event is InputEventJoypadMotion:
 		return stick_direction_step(event)
 	if not event.is_pressed() or event.is_echo():
@@ -163,6 +202,8 @@ static func dir_from_event(event: InputEvent) -> Vector2i:
 
 static func read_move_dir() -> Vector2i:
 	## Held direction for world/menu poll (keys, D-pad, left stick).
+	if not _poll_allowed():
+		return Vector2i.ZERO
 	if Input.is_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_LEFT):
 		return Vector2i(-1, 0)
 	if Input.is_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_RIGHT):
@@ -183,6 +224,8 @@ static func read_move_dir() -> Vector2i:
 
 
 static func is_dpad_held() -> bool:
+	if not _poll_allowed():
+		return false
 	for device in Input.get_connected_joypads():
 		if (
 			Input.is_joy_button_pressed(device, JOY_BUTTON_DPAD_LEFT)
@@ -197,6 +240,8 @@ static func is_dpad_held() -> bool:
 static func is_move_from_gamepad() -> bool:
 	## True when the current held move comes from a pad (not arrow/WASD keys).
 	## Matches read_move_dir() priority: keys win, so hybrid keyboard+pad is "keyboard".
+	if not _poll_allowed():
+		return false
 	if (
 		Input.is_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_LEFT)
 		or Input.is_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_RIGHT)
@@ -218,6 +263,8 @@ static func is_move_from_gamepad() -> bool:
 static func read_select_step() -> int:
 	## -1 up, +1 down, 0 none. Keyboard/D-pad stay immediate; stick uses
 	## press/release hysteresis while preserving the caller's hold-repeat timer.
+	if not _poll_allowed():
+		return 0
 	if Input.is_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_UP):
 		return -1
 	if Input.is_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_DOWN):
@@ -246,6 +293,8 @@ static func read_select_step() -> int:
 
 static func read_select_step_x() -> int:
 	## -1 left, +1 right, 0 none. Same hold-repeat contract as read_select_step().
+	if not _poll_allowed():
+		return 0
 	if Input.is_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_LEFT):
 		return -1
 	if Input.is_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_RIGHT):
@@ -275,6 +324,8 @@ static func read_select_step_x() -> int:
 static func stick_axis_step(event: InputEvent, axis: JoyAxis) -> int:
 	## One navigation step per deliberate tilt. The axis must return near
 	## neutral before either direction can fire again, which filters snap-back.
+	if should_block_event(event):
+		return 0
 	if not (event is InputEventJoypadMotion):
 		return 0
 	var motion := event as InputEventJoypadMotion
@@ -343,6 +394,8 @@ static func latch_current_stick_navigation() -> void:
 static func stick_clear_if_released(event: InputEvent) -> void:
 	## During foe turns / busy frames: clear latch on release only.
 	## Do not latch a fresh tilt — that would eat the player's next move.
+	if should_block_event(event):
+		return
 	if not (event is InputEventJoypadMotion):
 		return
 	var motion := event as InputEventJoypadMotion

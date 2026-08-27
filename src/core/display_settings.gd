@@ -60,6 +60,8 @@ func _boot() -> void:
 	await get_tree().process_frame
 	_apply_content_scale()
 	_lock_resize()
+	var win := get_window()
+	_GameInput.set_application_focused(win.has_focus() if win != null else true)
 	_booting = false
 
 
@@ -159,6 +161,9 @@ func _poll_fullscreen_hotkeys() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _GameInput.should_block_event(event):
+		get_viewport().set_input_as_handled()
+		return
 	if is_toggle_fullscreen_event(event):
 		## Prevent the process-level poll from firing again while this chord
 		## remains physically held.
@@ -171,6 +176,9 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _GameInput.should_block_event(event):
+		get_viewport().set_input_as_handled()
+		return
 	if is_toggle_fullscreen_event(event):
 		toggle_fullscreen()
 		get_viewport().set_input_as_handled()
@@ -721,9 +729,13 @@ func _notification(what: int) -> void:
 		_on_closing()
 	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT \
 			or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		_GameInput.set_application_focused(false)
 		if not _booting and not _is_fullscreen and not _restoring_windowed:
 			_capture_windowed_state()
 			_schedule_save()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN \
+			or what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
+		_GameInput.set_application_focused(true)
 	elif what == NOTIFICATION_WM_SIZE_CHANGED:
 		if not _booting:
 			_apply_content_scale()
