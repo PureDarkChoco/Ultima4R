@@ -228,8 +228,22 @@ static func grant(item: Dictionary) -> Dictionary:
 	return {"dropped": dropped, "telescope": false}
 
 
+static func telescope_choice_count() -> int:
+	return TELESCOPE_CITIES.size()
+
+
 static func telescope_city_fname(choice_index: int) -> String:
 	## choice_index 0..15 for A..P.
 	if choice_index < 0 or choice_index >= TELESCOPE_CITIES.size():
 		return ""
 	return str(TELESCOPE_CITIES[choice_index])
+
+
+static func telescope_city_place_id(choice_index: int) -> String:
+	## Journal / locale place key for telescope dial A..P.
+	var fname := telescope_city_fname(choice_index).get_file().to_lower()
+	if fname.is_empty():
+		return ""
+	if fname.begins_with("lcb"):
+		return "lcb"
+	return fname.get_basename()

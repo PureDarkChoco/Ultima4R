@@ -2756,16 +2756,6 @@
       "ko": "부활: 재·인삼·마늘·거미실·블러드모스·맨드레이크."
     },
     {
-      "id": "lycaeum.palamar.telescope",
-      "place": "lycaeum",
-      "npc": "Palamar",
-      "topic": "TELE",
-      "en": "Search the end of the telescope for a knob.",
-      "ko": "망원경 끝에서 찾기",
-      "en_u4": "Search by the end of the telescope for a knob.",
-      "en_us": "Search the end of the telescope for a knob."
-    },
-    {
       "id": "lycaeum.estro.yew-judge",
       "place": "lycaeum",
       "npc": "Estro",

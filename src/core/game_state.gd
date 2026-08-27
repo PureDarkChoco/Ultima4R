@@ -3550,6 +3550,10 @@ func journal_mark_id(id: String) -> bool:
 	return _Journal.mark_id(self, id)
 
 
+func journal_reconcile_estro_yew() -> bool:
+	return _Journal.mark_goals_for_inventory(self)
+
+
 func journal_capture_know(raw: Variant) -> bool:
 	return _Journal.capture_know(self, raw)
 

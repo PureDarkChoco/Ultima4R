@@ -9,6 +9,7 @@ const _IntroController := preload("res://src/intro/intro_controller.gd")
 const _OptionsPanel := preload("res://src/ui/options_panel.gd")
 const _LicensesPanel := preload("res://src/ui/licenses_panel.gd")
 const _GameInput := preload("res://src/core/game_input.gd")
+const _MenuHoldRepeat := preload("res://src/core/menu_hold_repeat.gd")
 const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
@@ -39,12 +40,7 @@ var _options_open := false
 var _licenses_open := false
 ## Korean menu: show R)/J)/… prefixes only after keyboard use (hide on gamepad).
 var _menu_hotkeys_visible := false
-var _hold_arm := 0.0
-var _move_cd := 0.0
-var _held_dir := Vector2i.ZERO
-var _move_repeating := false
-const HOLD_DELAY := 0.28
-const HOLD_INTERVAL := 0.10
+var _menu_hold_repeat = _MenuHoldRepeat.new()
 
 
 func _ready() -> void:
@@ -97,6 +93,7 @@ func _ready() -> void:
 
 func _on_intro_mode(mode: int) -> void:
 	var menu_on := mode == _IntroController.Mode.MENU
+	_menu_hold_repeat.reset()
 	## Load / create / options forms fill the frame — keep Journey lines hidden.
 	_text_block.visible = (
 		menu_on and not _load_open and not _create_open
@@ -356,37 +353,33 @@ func _place(node: Control, col: float, row: float, w: float, h: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if not _load_open and not _options_open and not _licenses_open:
+	if _create_open:
 		return
-	_move_cd = maxf(0.0, _move_cd - delta)
-	_hold_arm = maxf(0.0, _hold_arm - delta)
-	var step: int = _GameInput.read_select_step()
-	if step == 0:
-		_held_dir = Vector2i.ZERO
-		_move_repeating = false
-		_hold_arm = 0.0
+	var base_menu_open: bool = (
+		not _load_open and not _options_open and not _licenses_open
+		and _intro != null and _intro.mode == _IntroController.Mode.MENU
+	)
+	if not base_menu_open and not _load_open and not _options_open and not _licenses_open:
+		_menu_hold_repeat.reset()
 		return
-	var held := Vector2i(0, step)
-	if held != _held_dir:
-		_held_dir = held
-		_move_repeating = false
-		_hold_arm = 0.0
-	if _move_cd > 0.0:
+	var held := Vector2i(
+		_GameInput.read_select_step_x() if _options_open else 0,
+		_GameInput.read_select_step()
+	)
+	var nav := _menu_hold_repeat.poll(delta, held)
+	if nav == Vector2i.ZERO:
 		return
-	if _move_repeating and _hold_arm > 0.0:
-		return
-	if _load_open and _save_panel:
-		_save_panel.nudge_cursor(step)
+	if base_menu_open:
+		_move_main_menu_focus(nav.y)
+	elif _load_open and _save_panel:
+		_save_panel.nudge_cursor(nav.y)
 	elif _options_open and _options_panel:
-		_options_panel.nudge_cursor(step)
+		if nav.x != 0:
+			_options_panel.cycle_current(nav.x)
+		else:
+			_options_panel.nudge_cursor(nav.y)
 	elif _licenses_open and _licenses_panel:
-		_licenses_panel.scroll_by(float(step) * 54.0)
-	_move_cd = HOLD_INTERVAL
-	if _move_repeating:
-		_hold_arm = 0.0
-	else:
-		_move_repeating = true
-		_hold_arm = HOLD_DELAY
+		_licenses_panel.scroll_by(float(nav.y) * 54.0)
 
 
 func _mark_input_handled() -> void:
@@ -414,15 +407,20 @@ func _input(event: InputEvent) -> void:
 	if _create_open:
 		return
 	if event is InputEventJoypadMotion:
-		var stick_dir: Vector2i = _GameInput.stick_direction_step(event)
-		if stick_dir.y != 0:
-			_move_main_menu_focus(stick_dir.y)
 		if (
 			(event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_X
 			or (event as InputEventJoypadMotion).axis == JOY_AXIS_LEFT_Y
 		):
 			_mark_input_handled()
 			return
+	if (
+		_intro != null
+		and _intro.mode == _IntroController.Mode.MENU
+		and _GameInput.dir_from_event(event) != Vector2i.ZERO
+	):
+		## Focus movement is polled so keys, D-pad, and stick repeat identically.
+		_mark_input_handled()
+		return
 	## Main Journey list: A / Enter activate the focused line (do not rely on
 	## BaseButton ui_accept alone — gamepad often never fires pressed).
 	if (
@@ -600,10 +598,7 @@ func _on_journey() -> void:
 		return
 	_ensure_save_panel()
 	_load_open = true
-	_held_dir = Vector2i.ZERO
-	_move_repeating = false
-	_hold_arm = 0.0
-	_move_cd = 0.0
+	_menu_hold_repeat.reset()
 	## Clear Journey menu chrome; show load list in the same frame box.
 	_text_block.visible = false
 	_hint.visible = false
@@ -642,10 +637,7 @@ func _on_options() -> void:
 		return
 	_ensure_options_panel()
 	_options_open = true
-	_held_dir = Vector2i.ZERO
-	_move_repeating = false
-	_hold_arm = 0.0
-	_move_cd = 0.0
+	_menu_hold_repeat.reset()
 	_text_block.visible = false
 	_hint.visible = false
 	var fo := get_viewport().gui_get_focus_owner()
@@ -663,10 +655,7 @@ func _on_licenses() -> void:
 		return
 	_ensure_licenses_panel()
 	_licenses_open = true
-	_held_dir = Vector2i.ZERO
-	_move_repeating = false
-	_hold_arm = 0.0
-	_move_cd = 0.0
+	_menu_hold_repeat.reset()
 	_text_block.visible = false
 	_hint.visible = false
 	var fo := get_viewport().gui_get_focus_owner()
@@ -750,19 +739,12 @@ func _close_name_form() -> void:
 
 func _handle_options_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadMotion:
-		var motion := event as InputEventJoypadMotion
-		if motion.axis == JOY_AXIS_LEFT_X:
-			var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-			if stick_step != 0 and _options_panel:
-				_options_panel.cycle_current(stick_step)
-			return true
+		## Shared menu polling handles both axes and held-repeat.
+		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _options_horizontal_nudge(event):
-		var dir := _options_value_delta(event)
-		if dir != 0 and _options_panel:
-			_options_panel.cycle_current(dir)
-			return true
+		return true
 	if _GameInput.is_cancel(event):
 		_close_options()
 		return true
@@ -781,13 +763,9 @@ func _options_horizontal_nudge(event: InputEvent) -> bool:
 	return d.x != 0
 
 
-func _options_value_delta(event: InputEvent) -> int:
-	var d: Vector2i = _GameInput.dir_from_event(event)
-	return d.x
-
-
 func _close_options() -> void:
 	_options_open = false
+	_menu_hold_repeat.reset()
 	if _options_panel:
 		_options_panel.close_panel()
 	if _intro != null and _intro.mode == _IntroController.Mode.MENU:
@@ -836,6 +814,7 @@ func _close_licenses() -> void:
 
 func _on_licenses_panel_closed() -> void:
 	_licenses_open = false
+	_menu_hold_repeat.reset()
 	if _intro != null and _intro.mode == _IntroController.Mode.MENU:
 		_text_block.visible = true
 		_hint.visible = false
@@ -942,6 +921,7 @@ func _confirm_load(slot_index: int) -> void:
 
 func _close_load() -> void:
 	_load_open = false
+	_menu_hold_repeat.reset()
 	if _save_panel:
 		_save_panel.close_panel()
 	## Restore Journey menu inside the frame.

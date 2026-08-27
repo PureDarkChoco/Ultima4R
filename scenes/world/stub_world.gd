@@ -37,6 +37,7 @@ const _Shrine := preload("res://src/core/shrine.gd")
 const _Hawkwind := preload("res://src/core/hawkwind.gd")
 const _LordBritish := preload("res://src/core/lord_british.gd")
 const _GameInput := preload("res://src/core/game_input.gd")
+const _MenuHoldRepeat := preload("res://src/core/menu_hold_repeat.gd")
 ## Preload — bare class_name can miss the global class cache (black screen).
 const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 const _JournalScript := preload("res://src/core/journal.gd")
@@ -71,6 +72,7 @@ var _mix_panel # MixPanel — preloaded script instance
 var _cast_panel # CastPanel — preloaded script instance
 var _use_panel # UsePanel — preloaded script instance
 var _party_target_picker = _PartyTargetPicker.new()
+var _menu_hold_repeat = _MenuHoldRepeat.new()
 enum PartyTargetKind { NONE, READY, WEAR, CAST_CASTER, CAST_TARGET, CAMP, CHEST, FOUNTAIN, ORB, HEALER }
 var _party_target_kind: int = PartyTargetKind.NONE
 var _locate_label: Label
@@ -301,8 +303,11 @@ var _fountain_drink_cursor := 0
 ## Dungeon orb Search: 0 = idle, 1 = Who touches? (digit / list Enter).
 var _orb_touch_stage := 0
 var _orb_touch_cursor := 0
-## xu4 telescope Use via Search — wait for A–P city choice.
+## xu4 telescope Use via Search — A–P city dial (menu + direct keys).
 var _telescope_stage := 0
+var _telescope_items: Array[Dictionary] = []
+var _telescope_cursor := 0
+var _telescope_scroll := 0
 ## True while xu4 immobilized (all asleep) auto-turns are queued.
 var _immobilized_pending := false
 ## xu4 settings campTime default (Resting… animation seconds).
@@ -1592,6 +1597,10 @@ func _command_menu_scroll_metrics() -> Dictionary:
 		total = _city_warp_items.size()
 		scroll = _city_warp_scroll
 		vis = _city_warp_visible_count()
+	elif _telescope_stage == 1:
+		total = _telescope_items.size()
+		scroll = _telescope_scroll
+		vis = _telescope_visible_count()
 	elif _abyss_altar_choice_active:
 		total = _abyss_altar_choice_items.size()
 		vis = mini(MSG_OPEN_LINES, total)
@@ -1631,6 +1640,20 @@ func _rebuild_command_menu_rows() -> void:
 			if abs_i < 0 or abs_i >= _city_warp_items.size():
 				continue
 			row_texts.append(str(_city_warp_items[abs_i].get("label", "")))
+	elif _telescope_stage == 1:
+		var vis := _telescope_visible_count()
+		for i in vis:
+			var abs_i := _telescope_scroll + i
+			if abs_i < 0 or abs_i >= _telescope_items.size():
+				continue
+			var item: Dictionary = _telescope_items[abs_i]
+			var letter := str(item.get("letter", ""))
+			var label := str(item.get("label", ""))
+			row_texts.append("[color=#%s]%s[/color] - %s" % [
+				UiTheme.ACCENT.to_html(false),
+				letter,
+				label,
+			])
 	elif _abyss_altar_choice_active:
 		for item in _abyss_altar_choice_items:
 			row_texts.append(str(item.get("label", "")))
@@ -1764,6 +1787,8 @@ func _layout_command_menu_layer() -> void:
 	var selected_cursor := _command_menu_cursor
 	if _city_warp_open:
 		selected_cursor = _city_warp_cursor - _city_warp_scroll
+	elif _telescope_stage == 1:
+		selected_cursor = _telescope_cursor - _telescope_scroll
 	elif _abyss_altar_choice_active:
 		selected_cursor = _abyss_altar_choice_cursor
 	elif _codex_choice_active:
@@ -2992,17 +3017,17 @@ func _process(delta: float) -> void:
 		_move_cd = maxf(0.0, _move_cd - delta)
 		_hold_arm = maxf(0.0, _hold_arm - delta)
 		if _party_target_picker.active:
-			_tick_select_cursor()
+			_tick_select_cursor(delta)
 		elif _cast_stage == 4:
 			_tick_cast_dir()
 		elif _cast_stage == 5 or _cast_stage == 7:
-			_tick_dialogue_choice_nav()
+			_tick_dialogue_choice_nav(delta)
 		elif _cast_stage == 6:
 			_tick_combat_aim_move()
 		elif _ztats_stage == 1 or _cast_stage == 1:
-			_tick_select_cursor()
+			_tick_select_cursor(delta)
 		elif _ready_stage == 2:
-			_tick_ready_weapon_cursor()
+			_tick_ready_weapon_cursor(delta)
 		elif _combat_aiming:
 			_tick_combat_aim_move()
 		elif (
@@ -3053,29 +3078,35 @@ func _process(delta: float) -> void:
 	if _is_party_asleep_locked():
 		return
 	## Z/N/R/W/M pick lists: same hold timing as world move; wrap at ends.
+	if _command_menu_open or _city_warp_open or _telescope_stage == 1:
+		_tick_simple_menu_navigation(delta)
+		return
+	if _ztats_stage == 2:
+		_tick_ztats_view_navigation(delta)
+		return
 	if _journal_focus_active:
-		_tick_journal_browse_nav()
+		_tick_journal_browse_nav(delta)
 		return
 	if _party_target_picker.active:
-		_tick_select_cursor()
+		_tick_select_cursor(delta)
 		return
 	if _cast_stage == 4:
 		_tick_cast_dir()
 		return
 	if _ztats_stage == 1 or _order_stage != 0 or _mix_stage == 1 or _mix_stage == 2 or _cast_stage == 1 or _use_stage == 1 or _abyss_altar_choice_active or _codex_choice_active or _save_stage == 1 or _save_stage == 2 or _esc_menu_is_open() or _options_panel_is_open():
-		_tick_select_cursor()
+		_tick_select_cursor(delta)
 		return
 	## Shop lists / inn 1–3 / Y/N / B/S: hold-repeat like Ztats (polled, not echo).
 	if _dialogue_choice_hold_active():
-		_tick_dialogue_choice_nav()
+		_tick_dialogue_choice_nav(delta)
 		return
 	if _talk_stage != 0:
 		return
 	if _ready_stage == 2:
-		_tick_ready_weapon_cursor()
+		_tick_ready_weapon_cursor(delta)
 		return
 	if _wear_stage == 2:
-		_tick_wear_armor_cursor()
+		_tick_wear_armor_cursor(delta)
 		return
 	if _ztats_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_stage != 0 or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return
@@ -3284,6 +3315,7 @@ func _reset_hold_state() -> void:
 	_hold_arm = 0.0
 	_move_cd = 0.0
 	_held_dir = Vector2i.ZERO
+	_menu_hold_repeat.reset()
 
 
 func _move_hold_delay() -> float:
@@ -3455,21 +3487,16 @@ func _invalid_party_target() -> void:
 	_layout_prompt_row()
 
 
-func _tick_select_cursor() -> void:
+func _tick_select_cursor(delta: float) -> void:
 	## Shared ↑↓ hold-repeat for party targets and other roster/list cursors.
-	var step := _read_select_step()
-	if step == 0:
-		_reset_hold_state()
+	var held := Vector2i(
+		_GameInput.read_select_step_x() if _options_panel_is_open() else 0,
+		_read_select_step()
+	)
+	var nav := _menu_hold_repeat.poll(delta, held)
+	if nav == Vector2i.ZERO:
 		return
-	var held := Vector2i(0, step)
-	if held != _held_dir:
-		_held_dir = held
-		_move_repeating = false
-		_hold_arm = 0.0
-	if _move_cd > 0.0:
-		return
-	if _move_repeating and _hold_arm > 0.0:
-		return
+	var step := nav.y
 	if _party_target_picker.active:
 		if _party_target_picker.nudge(step):
 			_sync_party_target_cursor()
@@ -3490,10 +3517,12 @@ func _tick_select_cursor() -> void:
 	elif _esc_menu_is_open():
 		_nudge_esc_menu_cursor(step)
 	elif _options_panel_is_open():
-		_nudge_options_cursor(step)
+		if nav.x != 0:
+			_cycle_options_cursor_value(nav.x)
+		else:
+			_nudge_options_cursor(step)
 	elif _order_stage != 0:
 		_nudge_order_cursor(step)
-	_arm_hold_after_step()
 
 
 func _dialogue_choice_hold_active() -> bool:
@@ -3518,7 +3547,7 @@ func _dialogue_choice_hold_active() -> bool:
 	return _binary_prompt_active()
 
 
-func _tick_dialogue_choice_nav() -> void:
+func _tick_dialogue_choice_nav(delta: float) -> void:
 	## Hold-repeat for dialogue choice UIs (same cadence as Ztats / Ready lists).
 	var step_x := 0
 	var step_y := 0
@@ -3546,20 +3575,12 @@ func _tick_dialogue_choice_nav() -> void:
 		vertical = true
 	else:
 		step_x = _GameInput.read_select_step_x()
-	var step := step_y if vertical else step_x
-	if step == 0:
-		_reset_hold_state()
-		return
 	var held := Vector2i(step_x, step_y)
-	if held != _held_dir:
-		_held_dir = held
-		_move_repeating = false
-		_hold_arm = 0.0
-	if _move_cd > 0.0:
-		return
-	if _move_repeating and _hold_arm > 0.0:
+	var nav := _menu_hold_repeat.poll(delta, held)
+	if nav == Vector2i.ZERO:
 		return
 	if vertical:
+		var step := nav.y
 		if _talk_keyword_menu_can_select():
 			_move_talk_keyword_menu_cursor(step)
 		elif not _shop_item_menu_items.is_empty():
@@ -3567,8 +3588,33 @@ func _tick_dialogue_choice_nav() -> void:
 		elif _ztats_panel != null:
 			_ztats_panel.shop_pick_nudge(step)
 	else:
-		_set_enter_prompt_choice(_enter_prompt_choice + step)
-	_arm_hold_after_step()
+		_set_enter_prompt_choice(_enter_prompt_choice + nav.x)
+
+
+func _tick_simple_menu_navigation(delta: float) -> void:
+	## Command palette, city list, and telescope dial share one repeat contract.
+	var nav := _menu_hold_repeat.poll(delta, Vector2i(0, _read_select_step()))
+	if nav.y == 0:
+		return
+	if _command_menu_open:
+		_move_command_menu_cursor(nav.y)
+	elif _city_warp_open:
+		_move_city_warp_cursor(nav.y)
+	elif _telescope_stage == 1:
+		_move_telescope_cursor(nav.y)
+
+
+func _tick_ztats_view_navigation(delta: float) -> void:
+	var can_scroll := _ztats_panel != null and _ztats_panel.is_inventory_page()
+	var held := Vector2i(
+		_GameInput.read_select_step_x(),
+		_read_select_step() if can_scroll else 0
+	)
+	var nav := _menu_hold_repeat.poll(delta, held)
+	if nav.y != 0 and can_scroll:
+		_ztats_panel.scroll_inventory(nav.y)
+	elif nav.x != 0:
+		_nudge_ztats_view(nav.x)
 
 
 func _read_select_step() -> int:
@@ -4232,11 +4278,7 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 	if not _command_menu_open:
 		return false
 	if event is InputEventJoypadMotion:
-		## Neutral motion must reach the hysteresis helper so it can re-arm.
-		## Consume all other stick axes while the palette owns input.
-		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
-		if stick_step != 0:
-			_move_command_menu_cursor(stick_step)
+		## Held navigation is polled by the shared menu repeater.
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
@@ -4271,7 +4313,7 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 	if dir.y != 0:
 		step = dir.y
 	if step != 0:
-		_move_command_menu_cursor(step)
+		return true
 	return true
 
 
@@ -5084,6 +5126,35 @@ func _talk_antos_relic_tip_ready() -> bool:
 	return false
 
 
+func _terence_truth_keyword_ready() -> bool:
+	## After Terence asks "Which book?" (Yes to the library follow-up).
+	return (
+		GameState.journal_has_id("lycaeum.father-antos.book")
+		and GameState.talk_has_heard_word("ask:terence-book")
+	)
+
+
+func _maybe_offer_terence_truth_keyword() -> void:
+	## Father Antos → Terence: truth unlocks when he asks which book, not on Name.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_npc_key_flat(str(_talk_entry.name)) != "lord terence":
+		return
+	if not GameState.journal_has_id("lycaeum.father-antos.book"):
+		return
+	GameState.talk_remember_heard_word("ask:terence-book")
+	var korean := GameState.lang_short() == "ko"
+	var truth_key := _talk_keyword_stable_key(
+		"진리" if korean else "truth"
+	)
+	_offer_talk_keyword_item(
+		truth_key,
+		"진리" if korean else "Truth",
+		"진리" if korean else "truth"
+	)
+	_talk_keyword_menu_apply_intro_default()
+
+
 func _maybe_offer_antos_relic_keyword() -> void:
 	## Each Antos only unlocks their own relic keyword (place + name).
 	if not _talk_keyword_menu_active or _talk_entry == null:
@@ -5499,7 +5570,7 @@ func _talk_keyword_menu_intro_default_key() -> String:
 	elif (
 		_talk_city_id() == "lycaeum"
 		and str(entry.name).strip_edges().to_lower() == "lord terence"
-		and GameState.journal_has_id("lycaeum.father-antos.book")
+		and _terence_truth_keyword_ready()
 	):
 		default_key = _talk_keyword_stable_key(
 			"진리" if GameState.lang_short() == "ko" else "truth"
@@ -6677,19 +6748,6 @@ func _maybe_offer_keep_chain_keyword() -> void:
 			"촛대" if korean else "candle"
 		)
 	elif (
-		place == "lycaeum"
-		and npc == "lord terence"
-		and GameState.journal_has_id("lycaeum.father-antos.book")
-	):
-		var truth_key := _talk_keyword_stable_key(
-			"진리" if korean else "truth"
-		)
-		_offer_talk_keyword_item(
-			truth_key,
-			"진리" if korean else "Truth",
-			"진리" if korean else "truth"
-		)
-	elif (
 		place == "serpent"
 		and npc == "garam"
 		and GameState.journal_has_id("serpent.sister-antos.garam-bell")
@@ -6894,6 +6952,9 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 	if _city_warp_open:
 		_close_city_warp()
 		return
+	if _telescope_stage != 0:
+		_cancel_telescope(true)
+		return
 	if _command_menu_open:
 		_close_command_menu()
 		return
@@ -6932,9 +6993,6 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 		return
 	if _orb_touch_stage != 0:
 		_cancel_orb_touch(true)
-		return
-	if _telescope_stage != 0:
-		_cancel_telescope(true)
 		return
 	if _ready_stage != 0:
 		_close_ready(true)
@@ -7918,9 +7976,7 @@ func _handle_city_warp_input(event: InputEvent) -> bool:
 	if not _city_warp_open:
 		return false
 	if event is InputEventJoypadMotion:
-		var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
-		if stick_step != 0:
-			_move_city_warp_cursor(stick_step)
+		## Held navigation is polled by the shared menu repeater.
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
@@ -7942,7 +7998,6 @@ func _handle_city_warp_input(event: InputEvent) -> bool:
 			return true
 	var dir := _GameInput.dir_from_event(event)
 	if dir.y != 0:
-		_move_city_warp_cursor(dir.y)
 		return true
 	return true
 
@@ -8190,43 +8245,136 @@ func _do_search() -> void:
 	_finish_party_turn()
 
 
+func _telescope_visible_count() -> int:
+	return mini(MSG_OPEN_LINES, _telescope_items.size())
+
+
+func _build_telescope_items() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in _SearchItems.telescope_choice_count():
+		var place_id := _SearchItems.telescope_city_place_id(i)
+		var label := Locale.t("place_%s" % place_id)
+		if label == ("place_%s" % place_id):
+			label = place_id
+		out.append({
+			"index": i,
+			"letter": String.chr(65 + i),
+			"label": label,
+		})
+	return out
+
+
 func _begin_telescope() -> void:
 	## xu4 useTelescope — knob prompt then A–P city peer.
 	_push_message(Locale.t("cmd_telescope_knob1"), false)
 	_push_message(Locale.t("cmd_telescope_knob2"), false)
 	_push_message(Locale.t("cmd_telescope_knob3"), false)
+	_telescope_items = _build_telescope_items()
 	_telescope_stage = 1
+	_telescope_cursor = 0
+	_telescope_scroll = 0
+	_GameInput.reset_stick_navigation()
+	_reset_hold_state()
+	_block_dir_until_keyup = true
+	_rebuild_command_menu_rows()
+	_show_command_menu_layer(true)
+	_layout_prompt_row()
+
+
+func _close_telescope_menu() -> void:
+	if _telescope_stage == 0:
+		return
+	_telescope_stage = 0
+	_telescope_cursor = 0
+	_telescope_scroll = 0
+	_telescope_items.clear()
+	if (
+		_command_menu_layer != null
+		and not _command_menu_open
+		and not _talk_keyword_menu_active
+		and not _city_warp_open
+	):
+		_hide_command_menu_layer(true)
+	_reset_hold_state()
+	_block_dir_until_keyup = true
 	_layout_prompt_row()
 
 
 func _cancel_telescope(show_none: bool = false) -> void:
 	if _telescope_stage == 0:
 		return
-	_telescope_stage = 0
-	_layout_prompt_row()
+	_close_telescope_menu()
 	if show_none:
 		_push_message(Locale.t("cmd_none"), false)
 		_finish_party_turn()
 
 
+func _move_telescope_cursor(step: int) -> void:
+	if _telescope_items.is_empty() or step == 0:
+		return
+	_telescope_cursor = posmod(_telescope_cursor + step, _telescope_items.size())
+	var vis := _telescope_visible_count()
+	if _telescope_cursor < _telescope_scroll:
+		_telescope_scroll = _telescope_cursor
+	elif _telescope_cursor >= _telescope_scroll + vis:
+		_telescope_scroll = _telescope_cursor - vis + 1
+	_telescope_scroll = clampi(
+		_telescope_scroll,
+		0,
+		maxi(_telescope_items.size() - vis, 0)
+	)
+	_rebuild_command_menu_rows()
+	_layout_command_menu_layer()
+
+
+func _choose_telescope_index(choice_index: int) -> void:
+	if choice_index < 0 or choice_index >= _SearchItems.telescope_choice_count():
+		return
+	_close_telescope_menu()
+	_open_telescope_city(choice_index)
+
+
+func _choose_telescope_item() -> void:
+	if (
+		_telescope_stage != 1
+		or _telescope_items.is_empty()
+		or _telescope_cursor < 0
+		or _telescope_cursor >= _telescope_items.size()
+	):
+		return
+	var item: Dictionary = _telescope_items[_telescope_cursor]
+	_choose_telescope_index(int(item.get("index", -1)))
+
+
 func _handle_telescope_input(event: InputEvent) -> bool:
 	if _telescope_stage != 1:
 		return false
-	if not (event is InputEventKey and event.pressed and not event.echo):
+	if event is InputEventJoypadMotion:
+		## Held navigation is polled by the shared menu repeater.
+		return true
+	if not event.is_pressed() or event.is_echo():
 		return false
-	var k := event as InputEventKey
-	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+	if _is_cancel_event(event):
 		_cancel_telescope(true)
 		return true
-	var code := k.keycode
-	if code < KEY_A or code > KEY_P:
-		code = k.physical_keycode
-	if code < KEY_A or code > KEY_P:
-		return true ## swallow other keys while selecting
-	var idx := int(code - KEY_A)
-	_telescope_stage = 0
-	_layout_prompt_row()
-	_open_telescope_city(idx)
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		_choose_telescope_item()
+		return true
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ENTER or k.physical_keycode == KEY_ENTER \
+				or k.keycode == KEY_KP_ENTER or k.physical_keycode == KEY_KP_ENTER:
+			_choose_telescope_item()
+			return true
+		var code := k.keycode
+		if code < KEY_A or code > KEY_P:
+			code = k.physical_keycode
+		if code >= KEY_A and code <= KEY_P:
+			_choose_telescope_index(int(code - KEY_A))
+			return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir.y != 0:
+		return true
 	return true
 
 
@@ -8533,19 +8681,12 @@ func _handle_esc_menu_input(event: InputEvent) -> bool:
 
 func _handle_options_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadMotion:
-		var motion := event as InputEventJoypadMotion
-		if motion.axis == JOY_AXIS_LEFT_X:
-			var stick_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-			if stick_step != 0:
-				_cycle_options_cursor_value(stick_step)
-			return true
+		## Vertical rows and horizontal values use the shared menu repeater.
+		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _options_horizontal_nudge(event):
-		var dir := _options_language_delta(event)
-		if dir != 0:
-			_cycle_options_cursor_value(dir)
-			return true
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
@@ -8581,22 +8722,6 @@ func _options_horizontal_nudge(event: InputEvent) -> bool:
 			)
 		)
 	)
-
-
-func _options_language_delta(event: InputEvent) -> int:
-	if (
-		event.is_action_pressed("ui_left")
-		or event.is_action_pressed("move_left")
-		or (event is InputEventKey and (event.keycode == KEY_LEFT or event.physical_keycode == KEY_LEFT))
-	):
-		return -1
-	if (
-		event.is_action_pressed("ui_right")
-		or event.is_action_pressed("move_right")
-		or (event is InputEventKey and (event.keycode == KEY_RIGHT or event.physical_keycode == KEY_RIGHT))
-	):
-		return 1
-	return 0
 
 
 func _cycle_options_cursor_value(delta: int) -> void:
@@ -9514,25 +9639,15 @@ func _do_ztats() -> void:
 
 func _handle_ztats_input(event: InputEvent) -> bool:
 	if _ztats_stage == 2 and event is InputEventJoypadMotion:
-		## Analog page/scroll navigation uses one deliberate tilt per step.
-		## Neutral events must reach the helper so the axis can re-arm.
-		var motion := event as InputEventJoypadMotion
-		if motion.axis == JOY_AXIS_LEFT_X:
-			var page_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_X)
-			if page_step != 0:
-				_nudge_ztats_view(page_step)
-			return true
-		if motion.axis == JOY_AXIS_LEFT_Y:
-			var scroll_step := _GameInput.stick_axis_step(event, JOY_AXIS_LEFT_Y)
-			if scroll_step != 0 and _ztats_panel and _ztats_panel.is_inventory_page():
-				_ztats_panel.scroll_inventory(scroll_step)
-			return true
+		## Page and inventory navigation are polled by the shared menu repeater.
 		return true
 	if not event.is_pressed():
 		return false
 	## Key-repeat for inventory ↑↓ / PageUp/PageDown; ignore echo otherwise.
 	if event.is_echo():
 		if _ztats_stage == 2 and _ztats_panel and _ztats_panel.is_inventory_page():
+			if event is InputEventKey and _is_direction_key(event as InputEventKey):
+				return true
 			return _try_ztats_inv_scroll(event)
 		return false
 	if event is InputEventKey:
@@ -9544,6 +9659,8 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 	if _ztats_stage == 2:
 		if _is_cancel_event(event):
 			_close_ztats(false)
+			return true
+		if _GameInput.dir_from_event(event) != Vector2i.ZERO:
 			return true
 		if event is InputEventKey:
 			var kz := event as InputEventKey
@@ -9557,20 +9674,8 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		if _ztats_panel and _ztats_panel.is_inventory_page():
 			if _try_ztats_inv_scroll(event):
 				return true
-		if event.is_action_pressed("move_left"):
-			_nudge_ztats_view(-1)
-			return true
-		if event.is_action_pressed("move_right"):
-			_nudge_ztats_view(1)
-			return true
 		if event is InputEventKey:
 			var kview := event as InputEventKey
-			if kview.keycode == KEY_LEFT or kview.physical_keycode == KEY_LEFT:
-				_nudge_ztats_view(-1)
-				return true
-			if kview.keycode == KEY_RIGHT or kview.physical_keycode == KEY_RIGHT:
-				_nudge_ztats_view(1)
-				return true
 			## 0 → equipment page (xu4).
 			if _is_ztats_equipment_key(kview):
 				_show_ztats_inventory(ZtatsPanel.InvPage.GEAR)
@@ -9917,28 +10022,18 @@ func _ready_letter_from_key(k: InputEventKey) -> int:
 	return -1
 
 
-func _tick_ready_weapon_cursor() -> void:
+func _tick_ready_weapon_cursor(delta: float) -> void:
 	var step_y := _read_select_step()
 	var step_x := 0 if _ready_self_only else _GameInput.read_select_step_x()
 	if step_y != 0:
 		step_x = 0
-	if step_x == 0 and step_y == 0:
-		_reset_hold_state()
+	var nav := _menu_hold_repeat.poll(delta, Vector2i(step_x, step_y))
+	if nav == Vector2i.ZERO:
 		return
-	var held := Vector2i(step_x, step_y)
-	if held != _held_dir:
-		_held_dir = held
-		_move_repeating = false
-		_hold_arm = 0.0
-	if _move_cd > 0.0:
-		return
-	if _move_repeating and _hold_arm > 0.0:
-		return
-	if step_x != 0:
-		_nudge_ready_member(step_x)
+	if nav.x != 0:
+		_nudge_ready_member(nav.x)
 	elif _ready_panel:
-		_ready_panel.nudge_cursor(step_y)
-	_arm_hold_after_step()
+		_ready_panel.nudge_cursor(nav.y)
 
 
 func _ready_member_switchable() -> bool:
@@ -10178,28 +10273,18 @@ func _wear_letter_from_key(k: InputEventKey) -> int:
 	return -1
 
 
-func _tick_wear_armor_cursor() -> void:
+func _tick_wear_armor_cursor(delta: float) -> void:
 	var step_y := _read_select_step()
 	var step_x := _GameInput.read_select_step_x()
 	if step_y != 0:
 		step_x = 0
-	if step_x == 0 and step_y == 0:
-		_reset_hold_state()
+	var nav := _menu_hold_repeat.poll(delta, Vector2i(step_x, step_y))
+	if nav == Vector2i.ZERO:
 		return
-	var held := Vector2i(step_x, step_y)
-	if held != _held_dir:
-		_held_dir = held
-		_move_repeating = false
-		_hold_arm = 0.0
-	if _move_cd > 0.0:
-		return
-	if _move_repeating and _hold_arm > 0.0:
-		return
-	if step_x != 0:
-		_nudge_wear_member(step_x)
+	if nav.x != 0:
+		_nudge_wear_member(nav.x)
 	elif _wear_panel:
-		_wear_panel.nudge_cursor(step_y)
-	_arm_hold_after_step()
+		_wear_panel.nudge_cursor(nav.y)
 
 
 func _wear_member_switchable() -> bool:
@@ -14265,6 +14350,7 @@ func _close_abyss_altar_choice_menu() -> void:
 		and not _talk_keyword_menu_active
 		and not _city_warp_open
 		and not _codex_choice_active
+		and _telescope_stage == 0
 	):
 		_hide_command_menu_layer(true)
 
@@ -14556,6 +14642,7 @@ func _close_codex_choice_menu() -> void:
 		and not _talk_keyword_menu_active
 		and not _city_warp_open
 		and not _abyss_altar_choice_active
+		and _telescope_stage == 0
 	):
 		_hide_command_menu_layer(true)
 
@@ -15813,6 +15900,9 @@ func _close_ui_for_death() -> void:
 	_fountain_drink_stage = 0
 	_orb_touch_stage = 0
 	_telescope_stage = 0
+	_telescope_cursor = 0
+	_telescope_scroll = 0
+	_telescope_items.clear()
 	_order_stage = 0
 	_ready_stage = 0
 	_wear_stage = 0
@@ -17958,6 +18048,12 @@ func _talk_answer_yn(yes: bool) -> void:
 		else:
 			_push_talk_learned_reagent_mix()
 	var npc_key := str(e.name).strip_edges().to_lower()
+	if (
+		yes
+		and npc_key == "lord terence"
+		and _talk_ask_kind == _TalkTlk.REPLY_TOPIC1
+	):
+		_maybe_offer_terence_truth_keyword()
 	var journal_changed := false
 	## Gimble's gold question: Yes points the party to Azure and the rune.
 	if yes and npc_key == "gimble":
@@ -18260,6 +18356,8 @@ func _talk_answer_yn(yes: bool) -> void:
 		and topic2 == "JUST"
 	):
 		if GameState.journal_try_capture_talk("lycaeum", "Estro", "JUST_NO"):
+			journal_changed = true
+		if GameState.journal_reconcile_estro_yew():
 			journal_changed = true
 	## Zajac (Lycaeum): Yes/No after Unhappy both point to Chuckles and his clue.
 	if (
@@ -21079,23 +21177,12 @@ func _close_journal_focus(restore_sides: bool = true) -> void:
 	grab_focus()
 
 
-func _tick_journal_browse_nav() -> void:
-	var step := _read_select_step()
-	if step == 0:
-		_reset_hold_state()
-		return
-	var held := Vector2i(0, step)
-	if held != _held_dir:
-		_held_dir = held
-		_move_repeating = false
-		_hold_arm = 0.0
-	if _move_cd > 0.0:
-		return
-	if _move_repeating and _hold_arm > 0.0:
+func _tick_journal_browse_nav(delta: float) -> void:
+	var nav := _menu_hold_repeat.poll(delta, Vector2i(0, _read_select_step()))
+	if nav.y == 0:
 		return
 	if _journal_panel != null and _journal_panel.has_method("move_selection"):
-		_journal_panel.move_selection(step)
-	_arm_hold_after_step()
+		_journal_panel.move_selection(nav.y)
 
 
 func _handle_journal_focus_input(event: InputEvent) -> bool:

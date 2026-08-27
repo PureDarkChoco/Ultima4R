@@ -588,6 +588,31 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 	if gs == null:
 		return false
 	var changed := ensure_progress_goals(gs, false)
+	changed = _apply_pending_journal_completions(gs) or changed
+	if _migrate_tyrone_stone_use(gs):
+		changed = true
+	if _migrate_yew_druid_mantra(gs):
+		changed = true
+	if _migrate_britain_compassion_virtue(gs):
+		changed = true
+	if _migrate_magincia_nate_rune_first_heard(gs):
+		changed = true
+	if _migrate_remove_lcb_water_ask_altars(gs):
+		changed = true
+	if _migrate_lycaeum_fighter_altar_links(gs):
+		changed = true
+	if seed_referral_rows(gs, false):
+		changed = true
+	if _reconcile_estro_yew_justice_chain(gs):
+		changed = true
+	changed = _apply_pending_journal_completions(gs) or changed
+	return changed
+
+
+static func _apply_pending_journal_completions(gs: Node) -> bool:
+	if gs == null:
+		return false
+	var changed := false
 	var rows: Array = gs.journal_entries
 	for i in rows.size():
 		var row: Variant = rows[i]
@@ -616,20 +641,60 @@ static func mark_goals_for_inventory(gs: Node) -> bool:
 			changed = true
 	if changed:
 		gs.journal_entries = rows
-	if _migrate_tyrone_stone_use(gs):
-		changed = true
-	if _migrate_yew_druid_mantra(gs):
-		changed = true
-	if _migrate_britain_compassion_virtue(gs):
-		changed = true
-	if _migrate_magincia_nate_rune_first_heard(gs):
-		changed = true
-	if _migrate_remove_lcb_water_ask_altars(gs):
-		changed = true
-	if _migrate_lycaeum_fighter_altar_links(gs):
-		changed = true
-	if seed_referral_rows(gs, false):
-		changed = true
+	return changed
+
+
+static func _reconcile_estro_yew_justice_chain(gs: Node) -> bool:
+	## Estro's Yew judge tip recorded after Yew work — backfill the Yew chain as done.
+	if gs == null or not has_entry_id(gs, "lycaeum.estro.yew-judge"):
+		return false
+	var changed := false
+	const CHAIN_IDS: Array[String] = [
+		"yew.talfourd.meet-judge",
+		"yew.talfourd.ask-rune",
+		"yew.talfourd.justice-rune",
+		"yew.druid.talfourd-rune",
+	]
+	if (
+		goal_already_met(gs, "rune:justice")
+		and not has_entry_id(gs, "yew.talfourd.justice-rune")
+	):
+		var cat := find_catalog_by_id("yew.talfourd.justice-rune")
+		if not cat.is_empty():
+			if _append_catalog_capture(gs, cat, "yew", "Talfourd", false):
+				changed = true
+	for goal in ["meet:yew-judge", "ask:talfourd-rune", "rune:justice"]:
+		if goal_already_met(gs, goal) and mark_goal(gs, goal):
+			changed = true
+	for id in CHAIN_IDS:
+		if not has_entry_id(gs, id):
+			continue
+		var cat := find_catalog_by_id(id)
+		if cat.is_empty():
+			continue
+		var rows: Array = gs.journal_entries
+		for i in rows.size():
+			var row_v: Variant = rows[i]
+			if typeof(row_v) != TYPE_DICTIONARY:
+				continue
+			var d: Dictionary = row_v
+			if str(d.get("id", "")).strip_edges() != id:
+				continue
+			if bool(d.get("done", false)):
+				break
+			var row_goal := str(d.get("goal", cat.get("goal", ""))).strip_edges()
+			var met := not row_goal.is_empty() and goal_already_met(gs, row_goal)
+			var complete_on_goal := str(cat.get("complete_on_goal", "")).strip_edges()
+			if not complete_on_goal.is_empty() and goal_already_met(gs, complete_on_goal):
+				met = true
+			if _catalog_completion_recorded(gs, cat):
+				met = true
+			if met:
+				d["done"] = true
+				rows[i] = d
+				gs.journal_entries = rows
+				changed = true
+			break
 	return changed
 
 
@@ -894,10 +959,16 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 
 
 static func _yew_judge_already_met(gs: Node) -> bool:
-	## Estro → Yew judge: persist on first Talfourd talk; legacy keyword memory counts.
+	## Estro → Yew judge: first Talfourd talk, or any later Yew justice progress.
 	if gs == null:
 		return false
 	if gs.talk_has_heard_word("meet:yew-judge"):
+		return true
+	if gs.talk_has_heard_word("ask:talfourd-rune"):
+		return true
+	if has_entry_id(gs, "yew.talfourd.justice-rune"):
+		return true
+	if goal_already_met(gs, "rune:justice"):
 		return true
 	var legacy: Variant = gs.talk_known_keywords.get("yew/talfourd", null)
 	if typeof(legacy) == TYPE_ARRAY and not (legacy as Array).is_empty():
@@ -912,6 +983,8 @@ static func _talfourd_rune_ask_already_met(gs: Node) -> bool:
 	if has_entry_id(gs, "yew.talfourd.justice-rune"):
 		return true
 	if gs.talk_has_heard_word("ask:talfourd-rune"):
+		return true
+	if goal_already_met(gs, "rune:justice"):
 		return true
 	return false
 
