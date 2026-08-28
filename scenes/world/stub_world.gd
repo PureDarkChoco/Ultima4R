@@ -4554,6 +4554,8 @@ func _seed_talk_latent_keywords() -> void:
 			continue
 		if _talk_should_hide_zair_word(word):
 			continue
+		if _talk_should_hide_life_love_word(word):
+			continue
 		if _talk_should_hide_antos_foreign_relic_word(word):
 			continue
 		var revealed := (
@@ -4619,6 +4621,32 @@ func _talk_should_hide_zair_word(word: String) -> bool:
 	if str(_talk_entry.name).strip_edges().to_lower() != "zair the wise":
 		return false
 	return _talk_word_is_passage_word(word)
+
+
+func _talk_word_is_love(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["사랑", "love"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_should_hide_life_love_word(word: String) -> bool:
+	## Empath ankh (Life.): Love is Antos-directed — offer after CAND_NO tip.
+	if _talk_entry == null:
+		return false
+	if _talk_city_id() != "empath":
+		return false
+	if str(_talk_entry.name).strip_edges().to_lower() != "life.":
+		return false
+	if not _talk_word_is_love(word):
+		return false
+	return not (
+		GameState.journal_has_id("empath.brother-antos.ankh-love")
+		or GameState.journal_has_id("empath.life.derek-candle")
+	)
 
 
 func _remember_talk_keyword_menu_word(word: String) -> void:
@@ -5569,6 +5597,15 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		)
 	elif (
 		_talk_city_id() == "empath"
+		and str(entry.name).strip_edges().to_lower() == "life."
+		and GameState.journal_has_id("empath.brother-antos.ankh-love")
+		and not GameState.journal_has_id("empath.life.derek-candle")
+	):
+		default_key = _talk_keyword_stable_key(
+			"사랑" if GameState.lang_short() == "ko" else "love"
+		)
+	elif (
+		_talk_city_id() == "empath"
 		and str(entry.name).strip_edges().to_lower() == "derek the bard"
 		and GameState.journal_has_id("empath.life.derek-candle")
 	):
@@ -6179,6 +6216,10 @@ func _restore_talk_known_keywords() -> void:
 			continue
 		if _talk_word_is_hidden_menu_interest(stored):
 			continue
+		if _talk_should_hide_zair_word(stored):
+			continue
+		if _talk_should_hide_life_love_word(stored):
+			continue
 		if _talk_should_hide_antos_foreign_relic_word(stored):
 			continue
 		if _reveal_talk_keyword_if_latent(stored) != 0:
@@ -6735,6 +6776,19 @@ func _maybe_offer_keep_chain_keyword() -> void:
 			horn_key,
 			"뿔" if korean else "Horn",
 			"뿔" if korean else "horn"
+		)
+	elif (
+		place == "empath"
+		and npc == "life."
+		and GameState.journal_has_id("empath.brother-antos.ankh-love")
+	):
+		var love_key := _talk_keyword_stable_key(
+			"사랑" if korean else "love"
+		)
+		_offer_talk_keyword_item(
+			love_key,
+			"사랑" if korean else "Love",
+			"사랑" if korean else "love"
 		)
 	elif (
 		place == "empath"
@@ -18333,6 +18387,16 @@ func _talk_answer_yn(yes: bool) -> void:
 	if (
 		not yes
 		and place_id == "empath"
+		and npc_key == "brother antos"
+		and topic2 == "CAND"
+	):
+		if GameState.journal_try_capture_talk(
+			"empath", "Brother Antos", "CAND_NO"
+		):
+			journal_changed = true
+	if (
+		not yes
+		and place_id == "empath"
 		and npc_key == "the pass guard"
 		and topic2 == "DANG"
 	):
@@ -21690,6 +21754,11 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("empath.life.derek-candle"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:derek-candle"):
+			refresh = true
+	if place == "empath" and npc_key == "life." and topic == "LOVE":
+		if GameState.journal_mark_id("empath.brother-antos.ankh-love"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:ankh-love"):
 			refresh = true
 	if place == "serpent" and npc_key == "garam" and topic == "BELL":
 		if GameState.journal_mark_id("serpent.sister-antos.garam-bell"):

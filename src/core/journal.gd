@@ -941,6 +941,10 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return bool(gs.has_sextant)
 	if g == "item:book" or g == "book":
 		return gs.has_item_flag(gs.ITEM_BOOK)
+	if g == "item:candle" or g == "candle":
+		return gs.has_item_flag(gs.ITEM_CANDLE)
+	if g == "item:horn" or g == "horn":
+		return gs.has_item_flag(gs.ITEM_HORN)
 	if g == "enter:hythloth-castle":
 		## Descended into Hythloth from Castle Britannia (secret entrance).
 		return bool(gs.journal_hythloth_castle)

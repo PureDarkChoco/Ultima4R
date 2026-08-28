@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: meet:* completes when the NPC speaks their name (random intro or Name keyword); ask:* completes when the matching topic is asked. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; meet:* and ask:* goals are separate when both apply.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|item:book|item:candle|item:horn|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; item:candle / item:horn when found by Search; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: meet:* completes when the NPC speaks their name (random intro or Name keyword); ask:* completes when the matching topic is asked. shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; meet:* and ask:* goals are separate when both apply.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -174,6 +174,20 @@
       "goal": "",
       "en": "Candle of Love: needed to enter {abyss}.",
       "ko": "사랑의 촛대: {abyss}에 들어가려면 필요하다."
+    },
+    {
+      "id": "empath.brother-antos.ankh-love",
+      "place": "empath",
+      "npc": "Brother Antos",
+      "topic": "CAND_NO",
+      "chain": "empath.antos-candle",
+      "chain_order": 15,
+      "goal": "ask:ankh-love",
+      "complete_if_recorded": "empath.life.derek-candle",
+      "en": "Meditate on love at our shrine.",
+      "ko": "사원에서 사랑을 명상하시오.",
+      "en_u4": "Meditate on love at our shrine.",
+      "en_us": "Meditate on love at our shrine."
     },
     {
       "id": "serpent.sister-antos.ask-bell",
@@ -2589,7 +2603,7 @@
       "topic": "HORN",
       "chain": "empath.silver-horn",
       "chain_order": 20,
-      "goal": "",
+      "goal": "item:horn",
       "en": "Search on a small isle off the tip of Spiritwood.",
       "ko": "스피릿우드 끝 작은 섬에서 찾기",
       "en_u4": "Search on a small isle off the tip of Spiritwood.",
@@ -2600,8 +2614,8 @@
       "place": "empath",
       "npc": "Life.",
       "topic": "LOVE_NO",
-      "chain": "empath.candle-location",
-      "chain_order": 10,
+      "chain": "empath.antos-candle",
+      "chain_order": 20,
       "goal": "ask:derek-candle",
       "complete_if_recorded": "empath.derek.lock-lake-candle",
       "speaker_en": "Life",
@@ -2616,9 +2630,9 @@
       "place": "empath",
       "npc": "Derek the Bard",
       "topic": "CAND",
-      "chain": "empath.candle-location",
-      "chain_order": 20,
-      "goal": "",
+      "chain": "empath.antos-candle",
+      "chain_order": 30,
+      "goal": "item:candle",
       "en": "Search in a secret place hidden off Lock Lake.",
       "ko": "로크 호수 밖 은밀한 곳에서 찾기",
       "en_u4": "Search in a secret place hidden off Lock Lake.",
