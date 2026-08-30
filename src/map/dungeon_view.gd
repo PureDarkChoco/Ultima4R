@@ -27,10 +27,8 @@ const ALTAR_STONE_TOP_T := 0.46
 const ORB_VIEW_SCALE := 2.0
 const MONSTER_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
-const FLOOR_SURFACE_DIM := 0.85
-const OPEN_SIDE_FLOOR_DIM := 0.72
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 32
+const PIECE_CACHE_REV := 33
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -60,7 +58,7 @@ const VIEW_OBJECT_SIDE_FIELD := 3
 
 var theme_id: String = "grey_stone"
 var _wall: Image
-var _floor: Image
+var _floor_plane: Image
 var _entrance: Image
 var _ladder_half: Image
 var _fountain_frames: Array[Image] = []
@@ -85,7 +83,7 @@ func set_theme(id: String) -> void:
 		_load_png("%s/fountain_0.png" % ASSET_ROOT),
 		_load_png("%s/fountain_1.png" % ASSET_ROOT),
 	]
-	if id == _theme_loaded and _wall != null:
+	if id == _theme_loaded and _wall != null and _floor_plane != null:
 		theme_id = id
 		return
 	theme_id = id
@@ -93,7 +91,7 @@ func set_theme(id: String) -> void:
 	_piece_cache.clear()
 	## One tile per kind — crop/scale by depth instead of swapping patterns.
 	_wall = _load_png("%s/%s/wall.png" % [ASSET_ROOT, id])
-	_floor = _load_png("%s/%s/floor.png" % [ASSET_ROOT, id])
+	_floor_plane = _load_png("%s/%s/floor_plane.png" % [ASSET_ROOT, id])
 	_entrance = _load_png("%s/%s/room_entrance.png" % [ASSET_ROOT, id])
 
 
@@ -129,6 +127,7 @@ func paint(
 	_ensure_dim_lut(w, h)
 	_ensure_piece_cache_size(w, h)
 	buf.fill(Color(0, 0, 0, 1))
+	_paint_floor_plane_background(buf)
 	var reached_far := true
 	var view_objects: Array[Dictionary] = []
 	for depth in range(0, MAX_DEPTH + 1):
@@ -223,16 +222,6 @@ func paint(
 				"view_dir": dir,
 				"left": false,
 			})
-		_blit_cached_piece(
-			buf,
-			"floor:%d" % depth,
-			Callable(self, "_paint_floor_slab").bind(geom, dim, depth)
-		)
-		_blit_cached_piece(
-			buf,
-			"ceiling:%d" % depth,
-			Callable(self, "_paint_ceiling_slab").bind(geom, dim, depth)
-		)
 		if dmap.looks_like_wall(left.x, left.y, z):
 			_blit_cached_piece(
 				buf,
@@ -479,101 +468,22 @@ func _tex_side(_depth: int = 0) -> Image:
 	return _wall
 
 
-func _tex_floor(_depth: int = 0) -> Image:
-	return _floor
-
-
 func _tex_entrance(_depth: int = 0) -> Image:
 	return _entrance
 
 
-func _paint_floor_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> void:
-	## Horizontal bands only — scanlines stay level, left/right edges are the diagonals.
-	if theme_id == "dirt":
-		## Earthen caves have no visible floor beyond the torch-lit walls.
+func _paint_floor_plane_background(buf: Image) -> void:
+	if _floor_plane == null:
 		return
-	var src := _tex_floor(depth)
-	var floor_dim := dim * FLOOR_SURFACE_DIM
-	var flip_v := false
-	if theme_id == "brick" or theme_id == "grey_stone":
-		## Masonry floors use the same material as the ceiling.
-		src = _tex_front(depth)
-		flip_v = true
-	_blit_hband_quad(
-		buf, src,
-		float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
-		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
-		floor_dim, flip_v
+	_blit_scaled(
+		buf,
+		_floor_plane,
+		0,
+		0,
+		buf.get_width(),
+		buf.get_height(),
+		1.0
 	)
-
-
-func _paint_ceiling_slab(buf: Image, geom: Dictionary, dim: float, depth: int) -> void:
-	_blit_hband_quad(
-		buf, _tex_front(depth),
-		float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
-		float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
-		dim, true
-	)
-
-
-func _blit_hband_quad(
-	buf: Image,
-	src: Image,
-	x0: float,
-	x1: float,
-	y_near: int,
-	nx0: float,
-	nx1: float,
-	y_far: int,
-	dim: float,
-	flip_v: bool,
-	clip_x0: int = -0x3fffffff,
-	clip_x1: int = 0x3fffffff,
-	vertical_fog: bool = false
-) -> void:
-	if src == null:
-		return
-	var y_a := mini(y_near, y_far)
-	var y_b := maxi(y_near, y_far)
-	var y_span := float(y_far - y_near)
-	if y_b <= y_a or absf(y_span) < 0.5:
-		return
-	var sw := src.get_width()
-	var sh := src.get_height()
-	var bw := buf.get_width()
-	var bh := buf.get_height()
-	for y in range(y_a, y_b):
-		if y < 0 or y >= bh:
-			continue
-		## Sample at pixel centers so top and bottom quads are exact mirrors.
-		var t := clampf((float(y) + 0.5 - float(y_near)) / y_span, 0.0, 1.0)
-		var xl := int(round(lerpf(x0, nx0, t)))
-		var xr := int(round(lerpf(x1, nx1, t)))
-		if xr <= xl:
-			continue
-		var v := (1.0 - t) if flip_v else t
-		var sy := clampi(int(v * float(sh - 1)), 0, sh - 1)
-		var row := y * bw
-		var dw := float(xr - xl)
-		var x_draw0 := maxi(xl, clip_x0)
-		var x_draw1 := mini(xr, clip_x1)
-		for x in range(x_draw0, x_draw1):
-			if x < 0 or x >= bw:
-				continue
-			## u from the full quad so a cropped parallelogram keeps its tile corners.
-			var sx := clampi(
-				int((float(x - xl) + 0.5) / dw * float(sw - 1)), 0, sw - 1
-			)
-			var c := src.get_pixel(sx, sy)
-			var fog := _dim_lut[row + x]
-			if vertical_fog:
-				## A side passage recedes horizontally, so its fog bands stay vertical.
-				var side_depth := mini(x, bw - 1 - x)
-				var inner_x := maxi(_ring(bw, MAX_DEPTH), 1)
-				var depth_t := clampf(float(side_depth) / float(inner_x), 0.0, 1.0)
-				fog = lerpf(1.0, DIM_FAR, depth_t)
-			var d := dim * fog
-			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
 
 
 func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
@@ -585,88 +495,8 @@ func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
 	return float(dest_w) / float(far_w)
 
 
-func _paint_open_side_ceiling(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
-	## Side-cell ceiling parallelogram. Full width at the far plane is one corridor cell
-	## (same as the facing wall there). Visible alcove / that width is the crop ratio;
-	## outer edge stays parallel so the tile is a cut rhombus matching the wall below.
-	var y_near := int(geom["y0"])
-	var y_far := int(geom["ny0"])
-	var far_w := float(int(geom["nx1"]) - int(geom["nx0"]))
-	if far_w < 0.5:
-		return
-	if left:
-		var x_far_inner := float(geom["nx0"])
-		var x_near_inner := float(geom["x0"])
-		var x_far_outer := x_far_inner - far_w
-		var x_near_outer := x_near_inner - far_w
-		_blit_hband_quad(
-			buf, _tex_front(depth),
-			x_near_outer, x_near_inner, y_near,
-			x_far_outer, x_far_inner, y_far,
-			dim, true,
-			int(geom["x0"]), int(geom["nx0"]), true
-		)
-	else:
-		var x_far_inner := float(geom["nx1"])
-		var x_near_inner := float(geom["x1"])
-		var x_far_outer := x_far_inner + far_w
-		var x_near_outer := x_near_inner + far_w
-		_blit_hband_quad(
-			buf, _tex_front(depth),
-			x_near_inner, x_near_outer, y_near,
-			x_far_inner, x_far_outer, y_far,
-			dim, true,
-			int(geom["nx1"]), int(geom["x1"]), true
-		)
-
-
-func _paint_open_side_floor(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
-	## Mirror the open-side ceiling below the facing rect. Dirt remains unlit black.
-	if theme_id == "dirt":
-		return
-	var src := _tex_floor(depth)
-	## The side passage uses its own vertical fog, whose bright outer edge makes
-	## the same multiplier look lighter than the front floor.
-	var floor_dim := dim * OPEN_SIDE_FLOOR_DIM
-	var flip_v := false
-	if theme_id == "brick" or theme_id == "grey_stone":
-		src = _tex_front(depth)
-		flip_v = true
-	var y_near := int(geom["y1"])
-	var y_far := int(geom["ny1"])
-	var far_w := float(int(geom["nx1"]) - int(geom["nx0"]))
-	if far_w < 0.5:
-		return
-	if left:
-		var x_far_inner := float(geom["nx0"])
-		var x_near_inner := float(geom["x0"])
-		var x_far_outer := x_far_inner - far_w
-		var x_near_outer := x_near_inner - far_w
-		_blit_hband_quad(
-			buf, src,
-			x_near_outer, x_near_inner, y_near,
-			x_far_outer, x_far_inner, y_far,
-			floor_dim, flip_v,
-			int(geom["x0"]), int(geom["nx0"]), true
-		)
-	else:
-		var x_far_inner := float(geom["nx1"])
-		var x_near_inner := float(geom["x1"])
-		var x_far_outer := x_far_inner + far_w
-		var x_near_outer := x_near_inner + far_w
-		_blit_hband_quad(
-			buf, src,
-			x_near_inner, x_near_outer, y_near,
-			x_far_inner, x_far_outer, y_far,
-			floor_dim, flip_v,
-			int(geom["nx1"]), int(geom["x1"]), true
-		)
-
-
 func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
-	## Open alcove: facing rect flush with the next cell, flat fog.
-	_paint_open_side_ceiling(buf, geom, left, dim, depth)
-	_paint_open_side_floor(buf, geom, left, dim, depth)
+	## Open alcove: only the facing wall remains; floor/ceiling come from floor_plane.
 	var x0 := int(geom["x0"] if left else geom["nx1"])
 	var x1 := int(geom["nx0"] if left else geom["x1"])
 	var y0 := int(geom["ny0"])

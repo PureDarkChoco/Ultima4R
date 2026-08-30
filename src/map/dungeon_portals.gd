@@ -14,9 +14,13 @@ const ID_SHAME := "shame"
 const ID_HYTHLOTH := "hythloth"
 const ID_ABYSS := "abyss"
 
-const THEME_GREY := "grey_stone"
+const THEME_SANDSTONE := "sandstone"
+const THEME_SLATE := "slate"
 const THEME_BRICK := "brick"
-const THEME_DIRT := "dirt"
+const THEME_GREY := "grey_stone"
+const THEME_LIGHTGREY := "lightgrey"
+const THEME_MOSSY := "mossy"
+const THEME_TERRACOTTA := "terracotta"
 const THEME_TIMBER := "timber"
 
 const ALTAR_TRUTH := 0
@@ -50,14 +54,14 @@ const CITY := {
 }
 
 const THEME_OF := {
-	ID_DECEIT: THEME_GREY,
-	ID_ABYSS: THEME_GREY,
-	ID_DESPISE: THEME_DIRT,
-	ID_DESTARD: THEME_DIRT,
-	ID_COVETOUS: THEME_TIMBER,
-	ID_SHAME: THEME_TIMBER,
-	ID_WRONG: THEME_BRICK,
-	ID_HYTHLOTH: THEME_BRICK,
+	ID_DECEIT: THEME_TIMBER,
+	ID_DESPISE: THEME_GREY,
+	ID_DESTARD: THEME_BRICK,
+	ID_WRONG: THEME_TERRACOTTA,
+	ID_COVETOUS: THEME_LIGHTGREY,
+	ID_SHAME: THEME_MOSSY,
+	ID_HYTHLOTH: THEME_SLATE,
+	ID_ABYSS: THEME_SANDSTONE,
 }
 
 const FNAME_OF := {
