@@ -3392,6 +3392,15 @@ func clear_apple2_dsk() -> void:
 		GraphicsSettings.ensure_available_tileset()
 
 
+func refresh_apple2_dsk() -> void:
+	## Re-check a saved Program .dsk (moved / missing files fail).
+	var was_ok := apple2_dsk_ok
+	apple2_dsk_ok = _probe_apple2_dsk()
+	if was_ok and not apple2_dsk_ok:
+		if GraphicsSettings != null and GraphicsSettings.has_method("ensure_available_tileset"):
+			GraphicsSettings.ensure_available_tileset()
+
+
 func _probe_apple2_dsk() -> bool:
 	apple2_dsk_needs_macos_permission = false
 	var cfg := ConfigFile.new()

@@ -85,7 +85,9 @@ func cursor() -> int:
 func open_panel(default_cursor: int = 0) -> void:
 	_embedded = false
 	_embed_rect = Rect2()
+	GameState.refresh_apple2_dsk()
 	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
+	_ensure_cursor_on_visible_item()
 	_apply_presentation()
 	_refresh_labels()
 	_sync_cursor()
@@ -97,7 +99,9 @@ func open_panel(default_cursor: int = 0) -> void:
 func open_embedded(rect: Rect2, default_cursor: int = 0) -> void:
 	_embedded = true
 	_embed_rect = rect
+	GameState.refresh_apple2_dsk()
 	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
+	_ensure_cursor_on_visible_item()
 	_apply_presentation()
 	_refresh_labels()
 	_sync_cursor()
@@ -118,20 +122,32 @@ func close_panel() -> void:
 
 
 func nudge_cursor(delta: int) -> void:
-	if ITEM_COUNT <= 1:
+	var vis := _visible_item_count()
+	if vis <= 1:
 		return
-	_cursor = posmod(_cursor + delta, ITEM_COUNT)
+	var step := 1 if delta >= 0 else -1
+	var next := _cursor
+	for _i in ITEM_COUNT:
+		next = posmod(next + step, ITEM_COUNT)
+		if _item_visible(next):
+			_cursor = next
+			break
 	_sync_cursor()
 
 
 func set_cursor(index: int) -> void:
 	if index < 0 or index >= ITEM_COUNT:
 		return
+	if not _item_visible(index):
+		return
 	_cursor = index
 	_sync_cursor()
 
 
 func refresh() -> void:
+	GameState.refresh_apple2_dsk()
+	_ensure_cursor_on_visible_item()
+	_apply_presentation()
 	_refresh_labels()
 	_sync_cursor()
 
@@ -161,6 +177,10 @@ func cycle_fullscreen(_delta: int = 1) -> void:
 
 
 func cycle_current(delta: int = 1) -> void:
+	if not _item_visible(_cursor):
+		_ensure_cursor_on_visible_item()
+		_sync_cursor()
+		return
 	match _cursor:
 		Item.LANGUAGE:
 			cycle_language(delta)
@@ -194,11 +214,8 @@ func cycle_graphics(delta: int = 1) -> void:
 	_sync_cursor()
 
 
-func cycle_apple2_disk(delta: int = 1) -> void:
-	if GameState.apple2_dsk_ok and delta < 0:
-		GameState.clear_apple2_dsk()
-		_refresh_labels()
-		_sync_cursor()
+func cycle_apple2_disk(_delta: int = 1) -> void:
+	if not _item_visible(Item.APPLE2_DISK):
 		return
 	_open_apple2_dialog()
 
@@ -243,10 +260,9 @@ func _use_native_file_dialog() -> bool:
 
 func _on_apple2_file_selected(path: String) -> void:
 	_picking_apple2 = false
-	if GameState.try_set_apple2_dsk_path(path):
-		_refresh_labels()
-		_sync_cursor()
-		return
+	GameState.try_set_apple2_dsk_path(path)
+	_ensure_cursor_on_visible_item()
+	_apply_presentation()
 	_refresh_labels()
 	_sync_cursor()
 
@@ -382,23 +398,24 @@ func _apply_presentation() -> void:
 		if _col != null:
 			_col.add_theme_constant_override("separation", col_sep)
 		_list.add_theme_constant_override("separation", list_sep)
-		var list_children := float(ITEM_COUNT + _group_gaps.size())
+		var vis := _visible_item_count()
+		var list_children := float(vis + _group_gaps.size())
 		var overhead := (
 			float(col_sep)
 			+ float(list_sep) * maxf(0.0, list_children - 1.0)
 			+ float(group_gap) * float(_group_gaps.size())
 		)
 		var avail := maxf(48.0, _embed_rect.size.y - overhead)
-		var row_h := clampf(avail / float(ITEM_COUNT + 1), 15.0, 36.0)
+		var row_h := clampf(avail / float(vis + 1), 15.0, 36.0)
 		var font_sz := clampi(int(row_h * 0.52), 11, 20)
 		_title.add_theme_font_size_override("font_size", font_sz + 1)
 		_title.custom_minimum_size = Vector2(0, row_h)
 		for i in ITEM_COUNT:
-			_row_wraps[i].custom_minimum_size = Vector2(0, row_h)
 			_row_labs[i].add_theme_font_size_override("font_size", font_sz)
 			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_row_labs[i].offset_left = 8
 			_row_labs[i].offset_right = -8
+			_apply_row_slot(i, row_h)
 		for gap in _group_gaps:
 			gap.custom_minimum_size = Vector2(0, group_gap)
 	else:
@@ -417,11 +434,11 @@ func _apply_presentation() -> void:
 		_title.add_theme_font_size_override("font_size", FONT_SIZE + 2)
 		_title.custom_minimum_size = Vector2.ZERO
 		for i in ITEM_COUNT:
-			_row_wraps[i].custom_minimum_size = Vector2(0, ROW_H)
 			_row_labs[i].add_theme_font_size_override("font_size", FONT_SIZE)
 			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			_row_labs[i].offset_left = 8
 			_row_labs[i].offset_right = -8
+			_apply_row_slot(i, ROW_H)
 		for gap in _group_gaps:
 			gap.custom_minimum_size = Vector2(0, GROUP_GAP)
 
@@ -457,6 +474,54 @@ func _refresh_labels() -> void:
 		elif i == Item.MUSIC:
 			_row_labs[i].text = _music_row_text()
 		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
+	_apply_row_visibility()
+
+
+func _item_visible(index: int) -> bool:
+	if index == Item.APPLE2_DISK:
+		return not GameState.apple2_dsk_ok
+	return index >= 0 and index < ITEM_COUNT
+
+
+func _visible_item_count() -> int:
+	var n := 0
+	for i in ITEM_COUNT:
+		if _item_visible(i):
+			n += 1
+	return n
+
+
+func _ensure_cursor_on_visible_item() -> void:
+	if _item_visible(_cursor):
+		return
+	for i in ITEM_COUNT:
+		var idx := posmod(_cursor + i, ITEM_COUNT)
+		if _item_visible(idx):
+			_cursor = idx
+			return
+	_cursor = 0
+
+
+func _apply_row_slot(index: int, row_h: float) -> void:
+	if index < 0 or index >= _row_wraps.size():
+		return
+	if _item_visible(index):
+		_row_wraps[index].visible = true
+		_row_wraps[index].custom_minimum_size = Vector2(0, row_h)
+	else:
+		_row_wraps[index].visible = false
+		_row_wraps[index].custom_minimum_size = Vector2.ZERO
+
+
+func _apply_row_visibility() -> void:
+	for i in ITEM_COUNT:
+		if _item_visible(i):
+			_row_wraps[i].visible = true
+			if _row_wraps[i].custom_minimum_size.y <= 0.0:
+				_row_wraps[i].custom_minimum_size = Vector2(0, ROW_H)
+		else:
+			_row_wraps[i].visible = false
+			_row_wraps[i].custom_minimum_size = Vector2.ZERO
 
 
 func _graphics_row_text() -> String:
@@ -519,6 +584,6 @@ func _music_row_text() -> String:
 
 func _sync_cursor() -> void:
 	for i in ITEM_COUNT:
-		var on := i == _cursor
+		var on := i == _cursor and _item_visible(i)
 		_row_bgs[i].color = COL_CURSOR if on else Color(0, 0, 0, 0)
 		UiTheme.set_selection_edge_active(_row_edges[i], on, COL_CURSOR_EDGE)
