@@ -16,6 +16,12 @@ const HALF_PER_BYTE := 14
 const OUT_W := 28
 const OUT_H := 32
 const HUE_BYTES := 4 * 4096 * 3
+## Mild analog bandwidth after NTSC. No extra chroma (LUT already fringes).
+const SMEAR_TAP1 := 1
+const SMEAR_TAP2 := 2
+const SMEAR_WC := 192
+const SMEAR_W1 := 27
+const SMEAR_W2 := 5
 
 static var _loaded := false
 static var _shp0 := PackedByteArray()
@@ -114,6 +120,62 @@ static func bank_byte(left: bool, scan_y: int, tile_id: int) -> int:
 	if left:
 		return int(_shp0[i])
 	return int(_shp1[i])
+
+
+static func render_flying_tile(tile_id: int) -> Image:
+	## Isolated missile with 2 extra dest columns so delayed NTSC bits stay visible.
+	if not ensure_loaded():
+		return null
+	var tid := clampi(tile_id, 0, TILE_COUNT - 1)
+	var fringe := 2
+	var out_w := 32 + fringe
+	var row_half := PackedInt32Array()
+	row_half.resize(OUT_W + HALF_PER_BYTE)
+	var bright := PackedByteArray()
+	bright.resize(out_w * SRC_H * 4)
+	var row_bytes := out_w * 4
+	var ids := PackedInt32Array()
+	ids.append(tid)
+	var st := PackedInt32Array([0, 0, 0])
+	for sy in range(SRC_H):
+		_decode_isolated_row(ids, 1, 0, sy, 0, row_half, st)
+		var base := sy * row_bytes
+		for x in range(32):
+			var src_i := int(_xmap32[x])
+			_write_half_pixel(bright, base + x * 4, int(row_half[src_i]), false)
+		for f in range(fringe):
+			var src_i := OUT_W + f
+			if src_i >= row_half.size():
+				src_i = OUT_W - 1
+			_write_half_pixel(bright, base + (32 + f) * 4, int(row_half[src_i]), false)
+	var data := PackedByteArray()
+	data.resize(out_w * 32 * 4)
+	var stride := out_w * 4
+	for sy2 in range(SRC_H):
+		var src_off := sy2 * stride
+		var d0 := (sy2 * 2) * stride
+		var d1 := d0 + stride
+		for i in stride:
+			data[d0 + i] = bright[src_off + i]
+			if (i & 3) == 3:
+				data[d1 + i] = bright[src_off + i]
+			else:
+				data[d1 + i] = (int(bright[src_off + i]) & 0xFC) >> 2
+	return Image.create_from_data(out_w, 32, false, Image.FORMAT_RGBA8, data)
+
+
+static func _write_half_pixel(rgba: PackedByteArray, d: int, c: int, dim: bool) -> void:
+	var r := (c >> 16) & 0xFF
+	var g := (c >> 8) & 0xFF
+	var b := c & 0xFF
+	if dim:
+		r = (r & 0xFC) >> 2
+		g = (g & 0xFC) >> 2
+		b = (b & 0xFC) >> 2
+	rgba[d] = r
+	rgba[d + 1] = g
+	rgba[d + 2] = b
+	rgba[d + 3] = 255
 
 
 static func render_tile_isolated(tile_id: int, scroll_y: int = 0) -> Image:
@@ -249,6 +311,28 @@ static func _render_fast_scaled(
 	return _cache_img
 
 
+static func render_uncached(
+	tile_ids: PackedInt32Array, cols: int, rows: int, scroll_y: int = 0
+) -> Image:
+	## Small continuous strip that must not touch the explore-view cache.
+	if not ensure_loaded() or cols < 1 or rows < 1:
+		return null
+	if tile_ids.size() < cols * rows:
+		return null
+	var out_w := cols * 32
+	var out_h := rows * 32
+	var img := Image.create(out_w, out_h, false, Image.FORMAT_RGBA8)
+	var strips: Array = []
+	strips.resize(rows)
+	for ty in rows:
+		_fill_fast_strip(tile_ids, cols, ty, scroll_y, strips)
+		var strip: Image = strips[ty]
+		if strip == null or strip.is_empty():
+			continue
+		img.blit_rect(strip, Rect2i(0, 0, out_w, 32), Vector2i(0, ty * 32))
+	return img
+
+
 static func _fill_fast_strip(
 	tile_ids: PackedInt32Array, cols: int, ty: int, scroll_y: int, strips: Array
 ) -> void:
@@ -258,27 +342,25 @@ static func _fill_fast_strip(
 	row_half.resize(src_w + OUT_W)
 	var st := PackedInt32Array([0, 0, 0])
 	var bright := PackedByteArray()
-	bright.resize(src_w * SRC_H * 4)
-	var row_bytes := src_w * 4
+	bright.resize(out_w * SRC_H * 4)
+	var row_bytes := out_w * 4
 	for sy in range(SRC_H):
 		_decode_continuous_row(tile_ids, cols, ty, sy, scroll_y, row_half, st)
-		_blit_half_row(bright, row_bytes, sy, src_w, src_w, false, false, row_half)
-	var strip := Image.create_from_data(src_w, SRC_H, false, Image.FORMAT_RGBA8, bright)
-	strip.resize(out_w, 32, Image.INTERPOLATE_NEAREST)
-	var data := strip.get_data()
+		_blit_half_row(bright, row_bytes, sy, src_w, out_w, true, false, row_half)
+	var data := PackedByteArray()
+	data.resize(out_w * 32 * 4)
 	var stride := out_w * 4
-	var y := 1
-	while y < 32:
-		var base := y * stride
-		var i := 0
-		while i < stride:
-			data[base + i] = (int(data[base + i]) & 0xFC) >> 2
-			data[base + i + 1] = (int(data[base + i + 1]) & 0xFC) >> 2
-			data[base + i + 2] = (int(data[base + i + 2]) & 0xFC) >> 2
-			i += 4
-		y += 2
-	strip.set_data(out_w, 32, false, Image.FORMAT_RGBA8, data)
-	strips[ty] = strip
+	for sy2 in range(SRC_H):
+		var src_off := sy2 * stride
+		var d0 := (sy2 * 2) * stride
+		var d1 := d0 + stride
+		for i in stride:
+			data[d0 + i] = bright[src_off + i]
+			if (i & 3) == 3:
+				data[d1 + i] = bright[src_off + i]
+			else:
+				data[d1 + i] = (int(bright[src_off + i]) & 0xFC) >> 2
+	strips[ty] = Image.create_from_data(out_w, 32, false, Image.FORMAT_RGBA8, data)
 
 
 static func _render_cells(
@@ -371,6 +453,8 @@ static func _render_cells(
 				_blit_half_row(
 					_scratch_rgba, row_bytes, y0 + 1, half_w, out_w, use_xmap32, true, row_half
 				)
+		if isolated_tiles:
+			_smear_rgba_cells(_scratch_rgba, out_w, ty * cell_h, cell_h, cell_w)
 
 	if (
 		_cache_img == null
@@ -414,6 +498,8 @@ static func _decode_continuous_row(
 		ox += HALF_PER_BYTE
 		_ntsc_step(int(_shp1[idx]), st, row_half, ox)
 		ox += HALF_PER_BYTE
+	## Delayed NTSC bits after the last tile — otherwise the row's right edge dies.
+	_ntsc_step(0x00, st, row_half, ox)
 
 
 static func _decode_isolated_row(
@@ -439,8 +525,8 @@ static func _decode_isolated_row(
 		_ntsc_step(0x00, st, row_half, -1)
 		_ntsc_step(bl, st, row_half, ox)
 		_ntsc_step(br, st, row_half, ox + HALF_PER_BYTE)
+		_ntsc_step(0x00, st, row_half, ox + OUT_W)
 		if (bl | br) & 0x80:
-			_ntsc_step(0x00, st, row_half, ox + OUT_W)
 			for i in range(OUT_W - 1):
 				row_half[ox + i] = row_half[ox + i + 1]
 			row_half[ox + OUT_W - 1] = row_half[ox + OUT_W]
@@ -485,7 +571,11 @@ static func _blit_half_row(
 			var half_base := t * OUT_W
 			var dst_base := base + t * 32 * 4
 			for x in range(32):
-				var c: int = int(row_half[half_base + int(_xmap32[x])])
+				var src_i := int(_xmap32[x])
+				## Last dest column of the last tile: keep the delayed NTSC bit.
+				if t == tiles - 1 and x == 31 and half_base + 28 < row_half.size():
+					src_i = 28
+				var c: int = int(row_half[half_base + src_i])
 				var r := (c >> 16) & 0xFF
 				var g := (c >> 8) & 0xFF
 				var b := c & 0xFF
@@ -522,6 +612,51 @@ static func _row_has_y_scroll(tile_ids: PackedInt32Array, cols: int, ty: int) ->
 		if _tile_y_scrolls(int(tile_ids[base + tx])):
 			return true
 	return false
+
+
+static func _smear_rgba_cells(
+	data: PackedByteArray, w: int, y0: int, rows: int, cell_w: int
+) -> void:
+	## Isolated tiles only. Local row buffer — never shared across worker threads.
+	if data.is_empty() or w < 1 or rows < 1 or cell_w < 1:
+		return
+	var stride := w * 4
+	var smear_row := PackedByteArray()
+	smear_row.resize(stride)
+	var y := y0
+	var y_end := y0 + rows
+	while y < y_end:
+		var row := y * stride
+		if row + stride > data.size():
+			break
+		for i in stride:
+			smear_row[i] = data[row + i]
+		var x := 0
+		while x < w:
+			var c0 := (x / cell_w) * cell_w
+			var c1 := mini(c0 + cell_w, w) - 1
+			var i := x * 4
+			var il1 := clampi(x - SMEAR_TAP1, c0, c1) * 4
+			var ir1 := clampi(x + SMEAR_TAP1, c0, c1) * 4
+			var il2 := clampi(x - SMEAR_TAP2, c0, c1) * 4
+			var ir2 := clampi(x + SMEAR_TAP2, c0, c1) * 4
+			data[row + i] = (
+				int(smear_row[i]) * SMEAR_WC
+				+ (int(smear_row[il1]) + int(smear_row[ir1])) * SMEAR_W1
+				+ (int(smear_row[il2]) + int(smear_row[ir2])) * SMEAR_W2
+			) >> 8
+			data[row + i + 1] = (
+				int(smear_row[i + 1]) * SMEAR_WC
+				+ (int(smear_row[il1 + 1]) + int(smear_row[ir1 + 1])) * SMEAR_W1
+				+ (int(smear_row[il2 + 1]) + int(smear_row[ir2 + 1])) * SMEAR_W2
+			) >> 8
+			data[row + i + 2] = (
+				int(smear_row[i + 2]) * SMEAR_WC
+				+ (int(smear_row[il1 + 2]) + int(smear_row[ir1 + 2])) * SMEAR_W1
+				+ (int(smear_row[il2 + 2]) + int(smear_row[ir2 + 2])) * SMEAR_W2
+			) >> 8
+			x += 1
+		y += 1
 
 
 static func _ids_equal(a: PackedInt32Array, b: PackedInt32Array) -> bool:

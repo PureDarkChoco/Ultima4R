@@ -108,7 +108,7 @@ const TILE_MAGIC_FLASH := 78 ## xu4 magicFlash (intro mage bolt / wand)
 const TILE_HIT_FLASH := 79 ## xu4 hitFlash / attack_flash
 const TILE_WHIRLPOOL := 140 ## xu4 Kill missile (`spellMagicAttack("whirlpool")`)
 ## Seconds per tile of cannon travel (matches prior per-tile miss flash).
-const CANNON_SEC_PER_TILE := 0.10
+const CANNON_SEC_PER_TILE := 0.085
 ## Magic bow / magic axe fly 1.5× faster than the default missile.
 const MAGIC_MISSILE_SPEED := 1.5
 ## Multi-frame terrain flip period (spit, etc.).
@@ -256,6 +256,10 @@ var _overlays: Array[Vector3i] = []
 ## Session-only terrain swaps (Abyss fire → dungeon). Not saved.
 var _session_tiles: Dictionary = {}
 var _overlay_slices: Dictionary = {} ## tile_id → keyed Image
+var _flying_slices: Dictionary = {} ## tile_id → black-keyed flying overlay
+## 3-wide HGR overlay used while the party stays screen-fixed during scroll.
+var _apple2_scroll_party: Image
+var _apple2_scroll_party_key := Vector4i(-1, -1, -1, -1)
 ## Wilderness monsters: { x, y, tid, hp, max_hp }. Drawn with tile animation + HP bar.
 var _creatures: Array = []
 ## Brief world-tile FX: { x, y, tid, left }.
@@ -473,6 +477,7 @@ func _ready() -> void:
 	_arrow_missile_img = _load_image_path(ARROW_MISSILE_PATH)
 	_magic_arrow_missile_img = _load_image_path(MAGIC_ARROW_MISSILE_PATH)
 	texture = _tex
+	material = null
 
 
 func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
@@ -484,6 +489,12 @@ func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
 	_horse_rider_class = -999
 	_corpse_slice = null
 	_overlay_slices.clear()
+	_flying_slices.clear()
+	_apple2_scroll_party = null
+	_apple2_scroll_party_key = Vector4i(-1, -1, -1, -1)
+	_keyed_chest_frames.clear()
+	_loot_icon_cache.clear()
+	_gold_loot_icon = null
 	_session_tiles.clear()
 	_moongate_suck_by_tid.clear()
 	exit_combat()
@@ -510,12 +521,19 @@ func reload_tileset_graphics() -> void:
 	_horse_rider_e_frames.clear()
 	_corpse_slice = null
 	_overlay_slices.clear()
+	_flying_slices.clear()
+	_apple2_scroll_party = null
+	_apple2_scroll_party_key = Vector4i(-1, -1, -1, -1)
+	_keyed_chest_frames.clear()
+	_loot_icon_cache.clear()
+	_gold_loot_icon = null
 	_moongate_suck_by_tid.clear()
 	tiles_ready = _U4TileBankScript.ensure_loaded()
 	if tiles_ready:
 		_cache_avatar_icons()
 	if _dungeon_view != null and _dungeon_view.has_method("invalidate_tile_caches"):
 		_dungeon_view.invalidate_tile_caches()
+	material = null
 	if _dungeon_map != null:
 		_rebuild_dungeon()
 	else:
@@ -1682,27 +1700,32 @@ func await_combat_projectile(
 	var custom_img: Image = null
 	var flight := atan2(finish.y - start.y, finish.x - start.x)
 	var spinning := false
-	if weapon_id == _WeaponIconsScript.Id.DAGGER:
-		custom_img = _oriented_missile(
-			_dagger_missile_img, flight, DAGGER_BASE_ANGLE, _dagger_rot_cache
-		)
-	elif (
-		weapon_id == _WeaponIconsScript.Id.BOW
-		or weapon_id == _WeaponIconsScript.Id.CROSSBOW
-	):
-		custom_img = _oriented_missile(
-			_arrow_missile_img, flight, ARROW_BASE_ANGLE, _arrow_rot_cache
-		)
-	elif weapon_id == _WeaponIconsScript.Id.MAGIC_BOW:
-		custom_img = _oriented_missile(
-			_magic_arrow_missile_img, flight, ARROW_BASE_ANGLE, _magic_arrow_rot_cache
-		)
-	elif weapon_id == _WeaponIconsScript.Id.MAGIC_AXE:
-		spinning = (
-			_magic_axe_missile_img != null and not _magic_axe_missile_img.is_empty()
-		)
-		if spinning:
-			custom_img = _spin_missile_frame(_magic_axe_missile_img, 0.0, _magic_axe_rot_cache)
+	## Apple II tilesets: classic shape tiles (77 red orb / 78 magic sphere).
+	## New Color keeps the unique weapon PNGs.
+	if not GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		if weapon_id == _WeaponIconsScript.Id.DAGGER:
+			custom_img = _oriented_missile(
+				_dagger_missile_img, flight, DAGGER_BASE_ANGLE, _dagger_rot_cache
+			)
+		elif (
+			weapon_id == _WeaponIconsScript.Id.BOW
+			or weapon_id == _WeaponIconsScript.Id.CROSSBOW
+		):
+			custom_img = _oriented_missile(
+				_arrow_missile_img, flight, ARROW_BASE_ANGLE, _arrow_rot_cache
+			)
+		elif weapon_id == _WeaponIconsScript.Id.MAGIC_BOW:
+			custom_img = _oriented_missile(
+				_magic_arrow_missile_img, flight, ARROW_BASE_ANGLE, _magic_arrow_rot_cache
+			)
+		elif weapon_id == _WeaponIconsScript.Id.MAGIC_AXE:
+			spinning = (
+				_magic_axe_missile_img != null and not _magic_axe_missile_img.is_empty()
+			)
+			if spinning:
+				custom_img = _spin_missile_frame(
+					_magic_axe_missile_img, 0.0, _magic_axe_rot_cache
+				)
 	var fly_tid := missile_tid
 	if fly_tid < 0:
 		if weapon_id == _WeaponIconsScript.Id.MAGIC_WAND:
@@ -1714,6 +1737,8 @@ func await_combat_projectile(
 	var spin_cache: Dictionary = _magic_axe_rot_cache if spinning else {}
 	if not spinning and fly_tid == TILE_WHIRLPOOL:
 		var whirl := _overlay_slice(TILE_WHIRLPOOL)
+		if _U4TileBankScript.uses_hgr_ntsc():
+			whirl = _key_black_plate(whirl)
 		if whirl != null and not whirl.is_empty():
 			spinning = true
 			spin_base = whirl
@@ -2706,7 +2731,7 @@ func set_center(tile: Vector2i, animate: bool = true) -> void:
 	if can_scroll:
 		_scroll_from = center
 		_scroll_dir = step
-		_scroll_frames_left = SCROLL_STEPS
+		_scroll_frames_left = _scroll_step_count()
 		_scroll_skip_process = true
 		center = tile
 		_rebuild()
@@ -3540,9 +3565,17 @@ func _cam_tile() -> Vector2:
 		return Vector2(center)
 	## progress 0 at scroll start (frames==SCROLL_STEPS) … 1 after last step.
 	## Stage always includes a +1 fringe so the entering edge is already painted.
-	var n := float(SCROLL_STEPS)
+	var n := float(_scroll_step_count())
 	var progress := (n - float(_scroll_frames_left)) / n
 	return Vector2(_scroll_from) + Vector2(_scroll_dir) * progress
+
+
+func _scroll_step_count() -> int:
+	## Apple II Color bakes scanlines; 3-step scroll lands on an odd pixel and
+	## flips bright/dim rows. 8 steps stay on even offsets (4px).
+	if GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		return 8
+	return SCROLL_STEPS
 
 
 func _rebuild() -> void:
@@ -3833,8 +3866,9 @@ func _loot_icon_for_entry(entry: Dictionary) -> Image:
 func _scaled_loot_icon(path: String) -> Image:
 	if path.is_empty():
 		return null
-	if _loot_icon_cache.has(path):
-		var cached: Variant = _loot_icon_cache[path]
+	var cache_key := "%s#%s" % [path, _U4TileBankScript.active_set()]
+	if _loot_icon_cache.has(cache_key):
+		var cached: Variant = _loot_icon_cache[cache_key]
 		if cached is Image and not (cached as Image).is_empty():
 			return cached as Image
 	if not ResourceLoader.exists(path):
@@ -3851,7 +3885,8 @@ func _scaled_loot_icon(path: String) -> Image:
 			if c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
 				src.set_pixel(x, y, Color(0, 0, 0, 0))
 	src.resize(CHEST_LOOT_ICON_SIZE, CHEST_LOOT_ICON_SIZE, Image.INTERPOLATE_NEAREST)
-	_loot_icon_cache[path] = src
+	_U4TileBankScript.apply_apple2_hud_palette(src)
+	_loot_icon_cache[cache_key] = src
 	if path == GOLD_HUD_PATH:
 		_gold_loot_icon = src
 	return src
@@ -4269,6 +4304,9 @@ func _rebuild_camp() -> void:
 				var cx := dx - origin_x
 				var cy := dy - origin_y
 				if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+					var occ := _apple2_camp_occupant_tid(cx, cy)
+					if occ >= 0:
+						return occ
 					return clampi(_camp_map.tile_at(cx, cy), 0, TILE_ID_MAX)
 				var bi := dy * view_w + dx
 				if bi >= 0 and bi < _camp_bg.size():
@@ -4314,7 +4352,11 @@ func _rebuild_combat() -> void:
 			ids.resize(camp_w * camp_h)
 			for cy in camp_h:
 				for cx in camp_w:
-					ids[cy * camp_w + cx] = clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+					var occ := _apple2_combat_occupant_tid(cx, cy)
+					ids[cy * camp_w + cx] = (
+						occ if occ >= 0
+						else clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
+					)
 			var composed: Image = _Apple2HgrNtscScript.render_grid_scaled(
 				ids, camp_w, camp_h, TILE_SRC, _apple2_water_scroll_src()
 			)
@@ -4332,6 +4374,9 @@ func _rebuild_combat() -> void:
 					var cx := dx - origin_x
 					var cy := dy - origin_y
 					if cx >= 0 and cy >= 0 and cx < camp_w and cy < camp_h:
+						var occ := _apple2_combat_occupant_tid(cx, cy)
+						if occ >= 0:
+							return occ
 						return clampi(_combat_map.tile_at(cx, cy), 0, TILE_ID_MAX)
 					var bi := dy * view_w + dx
 					if bi >= 0 and bi < _camp_bg.size():
@@ -4382,7 +4427,14 @@ func _rebuild_combat() -> void:
 func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
 	## Draw only the LIFO top chest at each tile; lower chests appear as each
 	## fully looted top chest is removed.
+	## Apple II Color: tile 60 is already in the HGR row. Loot icons are
+	## grayscale (green-tinted on the green phosphor set).
 	if _combat_chests.is_empty() or not tiles_ready:
+		return
+	if GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		if not _U4TileBankScript.uses_hgr_ntsc():
+			_paint_combat_chests_apple2_overlay(origin_x, origin_y)
+		_paint_combat_chest_loot(origin_x, origin_y)
 		return
 	for v in _combat_chests.values():
 		if typeof(v) != TYPE_ARRAY:
@@ -4409,35 +4461,89 @@ func _paint_combat_chests(origin_x: int, origin_y: int) -> void:
 				Rect2i(0, 0, chest_img.get_width(), chest_img.get_height()),
 				dst
 			)
-		if not is_open:
+		if is_open:
+			_blit_combat_chest_loot(d, dst)
+
+
+func _paint_combat_chest_loot(origin_x: int, origin_y: int) -> void:
+	for v in _combat_chests.values():
+		if typeof(v) != TYPE_ARRAY:
 			continue
-		var stack: Array = []
-		var raw: Variant = d.get("stack", [])
-		if typeof(raw) == TYPE_ARRAY:
-			stack = raw as Array
-		if stack.is_empty():
+		var pile: Array = v
+		if pile.is_empty():
 			continue
-		var top: Dictionary = stack[0] if typeof(stack[0]) == TYPE_DICTIONARY else {}
-		var icon := _loot_icon_for_entry(top)
-		if icon == null or icon.is_empty():
+		var top_raw: Variant = pile.back()
+		if typeof(top_raw) != TYPE_DICTIONARY:
 			continue
-		var iw := icon.get_width()
-		var ih := icon.get_height()
-		var base_ox := CHEST_CAVITY_CENTER.x - iw / 2
-		var base_oy := CHEST_CAVITY_CENTER.y - ih / 2
-		## Layered copies = remaining pile depth (top icon only).
-		var layers := mini(stack.size(), 5)
-		for i in layers:
-			var li := layers - 1 - i
-			_buf.blend_rect(
-				icon,
-				Rect2i(0, 0, iw, ih),
-				Vector2i(dst.x + base_ox + li * 2, dst.y + base_oy - li * 2)
-			)
+		var d: Dictionary = top_raw
+		if not bool(d.get("open", false)):
+			continue
+		var pos := Vector2i(int(d.get("x", -1)), int(d.get("y", -1)))
+		var sx := origin_x + pos.x
+		var sy := origin_y + pos.y
+		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+			continue
+		_blit_combat_chest_loot(d, _tile_px(sx, sy))
+
+
+func _blit_combat_chest_loot(d: Dictionary, dst: Vector2i) -> void:
+	var stack: Array = []
+	var raw: Variant = d.get("stack", [])
+	if typeof(raw) == TYPE_ARRAY:
+		stack = raw as Array
+	if stack.is_empty():
+		return
+	var top: Dictionary = stack[0] if typeof(stack[0]) == TYPE_DICTIONARY else {}
+	var icon := _loot_icon_for_entry(top)
+	if icon == null or icon.is_empty():
+		return
+	var iw := icon.get_width()
+	var ih := icon.get_height()
+	var base_ox := CHEST_CAVITY_CENTER.x - iw / 2
+	var base_oy := CHEST_CAVITY_CENTER.y - ih / 2
+	var layers := mini(stack.size(), 5)
+	for i in layers:
+		var li := layers - 1 - i
+		_buf.blend_rect(
+			icon,
+			Rect2i(0, 0, iw, ih),
+			Vector2i(dst.x + base_ox + li * 2, dst.y + base_oy - li * 2)
+		)
+
+
+func _paint_combat_chests_apple2_overlay(origin_x: int, origin_y: int) -> void:
+	## Mono / green: same SHP chest for closed and open. Loot is a later pass.
+	var chest_img := _keyed_chest_image(0)
+	if chest_img == null or chest_img.is_empty():
+		return
+	for v in _combat_chests.values():
+		if typeof(v) != TYPE_ARRAY:
+			continue
+		var pile: Array = v
+		if pile.is_empty():
+			continue
+		var top_raw: Variant = pile.back()
+		if typeof(top_raw) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = top_raw
+		var pos := Vector2i(int(d.get("x", -1)), int(d.get("y", -1)))
+		var sx := origin_x + pos.x
+		var sy := origin_y + pos.y
+		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
+			continue
+		var dst := _tile_px(sx, sy)
+		_buf.blend_rect(
+			chest_img,
+			Rect2i(0, 0, chest_img.get_width(), chest_img.get_height()),
+			dst
+		)
 
 
 func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 	## xu4 PartyMember::putToSleep / getTile — asleep & dead use corpse icon.
+	## Apple II Color: occupants are already in the HGR row (correct right-edge bits).
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return
 	for u in _combat_party:
 		var klass := int(u.get("klass", -1))
 		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
@@ -4470,6 +4576,7 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 
 
 func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
+	var hgr := _U4TileBankScript.uses_hgr_ntsc()
 	for u in _combat_foes:
 		if int(u.get("hp", 1)) <= 0:
 			continue
@@ -4479,20 +4586,21 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 		var sy := origin_y + pos.y
 		if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
 			continue
-		## xu4 sleeping creatures use the corpse / lying-down tile.
-		var img: Image = null
-		if bool(u.get("asleep", false)):
-			if _corpse_slice == null:
-				_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
-			img = _corpse_slice
-		else:
-			## Same multi-frame cycle as wilderness (ettin skips 208, etc.).
-			var tid: int = _WorldCreaturesScript.resolve_paint_tile(base_tid, _tile_anim_frame)
-			img = _slice_keyed_tile(tid)
-		if img == null or img.is_empty():
-			continue
 		var dst := _tile_px(sx, sy)
-		_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+		if not hgr:
+			## xu4 sleeping creatures use the corpse / lying-down tile.
+			var img: Image = null
+			if bool(u.get("asleep", false)):
+				if _corpse_slice == null:
+					_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
+				img = _corpse_slice
+			else:
+				## Same multi-frame cycle as wilderness (ettin skips 208, etc.).
+				var tid: int = _WorldCreaturesScript.resolve_paint_tile(base_tid, _tile_anim_frame)
+				img = _slice_keyed_tile(tid)
+			if img == null or img.is_empty():
+				continue
+			_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
 		if bool(u.get("show_hp", false)):
 			_paint_creature_hp_bar(
 				dst.x, dst.y, int(u.get("hp", 0)), int(u.get("max_hp", 0))
@@ -4651,23 +4759,34 @@ func _paint_combat_projectile(origin_x: int, origin_y: int) -> void:
 		return
 	if (
 		wid == _WeaponIconsScript.Id.SLING
+		and not GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id())
 		and _sling_missile_img != null
 		and not _sling_missile_img.is_empty()
 	):
 		_paint_projectile_image(_sling_missile_img, origin_x, origin_y, cx, cy, 1.0)
 		return
 	var miss_tid := int(_combat_proj.get("miss_tid", TILE_MISS_FLASH))
-	var slice := _overlay_slice(miss_tid)
-	if slice == null:
+	var slice := _flying_tile_slice(miss_tid)
+	if slice == null or slice.is_empty():
 		return
-	var shake := _shake_offset()
-	var px2 := int(round((float(origin_x) + cx - 0.5) * float(TILE_SRC))) + shake.x
-	var py2 := int(round((float(origin_y) + cy - 0.5) * float(TILE_SRC))) + shake.y
-	if px2 <= -TILE_SRC or py2 <= -TILE_SRC:
-		return
-	if px2 >= view_w * TILE_SRC or py2 >= view_h * TILE_SRC:
-		return
-	_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px2, py2))
+	_paint_projectile_image(slice, origin_x, origin_y, cx, cy, 1.0)
+
+
+func _flying_tile_slice(tile_id: int) -> Image:
+	## Sub-tile flight: border-key black so the orb overlaps neighbours
+	## without erasing dark NTSC fringe on the right edge.
+	if _flying_slices.has(tile_id):
+		return _flying_slices[tile_id] as Image
+	var img: Image
+	if _U4TileBankScript.uses_hgr_ntsc():
+		img = _Apple2HgrNtscScript.render_flying_tile(tile_id)
+		img = _U4TileBankScript.key_border_black(img)
+	elif GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		img = _U4TileBankScript.keyed_copy(tile_id, 0, true)
+	else:
+		img = _overlay_slice(tile_id)
+	_flying_slices[tile_id] = img
+	return img
 
 
 func _paint_projectile_image(
@@ -4676,8 +4795,11 @@ func _paint_projectile_image(
 	var iw := img.get_width()
 	var ih := img.get_height()
 	var shake := _shake_offset()
-	var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - float(iw) * 0.5)) + shake.x
-	var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - float(ih) * 0.5)) + shake.y
+	## Flying HGR orbs are 32 + right-fringe; keep the 32×32 body centered.
+	var hx := float(TILE_SRC) * 0.5 if iw > TILE_SRC else float(iw) * 0.5
+	var hy := float(TILE_SRC) * 0.5 if ih > TILE_SRC else float(ih) * 0.5
+	var px := int(round((float(origin_x) + cx) * float(TILE_SRC) - hx)) + shake.x
+	var py := int(round((float(origin_y) + cy) * float(TILE_SRC) - hy)) + shake.y
 	if px <= -iw or py <= -ih:
 		return
 	if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
@@ -5394,8 +5516,14 @@ func _apple2_fill_stage_world(base: Vector2i, half_x: int, half_y: int) -> void:
 		for dx in cols:
 			var mx := base.x - half_x + dx
 			var my := base.y - half_y + dy
-			var tid := _apple2_compose_tid(_world_display_tid(mx, my), mx, my)
-			_apple2_ids[dy * cols + dx] = tid
+			var tid := _world_display_tid(mx, my)
+			var creat := _apple2_world_creature_tid(mx, my)
+			if creat >= 0:
+				tid = creat
+			var party_tid := _apple2_party_grid_tid(mx, my)
+			if party_tid >= 0:
+				tid = party_tid
+			_apple2_ids[dy * cols + dx] = _apple2_compose_tid(tid, mx, my)
 	_apple2_fill_stage_from_ids(_apple2_ids, cols, rows)
 
 
@@ -5440,6 +5568,10 @@ func _apple2_party_grid_tid(mx: int, my: int) -> int:
 	## overlay. Once settled, include raw HGR art in the row for correct borders.
 	if _scroll_frames_left > 0 or mx != center.x or my != center.y:
 		return -1
+	return _apple2_party_sprite_tid()
+
+
+func _apple2_party_sprite_tid() -> int:
 	if _transport_tile >= 0:
 		## Mounted art is a runtime horse+rider composite, not one raw HGR tile.
 		if is_horse_tile(_transport_tile):
@@ -5449,13 +5581,123 @@ func _apple2_party_grid_tid(mx: int, my: int) -> int:
 	return pair.y if _avatar_frame == 1 else pair.x
 
 
+func _apple2_ground_tid(mx: int, my: int) -> int:
+	if is_in_city():
+		return _apple2_city_display_tid(mx, my)
+	var tid := _world_display_tid(mx, my)
+	var creat := _apple2_world_creature_tid(mx, my)
+	if creat >= 0:
+		tid = creat
+	return _apple2_compose_tid(tid, mx, my)
+
+
+func _apple2_party_scroll_slice() -> Image:
+	## 3-wide continuous decode (left / party / right). Cheap, and does not
+	## touch the explore-view NTSC cache. Party stays screen-fixed.
+	var party_tid := _apple2_party_sprite_tid()
+	if party_tid < 0:
+		return null
+	var cam := _cam_tile()
+	var mx := floori(cam.x)
+	var my := floori(cam.y)
+	var left := _apple2_ground_tid(mx - 1, my)
+	var right := _apple2_ground_tid(mx + 1, my)
+	var key := Vector4i(left, party_tid, right, _apple2_water_scroll_src())
+	if _apple2_scroll_party != null and key == _apple2_scroll_party_key:
+		return _apple2_scroll_party
+	var ids := PackedInt32Array()
+	ids.resize(3)
+	ids[0] = left
+	ids[1] = party_tid
+	ids[2] = right
+	var strip: Image = _Apple2HgrNtscScript.render_uncached(
+		ids, 3, 1, _apple2_water_scroll_src()
+	)
+	if strip == null or strip.is_empty():
+		return null
+	var img := Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
+	img.blit_rect(strip, Rect2i(TILE_SRC, 0, TILE_SRC, TILE_SRC), Vector2i.ZERO)
+	_apple2_scroll_party = img
+	_apple2_scroll_party_key = key
+	return img
+
+
 func _apple2_party_is_grid_composed() -> bool:
+	## City and settled world: walker is in the HGR row. Scroll / horse stay overlay.
 	return (
 		_U4TileBankScript.uses_hgr_ntsc()
-		and is_in_city()
 		and _scroll_frames_left <= 0
 		and (_transport_tile < 0 or not is_horse_tile(_transport_tile))
 	)
+
+
+func _apple2_class_walk_tid(klass: int) -> int:
+	if klass < 0 or klass >= CLASS_TILE_EVEN.size():
+		return -1
+	var even: int = CLASS_TILE_EVEN[klass]
+	return even + (1 if _avatar_frame == 1 else 0)
+
+
+func _apple2_combat_occupant_tid(cx: int, cy: int) -> int:
+	## Party on top of foes so the focused fighter is not buried.
+	for u in _combat_party:
+		if int(u.get("x", -1)) != cx or int(u.get("y", -1)) != cy:
+			continue
+		var klass := int(u.get("klass", -1))
+		if (
+			klass >= 0
+			and (
+				GameState.is_member_disabled(klass)
+				or GameState.is_class_dead(klass)
+			)
+		):
+			return TILE_CORPSE
+		return _apple2_class_walk_tid(klass)
+	for u in _combat_foes:
+		if int(u.get("hp", 1)) <= 0:
+			continue
+		if int(u.get("x", -1)) != cx or int(u.get("y", -1)) != cy:
+			continue
+		if bool(u.get("asleep", false)):
+			return TILE_CORPSE
+		return _WorldCreaturesScript.resolve_paint_tile(int(u.get("tile", 0)), _tile_anim_frame)
+	if has_combat_chest_at(Vector2i(cx, cy)):
+		return TILE_CHEST
+	return -1
+
+
+func _apple2_camp_occupant_tid(cx: int, cy: int) -> int:
+	if _shrine_walker.x == cx and _shrine_walker.y == cy:
+		if _shrine_walker_kneel:
+			return TILE_BEGGAR
+		var pair := _avatar_tile_pair()
+		return pair.y if _avatar_frame == 1 else pair.x
+	if _camp_guard_pos.x == cx and _camp_guard_pos.y == cy and _camp_guard_class >= 0:
+		return _apple2_class_walk_tid(_camp_guard_class)
+	for pos in _camp_sleepers:
+		if pos.x == cx and pos.y == cy:
+			return TILE_CORPSE
+	return -1
+
+
+func _apple2_world_creature_tid(mx: int, my: int) -> int:
+	if _creatures.is_empty():
+		return -1
+	var wx := posmod(mx, WorldMapData.WIDTH)
+	var wy := posmod(my, WorldMapData.HEIGHT)
+	for item in _creatures:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = item
+		if posmod(int(d.get("x", 0)), WorldMapData.WIDTH) != wx:
+			continue
+		if posmod(int(d.get("y", 0)), WorldMapData.HEIGHT) != wy:
+			continue
+		return _WorldCreaturesScript.resolve_paint_tile(
+			int(d.get("tid", d.get("z", 0))),
+			_tile_anim_frame
+		)
+	return -1
 
 
 func _apple2_fill_buf_grid(get_tid: Callable, cols: int, rows: int) -> void:
@@ -5787,6 +6029,9 @@ func _shore_filter_keeps(x: int, y: int, sides: int, corner: bool, depth: int) -
 
 func _keyed_chest_image(frame: int) -> Image:
 	var f := 1 if frame != 0 else 0
+	## Apple II SHP bank has one chest tile — no open-lid PNG.
+	if GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		f = 0
 	if _keyed_chest_frames.size() < 2:
 		_keyed_chest_frames = [null, null]
 	var cached: Variant = _keyed_chest_frames[f]
@@ -5920,6 +6165,8 @@ func _is_y_scroll_tile(tid: int) -> bool:
 
 
 func _paint_camp_sleepers(origin_x: int, origin_y: int) -> void:
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return
 	if _corpse_slice == null:
 		_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
 	if _corpse_slice == null:
@@ -5946,6 +6193,8 @@ func _cache_camp_guard_icons() -> void:
 
 
 func _paint_camp_guard(origin_x: int, origin_y: int) -> void:
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return
 	if _camp_guard_class < 0:
 		return
 	if _camp_guard_a == null:
@@ -5963,6 +6212,8 @@ func _paint_camp_guard(origin_x: int, origin_y: int) -> void:
 
 func _paint_shrine_walker(origin_x: int, origin_y: int) -> void:
 	## Approach / kneel / leave — leader class sprite over the shrine .CON.
+	if _U4TileBankScript.uses_hgr_ntsc():
+		return
 	if _shrine_walker.x < 0 or _shrine_walker.y < 0:
 		return
 	var sx := origin_x + _shrine_walker.x
@@ -6263,10 +6514,11 @@ func _paint_creatures(cam: Vector2) -> void:
 			continue
 		if px >= view_w * TILE_SRC or py >= view_h * TILE_SRC:
 			continue
-		var slice := _overlay_slice(tid)
-		if slice == null:
-			continue
-		_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
+		if not _U4TileBankScript.uses_hgr_ntsc():
+			var slice := _overlay_slice(tid)
+			if slice == null:
+				continue
+			_buf.blend_rect(slice, Rect2i(0, 0, TILE_SRC, TILE_SRC), Vector2i(px, py))
 		if bool(d.get("show_hp", false)):
 			_paint_creature_hp_bar(px, py, int(d.get("hp", 0)), int(d.get("max_hp", 0)))
 
@@ -6419,6 +6671,14 @@ func _paint_party_marker() -> void:
 	if _apple2_party_is_grid_composed():
 		return
 	var dst := Vector2i((view_w / 2) * TILE_SRC, (view_h / 2) * TILE_SRC)
+	if (
+		_U4TileBankScript.uses_hgr_ntsc()
+		and (_transport_tile < 0 or not is_horse_tile(_transport_tile))
+	):
+		var composed := _apple2_party_scroll_slice()
+		if composed != null and not composed.is_empty():
+			_buf.blend_rect(composed, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+			return
 	if _transport_tile >= 0:
 		var ride: Image = null
 		if is_horse_tile(_transport_tile):

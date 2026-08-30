@@ -28,6 +28,16 @@ func tileset_id() -> String:
 	return _tileset_id
 
 
+func is_apple2_color(id: String = "") -> bool:
+	var s := _U4TileBank.normalize_set_id(id if not id.is_empty() else _tileset_id)
+	return s == _U4TileBank.SET_APPLE2_COLOR
+
+
+func is_apple2_mono(id: String = "") -> bool:
+	var s := _U4TileBank.normalize_set_id(id if not id.is_empty() else _tileset_id)
+	return s in [_U4TileBank.SET_APPLE2_MONO, _U4TileBank.SET_APPLE2_MONO_GREEN]
+
+
 func is_apple2_tileset(id: String) -> bool:
 	var s := _U4TileBank.normalize_set_id(id)
 	return s in [

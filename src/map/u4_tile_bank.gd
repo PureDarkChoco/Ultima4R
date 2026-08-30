@@ -357,25 +357,36 @@ static func _is_fixed_stone_pixel(c: Color) -> bool:
 	return c.r > 0.70 and c.g > 0.70 and c.b > 0.70
 
 
-static func keyed_copy(tile_id: int, frame: int = 0) -> Image:
+static func keyed_copy(tile_id: int, frame: int = 0, force_key: bool = false) -> Image:
 	## New Color: border-connected black → transparent so overlays show underdraw.
-	## Apple II Color/Mono: keep opaque black (CRT / scanline ink).
+	## Apple II Color/Mono: keep opaque black (CRT / scanline ink) unless
+	## `force_key` (flying missiles that must overlap neighbouring tiles).
 	var src := image(tile_id, frame)
 	if src == null:
 		return null
 	var img := Image.create(TILE_SIZE, TILE_SIZE, false, Image.FORMAT_RGBA8)
 	img.blit_rect(src, Rect2i(0, 0, TILE_SIZE, TILE_SIZE), Vector2i.ZERO)
-	if keeps_opaque_black():
+	if keeps_opaque_black() and not force_key:
 		return img
+	return key_border_black(img)
+
+
+static func key_border_black(src: Image) -> Image:
+	if src == null or src.is_empty():
+		return null
+	var tw := src.get_width()
+	var th := src.get_height()
+	var img := Image.create(tw, th, false, Image.FORMAT_RGBA8)
+	img.blit_rect(src, Rect2i(0, 0, tw, th), Vector2i.ZERO)
 	var queued := PackedByteArray()
-	queued.resize(TILE_SIZE * TILE_SIZE)
+	queued.resize(tw * th)
 	var pending: Array[Vector2i] = []
-	for x in TILE_SIZE:
+	for x in tw:
 		_queue_border_black(img, Vector2i(x, 0), queued, pending)
-		_queue_border_black(img, Vector2i(x, TILE_SIZE - 1), queued, pending)
-	for y in range(1, TILE_SIZE - 1):
+		_queue_border_black(img, Vector2i(x, th - 1), queued, pending)
+	for y in range(1, th - 1):
 		_queue_border_black(img, Vector2i(0, y), queued, pending)
-		_queue_border_black(img, Vector2i(TILE_SIZE - 1, y), queued, pending)
+		_queue_border_black(img, Vector2i(tw - 1, y), queued, pending)
 	while not pending.is_empty():
 		var p: Vector2i = pending.pop_back()
 		img.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
@@ -392,9 +403,11 @@ static func uses_shore_masks() -> bool:
 static func _queue_border_black(
 	img: Image, p: Vector2i, queued: PackedByteArray, pending: Array[Vector2i]
 ) -> void:
-	if p.x < 0 or p.y < 0 or p.x >= TILE_SIZE or p.y >= TILE_SIZE:
+	var tw := img.get_width()
+	var th := img.get_height()
+	if p.x < 0 or p.y < 0 or p.x >= tw or p.y >= th:
 		return
-	var i := p.x + p.y * TILE_SIZE
+	var i := p.x + p.y * tw
 	if queued[i] != 0:
 		return
 	queued[i] = 1
@@ -521,6 +534,34 @@ static func _image_from_found(value: Variant) -> Image:
 	_apply_pipeline_palette(img)
 	_normalize_runtime_tile(img)
 	return img
+
+
+static func apply_apple2_hud_palette(img: Image) -> void:
+	## HUD / loot overlays: white grayscale for Color and White; then the
+	## green-phosphor LUT for Green.
+	if img == null or img.is_empty():
+		return
+	if render_pipeline() == RenderPipeline.NEW_COLOR_PNG:
+		return
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var data := img.get_data()
+	var i := 0
+	while i < data.size():
+		var a := int(data[i + 3])
+		if a > 0:
+			var lum := clampi(
+				int(round(0.299 * float(data[i]) + 0.587 * float(data[i + 1]) + 0.114 * float(data[i + 2]))),
+				0,
+				255
+			)
+			data[i] = lum
+			data[i + 1] = lum
+			data[i + 2] = lum
+		i += 4
+	img.set_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
+	if render_pipeline() == RenderPipeline.APPLE2_MONO_GREEN_PNG:
+		_apply_pipeline_palette(img)
 
 
 static func _apply_pipeline_palette(img: Image) -> void:

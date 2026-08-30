@@ -142,6 +142,7 @@ func setup(view: TextureRect) -> bool:
 	_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_view.material = null
 
 	var data_dir := str(GameState.u4_data_path)
 	if data_dir.is_empty():
@@ -306,6 +307,8 @@ func reload_tileset_graphics() -> void:
 	_moongate_suck_frames.clear()
 	_apple2_map_img = null
 	_apple2_map_scroll = -1
+	if _view != null:
+		_view.material = null
 	_redraw()
 
 
