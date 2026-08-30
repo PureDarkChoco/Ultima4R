@@ -104,7 +104,55 @@ static func extract_banks(path: String) -> Array:
 	var shp1 := _binary_payload(_read_dos33_file(dsk, loc["SHP1"].x, loc["SHP1"].y))
 	if shp0.size() != BANK_SIZE or shp1.size() != BANK_SIZE:
 		return []
+	return expand_derived_field_tiles(shp0, shp1)
+
+
+static func expand_derived_field_tiles(shp0: PackedByteArray, shp1: PackedByteArray) -> Array:
+	## Stock SHP0/SHP1 store one field pattern (tile 68) and leave 69–71 blank.
+	## Language-card setup copies that pattern into energy/fire/sleep by
+	## toggling the HGR high bit (green/purple ↔ orange/blue) and swapping
+	## the left/right bytes (complementary color). 4am LC dumps already have
+	## all four filled — leave those alone.
+	if shp0.size() != BANK_SIZE or shp1.size() != BANK_SIZE:
+		return [shp0, shp1]
+	if (
+		_tile_has_ink(shp0, shp1, 69)
+		and _tile_has_ink(shp0, shp1, 70)
+		and _tile_has_ink(shp0, shp1, 71)
+	):
+		return [shp0, shp1]
+	var src := -1
+	for tid in range(68, 72):
+		if _tile_has_ink(shp0, shp1, tid):
+			src = tid
+			break
+	if src < 0:
+		return [shp0, shp1]
+	for y in SRC_H:
+		var i := y * TILE_COUNT + src
+		var bl := int(shp0[i]) & 0x7F
+		var br := int(shp1[i]) & 0x7F
+		var o68 := y * TILE_COUNT + 68
+		var o69 := y * TILE_COUNT + 69
+		var o70 := y * TILE_COUNT + 70
+		var o71 := y * TILE_COUNT + 71
+		shp0[o68] = bl
+		shp1[o68] = br
+		shp0[o69] = br | 0x80
+		shp1[o69] = bl | 0x80
+		shp0[o70] = bl | 0x80
+		shp1[o70] = br | 0x80
+		shp0[o71] = br
+		shp1[o71] = bl
 	return [shp0, shp1]
+
+
+static func _tile_has_ink(shp0: PackedByteArray, shp1: PackedByteArray, tid: int) -> bool:
+	for y in SRC_H:
+		var i := y * TILE_COUNT + tid
+		if int(shp0[i]) != 0 or int(shp1[i]) != 0:
+			return true
+	return false
 
 
 static func pack_is_ready() -> bool:

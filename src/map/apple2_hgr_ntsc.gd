@@ -95,6 +95,12 @@ static func _load_pack() -> bool:
 		push_error("Apple2HgrNtsc: truncated pack")
 		clear_cache()
 		return false
+	## Stock Program SHP leaves energy/fire/sleep blank; LC RAM fills them
+	## from the poison pattern (palette bit + L/R swap). Apply that here so
+	## an already-cached pack still gets the four HGR field colors.
+	var fields: Array = _Apple2ProgramDisk.expand_derived_field_tiles(_shp0, _shp1)
+	_shp0 = fields[0]
+	_shp1 = fields[1]
 	_hue.resize(4 * 4096)
 	for i in range(4 * 4096):
 		var o := i * 3
