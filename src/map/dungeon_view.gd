@@ -28,7 +28,7 @@ const ORB_VIEW_SCALE := 2.0
 const MONSTER_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 33
+const PIECE_CACHE_REV := 35
 ## Brightness at the innermost square (five cells ahead).
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
@@ -63,6 +63,7 @@ var _entrance: Image
 var _ladder_half: Image
 var _fountain_frames: Array[Image] = []
 var _theme_loaded := ""
+var _theme_pipeline := -1
 var _dim_lut: PackedFloat32Array = PackedFloat32Array()
 var _dim_lut_w := 0
 var _dim_lut_h := 0
@@ -72,9 +73,17 @@ var _piece_cache_w := 0
 var _piece_cache_h := 0
 var _keyed_monster_cache: Dictionary = {}
 var _keyed_stone_cache: Dictionary = {} ## bit_index → keyed Image
+var _floor_bg: Image
+var _floor_bg_w := 0
+var _floor_bg_h := 0
+var _floor_bg_pipeline := -1
+var _floor_bg_inner := -1
+var _scanlines_on := false
 
 
 func set_theme(id: String) -> void:
+	var pipeline := _U4TileBank.render_pipeline()
+	_scanlines_on = pipeline != _U4TileBank.RenderPipeline.NEW_COLOR_PNG
 	if _ladder_half == null:
 		_ladder_half = _load_png("%s/ladder_half.png" % ASSET_ROOT)
 	## Reload on dungeon entry/theme setup so replaced source art cannot remain
@@ -83,12 +92,19 @@ func set_theme(id: String) -> void:
 		_load_png("%s/fountain_0.png" % ASSET_ROOT),
 		_load_png("%s/fountain_1.png" % ASSET_ROOT),
 	]
-	if id == _theme_loaded and _wall != null and _floor_plane != null:
+	if (
+		id == _theme_loaded
+		and pipeline == _theme_pipeline
+		and _wall != null
+		and _floor_plane != null
+	):
 		theme_id = id
 		return
 	theme_id = id
 	_theme_loaded = id
+	_theme_pipeline = pipeline
 	_piece_cache.clear()
+	_clear_floor_bg()
 	## One tile per kind — crop/scale by depth instead of swapping patterns.
 	_wall = _load_png("%s/%s/wall.png" % [ASSET_ROOT, id])
 	_floor_plane = _load_png("%s/%s/floor_plane.png" % [ASSET_ROOT, id])
@@ -97,11 +113,21 @@ func set_theme(id: String) -> void:
 
 func invalidate_tile_caches() -> void:
 	## U4TileBank tileset swap — monster/object keyed copies must rebuild.
+	## Theme PNGs also reload so Apple II grayscale / green filter can change.
 	_keyed_monster_cache.clear()
 	_keyed_stone_cache.clear()
 	_piece_cache.clear()
 	_piece_cache_w = 0
 	_piece_cache_h = 0
+	_theme_loaded = ""
+	_theme_pipeline = -1
+	_scanlines_on = false
+	_wall = null
+	_floor_plane = null
+	_entrance = null
+	_ladder_half = null
+	_fountain_frames.clear()
+	_clear_floor_bg()
 
 
 func paint(
@@ -126,8 +152,8 @@ func paint(
 		set_theme(theme_id)
 	_ensure_dim_lut(w, h)
 	_ensure_piece_cache_size(w, h)
-	buf.fill(Color(0, 0, 0, 1))
-	_paint_floor_plane_background(buf)
+	if not _paint_floor_plane_background(buf):
+		buf.fill(Color(0, 0, 0, 1))
 	var reached_far := true
 	var view_objects: Array[Dictionary] = []
 	for depth in range(0, MAX_DEPTH + 1):
@@ -431,10 +457,11 @@ func _ensure_piece_cache_size(w: int, h: int) -> void:
 	_piece_cache_w = w
 	_piece_cache_h = h
 	_piece_cache.clear()
+	_clear_floor_bg()
 
 
 func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
-	var cache_key := "%d:%s:%s" % [PIECE_CACHE_REV, theme_id, key]
+	var cache_key := "%d:%s:%d:%s" % [PIECE_CACHE_REV, theme_id, _theme_pipeline, key]
 	if not _piece_cache.has(cache_key):
 		var canvas := Image.create(
 			_piece_cache_w, _piece_cache_h, false, Image.FORMAT_RGBA8
@@ -472,18 +499,41 @@ func _tex_entrance(_depth: int = 0) -> Image:
 	return _entrance
 
 
-func _paint_floor_plane_background(buf: Image) -> void:
-	if _floor_plane == null:
-		return
-	_blit_scaled(
-		buf,
-		_floor_plane,
-		0,
-		0,
-		buf.get_width(),
-		buf.get_height(),
-		1.0
-	)
+func _clear_floor_bg() -> void:
+	_floor_bg = null
+	_floor_bg_w = 0
+	_floor_bg_h = 0
+	_floor_bg_pipeline = -1
+	_floor_bg_inner = -1
+
+
+func _paint_floor_plane_background(buf: Image) -> bool:
+	## Fog + scanlines are baked once at field size. Per-frame get/set_pixel
+	## over the whole pane is what tanked Apple II dungeon after ceiling lines.
+	var w := buf.get_width()
+	var h := buf.get_height()
+	if (
+		_floor_bg == null
+		or _floor_bg_w != w
+		or _floor_bg_h != h
+		or _floor_bg_pipeline != _theme_pipeline
+		or _floor_bg_inner != _dim_lut_inner
+	):
+		if _floor_plane == null:
+			return false
+		_floor_bg = Image.create(w, h, false, Image.FORMAT_RGBA8)
+		_blit_scaled(
+			_floor_bg,
+			_floor_plane,
+			0, 0, w, h, 1.0,
+			false, 0.0, 1.0, false, true, false, _scanlines_on
+		)
+		_floor_bg_w = w
+		_floor_bg_h = h
+		_floor_bg_pipeline = _theme_pipeline
+		_floor_bg_inner = _dim_lut_inner
+	buf.blit_rect(_floor_bg, Rect2i(0, 0, w, h), Vector2i.ZERO)
+	return true
 
 
 func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
@@ -518,7 +568,7 @@ func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, 
 		buf,
 		_tex_front(mini(depth + 1, MAX_DEPTH)),
 		x0, y0, x1, y1,
-		dim * fog, false, u0, u1, true, false
+		dim * fog, false, u0, u1, true, false, false, _scanlines_on
 	)
 
 
@@ -559,7 +609,19 @@ func _blit_side_trap(buf: Image, src: Image, geom: Dictionary, left: bool, dim: 
 			var sy := clampi(int(float(y - y0) / float(y1 - y0) * float(sh - 1)), 0, sh - 1)
 			var c := src.get_pixel(sx, sy)
 			var d := dim * _dim_lut[y * bw + x]
-			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
+			buf.set_pixel(x, y, _scanline_rgb(c.r * d, c.g * d, c.b * d, y))
+
+
+func _scanline_rgb(r: float, g: float, b: float, y: int) -> Color:
+	if not _scanlines_on or (y & 1) == 0:
+		return Color(r, g, b, 1.0)
+	## Same half-scanline as Apple II Color / Mono: (v & 0xFC) >> 2.
+	return Color(
+		float((int(r * 255.0) & 0xFC) >> 2) / 255.0,
+		float((int(g * 255.0) & 0xFC) >> 2) / 255.0,
+		float((int(b * 255.0) & 0xFC) >> 2) / 255.0,
+		1.0
+	)
 
 
 func _lut_at(x: int, y: int, w: int, h: int) -> float:
@@ -581,7 +643,7 @@ func _blit_rect(buf: Image, src: Image, r: Rect2i, dim: float, flip_h: bool = fa
 		r.position.x, r.position.y,
 		r.position.x + r.size.x, r.position.y + r.size.y,
 		dim * _lut_at(r.position.x, r.position.y, bw, bh),
-		flip_h, 0.0, 1.0, false, false
+		flip_h, 0.0, 1.0, false, false, false, _scanlines_on
 	)
 
 
@@ -598,7 +660,8 @@ func _blit_scaled(
 	src_u1: float = 1.0,
 	wrap_u: bool = false,
 	apply_fog: bool = true,
-	flip_v: bool = false
+	flip_v: bool = false,
+	scanlines: bool = false
 ) -> void:
 	if src == null:
 		return
@@ -638,7 +701,10 @@ func _blit_scaled(
 			var d := dim
 			if apply_fog:
 				d *= _dim_lut[row + x]
-			buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
+			if scanlines and (y & 1) == 1:
+				buf.set_pixel(x, y, _scanline_rgb(c.r * d, c.g * d, c.b * d, y))
+			else:
+				buf.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
 
 
 func _paint_ladder_piece(
@@ -1380,4 +1446,7 @@ func _keyed_stone_image(bit_index: int) -> Image:
 
 
 func _load_png(path: String) -> Image:
-	return _ResImage.load_rgba8(path)
+	var img := _ResImage.load_rgba8(path)
+	## Apple II Color / Mono: grayscale. Green: grayscale then phosphor LUT.
+	_U4TileBank.apply_apple2_hud_palette(img)
+	return img
