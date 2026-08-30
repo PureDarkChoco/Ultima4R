@@ -2725,6 +2725,9 @@ func set_center(tile: Vector2i, animate: bool = true) -> void:
 		and animate
 		and cheby == 1
 		and (is_in_city() or (world != null and world.loaded))
+		## Apple II Color NTSC decodes the +1 scroll fringe in the same HGR row,
+		## so dest walls leak before the offset (and a city pops when leaving).
+		and not GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id())
 	)
 	if animate and cheby == 1:
 		_note_horse_step()
