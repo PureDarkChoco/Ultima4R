@@ -18,9 +18,12 @@ const HUD_FOOD_PATH := "res://assets/ui/hud/food.png"
 const HUD_KEY_PATH := "res://assets/ui/hud/key.png"
 const HUD_TORCH_PATH := "res://assets/ui/hud/torch.png"
 const HUD_GEM_PATH := "res://assets/ui/hud/gem.png"
+const HUD_ANKH_PATH := "res://assets/ui/hud/ankh.png"
 const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 ## DOS Ultima IV CHARSET.EGA moon glyphs (chars 20..27), extracted 8×8.
 const MOON_DIR := "res://assets/ui/moons"
+## 16×16 ankh: each completed virtue (karma==0) reveals 2 scanlines (xu4 drawCharMasked).
+const ANKH_PX_PER_VIRTUE := 2
 
 ## Wind: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW
 ## On screen tip = blow TO / balloon drift (opposite of GameState.wind_dir FROM).
@@ -43,10 +46,14 @@ var torches: int = 12
 
 var _moon_tex: Array[Texture2D] = []
 var _wind_tex: Array[Texture2D] = [] ## 8 tip-TO icons (display index after +4 flip)
+var _ankh_base: Image ## full white ankh; incomplete virtues cleared per refresh
+var _ankh: TextureRect
+var _last_ankh_mask: int = -1
 var _tram: TextureRect
 var _fel: TextureRect
 var _wind: TextureRect
-var _world_sky_balance: Control
+var _sky_center_slot: Control ## fixed moon-pair width: moons outside, level in dungeon
+var _sky_wind_slot: Control ## fixed ICON_SZ so ankh X stays put when wind hides
 var _world_moons: HBoxContainer
 var _dungeon_level_lab: Label
 var _dungeon_active := false
@@ -74,6 +81,7 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(0, 0)
 	_apply_blue_frame()
 	if bar_kind != BarKind.INVENTORY:
+		_load_ankh()
 		_load_moons()
 		_load_wind_icons()
 	_build()
@@ -94,6 +102,7 @@ func _process(_delta: float) -> void:
 		or felucca_phase != GameState.felucca_phase
 		or _last_aura_hud != GameState.spell_aura_hud_text()
 		or _last_aura_horn != GameState.is_aura_horn()
+		or _last_ankh_mask != _virtue_ankh_mask()
 	):
 		refresh()
 
@@ -181,6 +190,31 @@ func _load_wind_icons() -> void:
 		if img.get_width() != side or img.get_height() != side:
 			img.resize(side, side, Image.INTERPOLATE_NEAREST)
 		_wind_tex.append(ImageTexture.create_from_image(img))
+
+
+func _load_ankh() -> void:
+	## 16×16 white ankh; black plate keyed transparent. Mask applied in _refresh_ankh.
+	var img := Image.new()
+	if img.load(HUD_ANKH_PATH) != OK:
+		var loaded := load(HUD_ANKH_PATH) as Texture2D
+		if loaded != null:
+			img = loaded.get_image()
+	if img == null or img.is_empty():
+		push_warning("StatusInfoBar: missing ankh %s" % HUD_ANKH_PATH)
+		_ankh_base = null
+		return
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.r < 0.05 and c.g < 0.05 and c.b < 0.05:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	var side := int(ICON_SZ)
+	if img.get_width() != side or img.get_height() != side:
+		img.resize(side, side, Image.INTERPOLATE_NEAREST)
+	_ankh_base = img
+	_last_ankh_mask = -1
 
 
 func _load_moons() -> void:
@@ -316,41 +350,56 @@ func _h_spacer() -> Control:
 
 
 func _make_sky_cluster() -> HBoxContainer:
-	## Moons sit on the true centerline; wind sits just to their right.
-	## A same-width left spacer balances the wind so the moon pair stays centered.
+	## Fixed slots: ankh | center(moons/level) | wind-slot.
+	## Center + wind-slot keep constant width so ankh X matches outside and dungeon.
 	var cluster := HBoxContainer.new()
 	cluster.add_theme_constant_override("separation", 16)
 	cluster.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	cluster.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
+	_ankh = _moon_icon()
+	_ankh.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	var moons_w := ICON_SZ * 2.0 + 2.0
+	_sky_center_slot = Control.new()
+	_sky_center_slot.custom_minimum_size = Vector2(moons_w, ICON_SZ)
+	_sky_center_slot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_sky_center_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 	_world_moons = HBoxContainer.new()
 	_world_moons.add_theme_constant_override("separation", 2)
-	_world_moons.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_world_moons.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_world_moons.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tram = _moon_icon()
 	_fel = _moon_icon()
 	_world_moons.add_child(_tram)
 	_world_moons.add_child(_fel)
+	_sky_center_slot.add_child(_world_moons)
+
+	_dungeon_level_lab = _sky_text_label(moons_w)
+	_dungeon_level_lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_sky_center_slot.add_child(_dungeon_level_lab)
+
+	_sky_wind_slot = Control.new()
+	_sky_wind_slot.custom_minimum_size = Vector2(ICON_SZ, ICON_SZ)
+	_sky_wind_slot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_sky_wind_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_wind = TextureRect.new()
 	_wind.custom_minimum_size = Vector2(ICON_SZ, ICON_SZ)
+	_wind.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_wind.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_wind.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_wind.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_wind.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	## Pre-rotated textures — no Control.rotation (container layout can hide it).
 	_wind.rotation_degrees = 0.0
 	_wind.pivot_offset = Vector2.ZERO
+	_wind.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sky_wind_slot.add_child(_wind)
 
-	_world_sky_balance = Control.new()
-	_world_sky_balance.custom_minimum_size = _wind.custom_minimum_size
-	_world_sky_balance.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_world_sky_balance.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-
-	cluster.add_child(_world_sky_balance)
-	cluster.add_child(_world_moons)
-	_dungeon_level_lab = _sky_text_label(30.0)
-	cluster.add_child(_dungeon_level_lab)
-	cluster.add_child(_wind)
+	cluster.add_child(_ankh)
+	cluster.add_child(_sky_center_slot)
+	cluster.add_child(_sky_wind_slot)
 	return cluster
 
 
@@ -443,6 +492,35 @@ func _phase_char_index(phase: int) -> int:
 	return phase - 1
 
 
+func _virtue_ankh_mask() -> int:
+	## xu4 StatsArea::redrawAura — bit i set hides scanline i; karma==0 clears the bit.
+	var mask := 0xff
+	var n := mini(8, GameState.karma.size())
+	for i in n:
+		if int(GameState.karma[i]) == 0:
+			mask &= ~(1 << i)
+	return mask
+
+
+func _refresh_ankh() -> void:
+	if _ankh == null or _ankh_base == null:
+		return
+	var mask := _virtue_ankh_mask()
+	if mask == _last_ankh_mask and _ankh.texture != null:
+		return
+	_last_ankh_mask = mask
+	var img := _ankh_base.duplicate()
+	var band := ANKH_PX_PER_VIRTUE
+	for i in 8:
+		if (mask & (1 << i)) == 0:
+			continue
+		var y0 := i * band
+		for y in range(y0, y0 + band):
+			for x in img.get_width():
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	_ankh.texture = ImageTexture.create_from_image(img)
+
+
 func refresh() -> void:
 	if bar_kind == BarKind.SKY or bar_kind == BarKind.FULL:
 		trammel_phase = GameState.trammel_phase
@@ -453,26 +531,25 @@ func refresh() -> void:
 		gold = GameState.gold
 		keys = GameState.keys
 		torches = GameState.torches
+	_refresh_ankh()
 	if _tram != null and _moon_tex.size() >= 8:
 		_tram.texture = _moon_tex[_phase_char_index(trammel_phase)]
 		_fel.texture = _moon_tex[_phase_char_index(felucca_phase)]
 	## Display reverse of GameState.wind_dir (FROM → TO) so tip matches balloon_drift_dir.
-	var wd := posmod(wind_dir + 4, 8)
-	if _dungeon_active:
-		## Dungeon headings directly use the cardinal N/E/S/W arrow textures.
-		wd = _dungeon_dir * 2
-	if _wind != null and _wind_tex.size() >= 8:
+	## Dungeon: hide wind entirely (facing is not shown on the sky bar).
+	if not _dungeon_active and _wind != null and _wind_tex.size() >= 8:
+		var wd := posmod(wind_dir + 4, 8)
 		var tex: Texture2D = _wind_tex[wd]
 		if tex != null and (wd != _last_drawn_wind or _wind.texture != tex):
 			_wind.texture = tex
 			_wind.rotation_degrees = 0.0
 			_last_drawn_wind = wd
-	if _world_sky_balance != null:
-		_world_sky_balance.visible = not _dungeon_active
+	if _ankh != null:
+		_ankh.visible = true
 	if _world_moons != null:
 		_world_moons.visible = not _dungeon_active
 	if _wind != null:
-		_wind.visible = true
+		_wind.visible = not _dungeon_active
 	if _dungeon_level_lab != null:
 		_dungeon_level_lab.visible = _dungeon_active
 		_dungeon_level_lab.text = Locale.t("hud_dungeon_level", [_dungeon_level])
