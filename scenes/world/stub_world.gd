@@ -4557,6 +4557,8 @@ func _seed_talk_latent_keywords() -> void:
 			continue
 		if _talk_should_hide_life_love_word(word):
 			continue
+		if _talk_should_hide_serpent_passage_name_word(word):
+			continue
 		if _talk_should_hide_antos_foreign_relic_word(word):
 			continue
 		var revealed := (
@@ -4648,6 +4650,62 @@ func _talk_should_hide_life_love_word(word: String) -> bool:
 		GameState.journal_has_id("empath.brother-antos.ankh-love")
 		or GameState.journal_has_id("empath.life.derek-candle")
 	)
+
+
+func _talk_is_serpent_passage_guard() -> bool:
+	## Samuel / Lori: "Art thou looking for someone?" → Who? → Garam / Durham.
+	if _talk_entry == null:
+		return false
+	if _talk_city_id() != "serpent":
+		return false
+	var npc := str(_talk_entry.name).strip_edges().to_lower()
+	return npc == "samuel" or npc == "lori"
+
+
+func _talk_word_is_garam(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["가람", "garam", "gara"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_word_is_durham(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["더럼", "durham", "durh"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_should_hide_serpent_passage_name_word(word: String) -> bool:
+	## Passage guards: Garam / Durham stay off the menu until Yes → "Who?".
+	if not _talk_is_serpent_passage_guard():
+		return false
+	return _talk_word_is_garam(word) or _talk_word_is_durham(word)
+
+
+func _maybe_offer_serpent_passage_guard_who_keywords() -> void:
+	## After Yes → "Who?" (or once named): unlock tip-directed names.
+	if not _talk_keyword_menu_active or not _talk_is_serpent_passage_guard():
+		return
+	var korean := GameState.lang_short() == "ko"
+	if GameState.journal_has_id("serpent.sister-antos.garam-bell"):
+		_offer_talk_keyword_item(
+			_talk_keyword_stable_key("가람" if korean else "garam"),
+			"가람" if korean else "Garam",
+			"가람" if korean else "garam"
+		)
+	if GameState.journal_has_id("serpent.treasure-guard.durham"):
+		_offer_talk_keyword_item(
+			_talk_keyword_stable_key("더럼" if korean else "durham"),
+			"더럼" if korean else "Durham",
+			"더럼" if korean else "durham"
+		)
 
 
 func _remember_talk_keyword_menu_word(word: String) -> void:
@@ -6220,6 +6278,8 @@ func _restore_talk_known_keywords() -> void:
 		if _talk_should_hide_zair_word(stored):
 			continue
 		if _talk_should_hide_life_love_word(stored):
+			continue
+		if _talk_should_hide_serpent_passage_name_word(stored):
 			continue
 		if _talk_should_hide_antos_foreign_relic_word(stored):
 			continue
@@ -18172,6 +18232,7 @@ func _talk_answer_yn(yes: bool) -> void:
 		_maybe_offer_azure_sacrifice_keyword()
 		_maybe_offer_den_prompt_keywords()
 		_maybe_offer_little_jon_earth_keyword()
+		_maybe_offer_serpent_passage_guard_who_keywords()
 		if _talk_question_is_shrine_entry_requirements():
 			_talk_requirements_asked = true
 			_maybe_offer_heard_requirement_keywords()

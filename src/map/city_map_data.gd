@@ -576,6 +576,7 @@ func load_from_path(path: String) -> bool:
 	_load_persons(bytes)
 	_apply_file_roles(path)
 	_load_tlk(path)
+	_apply_person_conv_patches(path)
 	_append_extra_people(path)
 	## xu4 City::addPeople — omit companions already in the party.
 	strip_joined_companions()
@@ -619,6 +620,23 @@ func _apply_terrain_patches(ult_path: String) -> void:
 		if x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT:
 			continue
 		tiles[y * WIDTH + x] = clampi(int((patch as Dictionary)[key]), 0, 255) & 0xFF
+
+
+func _apply_person_conv_patches(ult_path: String) -> void:
+	## Classic SERPENT.ULT: south gate guards (0-based columns 28–29) reuse
+	## Sentri's discourse (0). Nobody points at "the gate guard." (1). Remap.
+	var fname := ult_path.get_file().to_lower()
+	if fname != "serpent.ult":
+		return
+	var gate_di := discourse_index_by_name("the gate guard.")
+	if gate_di < 0:
+		return
+	const GATE_FILE_SLOTS := [28, 29]
+	for i in person_file_slot.size():
+		if int(person_file_slot[i]) not in GATE_FILE_SLOTS:
+			continue
+		if i < person_conv.size():
+			person_conv[i] = gate_di
 
 
 func _apply_file_roles(ult_path: String) -> void:

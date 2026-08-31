@@ -943,6 +943,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return gs.has_item_flag(gs.ITEM_BOOK)
 	if g == "item:candle" or g == "candle":
 		return gs.has_item_flag(gs.ITEM_CANDLE)
+	if g == "item:bell" or g == "bell":
+		return gs.has_item_flag(gs.ITEM_BELL)
 	if g == "item:horn" or g == "horn":
 		return gs.has_item_flag(gs.ITEM_HORN)
 	if g == "enter:hythloth-castle":
