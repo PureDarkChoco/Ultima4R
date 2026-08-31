@@ -1243,7 +1243,8 @@ func _side_geom() -> Dictionary:
 	if _roster:
 		_roster.set_open_panel_height(top_h)
 	if _foe_roster:
-		_foe_roster.set_open_panel_height(top_h)
+		## Left combat list uses the full map pane height (not the 5-tile party band).
+		_foe_roster.set_open_panel_height(pane_sz.y)
 	var party_n := clampi(GameState.party_size(), 1, 8)
 	var compact_h := top_h
 	if _compact_roster:
@@ -8518,9 +8519,7 @@ func _close_peer_overlay() -> void:
 
 
 func _do_quit_save() -> void:
-	## ⌘S / Ctrl+S → slot picker popup; pick 1–4 / ↑↓+Enter to write JSON save.
-	_push_message(Locale.t("cmd_quit_save"), false)
-	_push_message(Locale.t("cmd_quit_moves", [GameState.moves]), false)
+	## ⌘S / Ctrl+S → slot picker only (no message log noise).
 	_open_slot_picker(_SaveSlotPanel.Mode.SAVE, false)
 
 
@@ -13632,6 +13631,8 @@ func _dungeon_step(sign: int) -> void:
 	if _dungeon_enter_room_if_needed(posmod(move_dir + 2, 4)):
 		_arm_hold_after_step(true)
 		return
+	_shamino_note_dungeon_cell()
+	_shamino_dungeon_sense()
 	if _dungeon_is_rocks_trap():
 		_dungeon_rocks_trap_async()
 		return
@@ -13662,9 +13663,67 @@ func _dungeon_is_rocks_trap() -> bool:
 	return sub == _DungeonMapData.TRAP_ROCKS
 
 
+func _shamino_party_slot() -> int:
+	## Companion Shamino only (not a Ranger Avatar). Must be alive and awake.
+	var ranger := Virtues.ClassId.RANGER
+	if GameState.player_class == ranger:
+		return -1
+	for i in GameState.party_size():
+		if GameState.party_member_at(i) != ranger:
+			continue
+		if GameState.is_class_dead(ranger):
+			return -1
+		if GameState.status_of_class(ranger) == PartyRoster.Status.SLEEPING:
+			return -1
+		return i
+	return -1
+
+
+func _shamino_note_dungeon_cell() -> void:
+	## Stepping onto a secret passage retires Shamino's warning for that cell.
+	if _dungeon_map == null:
+		return
+	if _dungeon_token() == _DungeonMapData.TOK_SECRET:
+		_dungeon_map.mark_shamino_known(_tile_pos.x, _tile_pos.y, _dungeon_z)
+
+
+func _shamino_mark_trap_here() -> void:
+	if _dungeon_map == null:
+		return
+	_dungeon_map.mark_shamino_known(_tile_pos.x, _tile_pos.y, _dungeon_z)
+
+
+func _shamino_dungeon_sense() -> void:
+	## Adjacent unrevealed secret / unsprung trap → Shamino speaks once per approach.
+	if _dungeon_map == null or _shamino_party_slot() < 0:
+		return
+	var sense_wall := false
+	var sense_trap := false
+	for d in 4:
+		var n: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, d)
+		if _dungeon_map.is_shamino_known(n.x, n.y, _dungeon_z):
+			continue
+		var tok: int = _dungeon_map.token_at(n.x, n.y, _dungeon_z)
+		if (
+			tok == _DungeonMapData.TOK_SECRET
+			and not _dungeon_map.is_secret_revealed(n.x, n.y, _dungeon_z)
+		):
+			sense_wall = true
+		elif tok == _DungeonMapData.TOK_TRAP:
+			sense_trap = true
+	if not sense_wall and not sense_trap:
+		return
+	var nm := GameState.party_member_display_name(_shamino_party_slot())
+	if sense_wall:
+		_push_message(Locale.t("cmd_shamino_sense_wall", [nm]), false)
+	if sense_trap:
+		_push_message(Locale.t("cmd_shamino_sense_trap", [nm]), false)
+
+
 func _dungeon_rocks_trap_async() -> void:
 	## Falling rocks: animate impact, then apply damage when they hit the floor.
 	_dungeon_trap_busy = true
+	_shamino_mark_trap_here()
 	AudioSfx.play_stone_falling()
 	_push_message(Locale.t("cmd_dungeon_trap_rocks"), false)
 	if _map != null and _map.has_method("await_dungeon_falling_rocks_fall"):
@@ -13700,6 +13759,7 @@ func _dungeon_trigger_cell() -> void:
 
 func _dungeon_spring_trap() -> void:
 	var sub: int = _dungeon_map.subtoken(_dungeon_map.raw_at(_tile_pos.x, _tile_pos.y, _dungeon_z))
+	_shamino_mark_trap_here()
 	match sub:
 		_DungeonMapData.TRAP_ROCKS:
 			## Animated path goes through `_dungeon_rocks_trap_async`.

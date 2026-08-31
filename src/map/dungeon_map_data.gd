@@ -88,6 +88,8 @@ var annotations: Array[Dictionary] = []
 var revealed_secrets: Dictionary = {}
 ## Looted corridor chests / spent orbs: "x,y,z" → true.
 var consumed: Dictionary = {}
+## Shamino sense: secrets entered / traps sprung — no more adjacent warnings.
+var shamino_known: Dictionary = {}
 ## xu4 corridor creatures: {id,tile,x,y,prev_x,prev_y,z}.
 var corridor_monsters: Array[Dictionary] = []
 var _next_monster_id := 1
@@ -99,6 +101,7 @@ func clear() -> void:
 	annotations.clear()
 	revealed_secrets.clear()
 	consumed.clear()
+	shamino_known.clear()
 	corridor_monsters.clear()
 	_next_monster_id = 1
 	loaded = false
@@ -211,6 +214,14 @@ func reveal_secret(x: int, y: int, z: int) -> bool:
 
 func is_secret_revealed(x: int, y: int, z: int) -> bool:
 	return revealed_secrets.has(cell_key(x, y, z))
+
+
+func mark_shamino_known(x: int, y: int, z: int) -> void:
+	shamino_known[cell_key(x, y, z)] = true
+
+
+func is_shamino_known(x: int, y: int, z: int) -> bool:
+	return shamino_known.has(cell_key(x, y, z))
 
 
 func effective_at(x: int, y: int, z: int) -> int:
@@ -902,6 +913,7 @@ func consumed_to_save() -> Dictionary:
 	return {
 		"consumed": consumed.keys(),
 		"secrets": revealed_secrets.keys(),
+		"shamino_known": shamino_known.keys(),
 		"annotations": annotations.duplicate(true),
 		"monsters": corridor_monsters.duplicate(true),
 	}
@@ -914,6 +926,9 @@ func consumed_from_save(d: Dictionary) -> void:
 	revealed_secrets.clear()
 	for k in d.get("secrets", []):
 		revealed_secrets[str(k)] = true
+	shamino_known.clear()
+	for k in d.get("shamino_known", []):
+		shamino_known[str(k)] = true
 	annotations.clear()
 	var raw: Variant = d.get("annotations", [])
 	if typeof(raw) == TYPE_ARRAY:

@@ -31,8 +31,11 @@ var _hp_lab: Array[Label] = []
 var _row_panels: Array[PanelContainer] = []
 var _rows: Array[Control] = []
 var _foes: Array[Dictionary] = []
-var _anim_tick: int = 0
-var _anim_cd: float = 0.0
+## Per creatureTable slot — independent of the map-wide tile clock.
+var _anim_tick_by_slot: Dictionary = {}
+var _anim_cd_by_slot: Dictionary = {}
+const ANIM_FRAME_MIN := 0.22
+const ANIM_FRAME_MAX := 0.85
 var _tile_aspect: float = 1.0
 var _open_outer_h: float = 0.0
 var _relayouting: bool = false
@@ -42,7 +45,7 @@ var _aim_slot := -1
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_theme_constant_override("separation", 2)
+	add_theme_constant_override("separation", 0)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_build_slots()
@@ -54,13 +57,31 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not visible or _foes.is_empty():
 		return
-	_anim_cd -= delta
-	if _anim_cd > 0.0:
-		return
-	_anim_cd = 0.25
-	_anim_tick += 1
-	_refresh_icons()
+	var changed := false
+	for i in _foes.size():
+		var slot := _foe_anim_slot(i)
+		var cd := float(_anim_cd_by_slot.get(slot, 0.0)) - delta
+		if cd > 0.0:
+			_anim_cd_by_slot[slot] = cd
+			continue
+		_anim_tick_by_slot[slot] = int(_anim_tick_by_slot.get(slot, 0)) + 1
+		_anim_cd_by_slot[slot] = randf_range(ANIM_FRAME_MIN, ANIM_FRAME_MAX)
+		changed = true
+	if changed:
+		_refresh_icons()
 
+
+func _foe_anim_slot(row: int) -> int:
+	if row < 0 or row >= _foes.size():
+		return row
+	return int(_foes[row].get("slot", _foes[row].get("priority", row)))
+
+
+func _ensure_foe_anim(slot: int) -> void:
+	if _anim_cd_by_slot.has(slot):
+		return
+	_anim_tick_by_slot[slot] = randi() & 3
+	_anim_cd_by_slot[slot] = randf_range(0.0, ANIM_FRAME_MAX)
 
 func apply_shared_pad_to_margins(margin: MarginContainer) -> void:
 	if margin == null:
@@ -95,6 +116,8 @@ func set_open_panel_height(outer_h: float) -> void:
 
 func clear() -> void:
 	_foes.clear()
+	_anim_tick_by_slot.clear()
+	_anim_cd_by_slot.clear()
 	_aim_slot = -1
 	_apply_foes_to_rows()
 	_apply_aim_highlight()
@@ -153,6 +176,7 @@ func set_foes(foes: Array) -> void:
 		_foes.append(d)
 		if _foes.size() >= MAX_FOES:
 			break
+	_prune_foe_anims()
 	_apply_foes_to_rows()
 	visible = not _foes.is_empty()
 	relayout()
@@ -163,6 +187,21 @@ func refresh() -> void:
 	_apply_foes_to_rows()
 	relayout()
 	_apply_aim_highlight()
+
+
+func _prune_foe_anims() -> void:
+	var live: Dictionary = {}
+	for i in _foes.size():
+		var slot := _foe_anim_slot(i)
+		live[slot] = true
+		_ensure_foe_anim(slot)
+	var drop: Array = []
+	for slot in _anim_cd_by_slot.keys():
+		if not live.has(slot):
+			drop.append(slot)
+	for slot in drop:
+		_anim_tick_by_slot.erase(slot)
+		_anim_cd_by_slot.erase(slot)
 
 
 func relayout() -> void:
@@ -313,7 +352,11 @@ func _refresh_icons() -> void:
 		return
 	for i in mini(_foes.size(), MAX_FOES):
 		var tid := int(_foes[i].get("tile", 0))
-		var paint := _WorldCreaturesScript.resolve_paint_tile(tid, _anim_tick)
+		var slot := _foe_anim_slot(i)
+		_ensure_foe_anim(slot)
+		var paint := _WorldCreaturesScript.resolve_paint_tile(
+			tid, int(_anim_tick_by_slot.get(slot, 0))
+		)
 		var slice: Image = _U4TileBankScript.keyed_copy(paint)
 		if slice == null or slice.is_empty():
 			continue
@@ -352,24 +395,17 @@ func _distribute_rows() -> void:
 	if _rows.is_empty():
 		return
 	var n := clampi(_foes.size(), 0, MAX_FOES)
+	## Full left-pane height: 16 equal bands (sep 0) so max foes fill edge-to-edge.
 	var content_h := maxf(size.y, 8.0)
-	var row_h := 18.0
-	var sep := 2
-	if _open_outer_h >= 8.0:
-		## Same pitch as the 8-slot party panel when few foes; shrink to fit if many.
-		var party_band := maxf(
+	if content_h < 32.0 and _open_outer_h >= 8.0:
+		content_h = maxf(
 			_open_outer_h - float(ROSTER_STYLE_PAD * 2 + ROSTER_MARGIN_PAD * 2),
 			8.0
 		)
-		var m := _eight_slot_metrics(party_band)
-		row_h = float(m["row_h"])
-		sep = int(m["sep"])
-	if n > 1:
-		var need := row_h * float(n) + float(sep * (n - 1))
-		if need > content_h + 0.5:
-			sep = 1 if n > 8 else sep
-			var inner := content_h - float(sep * (n - 1))
-			row_h = maxf(floorf(inner / float(n)), 12.0)
+	var m := _slot_metrics(content_h, MAX_FOES)
+	var row_h: float = m["row_h"]
+	var sep: int = m["sep"]
+	var leftover: int = m["leftover"]
 	add_theme_constant_override("separation", sep if n > 1 else 0)
 	var icon := _icon_for_row(row_h)
 	for i in MAX_FOES:
@@ -378,7 +414,8 @@ func _distribute_rows() -> void:
 			continue
 		if i < n:
 			row.visible = true
-			row.custom_minimum_size = Vector2(0, row_h)
+			var rh := row_h + (1.0 if i < leftover else 0.0)
+			row.custom_minimum_size = Vector2(0, rh)
 			if i < _icons.size() and _icons[i] and _icons[i].get_parent():
 				(_icons[i].get_parent() as Control).custom_minimum_size = icon
 		else:
@@ -386,23 +423,25 @@ func _distribute_rows() -> void:
 			row.custom_minimum_size = Vector2.ZERO
 
 
+func _slot_metrics(content_h: float, slots: int) -> Dictionary:
+	## Equal bands across the full height; leftover px go to the first rows.
+	slots = maxi(slots, 1)
+	var sep := 0
+	var row_h := floorf(content_h / float(slots))
+	if row_h < 1.0:
+		row_h = 1.0
+	var used := row_h * float(slots)
+	var leftover := int(floorf(content_h - used))
+	return {"row_h": row_h, "sep": sep, "leftover": leftover}
+
+
 func _eight_slot_metrics(content_h: float) -> Dictionary:
-	var sep := 2
-	var inner := content_h - float(sep * 7)
-	var row_h := floorf(inner / 8.0)
-	if row_h < 14.0:
-		sep = 1
-		inner = content_h - float(sep * 7)
-		row_h = floorf(inner / 8.0)
-	if row_h < 12.0:
-		sep = 0
-		inner = content_h
-		row_h = floorf(inner / 8.0)
-	return {"row_h": row_h, "sep": sep}
+	## Kept for callers; foe layout uses `_slot_metrics(..., MAX_FOES)`.
+	return _slot_metrics(content_h, 8)
 
 
 func _icon_for_row(row_h: float) -> Vector2:
-	var fit_h := minf(maxf(row_h - 2.0, 12.0), float(ICON_SIZE))
+	var fit_h := minf(maxf(row_h - 1.0, 8.0), float(ICON_SIZE))
 	return Vector2(fit_h * _tile_aspect, fit_h)
 
 
@@ -412,8 +451,9 @@ func _aim_row_style(highlight_i: int, index: int) -> StyleBoxFlat:
 	sb.set_corner_radius_all(0)
 	sb.content_margin_left = 4
 	sb.content_margin_right = 2
-	sb.content_margin_top = 1
-	sb.content_margin_bottom = 1
+	## No vertical pad — 16 equal bands must sum exactly to the pane height.
+	sb.content_margin_top = 0
+	sb.content_margin_bottom = 0
 	sb.border_width_left = 0
 	sb.border_width_top = 0
 	sb.border_width_right = 0

@@ -2733,6 +2733,16 @@ const _T := {
 		"en_us": "You find a hidden door!",
 		"ko": "숨겨진 문을 찾았다!",
 	},
+	"cmd_shamino_sense_wall": {
+		"en_u4": "%s: Wait... this wall seemeth strange.",
+		"en_us": "%s: Wait... this wall feels odd.",
+		"ko": "%s: 잠깐.. 이 벽, 뭔가 이상한데",
+	},
+	"cmd_shamino_sense_trap": {
+		"en_u4": "%s: Wait... something feels amiss here.",
+		"en_us": "%s: Wait... something feels wrong here.",
+		"ko": "%s: 잠깐.. 여기 뭔가 이상한한데",
+	},
 	"cmd_dungeon_fountain_found": {
 		"en_u4": "You find a Fountain.",
 		"en_us": "You find a fountain.",

@@ -113,8 +113,11 @@ static func _load_pack() -> bool:
 				m |= 3 << (bit * 2)
 		_masks[byte_i] = m
 	_xmap32.resize(32)
+	## Map 32 dest cols onto 28 data half-pixels + 1 delayed NTSC bit.
+	## 27/31 stopped at half 27, so the row's right edge (and every tile whose
+	## next neighbour is later cropped from the stage) looked chopped.
 	for x in range(32):
-		_xmap32[x] = int(round(float(x) * 27.0 / 31.0))
+		_xmap32[x] = int(round(float(x) * 28.0 / 31.0))
 	_loaded = true
 	return true
 
@@ -578,9 +581,12 @@ static func _blit_half_row(
 			var dst_base := base + t * 32 * 4
 			for x in range(32):
 				var src_i := int(_xmap32[x])
-				## Last dest column of the last tile: keep the delayed NTSC bit.
-				if t == tiles - 1 and x == 31 and half_base + 28 < row_half.size():
-					src_i = 28
+				## Keep delayed NTSC bits inside every 32px cell. World/city compose
+				## with cols=view+1 then crop the fringe; without this, only the
+				## discarded fringe tile sampled half 28 and the visible right
+				## column looked truncated (ships, guards' arms, etc.).
+				if src_i >= OUT_W and half_base + src_i >= row_half.size():
+					src_i = OUT_W - 1
 				var c: int = int(row_half[half_base + src_i])
 				var r := (c >> 16) & 0xFF
 				var g := (c >> 8) & 0xFF

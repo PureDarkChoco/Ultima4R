@@ -226,8 +226,8 @@ static func _load_apple2_hgr() -> bool:
 	for i in COUNT:
 		ids[i] = i
 	## 16×16 atlas of isolated tiles (correct phase pad per cell). Scale inside
-	## the decoder so its endpoint-preserving xmap32 keeps src column 27 at the
-	## right edge; generic Image.resize can visually shorten edge details.
+	## the decoder so its endpoint-preserving xmap32 keeps the delayed NTSC bit
+	## (half 28) at the right edge; generic Image.resize shortens edge details.
 	var atlas: Image = _Apple2HgrNtsc.render_grid_scaled(
 		ids, 16, 16, TILE_SIZE, 0, true
 	)

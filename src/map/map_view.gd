@@ -57,6 +57,9 @@ const AVATAR_FRAME_MAX := 0.55
 ## Townsfolk walk cycles — wider spread so they don't flip in lockstep.
 const NPC_FRAME_MIN := 0.22
 const NPC_FRAME_MAX := 0.85
+## Combat party / foes — same stagger idea so 16 guards don't march together.
+const COMBAT_FRAME_MIN := 0.22
+const COMBAT_FRAME_MAX := 0.85
 ## Classic U4 water (deep / medium / shallow) — vertical pixel scroll wrap.
 const WATER_TILE_MAX := 2 # ids 0..2
 ## Shore masks: land freckles stamped where a water cell touches non-water.
@@ -368,8 +371,14 @@ var _bridge_con_map
 var _combat_map # CombatMapData
 ## Each: { "x", "y", "klass", "party_slot"? } — living party members.
 var _combat_party: Array[Dictionary] = []
+## Per-party walk frame (0/1) and countdown — independent of `_avatar_frame`.
+var _combat_party_frame_bit: Array[int] = []
+var _combat_party_frame_cd: Array[float] = []
 ## Each: { "x", "y", "tile" } — foes on the arena.
 var _combat_foes: Array[Dictionary] = []
+## Per-foe animation tick (for resolve_paint_tile) and countdown.
+var _combat_foe_anim_tick: Array[int] = []
+var _combat_foe_anim_cd: Array[float] = []
 ## Living foe count at combat start (for 1/N chest drop).
 var _combat_foe_spawn_count := 0
 ## Combat loot chests: key "x,y" → { open, stack, ... }.
@@ -971,6 +980,7 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_combat_range_shade = false
 	_combat_tile_flashes.clear()
 	_combat_proj.clear()
+	_init_combat_anim_frames()
 	_ensure_combat_aim_cursor()
 	_combat_focus_on = true
 	_combat_focus_cd = COMBAT_FOCUS_BLINK_SEC
@@ -1091,6 +1101,7 @@ func exit_combat() -> void:
 	_combat_range_shade = false
 	_combat_tile_flashes.clear()
 	_combat_proj.clear()
+	_clear_combat_anim_frames()
 	_rebuild()
 
 
@@ -1387,6 +1398,7 @@ func remove_combat_party_at(index: int) -> Dictionary:
 	var removed: Dictionary = _combat_party[index]
 	var was_focus := _combat_focus == index
 	_combat_party.remove_at(index)
+	_drop_combat_party_anim_at(index)
 	if was_focus:
 		if _combat_focus >= _combat_party.size():
 			_combat_focus = _combat_party.size()
@@ -1858,6 +1870,7 @@ func try_move_combat_focus(dir: Vector2i) -> int:
 		## xu4 MAP_IS_OOB — leave combat map (flee).
 		_combat_last_fled = u.duplicate(true)
 		_combat_party.remove_at(_combat_focus)
+		_drop_combat_party_anim_at(_combat_focus)
 		## Index now points at the next member (or past end = round over).
 		if _combat_focus >= _combat_party.size():
 			_combat_focus = _combat_party.size()
@@ -3224,6 +3237,10 @@ func _process(delta: float) -> void:
 			_npc_rebuild_cd = NPC_REBUILD_PERIOD
 			npc_changed = true
 
+	var combat_anim_changed := false
+	if _combat_map != null:
+		combat_anim_changed = _tick_combat_anim_frames(delta)
+
 	var combat_focus_changed := false
 	if _combat_map != null and (
 		_combat_focus >= 0 or _combat_foe_focus >= 0 or _combat_aim_pos.x >= 0
@@ -3281,6 +3298,7 @@ func _process(delta: float) -> void:
 			_scroll_skip_process = false
 			if (
 				frame_changed or water_changed or tile_anim_changed or npc_changed
+				or combat_anim_changed
 				or combat_focus_changed
 				or shake_changed or moongate_changed or flash_changed
 				or horse_changed
@@ -3296,6 +3314,7 @@ func _process(delta: float) -> void:
 
 	if (
 		frame_changed or water_changed or tile_anim_changed or npc_changed
+		or combat_anim_changed
 		or combat_focus_changed
 		or shake_changed or moongate_changed or flash_changed
 		or horse_changed
@@ -3330,6 +3349,67 @@ func _tick_npc_frames(delta: float) -> bool:
 			continue
 		_npc_frame_bit[i] = 1 - _npc_frame_bit[i]
 		_npc_frame_cd[i] = randf_range(NPC_FRAME_MIN, NPC_FRAME_MAX)
+		changed = true
+	return changed
+
+
+func _clear_combat_anim_frames() -> void:
+	_combat_party_frame_bit.clear()
+	_combat_party_frame_cd.clear()
+	_combat_foe_anim_tick.clear()
+	_combat_foe_anim_cd.clear()
+
+
+func _init_combat_anim_frames() -> void:
+	## Independent timers per combatant — guards no longer flip in lockstep.
+	_clear_combat_anim_frames()
+	for _i in _combat_party.size():
+		_combat_party_frame_bit.append(randi() & 1)
+		_combat_party_frame_cd.append(randf_range(0.0, COMBAT_FRAME_MAX))
+	for _j in _combat_foes.size():
+		_combat_foe_anim_tick.append(randi() & 3)
+		_combat_foe_anim_cd.append(randf_range(0.0, COMBAT_FRAME_MAX))
+
+
+func _drop_combat_party_anim_at(index: int) -> void:
+	if index < 0 or index >= _combat_party_frame_cd.size():
+		return
+	_combat_party_frame_bit.remove_at(index)
+	_combat_party_frame_cd.remove_at(index)
+
+
+func _combat_party_frame_bit_at(index: int) -> int:
+	if index < 0 or index >= _combat_party_frame_bit.size():
+		return _avatar_frame
+	return int(_combat_party_frame_bit[index])
+
+
+func _combat_foe_anim_tick_at(index: int) -> int:
+	if index < 0 or index >= _combat_foe_anim_tick.size():
+		return _tile_anim_frame
+	return int(_combat_foe_anim_tick[index])
+
+
+func _tick_combat_anim_frames(delta: float) -> bool:
+	var changed := false
+	for i in _combat_party_frame_cd.size():
+		_combat_party_frame_cd[i] -= delta
+		if _combat_party_frame_cd[i] > 0.0:
+			continue
+		_combat_party_frame_bit[i] = 1 - _combat_party_frame_bit[i]
+		_combat_party_frame_cd[i] = randf_range(COMBAT_FRAME_MIN, COMBAT_FRAME_MAX)
+		changed = true
+	for j in _combat_foe_anim_cd.size():
+		_combat_foe_anim_cd[j] -= delta
+		if _combat_foe_anim_cd[j] > 0.0:
+			continue
+		_combat_foe_anim_tick[j] = int(_combat_foe_anim_tick[j]) + 1
+		_combat_foe_anim_cd[j] = randf_range(COMBAT_FRAME_MIN, COMBAT_FRAME_MAX)
+		if j >= _combat_foes.size():
+			continue
+		var f: Dictionary = _combat_foes[j]
+		if int(f.get("hp", 1)) <= 0 or bool(f.get("asleep", false)):
+			continue
 		changed = true
 	return changed
 
@@ -4547,7 +4627,8 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 	## Apple II Color: occupants are already in the HGR row (correct right-edge bits).
 	if _U4TileBankScript.uses_hgr_ntsc():
 		return
-	for u in _combat_party:
+	for i in _combat_party.size():
+		var u: Dictionary = _combat_party[i]
 		var klass := int(u.get("klass", -1))
 		var pos := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
 		var sx := origin_x + pos.x
@@ -4568,7 +4649,8 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 			img = _corpse_slice
 		elif klass >= 0 and klass < CLASS_TILE_EVEN.size():
 			var even: int = CLASS_TILE_EVEN[klass]
-			var tid := even + (1 if _avatar_frame == 1 else 0)
+			var bit := _combat_party_frame_bit_at(i)
+			var tid := even + (1 if bit == 1 else 0)
 			img = _slice_keyed_tile(tid)
 			if img == null:
 				img = _slice_keyed_tile(even)
@@ -4580,7 +4662,8 @@ func _paint_combat_party(origin_x: int, origin_y: int) -> void:
 
 func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 	var hgr := _U4TileBankScript.uses_hgr_ntsc()
-	for u in _combat_foes:
+	for i in _combat_foes.size():
+		var u: Dictionary = _combat_foes[i]
 		if int(u.get("hp", 1)) <= 0:
 			continue
 		var base_tid := int(u.get("tile", 0))
@@ -4598,8 +4681,10 @@ func _paint_combat_foes(origin_x: int, origin_y: int) -> void:
 					_corpse_slice = _slice_keyed_tile(TILE_CORPSE)
 				img = _corpse_slice
 			else:
-				## Same multi-frame cycle as wilderness (ettin skips 208, etc.).
-				var tid: int = _WorldCreaturesScript.resolve_paint_tile(base_tid, _tile_anim_frame)
+				## Per-foe tick — not the global `_tile_anim_frame`.
+				var tid: int = _WorldCreaturesScript.resolve_paint_tile(
+					base_tid, _combat_foe_anim_tick_at(i)
+				)
 				img = _slice_keyed_tile(tid)
 			if img == null or img.is_empty():
 				continue
@@ -4950,6 +5035,12 @@ func _build_camp_background() -> void:
 	if is_in_combat() and _is_bridge_combat_map():
 		_paint_bridge_battlefield_margin(true, origin_x, right_start)
 		_paint_bridge_battlefield_margin(false, origin_x, right_start)
+		return
+	## City combat: world neighbours are outside the walls (often water) —
+	## pave both voids with brick floor like the settlement interior.
+	if is_in_combat() and is_in_city():
+		_paint_camp_side_margin(true, origin_x, right_start, TILE_BRICK_FLOOR)
+		_paint_camp_side_margin(false, origin_x, right_start, TILE_BRICK_FLOOR)
 		return
 
 	var left_raw := TILE_GRASS
@@ -5634,16 +5725,19 @@ func _apple2_party_is_grid_composed() -> bool:
 	)
 
 
-func _apple2_class_walk_tid(klass: int) -> int:
+func _apple2_class_walk_tid(klass: int, frame_bit: int = -1) -> int:
 	if klass < 0 or klass >= CLASS_TILE_EVEN.size():
 		return -1
 	var even: int = CLASS_TILE_EVEN[klass]
-	return even + (1 if _avatar_frame == 1 else 0)
+	var bit := _avatar_frame if frame_bit < 0 else frame_bit
+	return even + (1 if bit == 1 else 0)
 
 
 func _apple2_combat_occupant_tid(cx: int, cy: int) -> int:
 	## Party on top of foes so the focused fighter is not buried.
-	for u in _combat_party:
+	## Same cell may hold both; party wins the HGR cell (PNG path blends both).
+	for i in _combat_party.size():
+		var u: Dictionary = _combat_party[i]
 		if int(u.get("x", -1)) != cx or int(u.get("y", -1)) != cy:
 			continue
 		var klass := int(u.get("klass", -1))
@@ -5655,15 +5749,18 @@ func _apple2_combat_occupant_tid(cx: int, cy: int) -> int:
 			)
 		):
 			return TILE_CORPSE
-		return _apple2_class_walk_tid(klass)
-	for u in _combat_foes:
-		if int(u.get("hp", 1)) <= 0:
+		return _apple2_class_walk_tid(klass, _combat_party_frame_bit_at(i))
+	for j in _combat_foes.size():
+		var f: Dictionary = _combat_foes[j]
+		if int(f.get("hp", 1)) <= 0:
 			continue
-		if int(u.get("x", -1)) != cx or int(u.get("y", -1)) != cy:
+		if int(f.get("x", -1)) != cx or int(f.get("y", -1)) != cy:
 			continue
-		if bool(u.get("asleep", false)):
+		if bool(f.get("asleep", false)):
 			return TILE_CORPSE
-		return _WorldCreaturesScript.resolve_paint_tile(int(u.get("tile", 0)), _tile_anim_frame)
+		return _WorldCreaturesScript.resolve_paint_tile(
+			int(f.get("tile", 0)), _combat_foe_anim_tick_at(j)
+		)
 	if has_combat_chest_at(Vector2i(cx, cy)):
 		return TILE_CHEST
 	return -1
