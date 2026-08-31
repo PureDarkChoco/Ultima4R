@@ -9,6 +9,7 @@ const _TileRules := preload("res://src/map/tile_rules.gd")
 const _TalkTlk := preload("res://src/core/talk_tlk.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _CityNpcRoles := preload("res://src/map/city_npc_roles.gd")
+const _WorldCreatures := preload("res://src/map/world_creatures.gd")
 
 const WIDTH := 32
 const HEIGHT := 32
@@ -312,7 +313,7 @@ func _nudge_stand_tile(self_i: int, avatar: Vector2i) -> Vector2i:
 			var nxt := cur + d
 			if seen.has(nxt):
 				continue
-			if not _person_terrain_walkable(nxt.x, nxt.y, d):
+			if not _person_terrain_walkable(nxt.x, nxt.y, d, self_i):
 				continue
 			seen[nxt] = true
 			if _person_can_stand_at(nxt.x, nxt.y, self_i, avatar, d):
@@ -321,11 +322,16 @@ func _nudge_stand_tile(self_i: int, avatar: Vector2i) -> Vector2i:
 	return Vector2i(-1, -1)
 
 
-func _person_terrain_walkable(x: int, y: int, dir: Vector2i) -> bool:
+func _person_terrain_walkable(x: int, y: int, dir: Vector2i, self_i: int = -1) -> bool:
 	if x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT:
 		return false
 	var dest_tid := effective_tile_at(x, y)
 	var step := dir if dir != Vector2i.ZERO else Vector2i(1, 0)
+	var mover := 0
+	if self_i >= 0 and self_i < persons.size():
+		mover = int(persons[self_i].z)
+	if _WorldCreatures.is_swimmer(mover):
+		return _TileRules.is_swimable(dest_tid)
 	if not _TileRules.can_walk_on(dest_tid, step):
 		return false
 	return _TileRules.is_creature_walkable(dest_tid)
@@ -338,7 +344,7 @@ func _person_can_stand_at(
 		return false
 	if _person_blocks(x, y, ignore_i):
 		return false
-	return _person_terrain_walkable(x, y, dir)
+	return _person_terrain_walkable(x, y, dir, ignore_i)
 
 
 func take_person_at(x: int, y: int) -> Dictionary:
@@ -888,12 +894,19 @@ func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2
 		if _person_blocks(dest.x, dest.y, self_i):
 			continue
 		var dest_tid := effective_tile_at(dest.x, dest.y)
-		if not _TileRules.can_walk_on(dest_tid, d):
-			continue
-		if not _TileRules.can_walk_off(from_tid, d):
-			continue
-		if not _TileRules.is_creature_walkable(dest_tid):
-			continue
+		var mover := 0
+		if self_i >= 0 and self_i < persons.size():
+			mover = int(persons[self_i].z)
+		if _WorldCreatures.is_swimmer(mover):
+			if not _TileRules.is_swimable(dest_tid):
+				continue
+		else:
+			if not _TileRules.can_walk_on(dest_tid, d):
+				continue
+			if not _TileRules.can_walk_off(from_tid, d):
+				continue
+			if not _TileRules.is_creature_walkable(dest_tid):
+				continue
 		out.append(d)
 	return out
 

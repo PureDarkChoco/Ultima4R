@@ -4559,6 +4559,10 @@ func _seed_talk_latent_keywords() -> void:
 			continue
 		if _talk_should_hide_serpent_passage_name_word(word):
 			continue
+		if _talk_should_hide_lassorn_ship_word(word):
+			continue
+		if _talk_should_hide_serpent_dungeon_word(word):
+			continue
 		if _talk_should_hide_antos_foreign_relic_word(word):
 			continue
 		var revealed := (
@@ -4705,6 +4709,94 @@ func _maybe_offer_serpent_passage_guard_who_keywords() -> void:
 			_talk_keyword_stable_key("더럼" if korean else "durham"),
 			"더럼" if korean else "Durham",
 			"더럼" if korean else "durham"
+		)
+
+
+func _talk_word_is_dungeon(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["던전", "dungeon", "dung"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_should_hide_serpent_dungeon_word(word: String) -> bool:
+	## Durham: Dungeon stays off until the treasure guard points at him.
+	if not _talk_word_is_dungeon(word):
+		return false
+	if _talk_city_id() != "serpent" or _talk_entry == null:
+		return false
+	if str(_talk_entry.name).strip_edges().to_lower() != "durham":
+		return false
+	return not GameState.journal_has_id("serpent.treasure-guard.durham")
+
+
+func _talk_is_lassorn() -> bool:
+	if _talk_entry == null:
+		return false
+	if _talk_city_id() != "serpent":
+		return false
+	return str(_talk_entry.name).strip_edges().to_lower() == "lassorn"
+
+
+func _talk_word_is_ship(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["배", "ship"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _lassorn_ship_ready() -> bool:
+	## Only after Noxum's "ask a survivor" tip.
+	return GameState.journal_has_id("serpent.noxum.lassorn-wheel")
+
+
+func _lassorn_wheel_ready() -> bool:
+	## Noxum Yes after Ship names the magical wheel.
+	return GameState.journal_has_id("serpent.noxum.magic-wheel")
+
+
+func _talk_word_is_wheel(word: String) -> bool:
+	var key := _talk_keyword_stable_key(word)
+	if key.is_empty():
+		return false
+	for stem in ["타륜", "wheel", "whee"]:
+		if _talk_stored_key_matches(key, _talk_keyword_stable_key(stem)):
+			return true
+	return false
+
+
+func _talk_should_hide_lassorn_ship_word(word: String) -> bool:
+	## Lassorn: Ship / Wheel stay off until the matching Noxum tip.
+	if not _talk_is_lassorn():
+		return false
+	if _talk_word_is_ship(word):
+		return not _lassorn_ship_ready()
+	if _talk_word_is_wheel(word):
+		return not _lassorn_wheel_ready()
+	return false
+
+
+func _maybe_offer_lassorn_ship_keyword() -> void:
+	if not _talk_keyword_menu_active or not _talk_is_lassorn():
+		return
+	var korean := GameState.lang_short() == "ko"
+	if _lassorn_ship_ready():
+		_offer_talk_keyword_item(
+			_talk_keyword_stable_key("배" if korean else "ship"),
+			"배" if korean else "Ship",
+			"배" if korean else "ship"
+		)
+	if _lassorn_wheel_ready():
+		_offer_talk_keyword_item(
+			_talk_keyword_stable_key("타륜" if korean else "wheel"),
+			"타륜" if korean else "Wheel",
+			"타륜" if korean else "wheel"
 		)
 
 
@@ -5690,10 +5782,18 @@ func _talk_keyword_menu_intro_default_key() -> String:
 	elif (
 		_talk_city_id() == "serpent"
 		and str(entry.name).strip_edges().to_lower() == "lassorn"
-		and GameState.journal_has_id("serpent.noxum.lassorn-wheel")
+		and _lassorn_wheel_ready()
 	):
 		default_key = _talk_keyword_stable_key(
 			"타륜" if GameState.lang_short() == "ko" else "wheel"
+		)
+	elif (
+		_talk_city_id() == "serpent"
+		and str(entry.name).strip_edges().to_lower() == "lassorn"
+		and _lassorn_ship_ready()
+	):
+		default_key = _talk_keyword_stable_key(
+			"배" if GameState.lang_short() == "ko" else "ship"
 		)
 	elif (
 		_talk_city_id() == "serpent"
@@ -6281,6 +6381,10 @@ func _restore_talk_known_keywords() -> void:
 			continue
 		if _talk_should_hide_serpent_passage_name_word(stored):
 			continue
+		if _talk_should_hide_lassorn_ship_word(stored):
+			continue
+		if _talk_should_hide_serpent_dungeon_word(stored):
+			continue
 		if _talk_should_hide_antos_foreign_relic_word(stored):
 			continue
 		if _reveal_talk_keyword_if_latent(stored) != 0:
@@ -6453,6 +6557,7 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_paws_chain_keyword()
 	_maybe_offer_cove_chain_keyword()
 	_maybe_offer_keep_chain_keyword()
+	_maybe_offer_lassorn_ship_keyword()
 	_maybe_offer_lycaeum_chain_keyword()
 
 
@@ -6881,19 +6986,8 @@ func _maybe_offer_keep_chain_keyword() -> void:
 			"종" if korean else "Bell",
 			"종" if korean else "bell"
 		)
-	elif (
-		place == "serpent"
-		and npc == "lassorn"
-		and GameState.journal_has_id("serpent.noxum.lassorn-wheel")
-	):
-		var wheel_key := _talk_keyword_stable_key(
-			"타륜" if korean else "wheel"
-		)
-		_offer_talk_keyword_item(
-			wheel_key,
-			"타륜" if korean else "Wheel",
-			"타륜" if korean else "wheel"
-		)
+	elif place == "serpent" and npc == "lassorn":
+		_maybe_offer_lassorn_ship_keyword()
 	elif (
 		place == "serpent"
 		and npc == "shyra"
@@ -14434,10 +14528,22 @@ func _use_virtue_stone(kind: int) -> void:
 	_push_message(Locale.t("cmd_use_altar_stones"), false)
 	_push_message(Locale.t("cmd_use_altar_key", [Locale.t(_DungeonPortals.key_name_key(key_flag))]), false)
 	_refresh_inventory_bars()
+	var key_goal := ""
+	if key_flag == GameState.ITEM_KEY_T:
+		key_goal = "key:truth"
+	elif key_flag == GameState.ITEM_KEY_L:
+		key_goal = "key:love"
+	elif key_flag == GameState.ITEM_KEY_C:
+		key_goal = "key:courage"
+	var journal_refresh := false
 	if (
 		key_flag == GameState.ITEM_KEY_T
 		and GameState.journal_mark_goal("use:stone:blue")
 	):
+		journal_refresh = true
+	if not key_goal.is_empty() and GameState.journal_mark_goal(key_goal):
+		journal_refresh = true
+	if journal_refresh:
 		_refresh_journal_panel()
 	await _finish_use_command()
 
@@ -21288,23 +21394,9 @@ func _refresh_journal_panel() -> void:
 
 
 func _refresh_journal_after_talk() -> void:
-	## Source tip + destination seed: keep the open log on this settlement.
+	## New talk notes already set journal_unseen_id; refresh flashes and scrolls.
+	## Do not pin the city header — that cancelled the sweep / jump.
 	_refresh_journal_panel()
-	if _journal_panel == null or not _journal_panel.has_method("focus_place"):
-		return
-	var visible := (
-		(_sides_open or _journal_focus_active or _journal_opened_left_only)
-		and _journal_panel.visible
-		and not (_combat_active and _map != null and _map.is_in_combat())
-	)
-	if not visible:
-		return
-	var place := _talk_city_id()
-	if place.is_empty() and _is_in_city() and _city_map != null:
-		place = _TalkLocale.city_id_from_path(str(_city_map.source_path))
-	if place.is_empty():
-		return
-	_journal_panel.focus_place(place)
 
 
 func _can_open_journal_focus() -> bool:
@@ -21886,7 +21978,7 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 			refresh = true
 		if GameState.journal_mark_goal("ask:garam-bell"):
 			refresh = true
-	if place == "serpent" and npc_key == "lassorn" and topic == "WHEE":
+	if place == "serpent" and npc_key == "lassorn" and topic in ["SHIP", "WHEE"]:
 		if GameState.journal_mark_id("serpent.noxum.lassorn-wheel"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:lassorn-wheel"):

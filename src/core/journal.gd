@@ -879,6 +879,7 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 		or catalog_goal.begins_with("stone:")
 		or catalog_goal.begins_with("use:stone:")
 		or catalog_goal.begins_with("item:")
+		or catalog_goal.begins_with("key:")
 	):
 		if bool(row.get("done", false)) != inventory_done:
 			row["done"] = inventory_done
@@ -947,6 +948,8 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return gs.has_item_flag(gs.ITEM_BELL)
 	if g == "item:horn" or g == "horn":
 		return gs.has_item_flag(gs.ITEM_HORN)
+	if g == "item:wheel" or g == "wheel":
+		return gs.has_item_flag(gs.ITEM_WHEEL)
 	if g == "enter:hythloth-castle":
 		## Descended into Hythloth from Castle Britannia (secret entrance).
 		return bool(gs.journal_hythloth_castle)

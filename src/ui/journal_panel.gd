@@ -556,14 +556,13 @@ func _prepare_open_selection(current_place: String) -> void:
 func _reveal_unseen_if_visible(gs: Node, journal_visible: bool) -> void:
 	if gs == null or not journal_visible:
 		return
-	if _pin_selection_top:
-		return
 	var unseen := _unseen_id(gs)
 	if unseen.is_empty():
 		return
 	if _Journal.place_for_entry_id(gs, unseen).is_empty() and not _nav_ids.has(unseen):
 		_set_unseen_id(gs, "")
 		return
+	_pin_selection_top = false
 	_set_page(0)
 	_set_selected_id(unseen)
 	_flash_id = unseen

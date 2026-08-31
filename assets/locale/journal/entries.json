@@ -2970,18 +2970,23 @@
       "chain_order": 10,
       "goal": "ask:lassorn-wheel",
       "complete_if_recorded": "serpent.lassorn.wheel-wreck",
-      "en": "Ask a survivor where to search the sunken ships.",
-      "ko": "생존자에게 가라앉은 배에 대해 묻기",
-      "en_u4": "Ask a survivor where to search the sunken ships.",
-      "en_us": "Ask a survivor where to search the sunken ships."
+      "en": "Ask a survivor.",
+      "ko": "생존자에게 묻기",
+      "en_u4": "Ask a survivor.",
+      "en_us": "Ask a survivor."
     },
     {
       "id": "serpent.noxum.magic-wheel",
       "place": "serpent",
       "npc": "Noxum",
       "topic": "SHIP_YES",
-      "en": "H.M.S. Cape: had a magical wheel that strengthens the hull.",
-      "ko": "케이프 호: 선체를 강하게 하는 마법 타륜이 있었다."
+      "chain": "serpent.magic-wheel",
+      "chain_order": 15,
+      "goal": "",
+      "en": "H.M.S. Cape: has a magical wheel that strengthens the hull.",
+      "ko": "케이프 호: 선체를 강하게 만드는 마법 타륜이 있다.",
+      "en_u4": "H.M.S. Cape: had a magical wheel that would strengthen her hull.",
+      "en_us": "H.M.S. Cape: has a magical wheel that strengthens the hull."
     },
     {
       "id": "serpent.lassorn.wheel-wreck",
@@ -2990,11 +2995,11 @@
       "topic": "WHEE",
       "chain": "serpent.magic-wheel",
       "chain_order": 20,
-      "goal": "",
-      "en": "Search the deep waters of the bay in the Cape of Heroes.",
-      "ko": "영웅의 곶 만 깊은 물에서 찾기",
-      "en_u4": "Search the deep waters of the bay in the Cape of Heroes.",
-      "en_us": "Search the deep waters of the bay in the Cape of Heroes."
+      "goal": "item:wheel",
+      "en": "Search for the magical wheel in the deep waters of the bay in the Cape of Heroes.",
+      "ko": "영웅의 곶 만 깊은 물에서 마법 타륜 찾기",
+      "en_u4": "Search for the magical wheel in the deep waters of the bay in the Cape of Heroes.",
+      "en_us": "Search for the magical wheel in the deep waters of the bay in the Cape of Heroes."
     },
     {
       "id": "serpent.ranger.shrya-rooms",
@@ -3046,9 +3051,11 @@
       "topic": "DUNG",
       "chain": "serpent.courage-key",
       "chain_order": 20,
-      "goal": "",
-      "en": "Altar of Courage: gives the third part of a key.",
-      "ko": "용기 제단: 열쇠의 세 번째 조각을 준다."
+      "goal": "key:courage",
+      "en": "Altar of Courage: find the third part of a key.",
+      "ko": "용기 제단에서 열쇠의 세 번째 조각 찾기",
+      "en_u4": "Altar of Courage: find the third part of a key.",
+      "en_us": "Altar of Courage: find the third part of a key."
     },
     {
       "id": "serpent.roark.abyss-codex",
