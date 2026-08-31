@@ -413,6 +413,8 @@ static func apply_pack_fill(entry: Entry, city_id: String) -> void:
 		return
 	if _unused_talk_text(entry.response1) and not _unused_talk_text(str(spec.get("response1", ""))):
 		entry.response1 = _TalkLocale.unescape_pack(str(spec.get("response1", "")))
+	elif bool(spec.get("replace_response1", false)) and not _unused_talk_text(str(spec.get("response1", ""))):
+		entry.response1 = _TalkLocale.unescape_pack(str(spec.get("response1", "")))
 	if _unused_talk_text(entry.response2) and not _unused_talk_text(str(spec.get("response2", ""))):
 		entry.response2 = _TalkLocale.unescape_pack(str(spec.get("response2", "")))
 	elif bool(spec.get("replace_response2", false)) and not _unused_talk_text(str(spec.get("response2", ""))):
