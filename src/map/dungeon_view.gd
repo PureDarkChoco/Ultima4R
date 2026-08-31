@@ -428,6 +428,30 @@ func _front_rect(depth: int, w: int, h: int) -> Rect2i:
 	return Rect2i(x0, y0, maxi(w - 2 * x0, 1), maxi(h - 2 * y0, 1))
 
 
+func _ladder_rect(depth: int, w: int, h: int) -> Rect2i:
+	## Standing on the ladder: keep it flush with the near plane so Klimb/Descend
+	## reads as "here". Farther ladders sit a little into the cell — not on the
+	## front depth line, but still forward of true mid-tile (0.5 looked too far).
+	if depth <= 0:
+		return _front_rect(0, w, h)
+	var near := _front_rect(depth, w, h)
+	var far := _front_rect(mini(depth + 1, MAX_DEPTH), w, h)
+	var t := 0.28
+	var x0 := int(round(lerpf(float(near.position.x), float(far.position.x), t)))
+	var y0 := int(round(lerpf(float(near.position.y), float(far.position.y), t)))
+	var x1 := int(round(lerpf(
+		float(near.position.x + near.size.x),
+		float(far.position.x + far.size.x),
+		t
+	)))
+	var y1 := int(round(lerpf(
+		float(near.position.y + near.size.y),
+		float(far.position.y + far.size.y),
+		t
+	)))
+	return Rect2i(x0, y0, maxi(x1 - x0, 1), maxi(y1 - y0, 1))
+
+
 func _ensure_dim_lut(w: int, h: int) -> void:
 	var inner := _ring(mini(w, h), MAX_DEPTH)
 	if (
@@ -870,10 +894,10 @@ func _paint_ladder_object(
 ) -> void:
 	if mode == 0:
 		return
-	var fr := _front_rect(depth, field_w, field_h)
+	var fr := _ladder_rect(depth, field_w, field_h)
 	_blit_cached_piece(
 		buf,
-		"ladder:%d:%d" % [mode, depth],
+		"ladder:t28:%d:%d" % [mode, depth],
 		Callable(self, "_paint_ladder_piece").bind(fr, dim, mode)
 	)
 
