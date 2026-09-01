@@ -2236,6 +2236,11 @@ const _T := {
 		"en_us": "%s  %s %s",
 		"ko": "%s  %s %s",
 	},
+	"cmd_locate_map": {
+		"en_u4": "Thou dost consult a chart of Britannia.",
+		"en_us": "You consult a chart of Britannia.",
+		"ko": "브리타니아 지도를 펼칩니다.",
+	},
 	"cmd_locate_what": {
 		"en_u4": "Locate with What?",
 		"en_us": "Locate with What?",

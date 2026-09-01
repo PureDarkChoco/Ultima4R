@@ -5,6 +5,7 @@ extends Node
 const _Journal := preload("res://src/core/journal.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
+const LocateChart := preload("res://src/map/locate_chart.gd")
 
 signal language_changed(lang: String)
 
@@ -158,6 +159,12 @@ var skull: int = 0 ## HUD/legacy; kept in sync with ITEM_SKULL bit
 var has_sextant: bool = false
 ## Guild shop listed D-Sextant after the rumor hint (or a prior buy).
 var guild_sextant_listed: bool = false
+## Locate chart: explored world tiles (256×256 bitfield) + hidden landmarks.
+var locate_explored: PackedByteArray = PackedByteArray()
+var locate_found_abyss: bool = false
+var locate_found_skull: bool = false
+var locate_found_bell: bool = false
+var locate_chart_dirty: bool = true
 ## xu4 SaveGame.shiphull — normally 0..50; Wheel mounts to 99 (setShipHull).
 var ship_hull: int = 50
 const SHIP_HULL_MAX := 50
@@ -469,6 +476,7 @@ func reset_party() -> void:
 	skull = 0
 	has_sextant = false
 	guild_sextant_listed = false
+	_reset_locate_chart()
 	ship_hull = 50
 	lastreagent = 0
 	search_taken.clear()
@@ -498,6 +506,15 @@ func reset_party() -> void:
 	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
+	_reset_locate_chart()
+
+
+func _reset_locate_chart() -> void:
+	locate_explored = LocateChart.empty_mask()
+	locate_found_abyss = false
+	locate_found_skull = false
+	locate_found_bell = false
+	locate_chart_dirty = true
 
 
 func _reset_inventory_empty() -> void:
@@ -917,6 +934,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	lycaeum_telescope_hint = false
 	has_sextant = false
 	guild_sextant_listed = false
+	_reset_locate_chart()
 	moves = 0
 	lastcamp = 0
 	lastvirtue = 0
@@ -3125,6 +3143,10 @@ func to_save_dict() -> Dictionary:
 		"lycaeum_telescope_hint": lycaeum_telescope_hint,
 		"has_sextant": has_sextant,
 		"guild_sextant_listed": guild_sextant_listed,
+		"locate_explored": LocateChart.mask_to_save(locate_explored),
+		"locate_found_abyss": locate_found_abyss,
+		"locate_found_skull": locate_found_skull,
+		"locate_found_bell": locate_found_bell,
 		"weapons": weapons.duplicate(),
 		"armor": armor.duplicate(),
 		"reagents": reagents.duplicate(),
@@ -3270,6 +3292,11 @@ func apply_save_dict(d: Dictionary) -> void:
 	has_sextant = bool(d.get("has_sextant", false))
 	## Older saves: owning a sextant means the guild already parted with item D.
 	guild_sextant_listed = bool(d.get("guild_sextant_listed", has_sextant))
+	locate_explored = LocateChart.mask_from_save(d.get("locate_explored", ""))
+	locate_found_abyss = bool(d.get("locate_found_abyss", false))
+	locate_found_skull = bool(d.get("locate_found_skull", false))
+	locate_found_bell = bool(d.get("locate_found_bell", false))
+	locate_chart_dirty = true
 	_apply_int_array(weapons, d.get("weapons", []), 16)
 	_apply_int_array(armor, d.get("armor", []), 8)
 	_apply_int_array(reagents, d.get("reagents", []), 8)

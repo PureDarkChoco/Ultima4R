@@ -46,6 +46,7 @@ const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
 const _ShrineMantras := preload("res://src/core/shrine.gd")
 const _CodexChamber := preload("res://src/core/codex_chamber.gd")
 const _CodexChamberOverlay := preload("res://src/ui/codex_chamber_overlay.gd")
+const _LocateMapOverlay := preload("res://src/ui/locate_map_overlay.gd")
 const _ResImage := preload("res://src/core/res_image.gd")
 
 @onready var _top_bar: Control = %TopBar
@@ -63,6 +64,7 @@ const _ResImage := preload("res://src/core/res_image.gd")
 @onready var _msg_block: Control = %MsgBlock
 
 var _peer_overlay: PeerGemOverlay
+var _locate_map_overlay: LocateMapOverlay
 var _focus_ring: Control
 var _focus_kind := ""
 var _ztats_panel: ZtatsPanel
@@ -504,6 +506,7 @@ func _ready() -> void:
 	_sides_open = GameState.is_new_game
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
+	_ensure_locate_map_overlay()
 	_ensure_codex_overlay()
 	_ensure_ztats_panel()
 	_ensure_save_panel()
@@ -554,6 +557,7 @@ func _ready() -> void:
 		_refresh_party()
 		_refresh_ship_hull_hud()
 		_refresh_journal_panel()
+		_reveal_locate_chart()
 		_sync_music()
 
 
@@ -1111,6 +1115,8 @@ func _make_edge_panel(
 
 func _panel_focus_kind() -> String:
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return ""
+	if _is_locate_map_open():
 		return ""
 	if _journal_focus_active and _left_pane != null and _left_pane.visible:
 		return "left"
@@ -3004,8 +3010,8 @@ func _on_order_roster_closed() -> void:
 func _process(delta: float) -> void:
 	_sync_panel_focus_border()
 	_tick_cursor(delta)
-	## xu4 timerFired still runs during menus; remake freezes the clock on gem view.
-	if _peer_overlay == null or not _peer_overlay.is_open():
+	## xu4 timerFired still runs during menus; remake freezes the clock on gem/map view.
+	if (_peer_overlay == null or not _peer_overlay.is_open()) and not _is_locate_map_open():
 		_tick_world_clock(delta)
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
 		return
@@ -3061,6 +3067,8 @@ func _process(delta: float) -> void:
 	if not _load_error.is_empty():
 		return
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return
+	if _is_locate_map_open():
 		return
 	## Hole-up Resting… must tick even though put_party_to_sleep immobilizes
 	## the party (solo / no-watch). Otherwise the timer never expires.
@@ -3289,6 +3297,7 @@ func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true)
 	if _map != null:
 		_map.set_center(_tile_pos)
 	_refresh_locate_hud()
+	_reveal_locate_chart()
 	_play_transport_step_sfx()
 	if with_message:
 		_push_move_message(dir)
@@ -3972,7 +3981,7 @@ func _command_menu_can_show(cmd: int) -> bool:
 				or _dungeon_can_klimb()
 			)
 		U4Commands.Id.LOCATE:
-			return outdoors and GameState.has_sextant
+			return outdoors
 		U4Commands.Id.MIX:
 			return noncombat and GameState.has_any_reagents()
 		U4Commands.Id.NEW_ORDER, U4Commands.Id.QUIT_SAVE, U4Commands.Id.SEARCH, U4Commands.Id.WEAR:
@@ -4206,6 +4215,8 @@ func _can_open_command_menu() -> bool:
 	):
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	if _is_locate_map_open():
 		return false
 	if _combat_active and (_combat_resolving or _combat_aiming or _combat_exit_prompt):
 		return false
@@ -7213,6 +7224,9 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_close_peer_overlay()
 		return
+	if _is_locate_map_open():
+		_close_locate_map_overlay()
+		return
 	## Conversation owns Esc: farewell (Bye), never open the options menu.
 	if _talk_stage != 0:
 		if _talk_blocks_cancel_bye():
@@ -7342,10 +7356,15 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
-		## Peer gem: only Esc / Space / Enter dismiss; swallow everything else.
+		## Peer gem / Locate map: only Esc / Space / Enter dismiss; swallow everything else.
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_peer_dismiss_key(k):
 				_close_peer_overlay()
+			_mark_input_handled()
+			return
+		if _is_locate_map_open():
+			if _is_peer_dismiss_key(k):
+				_close_locate_map_overlay()
 			_mark_input_handled()
 			return
 		if k.keycode == KEY_TAB or k.physical_keycode == KEY_TAB:
@@ -7692,6 +7711,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				_close_peer_overlay()
 			_mark_input_handled()
 			return
+		if _is_locate_map_open():
+			if _is_peer_dismiss_key(event):
+				_close_locate_map_overlay()
+			_mark_input_handled()
+			return
 		if event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			_mark_input_handled()
@@ -7761,6 +7785,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _peer_overlay != null and _peer_overlay.is_open():
 			if _is_cancel_event(event) or _GameInput.is_select(event):
 				_close_peer_overlay()
+				_mark_input_handled()
+			return
+		if _is_locate_map_open():
+			if _is_cancel_event(event) or _GameInput.is_select(event):
+				_close_locate_map_overlay()
 				_mark_input_handled()
 			return
 		if (
@@ -7913,16 +7942,7 @@ func _handle_command(cmd: int) -> void:
 	elif cmd == U4Commands.Id.YELL:
 		_do_yell()
 	elif cmd == U4Commands.Id.LOCATE:
-		if not GameState.has_sextant:
-			_push_message(Locale.t("cmd_locate_what"), false)
-		else:
-			var loc := _locate_world_pos()
-			_push_message(Locale.t("cmd_locate", [
-				name,
-				_format_u4_sextant(loc.x),
-				_format_u4_sextant(loc.y),
-			]))
-		_finish_party_turn()
+		_do_locate()
 	elif cmd == U4Commands.Id.QUIT_SAVE:
 		_do_quick_save()
 	elif cmd == U4Commands.Id.VOLUME:
@@ -7943,6 +7963,66 @@ func _ensure_peer_overlay() -> void:
 	_peer_overlay = PeerGemOverlay.new()
 	_peer_overlay.name = "PeerGemOverlay"
 	_map_pane.add_child(_peer_overlay)
+
+
+func _ensure_locate_map_overlay() -> void:
+	if _locate_map_overlay != null or _map_pane == null:
+		return
+	_locate_map_overlay = _LocateMapOverlay.new()
+	_locate_map_overlay.name = "LocateMapOverlay"
+	_map_pane.add_child(_locate_map_overlay)
+
+
+func _do_locate() -> void:
+	## Map always; sextant readings in the message strip and on the chart.
+	var loc := _locate_world_pos()
+	var sextant_text := ""
+	if GameState.has_sextant:
+		var cmd_name := U4Commands.label(U4Commands.Id.LOCATE, GameState.lang_short())
+		var lat := _format_u4_sextant(loc.x)
+		var lon := _format_u4_sextant(loc.y)
+		sextant_text = "%s %s" % [lat, lon]
+		_push_message(Locale.t("cmd_locate", [cmd_name, lat, lon]), false)
+	else:
+		_push_message(Locale.t("cmd_locate_map"), false)
+	if not _open_locate_map(loc, sextant_text):
+		_finish_party_turn()
+
+
+func _open_locate_map(world_pos: Vector2i, sextant_text: String = "") -> bool:
+	_ensure_locate_map_overlay()
+	if _locate_map_overlay == null:
+		return false
+	## Ship pin often sits SW — nudge chart coords up only when they would overlap.
+	var lift := _transport == Transport.SHIP and not sextant_text.is_empty()
+	_locate_map_overlay.open_locate(world_pos, sextant_text, lift, _world)
+	return true
+
+
+func _is_locate_map_open() -> bool:
+	return _locate_map_overlay != null and _locate_map_overlay.is_open()
+
+
+func _reveal_locate_chart() -> void:
+	if _is_in_city() or _is_in_dungeon() or _combat_active:
+		return
+	if _world == null or not _world.loaded:
+		return
+	LocateChart.reveal_view(
+		GameState,
+		_world,
+		_tile_pos,
+		MapView.VIEW_W,
+		MapView.VIEW_H
+	)
+
+
+func _close_locate_map_overlay() -> void:
+	## Dismiss map view — consumes the party turn.
+	if not _is_locate_map_open():
+		return
+	_locate_map_overlay.close_locate()
+	_finish_party_turn()
 
 
 func _ensure_codex_overlay() -> void:
@@ -8139,6 +8219,8 @@ func _can_open_city_warp() -> bool:
 	):
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	if _is_locate_map_open():
 		return false
 	return true
 
@@ -13762,6 +13844,7 @@ func _exit_dungeon_to_surface() -> void:
 		_map.set_center(_tile_pos, false)
 	_sync_music()
 	_refresh_locate_hud()
+	_reveal_locate_chart()
 
 
 func _dungeon_handle_dir(dir: Vector2i) -> void:
@@ -15401,6 +15484,7 @@ func _exit_city() -> void:
 	_sync_creatures_to_map()
 	_sync_moongate(true)
 	_refresh_locate_hud()
+	_reveal_locate_chart()
 	_sync_music()
 	_push_message(Locale.t("cmd_exit_city"), false)
 
@@ -16194,6 +16278,8 @@ func _close_ui_for_death() -> void:
 		_close_journal_focus(false)
 	if _peer_overlay != null and _peer_overlay.is_open():
 		_peer_overlay.close_peer()
+	if _is_locate_map_open():
+		_locate_map_overlay.close_locate()
 	_close_ztats(false)
 	_close_ready(false)
 	_close_wear(false)
@@ -16480,6 +16566,8 @@ func _can_auto_pass() -> bool:
 	if _is_party_asleep_locked():
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	if _is_locate_map_open():
 		return false
 	if _ztats_stage != 0 or _order_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0 or _cast_stage != 0 or _use_stage != 0 or _abyss_altar_stage != 0 or _camp_stage != 0 or _shrine_session or _shrine_stage != 0 or _shrine_busy or _inn_stage != 0 or _chest_open_stage != 0 or _fountain_drink_stage != 0 or _orb_touch_stage != 0 or _telescope_stage != 0 or _save_stage != 0 or _talk_stage != 0 or _enter_prompt_stage != 0 or _command_menu_open or _city_warp_open or _journal_focus_active or _esc_menu_is_open() or _options_panel_is_open() or _codex_stage > 0:
 		return false
@@ -21480,6 +21568,8 @@ func _can_open_journal_focus() -> bool:
 	):
 		return false
 	if _peer_overlay != null and _peer_overlay.is_open():
+		return false
+	if _is_locate_map_open():
 		return false
 	return true
 
