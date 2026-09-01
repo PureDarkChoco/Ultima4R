@@ -890,7 +890,11 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 			row["done"] = false
 			return true
 		return changed
-	if catalog_goal.begins_with("ask:") or catalog_goal.begins_with("meet:"):
+	if (
+		catalog_goal.begins_with("ask:")
+		or catalog_goal.begins_with("meet:")
+		or catalog_goal == "talk:nate-snake"
+	):
 		if inventory_done and not bool(row.get("done", false)):
 			row["done"] = true
 			return true
@@ -958,12 +962,27 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 		return mag_i >= 0 and (int(gs.journal_known_cities) & (1 << mag_i)) != 0
 	if g == "search:skull":
 		return gs.has_item_flag(gs.ITEM_SKULL) or gs.has_item_flag(gs.ITEM_SKULL_DESTROYED)
+	if g == "talk:nate-snake":
+		return _nate_snake_talk_already_met(gs)
 	if g == "meet:yew-judge":
 		return _yew_judge_already_met(gs)
 	if g == "ask:talfourd-rune":
 		return _talfourd_rune_ask_already_met(gs)
-	## talk:first-note / combat:first / shrine:* complete only when the event fires.
+	## talk:first-note / combat:first / shrine:* / other talk:* complete when the event fires.
 	## mantra:* is a shrine fallback for ask-tips (complete_on_goal), not a pending knowledge goal.
+	return false
+
+
+static func _nate_snake_talk_already_met(gs: Node) -> bool:
+	## Shazbot only says a snake can be spoken with — not that it lives in Magincia.
+	if gs == null:
+		return false
+	if gs.talk_has_heard_word("talk:nate-snake"):
+		return true
+	if has_entry_id(gs, "magincia.nate.britain-pub-stone"):
+		return true
+	if has_entry_id(gs, "magincia.nate.barren-rune"):
+		return true
 	return false
 
 

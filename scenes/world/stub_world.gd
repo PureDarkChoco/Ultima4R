@@ -5583,6 +5583,22 @@ func _talk_keyword_menu_intro_default_key() -> String:
 			"룬" if GameState.lang_short() == "ko" else "rune"
 		)
 	elif (
+		str(entry.name).strip_edges().to_lower() == "calumny"
+		and GameState.journal_has_id("vesper.flatbush.calumny-quickness")
+		and not GameState.journal_has_id("yew.calumny.quickness")
+	):
+		default_key = _talk_keyword_stable_key(
+			"주문" if GameState.lang_short() == "ko" else "spell"
+		)
+	elif (
+		str(entry.name).strip_edges().to_lower() == "calumny"
+		and GameState.journal_has_id("paws.greg.calumny-mandrake")
+		and not GameState.journal_has_id("yew.calumny.mandrake")
+	):
+		default_key = _talk_keyword_stable_key(
+			"맨드레이크" if GameState.lang_short() == "ko" else "mandrake"
+		)
+	elif (
 		str(entry.name).strip_edges().to_lower() == "silent"
 		and GameState.journal_has_id("yew.pinrod.druids-mantra")
 	):
@@ -5888,11 +5904,25 @@ func _talfourd_rune_tip_ready() -> bool:
 
 func _maybe_offer_yew_chain_keyword() -> void:
 	## Yew name-directed tips: Talfourd (rune) / Silent (mantra via job) /
-	## Calumny (mandrake after Folley tavern rumor).
+	## Calumny (quickness after Flatbush; mandrake after Folley tavern).
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
 	var korean := GameState.lang_short() == "ko"
+	if (
+		npc == "calumny"
+		and GameState.journal_has_id("vesper.flatbush.calumny-quickness")
+		and not GameState.journal_has_id("yew.calumny.quickness")
+	):
+		## Flatbush: Calumny knows the quickness spell — unlock Spell after his name.
+		var spell_key := _talk_keyword_stable_key(
+			"주문" if korean else "spell"
+		)
+		_offer_talk_keyword_item(
+			spell_key,
+			"주문" if korean else "Spell",
+			"주문" if korean else "spell"
+		)
 	if (
 		npc == "calumny"
 		and GameState.journal_has_id("paws.greg.calumny-mandrake")
@@ -6676,6 +6706,11 @@ func _maybe_complete_meet_journal_on_intro(entry: Variant) -> bool:
 	if place == "yew" and npc_key == "talfourd":
 		GameState.talk_remember_heard_word("meet:yew-judge")
 		if GameState.journal_mark_goal("meet:yew-judge"):
+			changed = true
+	## Opening talk with Nate is enough; Shazbot never named Magincia.
+	if place == "magincia" and npc_key == "nate":
+		GameState.talk_remember_heard_word("talk:nate-snake")
+		if GameState.journal_mark_goal("talk:nate-snake"):
 			changed = true
 	return changed
 
@@ -18557,6 +18592,28 @@ func _talk_answer_yn(yes: bool) -> void:
 	):
 		if GameState.journal_try_capture_talk("vesper", "Gem", "MANT"):
 			journal_changed = true
+	## Flatbush (Vesper): Yes/No after Calumny points to Yew and quickness.
+	if (
+		npc_key == "flatbush"
+		and str(e.topic2).strip_edges().to_upper() == "CALU"
+	):
+		var flatbush_topic := "CALU_YES" if yes else "CALU_NO"
+		if GameState.journal_try_capture_talk("vesper", "Flatbush", flatbush_topic):
+			journal_changed = true
+		GameState.talk_remember_heard_word("spell")
+		GameState.talk_remember_heard_word("주문")
+	## Calumny (Yew): Yes after Spell teaches the quickness mix.
+	if (
+		yes
+		and npc_key == "calumny"
+		and str(e.topic1).strip_edges().to_upper() == "SPEL"
+	):
+		if GameState.journal_try_capture_talk("yew", "Calumny", "SPEL_YES"):
+			journal_changed = true
+		if GameState.journal_mark_id("vesper.flatbush.calumny-quickness"):
+			journal_changed = true
+		if GameState.journal_mark_goal("ask:calumny-spell"):
+			journal_changed = true
 	## Simple (Vesper): No after Humility names the isle's bearing.
 	if (
 		not yes
@@ -18565,9 +18622,13 @@ func _talk_answer_yn(yes: bool) -> void:
 	):
 		if GameState.journal_try_capture_talk("vesper", "Simple", "HUMI_NO"):
 			journal_changed = true
-	## Servile (Vesper): Yes/No after Help both warn that the skull is evil.
-	if npc_key == "servile":
-		if GameState.journal_try_capture_talk("vesper", "Servile", "SKUL"):
+	## Servile (Vesper): Yes/No after Help — evil artifact only (same reply).
+	if (
+		npc_key == "servile"
+		and str(e.topic1).strip_edges().to_upper() == "HELP"
+	):
+		var servile_topic := "HELP_YES" if yes else "HELP_NO"
+		if GameState.journal_try_capture_talk("vesper", "Servile", servile_topic):
 			journal_changed = true
 	## Allen (Cove): Yes/No after Ship both point to Blissful and the abyss.
 	if (

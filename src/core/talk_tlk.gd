@@ -736,6 +736,9 @@ static func colorize_keywords(text: String, keywords: Array) -> String:
 				continue
 			if hangul_kw:
 				## Exact keyword only — never pull in 조사 / conjugations after it.
+				## Also skip when the match starts a longer word (말하길 ≠ 말).
+				if not _hangul_keyword_after_ok(text, i + kl.length(), kl.length()):
+					continue
 				if kl.length() > hit_len:
 					hit = text.substr(i, kl.length())
 					hit_len = kl.length()
@@ -783,6 +786,8 @@ static func keyword_first_index(text: String, keyword: String) -> int:
 		if not _keyword_before_ok(text, i, hangul_kw, kl.length()):
 			continue
 		if hangul_kw:
+			if not _hangul_keyword_after_ok(text, i + kl.length(), kl.length()):
+				continue
 			return i
 		var after_i := i + kl.length()
 		var after_ok := (
@@ -806,6 +811,34 @@ static func _keyword_before_ok(text: String, i: int, hangul_kw: bool, kw_len: in
 	if hangul_kw and _is_hangul_code(prev) and kw_len == 1:
 		return _hangul_compound_prefix_ok(text.substr(i - 1, 1), text.substr(i, 1))
 	return false
+
+
+static func _hangul_keyword_after_ok(text: String, after_i: int, kw_len: int = 1) -> bool:
+	## Allow end / punctuation / space, or a following 조사. Reject verb stems
+	## that swallow a 1-syllable topic (말하길 ≠ 말). Noun+하다 forms keep the
+	## multi-syllable noun tinted (여행하는 → 여행).
+	if after_i >= text.length():
+		return true
+	var u := text.unicode_at(after_i)
+	if not _is_hangul_code(u):
+		return true
+	var next := text.substr(after_i, 1)
+	if _hangul_particle_after_ok(next):
+		return true
+	## 여행하다 / 수리하다 … — tint the noun, leave -하… plain.
+	if kw_len >= 2 and next == "하":
+		return true
+	return false
+
+
+static func _hangul_particle_after_ok(syl: String) -> bool:
+	match syl:
+		"이", "가", "을", "를", "은", "는", "의", "과", "와", "도", "만", \
+		"로", "에", "께", "랑", "며", "나", "야", "여", "요", "다", "들", \
+		"뿐", "씩", "쯤", "라", "니", "면", "서":
+			return true
+		_:
+			return false
 
 
 static func _hangul_compound_prefix_ok(prev: String, keyword: String) -> bool:
