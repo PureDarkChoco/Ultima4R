@@ -9260,7 +9260,7 @@ func _confirm_load_slot(slot_index: int) -> void:
 	if typeof(game) != TYPE_DICTIONARY:
 		_push_message(Locale.t("load_empty"), false)
 		return
-	GameState.apply_save_dict(game as Dictionary)
+	GameState.apply_save_dict(game as Dictionary, _SaveGame.slot_version(data))
 	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
 	GameState.session_loaded_slot = slot_n
 	GameState.session_did_save = false

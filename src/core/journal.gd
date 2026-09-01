@@ -153,6 +153,114 @@ static func _ensure_catalog_row(gs: Node, id: String, note_new: bool) -> bool:
 	)
 
 
+static func _catalog_id_set() -> Dictionary:
+	ensure_catalog()
+	var ids := {}
+	for item in _catalog:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var id := str((item as Dictionary).get("id", "")).strip_edges()
+		if not id.is_empty():
+			ids[id] = true
+	return ids
+
+
+static func _prune_unknown_catalog_rows(gs: Node) -> bool:
+	## Drop journal rows whose catalog id was removed or renamed.
+	if gs == null:
+		return false
+	var ids := _catalog_id_set()
+	var rows: Array = gs.journal_entries
+	var kept: Array = []
+	var changed := false
+	for row in rows:
+		if typeof(row) != TYPE_DICTIONARY:
+			changed = true
+			continue
+		var id := str((row as Dictionary).get("id", "")).strip_edges()
+		if id.is_empty() or not bool(ids.get(id, false)):
+			changed = true
+			continue
+		kept.append(row)
+	if not changed:
+		return false
+	gs.journal_entries = kept
+	return true
+
+
+static func _prune_stale_journal_ui(gs: Node) -> bool:
+	if gs == null:
+		return false
+	var changed := false
+	var have := {}
+	var places := {}
+	for row in gs.journal_entries:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		var id := str(d.get("id", "")).strip_edges()
+		if not id.is_empty():
+			have[id] = true
+		var place := str(d.get("place", "")).strip_edges()
+		if not place.is_empty():
+			places[place] = true
+	var selected := str(gs.journal_selected_id).strip_edges()
+	if not selected.is_empty() and not bool(have.get(selected, false)):
+		if not selected.begins_with("place:") or not bool(places.get(selected.substr(6), false)):
+			gs.journal_selected_id = ""
+			changed = true
+	var unseen := str(gs.journal_unseen_id).strip_edges()
+	if not unseen.is_empty() and not bool(have.get(unseen, false)):
+		gs.journal_unseen_id = ""
+		changed = true
+	var collapsed: Dictionary = gs.journal_collapsed
+	var drop_places: Array = []
+	for place in collapsed.keys():
+		if not bool(places.get(str(place), false)):
+			drop_places.append(place)
+	for place in drop_places:
+		collapsed.erase(place)
+		changed = true
+	if not drop_places.is_empty():
+		gs.journal_collapsed = collapsed
+	return changed
+
+
+static func _sync_rows_to_catalog(gs: Node) -> bool:
+	## Align stored goal / chain with the current catalog (wording already reads catalog).
+	if gs == null:
+		return false
+	var rows: Array = gs.journal_entries
+	var changed := false
+	for i in rows.size():
+		var row: Variant = rows[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row
+		var cat := find_catalog_for_row(d)
+		if cat.is_empty():
+			continue
+		var goal := str(cat.get("goal", "")).strip_edges()
+		var chain := str(cat.get("chain", "")).strip_edges()
+		var order := int(cat.get("chain_order", 0))
+		var dirty := false
+		if str(d.get("goal", "")).strip_edges() != goal:
+			d["goal"] = goal
+			dirty = true
+		if str(d.get("chain", "")).strip_edges() != chain:
+			d["chain"] = chain
+			dirty = true
+		if int(d.get("chain_order", 0)) != order:
+			d["chain_order"] = order
+			dirty = true
+		if dirty:
+			rows[i] = d
+			changed = true
+	if changed:
+		gs.journal_entries = rows
+	return changed
+
+
 static func _remove_entry_id(gs: Node, id: String) -> bool:
 	if gs == null or id.is_empty():
 		return false
@@ -580,6 +688,22 @@ static func mark_id(gs: Node, id: String) -> bool:
 		break
 	if changed:
 		gs.journal_entries = rows
+	return changed
+
+
+static func migrate_loaded(gs: Node, from_version: int = 0) -> bool:
+	## Bring an older slot up to the current catalog / completion rules.
+	## Next save writes SaveGame.VERSION with the cleaned rows.
+	if gs == null:
+		return false
+	var _from := maxi(0, from_version)
+	var changed := mark_goals_for_inventory(gs)
+	if _prune_unknown_catalog_rows(gs):
+		changed = true
+	if _prune_stale_journal_ui(gs):
+		changed = true
+	if _sync_rows_to_catalog(gs):
+		changed = true
 	return changed
 
 

@@ -14,7 +14,7 @@ const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
 const ROWS := 25.0
-const APP_DISPLAY_VERSION := "0.8.0"
+const APP_DISPLAY_VERSION := "0.9.0"
 
 @onready var _tagline: Label = %Tagline
 @onready var _options_head: Label = %OptionsHead
@@ -916,7 +916,7 @@ func _confirm_load(slot_index: int) -> void:
 	var world: Variant = data.get("world", {})
 	if typeof(game) != TYPE_DICTIONARY:
 		return
-	GameState.apply_save_dict(game as Dictionary)
+	GameState.apply_save_dict(game as Dictionary, _SaveGame.slot_version(data))
 	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
 	GameState.session_loaded_slot = slot_n
 	GameState.session_did_save = false

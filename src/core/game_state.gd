@@ -3096,6 +3096,7 @@ func tick_world_clock(on_world_map: bool = true) -> bool:
 func to_save_dict() -> Dictionary:
 	## Snapshot of xu4-aligned party / inventory / clock fields for SaveGame JSON.
 	return {
+		"save_version": SaveGame.VERSION,
 		"player_name": player_name,
 		"player_name_ko": player_name_ko,
 		"player_sex": player_sex,
@@ -3176,10 +3177,12 @@ func to_save_dict() -> Dictionary:
 	}
 
 
-func apply_save_dict(d: Dictionary) -> void:
+func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	## Restore from SaveGame JSON `game` object.
 	if d.is_empty():
 		return
+	## Wrapper `version` for older slots that never stored save_version inside game.
+	var _from_save_version := int(d.get("save_version", file_version))
 	## Legacy single-name saves: `player_name` is English; Korean left empty.
 	player_name = str(d.get("player_name", player_name))
 	player_name_ko = str(d.get("player_name_ko", ""))
@@ -3344,7 +3347,7 @@ func apply_save_dict(d: Dictionary) -> void:
 	refresh_party_order()
 	## Ensure pack / equipped gear are marked (also migrates pre-known saves).
 	_mark_gear_known_from_stock_and_party()
-	_Journal.mark_goals_for_inventory(self)
+	_Journal.migrate_loaded(self, _from_save_version)
 
 
 func _seed_stats_from_class_defaults() -> void:

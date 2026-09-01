@@ -5,7 +5,9 @@ extends RefCounted
 ## Files: user://saves/slot_1.json … slot_4.json
 ## Prefs: user://saves/prefs.json — last saved / loaded slot indices.
 
-const VERSION := 1
+## Bump when the save schema or journal cleanup rules change.
+## 1 = first JSON slots. 2 = locate chart + journal catalog prune on load.
+const VERSION := 2
 const SLOT_COUNT := 4
 const DIR := "user://saves"
 const PREFS_PATH := "user://saves/prefs.json"
@@ -210,6 +212,13 @@ static func _json_root_end(text: String) -> int:
 	return -1
 
 
+static func slot_version(data: Dictionary) -> int:
+	## Missing / pre-version files count as 0.
+	if data.is_empty():
+		return 0
+	return maxi(0, int(data.get("version", 0)))
+
+
 static func write_slot(slot: int, data: Dictionary) -> bool:
 	ensure_dir()
 	var path := slot_path(slot)
@@ -289,6 +298,7 @@ static func build_save(
 		"party_order": party,
 		"saved_at": when,
 		"language": str(game.get("language", "en_us")),
+		"save_version": VERSION,
 	}
 	if not location.is_empty():
 		meta["location"] = location.duplicate()
