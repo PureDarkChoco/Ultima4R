@@ -416,6 +416,9 @@ var _combat_range_shade := false
 var _combat_range_from := Vector2i.ZERO
 var _combat_range_weapon := 0
 var _combat_range_shade_img: Image
+## City-outside ring: 50% black so the exit tiles read as leaving town.
+const CITY_EXIT_SHADE := Color(0, 0, 0, 0.50)
+var _city_exit_shade_img: Image
 ## Combat-local tile flashes: { x, y, tid, left } in .CON coords.
 var _combat_tile_flashes: Array[Dictionary] = []
 ## Ranged weapon missile in combat-local float tile space (tile centers).
@@ -3820,6 +3823,7 @@ func _rebuild_city() -> void:
 
 	_refresh_los()
 	_apply_los_blackout_stage(base)
+	_apply_city_exit_shade_stage(base)
 
 	_buf.blit_rect(
 		_stage,
@@ -3995,6 +3999,39 @@ func _npc_frame_tile(tid: int, prev: int, person_i: int) -> int:
 	if person_i >= 0 and person_i < _npc_frame_bit.size():
 		bit = _npc_frame_bit[person_i]
 	return b if bit == 1 else a
+
+
+func _ensure_city_exit_shade_img() -> void:
+	if (
+		_city_exit_shade_img != null
+		and not _city_exit_shade_img.is_empty()
+		and _city_exit_shade_img.get_pixel(0, 0).is_equal_approx(CITY_EXIT_SHADE)
+	):
+		return
+	_city_exit_shade_img = Image.create(TILE_SRC, TILE_SRC, false, Image.FORMAT_RGBA8)
+	_city_exit_shade_img.fill(CITY_EXIT_SHADE)
+
+
+func _apply_city_exit_shade_stage(base: Vector2i) -> void:
+	## 50% black on tiles outside the 32×32 city — stepping there leaves town.
+	if _city_map == null or _stage == null or _stage.is_empty():
+		return
+	_ensure_city_exit_shade_img()
+	if _city_exit_shade_img == null:
+		return
+	var half_x := view_w / 2
+	var half_y := view_h / 2
+	for dy in view_h + 1:
+		for dx in view_w + 1:
+			var mx := base.x - half_x + dx
+			var my := base.y - half_y + dy
+			if mx >= 0 and my >= 0 and mx < _CITY_W and my < _CITY_H:
+				continue
+			_stage.blend_rect(
+				_city_exit_shade_img,
+				Rect2i(0, 0, TILE_SRC, TILE_SRC),
+				Vector2i(dx * TILE_SRC, dy * TILE_SRC)
+			)
 
 
 func _city_tile_or_outside(x: int, y: int) -> int:
