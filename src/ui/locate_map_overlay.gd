@@ -30,8 +30,8 @@ const COORD_SHIP_LIFT := 28.0
 ## Always-visible region names (world tile centers).
 const REGION_LABELS := [
 	{"key": "locate_region_serpents_spine", "pos": Vector2i(82, 74)},
-	{"key": "locate_region_deep_forest", "pos": Vector2i(51, 45)},
-	{"key": "locate_region_cape_of_heroes", "pos": Vector2i(90, 214)},
+	{"key": "locate_region_deep_forest", "pos": Vector2i(48, 58)},
+	{"key": "locate_region_cape_of_heroes", "pos": Vector2i(94, 216)},
 ]
 const REGION_LABEL_COLOR := Color(0.96, 0.93, 0.8, 0.96)
 const REGION_LABEL_SHADOW := Color(0.05, 0.04, 0.02, 0.82)
@@ -337,21 +337,29 @@ func _draw_region_labels() -> void:
 	var draw := _map_draw_rect()
 	if draw.size.x < 8.0:
 		return
-	var fs := clampi(int(round(draw.size.x / 46.0)), 11, 16)
+	var fs := clampi(int(round(draw.size.x / 58.0)), 9, 13)
+	var line_h := font.get_height(fs)
 	for rec in REGION_LABELS:
 		var text := Locale.t(str(rec.get("key", "")))
 		if text.is_empty():
 			continue
+		var lines := text.split("\n")
 		var c := _world_to_panel(rec.get("pos", Vector2i.ZERO))
-		var sz := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
-		var origin := Vector2(c.x - sz.x * 0.5, c.y + font.get_ascent(fs) * 0.35)
-		for d in [Vector2(1, 1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]:
+		var block_h := float(lines.size()) * float(line_h)
+		var y0 := c.y - block_h * 0.5 + font.get_ascent(fs)
+		for i in lines.size():
+			var line := str(lines[i])
+			if line.is_empty():
+				continue
+			var sz := font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+			var origin := Vector2(c.x - sz.x * 0.5, y0 + float(i) * float(line_h))
+			for d in [Vector2(1, 1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]:
+				_specials.draw_string(
+					font, origin + d, line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_SHADOW
+				)
 			_specials.draw_string(
-				font, origin + d, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_SHADOW
+				font, origin, line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_COLOR
 			)
-		_specials.draw_string(
-			font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_COLOR
-		)
 
 
 func _draw_settlement_labels() -> void:

@@ -2252,8 +2252,8 @@ const _T := {
 		"ko": "깊은 숲",
 	},
 	"locate_region_cape_of_heroes": {
-		"en_u4": "Cape of Heroes",
-		"en_us": "Cape of Heroes",
+		"en_u4": "Cape of\nHeroes",
+		"en_us": "Cape of\nHeroes",
 		"ko": "영웅의 곶",
 	},
 	"cmd_locate_what": {

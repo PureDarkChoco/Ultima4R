@@ -499,16 +499,26 @@ static func _decode_continuous_row(
 	_ntsc_step(0x00, st, row_half, -1)
 	var ox := 0
 	var row_base := ty * cols
+	var hibit := PackedInt32Array()
+	hibit.resize(cols)
 	for tx in range(cols):
 		var tid: int = tile_ids[row_base + tx]
 		var src_y := _src_y_for_tile(tid, sy, scroll_y)
 		var idx := src_y * TILE_COUNT + tid
-		_ntsc_step(int(_shp0[idx]), st, row_half, ox)
+		var bl := int(_shp0[idx])
+		var br := int(_shp1[idx])
+		hibit[tx] = 1 if (bl | br) & 0x80 else 0
+		_ntsc_step(bl, st, row_half, ox)
 		ox += HALF_PER_BYTE
-		_ntsc_step(int(_shp1[idx]), st, row_half, ox)
+		_ntsc_step(br, st, row_half, ox)
 		ox += HALF_PER_BYTE
 	## Delayed NTSC bits after the last tile — otherwise the row's right edge dies.
 	_ntsc_step(0x00, st, row_half, ox)
+	## Same hi-bit unshift as isolated tiles: keep NTSC color, drop the ½-pixel
+	## geometric delay so keep bases / white walls don't jog vs neighbouring art.
+	for tx2 in range(cols):
+		if hibit[tx2] != 0:
+			_unshift_hibit_cell(row_half, tx2 * OUT_W)
 
 
 static func _decode_isolated_row(
@@ -536,10 +546,18 @@ static func _decode_isolated_row(
 		_ntsc_step(br, st, row_half, ox + HALF_PER_BYTE)
 		_ntsc_step(0x00, st, row_half, ox + OUT_W)
 		if (bl | br) & 0x80:
-			for i in range(OUT_W - 1):
-				row_half[ox + i] = row_half[ox + i + 1]
-			row_half[ox + OUT_W - 1] = row_half[ox + OUT_W]
+			_unshift_hibit_cell(row_half, ox)
 		ox += OUT_W
+
+
+static func _unshift_hibit_cell(row_half: PackedInt32Array, ox: int) -> void:
+	## Hardware delay inserts a dark half-pixel and spills the last bit right.
+	## Slide the 28-wide cell left so the spilled bit stays in-cell.
+	if ox + OUT_W >= row_half.size():
+		return
+	for i in range(OUT_W - 1):
+		row_half[ox + i] = row_half[ox + i + 1]
+	row_half[ox + OUT_W - 1] = row_half[ox + OUT_W]
 
 
 static func _ntsc_step(
