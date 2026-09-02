@@ -7,6 +7,7 @@ extends RefCounted
 const _DungeonMap := preload("res://src/map/dungeon_map_data.gd")
 const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
 const _U4TileBank := preload("res://src/map/u4_tile_bank.gd")
+const _WorldCreatures := preload("res://src/map/world_creatures.gd")
 const _ResImage := preload("res://src/core/res_image.gd")
 const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 
@@ -1335,22 +1336,23 @@ func _paint_tile_object(
 ) -> void:
 	if tid < 0:
 		return
+	var is_monster := tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST
+	var paint_tid := tid
+	if is_monster:
+		## Same consecutive-tile cycle as wilderness / combat (rat 144–147, …).
+		paint_tid = _WorldCreatures.resolve_paint_tile(tid, anim_frame)
 	var img: Image
 	if tid == TILE_FOUNTAIN and not _fountain_frames.is_empty():
 		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
-	elif (
-		tid == TILE_ORB
-		or tid == TILE_ALTAR
-		or (tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST)
-	):
+	elif tid == TILE_ORB or tid == TILE_ALTAR or is_monster:
 		## Orb / altar / monster PNGs keep an opaque black plate; key it out.
-		if _keyed_monster_cache.has(tid):
-			img = _keyed_monster_cache[tid] as Image
+		if _keyed_monster_cache.has(paint_tid):
+			img = _keyed_monster_cache[paint_tid] as Image
 		else:
-			img = _U4TileBank.keyed_copy(tid)
-			_keyed_monster_cache[tid] = img
+			img = _U4TileBank.keyed_copy(paint_tid)
+			_keyed_monster_cache[paint_tid] = img
 	else:
-		img = _U4TileBank.image(tid)
+		img = _U4TileBank.image(paint_tid)
 	if img == null:
 		return
 	var nscale: int = OBJ_NSCALE[clampi(depth, 0, OBJ_NSCALE.size() - 1)]
