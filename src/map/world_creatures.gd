@@ -181,6 +181,60 @@ const _DISPLAY_NAMES := {
 	252: "Balron",
 }
 
+const _DISPLAY_NAMES_KO := {
+	32: "마법사",
+	34: "음유시인",
+	36: "전사",
+	38: "드루이드",
+	40: "땜장이",
+	42: "성기사",
+	44: "레인저",
+	46: "양치기",
+	80: "경비병",
+	82: "상인",
+	84: "음유시인",
+	86: "어릿광대",
+	88: "거지",
+	90: "아이",
+	92: "황소",
+	94: "로드 브리티시",
+	128: "해적",
+	132: "닉시",
+	134: "대왕오징어",
+	136: "바다뱀",
+	138: "해마",
+	140: "소용돌이",
+	142: "회오리",
+	144: "쥐",
+	148: "박쥐",
+	152: "거미",
+	156: "유령",
+	160: "슬라임",
+	164: "트롤",
+	168: "그렘린",
+	172: "미믹",
+	176: "리퍼",
+	180: "곤충떼",
+	184: "게이저",
+	188: "환영",
+	192: "오크",
+	196: "해골",
+	200: "도적",
+	204: "비단뱀",
+	208: "에틴",
+	212: "머리없는 자",
+	216: "키클롭스",
+	220: "위습",
+	224: "마법사",
+	228: "리치",
+	232: "용암 도마뱀",
+	236: "존",
+	240: "데몬",
+	244: "히드라",
+	248: "드래곤",
+	252: "발론",
+}
+
 ## xu4 config.b basehp by creature base tile (pirate has none → 100).
 const _BASE_HP := {
 	## Townsfolk / class (xu4 ids 2–17).
@@ -375,9 +429,38 @@ func destroy_all_except_lord_british() -> int:
 
 
 static func display_name(tile_or_base: int) -> String:
-	## Short English label for messages (Attacked by …).
+	## Localized short label for combat messages and the foe roster.
 	var base := _base_tile(tile_or_base)
+	if GameState.language == "ko":
+		return str(_DISPLAY_NAMES_KO.get(base, "괴물"))
 	return str(_DISPLAY_NAMES.get(base, "Creature"))
+
+
+static func layout_display_names() -> PackedStringArray:
+	## Every EN/KO label — foe roster sizes the name column to the widest.
+	var out: PackedStringArray = []
+	for v in _DISPLAY_NAMES.values():
+		out.append(str(v))
+	for v in _DISPLAY_NAMES_KO.values():
+		out.append(str(v))
+	out.append("Creature")
+	out.append("괴물")
+	return out
+
+
+static func longest_display_name() -> String:
+	## Widest D2Coding label (EN/KO). Used to size the combat name column.
+	var f: Font = UiTheme.font()
+	var best := "Lord British"
+	var best_w := 0.0
+	if f == null:
+		return best
+	for nm in layout_display_names():
+		var w := f.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		if w > best_w:
+			best_w = w
+			best = nm
+	return best
 
 
 ## xu4 config.b `good: true` (townsfolk + some wilderness; else evil for karma).

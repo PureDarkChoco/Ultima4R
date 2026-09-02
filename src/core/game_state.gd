@@ -1482,14 +1482,21 @@ func party_member_display_name(slot: int) -> String:
 	var mid := party_member_at(slot)
 	if mid < 0:
 		return ""
+	return party_class_display_name(mid)
+
+
+func party_class_display_name(klass: int) -> String:
+	## Combat / HUD name for a class id (avatar name, companion, or class title).
+	if klass < 0:
+		return ""
 	var player_cls := player_class
 	if player_cls < 0:
 		player_cls = party_leader_class()
-	if mid == player_cls:
+	if klass == player_cls:
 		return player_display_name()
-	if mid >= 0 and mid < PartyRoster.COMPANION_NAMES.size():
-		return PartyRoster.companion_display_name(mid)
-	return Virtues.class_name_of(mid, lang_short())
+	if klass >= 0 and klass < PartyRoster.COMPANION_NAMES.size():
+		return PartyRoster.companion_display_name(klass)
+	return Virtues.class_name_of(klass, lang_short())
 
 
 func refresh_party_order() -> void:

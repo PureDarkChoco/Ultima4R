@@ -1504,7 +1504,8 @@ func damage_combat_foe(index: int, damage: int) -> Dictionary:
 	out["max_hp"] = int(f.get("max_hp", hp))
 	out["tile"] = int(f.get("tile", 0))
 	## xu4 creature exp ≈ basehp / 16 (config.b exp column roughly).
-	out["xp"] = maxi(1, int(f.get("max_hp", 64)) / 16)
+	## xu4 exp ≈ config basehp / 16 — not the rolled spawn HP used by the bar.
+	out["xp"] = maxi(1, _WorldCreaturesScript.base_hp_for(int(f.get("tile", 0))) / 16)
 	if hp <= 0:
 		out["killed"] = true
 		## xu4 awardLoot was 100% once per fight; split as 1/N per kill on death tile.
@@ -1966,7 +1967,7 @@ func act_combat_creature_at(index: int) -> Dictionary:
 		return out
 	var from := Vector2i(int(foe.get("x", 0)), int(foe.get("y", 0)))
 	var tid := int(foe.get("tile", 0))
-	var base_hp := maxi(1, int(foe.get("max_hp", _WorldCreaturesScript.base_hp_for(tid))))
+	var base_hp := maxi(1, _WorldCreaturesScript.base_hp_for(tid))
 	out["from"] = from
 	out["tile"] = tid
 	out["base_hp"] = base_hp

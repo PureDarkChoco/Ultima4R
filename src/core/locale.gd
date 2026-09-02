@@ -438,6 +438,21 @@ const _T := {
 		"en_us": "Missed!",
 		"ko": "빗나갔다!",
 	},
+	"cmd_combat_hit": {
+		"en_u4": "%s hits %s for %d!",
+		"en_us": "%s hits %s for %d damage!",
+		"ko": "%s이(가) %s에게 %d의 피해!",
+	},
+	"cmd_combat_miss": {
+		"en_u4": "%s misses %s!",
+		"en_us": "%s misses %s!",
+		"ko": "%s의 공격이 %s에게 빗나갔다!",
+	},
+	"cmd_combat_miss_none": {
+		"en_u4": "%s misses!",
+		"en_us": "%s misses!",
+		"ko": "%s의 공격이 빗나갔다!",
+	},
 	"cmd_killed": {
 		"en_u4": "%s killed!",
 		"en_us": "%s killed!",
@@ -3249,6 +3264,32 @@ func ko_wa_gwa(word: String) -> String:
 		return "와"
 	var jong := (ch - 0xAC00) % 28
 	return "과" if jong > 0 else "와"
+
+
+## Korean particle 이/가 after a noun (batchim → 이, else 가).
+func ko_i_ga(word: String) -> String:
+	var s := word.strip_edges()
+	if s.is_empty():
+		return "가"
+	var ch := s.unicode_at(s.length() - 1)
+	if ch < 0xAC00 or ch > 0xD7A3:
+		return "가"
+	var jong := (ch - 0xAC00) % 28
+	return "이" if jong > 0 else "가"
+
+
+func combat_hit_line(attacker: String, target: String, dmg: int) -> String:
+	if GameState.language == "ko":
+		return "%s%s %s에게 %d의 피해!" % [attacker, ko_i_ga(attacker), target, dmg]
+	return t("cmd_combat_hit", [attacker, target, dmg])
+
+
+func combat_miss_line(attacker: String, target: String) -> String:
+	return t("cmd_combat_miss", [attacker, target])
+
+
+func combat_miss_line_none(attacker: String) -> String:
+	return t("cmd_combat_miss_none", [attacker])
 
 
 func virtue_card_name(virtue: int) -> String:

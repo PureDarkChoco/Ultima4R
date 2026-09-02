@@ -10,7 +10,9 @@ const _WorldCreaturesScript := preload("res://src/map/world_creatures.gd")
 const MAX_FOES := 16
 const ICON_SIZE := 28
 const BAR_H := 14
-const BAR_MIN_W := 40.0
+## Minimum so "999 / 999" fits; the track expands to the pane edge after the name.
+const BAR_MIN_W := 44.0
+const NAME_FONT_SIZE := 12
 const NAME_BAR_GAP := 6.0
 const ROSTER_STYLE_PAD := 4
 const ROSTER_MARGIN_PAD := 6
@@ -39,6 +41,7 @@ const ANIM_FRAME_MAX := 0.85
 var _tile_aspect: float = 1.0
 var _open_outer_h: float = 0.0
 var _relayouting: bool = false
+var _name_col_w: float = 80.0
 ## creatureTable slot under the aim cursor (−1 = none).
 var _aim_slot := -1
 
@@ -48,6 +51,7 @@ func _ready() -> void:
 	add_theme_constant_override("separation", 0)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_name_col_w = _measure_name_col_w()
 	_build_slots()
 	resized.connect(_on_resized)
 	set_process(true)
@@ -259,13 +263,12 @@ func _build_slots() -> void:
 		portrait.add_child(icon)
 
 		var name := Label.new()
-		name.custom_minimum_size = Vector2(52, 0)
+		name.custom_minimum_size = Vector2(_name_col_w, 0)
 		name.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		name.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		name.add_theme_font_size_override("font_size", 12)
+		name.add_theme_font_size_override("font_size", NAME_FONT_SIZE)
 		name.add_theme_color_override("font_color", COL_TEXT)
 		UiTheme.apply_font(name)
-		name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 		var name_gap := Control.new()
@@ -408,6 +411,7 @@ func _distribute_rows() -> void:
 	var leftover: int = m["leftover"]
 	add_theme_constant_override("separation", sep if n > 1 else 0)
 	var icon := _icon_for_row(row_h)
+	_name_col_w = _measure_name_col_w()
 	for i in MAX_FOES:
 		var row := _rows[i]
 		if row == null:
@@ -418,6 +422,8 @@ func _distribute_rows() -> void:
 			row.custom_minimum_size = Vector2(0, rh)
 			if i < _icons.size() and _icons[i] and _icons[i].get_parent():
 				(_icons[i].get_parent() as Control).custom_minimum_size = icon
+			if i < _names.size() and _names[i]:
+				_names[i].custom_minimum_size = Vector2(_name_col_w, 0)
 		else:
 			row.visible = false
 			row.custom_minimum_size = Vector2.ZERO
@@ -438,6 +444,18 @@ func _slot_metrics(content_h: float, slots: int) -> Dictionary:
 func _eight_slot_metrics(content_h: float) -> Dictionary:
 	## Kept for callers; foe layout uses `_slot_metrics(..., MAX_FOES)`.
 	return _slot_metrics(content_h, 8)
+
+
+func _measure_name_col_w() -> float:
+	## Fit the widest EN/KO creature label (D2Coding @ NAME_FONT_SIZE).
+	var f: Font = UiTheme.font()
+	var widest := 80.0
+	if f == null:
+		return widest
+	for nm in _WorldCreaturesScript.layout_display_names():
+		var w := f.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, NAME_FONT_SIZE).x
+		widest = maxf(widest, w)
+	return ceili(widest) + 2.0
 
 
 func _icon_for_row(row_h: float) -> Vector2:

@@ -20597,12 +20597,14 @@ func _combat_resolve_melee_attack(
 	ally_i: int,
 	found_target: bool
 ) -> void:
+	var attacker := GameState.party_class_display_name(klass)
 	if not found_target:
-		_push_message(Locale.t("cmd_missed"), false)
+		_push_combat_miss(attacker)
 		return
 	if foe_i >= 0:
 		if not GameState.party_attack_hits(klass):
-			_push_message(Locale.t("cmd_missed"), false)
+			var foe := _map.get_combat_foe_at(foe_i)
+			_push_combat_miss(attacker, _WorldCreaturesScript.display_name(int(foe.get("tile", 0))))
 			return
 		await _combat_apply_foe_hit(klass, foe_i, target)
 		return
@@ -20611,7 +20613,7 @@ func _combat_resolve_melee_attack(
 	var def_klass := int(ally.get("klass", -1))
 	var defense := GameState.party_member_defense(def_klass)
 	if not GameState.party_attack_hits_defense(klass, defense):
-		_push_message(Locale.t("cmd_missed"), false)
+		_push_combat_miss(attacker, GameState.party_class_display_name(def_klass))
 		return
 	await _combat_apply_ally_hit(klass, ally_i, target)
 
@@ -20627,9 +20629,10 @@ func _combat_resolve_ranged_attack(
 	## xu4 hit roll first. On miss: projectile still flies; no miss-flash VFX.
 	## Returning weapons (magic axe): fly out → hit VFX/damage → fly home.
 	const SCATTER_HIT_CHANCE := 0.5
+	var attacker := GameState.party_class_display_name(klass)
 	if aim_foe_i < 0 and aim_ally_i < 0:
 		await _map.await_combat_projectile(from, target, wid)
-		_push_message(Locale.t("cmd_missed"), false)
+		_push_combat_miss(attacker)
 		await _map.await_combat_projectile_return()
 		return
 
@@ -20672,15 +20675,15 @@ func _combat_resolve_ranged_attack(
 				else:
 					await _combat_apply_ally_hit(klass, scatter_ally, scatter)
 			else:
-				_push_message(Locale.t("cmd_missed"), false)
+				_push_combat_miss(attacker, _combat_name_at(scatter_foe, scatter_ally))
 		else:
-			_push_message(Locale.t("cmd_missed"), false)
+			_push_combat_miss(attacker)
 		await _map.await_combat_projectile_return()
 		return
 
 	## 명중 미스 — shot reaches the tile; text only (no miss flash).
 	await _map.await_combat_projectile(from, target, wid)
-	_push_message(Locale.t("cmd_missed"), false)
+	_push_combat_miss(attacker, _combat_name_at(aim_foe_i, aim_ally_i))
 	await _map.await_combat_projectile_return()
 
 
@@ -20713,6 +20716,33 @@ func _combat_record_foe_damage(foe_i: int, klass: int, dealt: int) -> void:
 	_combat_foe_dmg[foe_i] = by
 
 
+func _combat_name_at(foe_i: int, ally_i: int) -> String:
+	if _map == null:
+		return ""
+	if foe_i >= 0:
+		return _WorldCreaturesScript.display_name(int(_map.get_combat_foe_at(foe_i).get("tile", 0)))
+	if ally_i >= 0:
+		var ally := _map.get_combat_party_unit(ally_i)
+		return GameState.party_class_display_name(int(ally.get("klass", -1)))
+	return ""
+
+
+func _push_combat_hit(attacker: String, target: String, dmg: int) -> void:
+	if dmg <= 0 or attacker.is_empty() or target.is_empty():
+		return
+	_push_message(Locale.combat_hit_line(attacker, target, dmg), false)
+
+
+func _push_combat_miss(attacker: String, target: String = "") -> void:
+	if attacker.is_empty():
+		_push_message(Locale.t("cmd_missed"), false)
+		return
+	if target.is_empty():
+		_push_message(Locale.combat_miss_line_none(attacker), false)
+		return
+	_push_message(Locale.combat_miss_line(attacker, target), false)
+
+
 func _combat_apply_foe_hit(
 	klass: int,
 	foe_i: int,
@@ -20735,9 +20765,10 @@ func _combat_apply_foe_hit(
 	var flash_dur := COMBAT_HIT_FLASH_SEC if flash_sec < 0.0 else flash_sec
 	AudioSfx.play_npc_struck()
 	await _map.await_flash_combat_tile(at, flash, flash_dur)
+	var foe_nm := _WorldCreaturesScript.display_name(foe_tile)
+	_push_combat_hit(GameState.party_class_display_name(klass), foe_nm, dealt)
 	if killed:
-		var nm := _WorldCreaturesScript.display_name(foe_tile)
-		_push_message(Locale.t("cmd_killed", [nm]), false)
+		_push_message(Locale.t("cmd_killed", [foe_nm]), false)
 		if xp > 0:
 			var contrib: Dictionary = _combat_foe_dmg.get(foe_i, {})
 			GameState.award_combat_kill_xp(klass, contrib, xp)
@@ -20756,16 +20787,16 @@ func _combat_apply_ally_hit(attacker_klass: int, ally_i: int, at: Vector2i, dmg:
 		return
 	if dmg < 0:
 		dmg = GameState.party_attack_damage(attacker_klass)
+	var before := GameState.hp_of_class(def_klass)
 	GameState.apply_member_damage(def_klass, dmg)
+	var dealt := before - GameState.hp_of_class(def_klass)
 	var flash := flash_tid if flash_tid >= 0 else MapView.TILE_HIT_FLASH
 	AudioSfx.play_pc_struck()
 	await _map.await_flash_combat_tile(at, flash, COMBAT_HIT_FLASH_SEC)
+	var def_nm := GameState.party_class_display_name(def_klass)
+	_push_combat_hit(GameState.party_class_display_name(attacker_klass), def_nm, dealt)
 	if GameState.status_of_class(def_klass) == PartyRoster.Status.DEAD:
-		var slot := int(ally.get("party_slot", -1))
-		var nm := GameState.party_member_display_name(slot) if slot >= 0 else Virtues.class_name_of(
-			def_klass, GameState.lang_short()
-		)
-		_push_message(Locale.t("cmd_killed", [nm]), false)
+		_push_message(Locale.t("cmd_killed", [def_nm]), false)
 		_map.remove_combat_party_at(ally_i)
 	_refresh_party()
 	_sync_combat_focus_roster()
@@ -21174,7 +21205,7 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 	var tid := int(plan.get("tile", 0))
 	var base_hp := int(plan.get("base_hp", 64))
 	if foe_i >= 0:
-		await _combat_resolve_jinx_foe_melee(foe_i, at, base_hp)
+		await _combat_resolve_jinx_foe_melee(foe_i, at, base_hp, tid)
 		return
 	if party_i < 0 or klass < 0:
 		return
@@ -21184,13 +21215,18 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 		return
 	klass = int(unit.get("klass", klass))
 	at = Vector2i(int(unit.get("x", at.x)), int(unit.get("y", at.y)))
+	var attacker := _WorldCreaturesScript.display_name(tid)
+	var defender := GameState.party_class_display_name(klass)
 	var hits := GameState.creature_hits_party_member(klass)
 	AudioSfx.play_npc_attack()
 	if hits:
 		var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
+		var before := GameState.hp_of_class(klass)
 		GameState.apply_member_damage(klass, dmg)
+		var dealt := before - GameState.hp_of_class(klass)
 		AudioSfx.play_pc_struck()
 		await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+		_push_combat_hit(attacker, defender, dealt)
 		if _WorldCreaturesScript.steals_gold(tid) and (randi() % 4) == 0:
 			AudioSfx.play_id(AudioSfx.ID_ITEM_STOLEN)
 			GameState.adjust_gold(-(randi() % 0x3f))
@@ -21198,16 +21234,10 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 			AudioSfx.play_id(AudioSfx.ID_ITEM_STOLEN)
 			GameState.adjust_food(-2500)
 		if GameState.status_of_class(klass) == PartyRoster.Status.DEAD:
-			var slot := int(unit.get("party_slot", -1))
-			var nm := (
-				GameState.party_member_display_name(slot)
-				if slot >= 0
-				else Virtues.class_name_of(klass, GameState.lang_short())
-			)
-			_push_message(Locale.t("cmd_killed", [nm]), false)
+			_push_message(Locale.t("cmd_killed", [defender]), false)
 			_map.remove_combat_party_at(party_i)
 	else:
-		_push_message(Locale.t("cmd_missed"), false)
+		_push_combat_miss(attacker, defender)
 	_refresh_party()
 	_sync_combat_focus_roster()
 
@@ -21260,21 +21290,25 @@ func _combat_resolve_foe_ranged(plan: Dictionary) -> void:
 		_:
 			## damage / energy — always connect (xu4 rangedAttack).
 			var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
+			var before := GameState.hp_of_class(klass)
 			GameState.apply_member_damage(klass, dmg)
+			var dealt := before - GameState.hp_of_class(klass)
+			_push_combat_hit(
+				_WorldCreaturesScript.display_name(int(plan.get("tile", 0))),
+				GameState.party_class_display_name(klass),
+				dealt
+			)
 			if GameState.status_of_class(klass) == PartyRoster.Status.DEAD:
-				var slot := int(unit.get("party_slot", -1))
-				var nm := (
-					GameState.party_member_display_name(slot)
-					if slot >= 0
-					else Virtues.class_name_of(klass, GameState.lang_short())
+				_push_message(
+					Locale.t("cmd_killed", [GameState.party_class_display_name(klass)]),
+					false
 				)
-				_push_message(Locale.t("cmd_killed", [nm]), false)
 				_map.remove_combat_party_at(party_i)
 	_refresh_party()
 	_sync_combat_focus_roster()
 
 
-func _combat_resolve_jinx_foe_melee(foe_i: int, at: Vector2i, base_hp: int) -> void:
+func _combat_resolve_jinx_foe_melee(foe_i: int, at: Vector2i, base_hp: int, attacker_tid: int = 0) -> void:
 	## xu4 jinx melee: attackHit vs Creature::getDefense (128). Kill is not byplayer — no XP.
 	if _map == null or foe_i < 0:
 		return
@@ -21282,15 +21316,18 @@ func _combat_resolve_jinx_foe_melee(foe_i: int, at: Vector2i, base_hp: int) -> v
 	if target.is_empty() or int(target.get("hp", 0)) <= 0:
 		return
 	at = Vector2i(int(target.get("x", at.x)), int(target.get("y", at.y)))
+	var attacker := _WorldCreaturesScript.display_name(attacker_tid)
+	var defender := _WorldCreaturesScript.display_name(int(target.get("tile", 0)))
 	var hits := _WorldCreaturesScript.creature_attack_hits(_WorldCreaturesScript.CREATURE_DEFENSE)
 	if hits:
 		var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
 		var result := _map.damage_combat_foe(foe_i, dmg)
 		await _map.await_flash_combat_tile(at, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
+		_push_combat_hit(attacker, defender, int(result.get("dealt", 0)))
 		if bool(result.get("killed", false)):
 			_combat_note_field_foe_hit(result)
 	else:
-		_push_message(Locale.t("cmd_missed"), false)
+		_push_combat_miss(attacker, defender)
 	_refresh_foe_roster()
 
 
@@ -21331,6 +21368,11 @@ func _combat_resolve_jinx_foe_ranged(plan: Dictionary) -> void:
 		_:
 			var dmg := _WorldCreaturesScript.creature_attack_damage(base_hp)
 			var result := _map.damage_combat_foe(foe_i, dmg)
+			_push_combat_hit(
+				_WorldCreaturesScript.display_name(int(plan.get("tile", 0))),
+				_WorldCreaturesScript.display_name(int(result.get("tile", target.get("tile", 0)))),
+				int(result.get("dealt", 0))
+			)
 			if bool(result.get("killed", false)):
 				_combat_note_field_foe_hit(result)
 	_refresh_foe_roster()

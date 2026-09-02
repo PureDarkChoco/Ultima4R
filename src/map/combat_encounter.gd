@@ -200,14 +200,13 @@ static func fill_creature_table(
 
 static func initial_hp_for(tile_id: int) -> Dictionary:
 	## xu4 Creature::setInitialHp(-1) — hp = random(basehp)|(basehp/2), min 24.
+	## Bar max is this rolled HP (the creature's actual full), not species basehp.
 	var basehp := _WorldCreaturesScript.base_hp_for(tile_id)
 	basehp = maxi(1, basehp)
 	var hp := (randi() % basehp) | (basehp / 2)
 	if hp < 24:
 		hp = 24
-	## Cap so the bar never starts over 100%.
-	hp = mini(hp, basehp)
-	return {"hp": hp, "max_hp": basehp}
+	return {"hp": hp, "max_hp": hp}
 
 
 ## Dungeon corridor random foes by depth (0–7). Harder types deeper.
