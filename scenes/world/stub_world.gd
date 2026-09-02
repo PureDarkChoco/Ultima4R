@@ -5765,6 +5765,10 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		default_key = _talk_keyword_stable_key(
 			"돌" if GameState.lang_short() == "ko" else "stone"
 		)
+	elif _zair_castle_king_word_default(entry):
+		default_key = _talk_keyword_stable_key(
+			"말씀" if GameState.lang_short() == "ko" else "word"
+		)
 	elif (
 		_talk_city_id() == "empath"
 		and str(entry.name).strip_edges().to_lower() == "malchor"
@@ -7000,6 +7004,44 @@ func _maybe_resolve_suzanna_horn_clues() -> bool:
 	return changed
 
 
+func _zair_castle_king_word_npc() -> String:
+	## Empty unless talking to a principle-castle king.
+	if _talk_entry == null:
+		return ""
+	var place := _talk_city_id()
+	var npc := _talk_npc_key_flat(str(_talk_entry.name))
+	if place == "lycaeum" and npc == "robert frasier":
+		return "frasier"
+	if place == "empath" and npc == "lord robert":
+		return "robert"
+	if place == "serpent" and npc == "sentri":
+		return "sentri"
+	return ""
+
+
+func _zair_castle_king_word_ready() -> bool:
+	## Brother Zair's tip lights Word on the three castle kings.
+	return (
+		not _zair_castle_king_word_npc().is_empty()
+		and GameState.journal_has_id("cove.zair.word-of-passage")
+	)
+
+
+func _zair_castle_king_word_default(entry) -> bool:
+	## Cursor on Word until that king has given his syllable.
+	if entry == null or not GameState.journal_has_id("cove.zair.word-of-passage"):
+		return false
+	var place := _talk_city_id()
+	var npc := _talk_npc_key_flat(str(entry.name))
+	if place == "lycaeum" and npc == "robert frasier":
+		return not GameState.journal_has_id("lycaeum.frasier.word-ver")
+	if place == "empath" and npc == "lord robert":
+		return not GameState.journal_has_id("empath.robert.word-amo")
+	if place == "serpent" and npc == "sentri":
+		return not GameState.journal_has_id("serpent.sentri.word-cor")
+	return false
+
+
 func _maybe_offer_keep_chain_keyword() -> void:
 	## Empath Abbey / Lycaeum / Serpent's Hold follow-up keywords.
 	if not _talk_keyword_menu_active or _talk_entry == null:
@@ -7009,7 +7051,14 @@ func _maybe_offer_keep_chain_keyword() -> void:
 		return
 	var npc := _talk_npc_key_flat(str(_talk_entry.name))
 	var korean := GameState.lang_short() == "ko"
-	if (
+	if _zair_castle_king_word_ready():
+		var word_key := _talk_keyword_stable_key("말씀" if korean else "word")
+		_offer_talk_keyword_item(
+			word_key,
+			"말씀" if korean else "Word",
+			"말씀" if korean else "word"
+		)
+	elif (
 		place == "empath"
 		and npc == "malchor"
 		and GameState.journal_has_id("empath.suzanna.malchor-horn")
@@ -22034,6 +22083,21 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("paws.zair.brother-word"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:brother-zair-word"):
+			refresh = true
+	if place == "lycaeum" and npc_key == "robert frasier" and topic == "WORD":
+		if GameState.journal_mark_id("lycaeum.frasier.ask-word"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:frasier-word"):
+			refresh = true
+	if place == "empath" and npc_key == "lord robert" and topic == "WORD":
+		if GameState.journal_mark_id("empath.robert.ask-word"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:robert-word"):
+			refresh = true
+	if place == "serpent" and npc_key == "sentri" and topic == "WORD":
+		if GameState.journal_mark_id("serpent.sentri.ask-word"):
+			refresh = true
+		if GameState.journal_mark_goal("ask:sentri-word"):
 			refresh = true
 	if (
 		place == "skara"
