@@ -323,6 +323,8 @@ var wind_lock: bool = false
 var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
 var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE
 var reagents: Array[int] = [] ## 8
+## Visited reagent vendors: locale → [ash, ginseng, garlic, silk, moss, pearl].
+var reagent_shop_prices: Dictionary = {}
 var mixtures: Array[int] = [] ## 26 — spells A..Z
 ## Spells successfully mixed at least once (kept even if qty returns to 0).
 var spell_known: Array[bool] = []
@@ -509,6 +511,7 @@ func reset_party() -> void:
 	journal_seen_hythloth_balloon = false
 	talk_known_keywords.clear()
 	talk_heard_words.clear()
+	reagent_shop_prices.clear()
 	clear_aura()
 	_reset_inventory_empty()
 	_reset_member_arrays_blank()
@@ -761,6 +764,44 @@ func has_any_mixtures() -> bool:
 	return false
 
 
+func record_reagent_shop_prices(locale: String, prices: Array) -> void:
+	## Remember this city's published unit prices after talking to the vendor.
+	var loc := locale.strip_edges()
+	if loc.is_empty() or prices.is_empty():
+		return
+	var row: Array[int] = []
+	for p in prices:
+		row.append(maxi(0, int(p)))
+	reagent_shop_prices[loc] = row
+
+
+func reagent_shop_lowest_price(reag_i: int) -> int:
+	## Cheapest seen unit price for catalog index 0..5, or -1 if none recorded.
+	var best := -1
+	for loc in reagent_shop_prices.keys():
+		var row: Variant = reagent_shop_prices[loc]
+		if typeof(row) != TYPE_ARRAY or reag_i < 0 or reag_i >= row.size():
+			continue
+		var p := int(row[reag_i])
+		if p <= 0:
+			continue
+		if best < 0 or p < best:
+			best = p
+	return best
+
+
+func is_reagent_shop_best_price(locale: String, reag_i: int) -> bool:
+	## True when this locale's price ties the lowest among visited shops.
+	var row: Variant = reagent_shop_prices.get(locale.strip_edges(), [])
+	if typeof(row) != TYPE_ARRAY or reag_i < 0 or reag_i >= row.size():
+		return false
+	var here := int(row[reag_i])
+	if here <= 0:
+		return false
+	var best := reagent_shop_lowest_price(reag_i)
+	return best >= 0 and here <= best
+
+
 func reagent_qty(reag_id: int) -> int:
 	if reag_id < 0 or reag_id >= reagents.size():
 		return 0
@@ -986,6 +1027,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	journal_known_principles = 0
 	journal_hythloth_castle = false
 	journal_seen_hythloth_balloon = false
+	reagent_shop_prices.clear()
 	_Journal.seed_new_game(self)
 
 
@@ -3195,6 +3237,7 @@ func to_save_dict() -> Dictionary:
 		"weapons": weapons.duplicate(),
 		"armor": armor.duplicate(),
 		"reagents": reagents.duplicate(),
+		"reagent_shop_prices": _reagent_shop_prices_to_save(),
 		"mixtures": mixtures.duplicate(),
 		"spell_known": spell_known.duplicate(),
 		"weapon_known": weapon_known.duplicate(),
@@ -3354,6 +3397,7 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	_apply_int_array(weapons, d.get("weapons", []), 16)
 	_apply_int_array(armor, d.get("armor", []), 8)
 	_apply_int_array(reagents, d.get("reagents", []), 8)
+	_apply_reagent_shop_prices(d.get("reagent_shop_prices", {}))
 	_apply_int_array(mixtures, d.get("mixtures", []), 26)
 	_apply_bool_array(spell_known, d.get("spell_known", []), Spells.COUNT)
 	if d.has("weapon_known") or d.has("armor_known"):
@@ -3416,6 +3460,34 @@ func _seed_stats_from_class_defaults() -> void:
 			member_int[i] = COMPANION_INT[i]
 		if member_xp[i] <= 0:
 			member_xp[i] = CLASS_START_XP[i]
+
+
+func _reagent_shop_prices_to_save() -> Dictionary:
+	var out := {}
+	for loc in reagent_shop_prices.keys():
+		var row: Variant = reagent_shop_prices[loc]
+		if typeof(row) != TYPE_ARRAY:
+			continue
+		var saved: Array = []
+		for p in row:
+			saved.append(int(p))
+		out[str(loc)] = saved
+	return out
+
+
+func _apply_reagent_shop_prices(raw: Variant) -> void:
+	reagent_shop_prices.clear()
+	if typeof(raw) != TYPE_DICTIONARY:
+		return
+	for loc in (raw as Dictionary).keys():
+		var v: Variant = (raw as Dictionary)[loc]
+		if typeof(v) != TYPE_ARRAY:
+			continue
+		var row: Array[int] = []
+		for p in v:
+			row.append(maxi(0, int(p)))
+		if not row.is_empty():
+			reagent_shop_prices[str(loc)] = row
 
 
 func _apply_int_array(dest: Array, src: Variant, min_size: int) -> void:

@@ -1302,6 +1302,7 @@ func _start_reagents() -> void:
 	_prices.clear()
 	for p in data["prices"]:
 		_prices.append(int(p))
+	GameState.record_reagent_shop_prices(_locale, _prices)
 	_say(_L("A blind woman turns to you and says: Welcome to %s\n\nI am %s\nAre you in need of Reagents? (Y/N)") % [_shop, _owner])
 	_want_choice("yn", "r_need")
 
@@ -1324,13 +1325,17 @@ func _r_show() -> void:
 
 func _format_reagent_stock_line(i: int) -> String:
 	## "A - [icon]Sulfurous Ash / 2G" — icon + unit price like weapon stock lines.
+	## Cheapest among visited shops: reagent name in keyword gold.
 	var letter := String.chr(65 + i)
 	var icon := TalkTlk.mark_reagent_icon(i)
+	var name := Locale.reagent_name(i)
+	if GameState.is_reagent_shop_best_price(_locale, i):
+		name = "%s%s%s" % [_TalkTlk.KW_BBCODE, name, _TalkTlk.KW_BBCODE_END]
 	var price := int(_prices[i]) if i >= 0 and i < _prices.size() else 0
 	var price_s := "%dG" % price
 	if GameState.gold < price:
 		price_s = "[color=#e74c3c]%s[/color]" % price_s
-	return "%s - %s%s / %s" % [letter, icon, Locale.reagent_name(i), price_s]
+	return "%s - %s%s / %s" % [letter, icon, name, price_s]
 
 
 func _on_r_item(c0: String) -> void:
