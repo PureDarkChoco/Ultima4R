@@ -161,7 +161,7 @@ const RUMOR := {
 	"% says: For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!":
 		"% 말하길: 항해엔 육분의가 필수라네… 길드 상점에서 물건 \"D\"를 청해 보게!",
 	"Now let me see... Yes it was the old Hermit... Sloven! He is tough to find, lives near Lock Lake I hear.":
-		"어디 보자… 그래, 늙은 은자 슬로븐이지! 찾기 힘들고, 로크 호수 근처에 산다고 들었네.",
+		"어디 보자… 그래, 늙은 은둔자 슬로벤이지! 찾기 힘들고, 로크 호수 근처에 산다고 들었네.",
 	"% says: The last person I knew that had any Mandrake was an old alchemist named Calumny.":
 		"% 말하길: 맨드레이크를 가진 이를 마지막으로 본 건 늙은 연금술사 칼럼니였지.",
 	"% says: If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!":

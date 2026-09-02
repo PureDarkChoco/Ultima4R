@@ -1531,7 +1531,7 @@
       "speaker_en": "Terran",
       "speaker_ko": "테란",
       "en": "Meet Sloven the hermit near Lock Lake.",
-      "ko": "로크 호수 근처의 은자 슬로벤 만나기",
+      "ko": "로크 호수 근처의 은둔자 슬로벤 만나기",
       "en_u4": "Seek Sloven the hermit near Lock Lake.",
       "en_us": "Meet Sloven the hermit near Lock Lake."
     },
@@ -2477,7 +2477,7 @@
       "chain_order": 20,
       "goal": "stone:black",
       "en": "Search where the dark-moon gate appears, when both moons are dark.",
-      "ko": "달이 어두울 때, 두 달이 어두운 문이 뜰 곳에서 찾기",
+      "ko": "두 달이 모두 어두운 달문이 나타날 곳에서, 달이 어두워질 때 찾기",
       "en_u4": "Search where the gate of both moons dark shall appear, when the moons go dark.",
       "en_us": "Search where the dark-moon gate appears, when both moons are dark."
     },
@@ -2511,8 +2511,9 @@
       "topic": "SEED",
       "goal": "meet:sloven-stone",
       "seed_if_recorded": "trinsic.terran.sloven-white-stone",
+      "requires_recorded": "trinsic.terran.sloven-white-stone",
       "en": "Meet Sloven the hermit.",
-      "ko": "은자 슬로벤 만나기",
+      "ko": "은둔자 슬로벤 만나기",
       "en_u4": "Seek Sloven the hermit.",
       "en_us": "Meet Sloven the hermit.",
       "chain": "cove.white-stone",

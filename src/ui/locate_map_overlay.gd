@@ -11,6 +11,7 @@ const MAP_ABYSS_PATH := "res://assets/ui/locate/britannia_world_base_abyss.png"
 const WORLD_W := 256
 const WORLD_H := 256
 const _LocateChart := preload("res://src/map/locate_chart.gd")
+const _WorldPortals := preload("res://src/map/world_portals.gd")
 ## Full texture = full world (no decorative letterboxing).
 const WORLD_UV := Rect2(0.0, 0.0, 1.0, 1.0)
 const MAP_DIM := Color(0.0, 0.0, 0.0, 0.5)
@@ -26,6 +27,21 @@ const COORD_COLOR := Color(0.95, 0.93, 0.82, 1.0)
 const COORD_SHADOW := Color(0.0, 0.0, 0.0, 0.75)
 ## Extra lift when ship pin overlaps the SW coord readout.
 const COORD_SHIP_LIFT := 28.0
+## Always-visible region names (world tile centers).
+const REGION_LABELS := [
+	{"key": "locate_region_serpents_spine", "pos": Vector2i(82, 74)},
+	{"key": "locate_region_deep_forest", "pos": Vector2i(51, 45)},
+	{"key": "locate_region_cape_of_heroes", "pos": Vector2i(90, 214)},
+]
+const REGION_LABEL_COLOR := Color(0.96, 0.93, 0.8, 0.96)
+const REGION_LABEL_SHADOW := Color(0.05, 0.04, 0.02, 0.82)
+## Nudge names off neighboring labels / the settlement tile.
+const SETTLEMENT_LABEL_SHIFT := {
+	"britain": Vector2i(-5, 3),
+	"lcb": Vector2i(7, -4),
+	"yew": Vector2i(5, 3),
+	"empath": Vector2i(-3, 4),
+}
 
 var _dim: ColorRect
 var _panel: Panel
@@ -290,6 +306,8 @@ func _place_specials() -> void:
 func _draw_specials() -> void:
 	if _specials == null:
 		return
+	_draw_region_labels()
+	_draw_settlement_labels()
 	for rec in _special_marks:
 		var p: Vector2i = rec.get("pos", Vector2i.ZERO)
 		var kind := str(rec.get("kind", ""))
@@ -307,6 +325,63 @@ func _draw_specials() -> void:
 			"bell":
 				_specials.draw_circle(c, 4.5, Color(0.45, 0.32, 0.1, 1))
 				_specials.draw_circle(c, 2.4, Color(0.92, 0.78, 0.28, 1))
+
+
+func _draw_region_labels() -> void:
+	## Cloth-map region names sit on the terrain from the first Locate.
+	var font := UiTheme.font_bold()
+	if font == null:
+		font = UiTheme.font()
+	if font == null:
+		return
+	var draw := _map_draw_rect()
+	if draw.size.x < 8.0:
+		return
+	var fs := clampi(int(round(draw.size.x / 46.0)), 11, 16)
+	for rec in REGION_LABELS:
+		var text := Locale.t(str(rec.get("key", "")))
+		if text.is_empty():
+			continue
+		var c := _world_to_panel(rec.get("pos", Vector2i.ZERO))
+		var sz := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		var origin := Vector2(c.x - sz.x * 0.5, c.y + font.get_ascent(fs) * 0.35)
+		for d in [Vector2(1, 1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]:
+			_specials.draw_string(
+				font, origin + d, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_SHADOW
+			)
+		_specials.draw_string(
+			font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_COLOR
+		)
+
+
+func _draw_settlement_labels() -> void:
+	## Entered cities / villages / castles — smaller than region names.
+	var font := UiTheme.font()
+	if font == null:
+		return
+	var draw := _map_draw_rect()
+	if draw.size.x < 8.0:
+		return
+	var fs := clampi(int(round(draw.size.x / 72.0)), 8, 11)
+	for rec in _WorldPortals.all_portal_entries():
+		var place := _WorldPortals.place_id_for_portal(rec)
+		if place.is_empty() or not GameState.locate_has_visited(place):
+			continue
+		var text := Locale.place(place)
+		if text.is_empty():
+			continue
+		var pos := Vector2i(int(rec.get("wx", 0)), int(rec.get("wy", 0)))
+		var shift: Vector2i = SETTLEMENT_LABEL_SHIFT.get(place, Vector2i(0, 2))
+		var c := _world_to_panel(pos + shift)
+		var sz := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		var origin := Vector2(c.x - sz.x * 0.5, c.y + font.get_ascent(fs) * 0.35)
+		for d in [Vector2(1, 1), Vector2(1, 0), Vector2(0, 1)]:
+			_specials.draw_string(
+				font, origin + d, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_SHADOW
+			)
+		_specials.draw_string(
+			font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, REGION_LABEL_COLOR
+		)
 
 
 func _world_to_panel(pos: Vector2i) -> Vector2:

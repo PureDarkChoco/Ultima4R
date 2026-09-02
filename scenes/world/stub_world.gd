@@ -5724,6 +5724,14 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		)
 	elif (
 		_talk_city_id() == "cove"
+		and str(entry.name).strip_edges().to_lower() == "sloven"
+		and GameState.journal_has_id("trinsic.terran.sloven-white-stone")
+	):
+		default_key = _talk_keyword_stable_key(
+			"돌" if GameState.lang_short() == "ko" else "stone"
+		)
+	elif (
+		_talk_city_id() == "cove"
 		and str(entry.name).strip_edges().to_lower() == "blissful"
 		and GameState.journal_has_id("cove.allen.blissful-abyss")
 	):
@@ -6752,7 +6760,11 @@ func _maybe_complete_meet_journal_on_name() -> bool:
 			changed = true
 		if GameState.journal_mark_goal("meet:roderick-orbs"):
 			changed = true
-	if place == "cove" and npc_key == "sloven":
+	if (
+		place == "cove"
+		and npc_key == "sloven"
+		and GameState.journal_has_id("trinsic.terran.sloven-white-stone")
+	):
 		if GameState.journal_try_capture_talk("cove", "Sloven", "SEED"):
 			changed = true
 		if GameState.journal_mark_id("trinsic.terran.sloven-white-stone"):
@@ -6778,8 +6790,9 @@ func _talk_npc_is_cove_ankh(npc_name: String) -> bool:
 
 
 func _maybe_offer_cove_chain_keyword() -> void:
-	## Cove: Blissful (abyss) / the ankh (codex chamber) / Merlin (gate) /
-	## Mentorian (gate spell from Jingles) / Brother Zair (word).
+	## Cove: Sloven (white stone from Terran) / Blissful (abyss) /
+	## the ankh (codex chamber) / Merlin (gate) / Mentorian (gate spell
+	## from Jingles) / Brother Zair (word).
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	if _talk_city_id() != "cove":
@@ -6787,6 +6800,16 @@ func _maybe_offer_cove_chain_keyword() -> void:
 	var npc := str(_talk_entry.name).strip_edges().to_lower()
 	var korean := GameState.lang_short() == "ko"
 	if (
+		npc == "sloven"
+		and GameState.journal_has_id("trinsic.terran.sloven-white-stone")
+	):
+		var stone_key := _talk_keyword_stable_key("돌" if korean else "stone")
+		_offer_talk_keyword_item(
+			stone_key,
+			"돌" if korean else "Stone",
+			"돌" if korean else "stone"
+		)
+	elif (
 		npc == "blissful"
 		and GameState.journal_has_id("cove.allen.blissful-abyss")
 	):
@@ -6802,6 +6825,14 @@ func _maybe_offer_cove_chain_keyword() -> void:
 		_talk_npc_is_cove_ankh(str(_talk_entry.name))
 		and GameState.journal_has_id("cove.blissful.ankh-chamber")
 	):
+		var codex_key := _talk_keyword_stable_key(
+			"코덱스" if korean else "codex"
+		)
+		_offer_talk_keyword_item(
+			codex_key,
+			"코덱스" if korean else "Codex",
+			"코덱스" if korean else "codex"
+		)
 		var chamber_key := _talk_keyword_stable_key("방" if korean else "chamber")
 		_offer_talk_keyword_item(
 			chamber_key,
@@ -8778,6 +8809,13 @@ func _open_peer_view() -> bool:
 			_format_u4_sextant(_tile_pos.y),
 		]
 	_peer_overlay.open_peer(_world, _tile_pos, tile_sz, loc, _map)
+	LocateChart.reveal_rect(
+		GameState,
+		_world,
+		_tile_pos,
+		PeerGemOverlay.GEM_VIEW_W,
+		PeerGemOverlay.GEM_VIEW_H
+	)
 	return true
 
 
@@ -13047,6 +13085,7 @@ func _enter_city_from_portal_wipe(portal: Dictionary) -> void:
 
 func _journal_note_entered_city(fname: String) -> void:
 	var place := _WorldPortals.place_id_for_portal({"fname": fname})
+	GameState.locate_mark_visited(place)
 	var marked := GameState.journal_mark_city(place)
 	if place == "magincia" and GameState.journal_mark_goal("enter:magincia"):
 		marked = true

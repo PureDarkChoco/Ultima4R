@@ -282,3 +282,39 @@ static func reveal_view(gs, world, center: Vector2i, view_w: int, view_h: int) -
 	if changed:
 		gs.locate_chart_dirty = true
 	return changed
+
+
+static func reveal_rect(gs, world, center: Vector2i, view_w: int, view_h: int) -> bool:
+	## Peer gem: the whole rectangle is visible (no mountain LOS).
+	if gs == null or world == null or not bool(world.loaded):
+		return false
+	if gs.locate_explored.size() != MASK_BYTES:
+		gs.locate_explored = empty_mask()
+	ensure_abyss_mask(world)
+	var w := maxi(1, view_w)
+	var h := maxi(1, view_h)
+	if (w & 1) == 0:
+		w += 1
+	if (h & 1) == 0:
+		h += 1
+	var half_x := w / 2
+	var half_y := h / 2
+	var changed := false
+	for ly in h:
+		for lx in w:
+			var wx := posmod(center.x + lx - half_x, WORLD)
+			var wy := posmod(center.y + ly - half_y, WORLD)
+			if mark_explored(gs.locate_explored, wx, wy):
+				changed = true
+			if is_abyss_island(wx, wy) and not gs.locate_found_abyss:
+				gs.locate_found_abyss = true
+				changed = true
+			if is_secret_skull(wx, wy) and not gs.locate_found_skull:
+				gs.locate_found_skull = true
+				changed = true
+			if is_secret_bell(wx, wy) and not gs.locate_found_bell:
+				gs.locate_found_bell = true
+				changed = true
+	if changed:
+		gs.locate_chart_dirty = true
+	return changed

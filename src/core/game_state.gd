@@ -6,6 +6,7 @@ const _Journal := preload("res://src/core/journal.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
 const LocateChart := preload("res://src/map/locate_chart.gd")
+const _WorldPortals := preload("res://src/map/world_portals.gd")
 
 signal language_changed(lang: String)
 
@@ -164,6 +165,8 @@ var locate_explored: PackedByteArray = PackedByteArray()
 var locate_found_abyss: bool = false
 var locate_found_skull: bool = false
 var locate_found_bell: bool = false
+## Place ids entered at least once (cities / villages / castles) for Locate labels.
+var locate_visited_places: Dictionary = {}
 var locate_chart_dirty: bool = true
 ## xu4 SaveGame.shiphull — normally 0..50; Wheel mounts to 99 (setShipHull).
 var ship_hull: int = 50
@@ -514,7 +517,27 @@ func _reset_locate_chart() -> void:
 	locate_found_abyss = false
 	locate_found_skull = false
 	locate_found_bell = false
+	locate_visited_places.clear()
 	locate_chart_dirty = true
+
+
+func locate_mark_visited(place_id: String) -> bool:
+	var id := place_id.strip_edges().to_lower()
+	if id.is_empty() or locate_visited_places.has(id):
+		return false
+	locate_visited_places[id] = true
+	return true
+
+
+func locate_has_visited(place_id: String) -> bool:
+	return locate_visited_places.has(place_id.strip_edges().to_lower())
+
+
+func _seed_locate_visited_from_known_cities() -> void:
+	for i in _WorldPortals.JOURNAL_TOWNS.size():
+		if (int(journal_known_cities) & (1 << i)) == 0:
+			continue
+		locate_mark_visited(str(_WorldPortals.JOURNAL_TOWNS[i]))
 
 
 func _reset_inventory_empty() -> void:
@@ -3148,6 +3171,7 @@ func to_save_dict() -> Dictionary:
 		"locate_found_abyss": locate_found_abyss,
 		"locate_found_skull": locate_found_skull,
 		"locate_found_bell": locate_found_bell,
+		"locate_visited_places": locate_visited_places.keys(),
 		"weapons": weapons.duplicate(),
 		"armor": armor.duplicate(),
 		"reagents": reagents.duplicate(),
@@ -3299,6 +3323,12 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	locate_found_abyss = bool(d.get("locate_found_abyss", false))
 	locate_found_skull = bool(d.get("locate_found_skull", false))
 	locate_found_bell = bool(d.get("locate_found_bell", false))
+	locate_visited_places.clear()
+	var visited_raw: Variant = d.get("locate_visited_places", [])
+	if typeof(visited_raw) == TYPE_ARRAY:
+		for raw in visited_raw:
+			locate_mark_visited(str(raw))
+	_seed_locate_visited_from_known_cities()
 	locate_chart_dirty = true
 	_apply_int_array(weapons, d.get("weapons", []), 16)
 	_apply_int_array(armor, d.get("armor", []), 8)
@@ -3776,6 +3806,7 @@ func journal_mark_dungeon(dungeon_id: String) -> bool:
 
 
 func journal_mark_city(place_id: String) -> bool:
+	locate_mark_visited(place_id)
 	var marked := _Journal.mark_known_city(self, place_id)
 	var seeded := _Journal.seed_referral_rows(self, false)
 	return marked or seeded

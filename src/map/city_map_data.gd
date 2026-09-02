@@ -332,6 +332,8 @@ func _person_terrain_walkable(x: int, y: int, dir: Vector2i, self_i: int = -1) -
 		mover = int(persons[self_i].z)
 	if _WorldCreatures.is_swimmer(mover):
 		return _TileRules.is_swimable(dest_tid)
+	if _WorldCreatures.is_incorporeal(mover):
+		return not _TileRules.is_water(dest_tid)
 	if not _TileRules.can_walk_on(dest_tid, step):
 		return false
 	return _TileRules.is_creature_walkable(dest_tid)
@@ -899,6 +901,10 @@ func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2
 			mover = int(persons[self_i].z)
 		if _WorldCreatures.is_swimmer(mover):
 			if not _TileRules.is_swimable(dest_tid):
+				continue
+		elif _WorldCreatures.is_incorporeal(mover):
+			## Ghost / zorn: walk through walls, not water (xu4 MATTR_INCORPOREAL).
+			if _TileRules.is_water(dest_tid):
 				continue
 		else:
 			if not _TileRules.can_walk_on(dest_tid, d):

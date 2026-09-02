@@ -2241,6 +2241,21 @@ const _T := {
 		"en_us": "You consult a chart of Britannia.",
 		"ko": "브리타니아 지도를 펼칩니다.",
 	},
+	"locate_region_serpents_spine": {
+		"en_u4": "Serpent's Spine",
+		"en_us": "Serpent's Spine",
+		"ko": "뱀의 등뼈",
+	},
+	"locate_region_deep_forest": {
+		"en_u4": "Deep Forest",
+		"en_us": "Deep Forest",
+		"ko": "깊은 숲",
+	},
+	"locate_region_cape_of_heroes": {
+		"en_u4": "Cape of Heroes",
+		"en_us": "Cape of Heroes",
+		"ko": "영웅의 곶",
+	},
 	"cmd_locate_what": {
 		"en_u4": "Locate with What?",
 		"en_us": "Locate with What?",
