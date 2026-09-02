@@ -1,5 +1,5 @@
 {
-  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|item:book|item:candle|item:horn|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; item:candle / item:horn when found by Search; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: meet:* completes when the NPC speaks their name (random intro or Name keyword); ask:* completes when the matching topic is asked; talk:nate-snake completes when a snake is spoken with (does not name Magincia). shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; meet:* and ask:* goals are separate when both apply.",
+  "note": "Major dialogue facts for Journal / 여행 기록. Match key: place + npc (TLK English name) + topic (TOPIC stem or job/heal). A chain is local to one place; a destination starts a new chain while goal/complete_if_recorded completes the source tip. requires_recorded gates capture until that tip id exists (e.g. Silent mantra after Pinrod). goal empty = complete on record (including learned mantras); rune:<virtue>|stone:<color>|use:stone:<color>|item:book|item:candle|item:horn|use:horn|shrine:<virtue>|enter:hythloth-castle|enter:magincia|search:skull|see:balloon|companions:7|runes:8|stones:8 = pending until action (use:stone at an altar room or matching abyss altar; item:candle / item:horn when found by Search; use:horn near the Humility shrine; enter:hythloth-castle when descending into Hythloth from {lcb}; enter:magincia when entering {magincia}; search:skull when the skull is found by Search; see:balloon when the balloon is seen at {hythloth}'s world entrance). Collection rows for companions/runes/stones are added after the first recruit or find, not at new-game seed. Ask-tips may use complete_on_goal mantra:<virtue> as a shrine fallback. know virtue:<name>|mantra:<name>|stone:<color>|dungeon:<name>|principle:truth|love|courage fills the journal collection page; mantra:<name>, stone:<color>, and gaining a rune also mark the matching virtue. Re-hearing a recorded topic still applies new know bits. codex_only:true applies know without a travel-log row. Talk-chain goals: meet:* completes when the NPC speaks their name (random intro or Name keyword); ask:* completes when the matching topic is asked; talk:nate-snake completes when a snake is spoken with (does not name Magincia). shrine:<virtue> completes when the party enters that shrine. Same id with upgrade:true expands an existing clue (en_upgraded/ko_upgraded on the base catalog row). Action tips use Ask / Search / Meet / Enter (묻기 / 찾기 / 만나기 / 들어가기); knowledge facts keep Topic: detail. Official place names use {paws}-style tokens resolved by Locale.fill_places from place_* keys. seed_if_recorded on a destination row inserts a nameless Ask/Meet tip there when the source town's go-find clue exists; meet:* and ask:* goals are separate when both apply.",
   "entries": [
     {
       "id": "britannia.start.talk",
@@ -562,11 +562,30 @@
       "en_us": "Ask Alkerion about the stone of Sacrifice."
     },
     {
+      "id": "minoc.jude.ask-skull",
+      "place": "minoc",
+      "npc": "Jude",
+      "topic": "SEED",
+      "goal": "ask:jude-skull",
+      "seed_if_recorded": "den.pub.skull-jude",
+      "complete_if_recorded": "minoc.jude.skull-location",
+      "chain": "minoc.skull",
+      "chain_order": 5,
+      "speaker_en": "Jude",
+      "speaker_ko": "주드",
+      "en": "Ask Jude about the skull.",
+      "ko": "주드에게 해골에 대해 묻기",
+      "en_u4": "Ask Jude of the skull.",
+      "en_us": "Ask Jude about the skull."
+    },
+    {
       "id": "minoc.jude.skull-location",
       "place": "minoc",
       "npc": "Jude",
       "topic": "SKUL_YES",
       "goal": "search:skull",
+      "chain": "minoc.skull",
+      "chain_order": 10,
       "speaker_en": "Jude",
       "speaker_ko": "주드",
       "en": "Skull of Mondain: search at lat-P'F\" long-M'F\" on the darkest night.",
@@ -2660,10 +2679,17 @@
       "place": "britain",
       "npc": "Sebastian",
       "topic": "MOND_YES",
-      "en": "Ask the Cap'n at Captain Black Tavern in {den} about the skull.",
-      "ko": "{den} 캡틴 블랙 주점의 캡틴에게 해골에 대해 묻기",
-      "en_u4": "Ask the Cap'n at Captain Black Tavern in {den} of the skull.",
-      "en_us": "Ask the Cap'n at Captain Black Tavern in {den} about the skull."
+      "goal": "ask:den-skull",
+      "complete_if_all_recorded": [
+        "den.pub.skull-jude",
+        "den.ragnar.skull-warning"
+      ],
+      "en": "Ask about the skull at the pub.",
+      "ko": "주점에서 해골에 대해 묻기",
+      "en_u4": "Ask at the pub of the skull.",
+      "en_us": "Ask about the skull at the pub.",
+      "speaker_en": "Sebastian",
+      "speaker_ko": "세바스찬"
     },
     {
       "id": "den.ragnar.ask-skull",
@@ -2672,11 +2698,16 @@
       "topic": "SEED",
       "goal": "ask:den-skull",
       "seed_if_recorded": "britain.sebastian.den-skull",
-      "complete_if_recorded": "den.ragnar.skull-warning",
-      "en": "Ask the Cap'n about the skull.",
-      "ko": "캡틴에게 해골에 대해 묻기",
-      "en_u4": "Ask the Cap'n of the skull.",
-      "en_us": "Ask the Cap'n about the skull.",
+      "complete_if_all_recorded": [
+        "den.pub.skull-jude",
+        "den.ragnar.skull-warning"
+      ],
+      "chain": "den.skull",
+      "chain_order": 5,
+      "en": "Ask about the skull at the pub.",
+      "ko": "주점에서 해골에 대해 묻기",
+      "en_u4": "Ask at the pub of the skull.",
+      "en_us": "Ask about the skull at the pub.",
       "speaker_en": "Ragnar",
       "speaker_ko": "라그나르"
     },
@@ -2685,28 +2716,54 @@
       "place": "den",
       "npc": "Ragnar",
       "topic": "SKUL",
+      "chain": "den.skull",
+      "chain_order": 8,
       "en": "Skull: never use it except to destroy it, or all virtues are lost.",
-      "ko": "해골: 파괴 외 용도로 쓰면 미덕을 모두 잃는다."
+      "ko": "해골: 파괴 외 용도로 쓰면 미덕을 모두 잃는다.",
+      "speaker_en": "Ragnar",
+      "speaker_ko": "라그나르"
+    },
+    {
+      "id": "den.pub.skull-jude",
+      "place": "den",
+      "npc": "The Cap'n",
+      "topic": "SKULL",
+      "chain": "den.skull",
+      "chain_order": 10,
+      "goal": "ask:jude-skull",
+      "complete_if_recorded": "minoc.jude.skull-location",
+      "en": "Find the beggar Jude.",
+      "ko": "거지 주드를 찾아라",
+      "en_u4": "Seek the beggar Jude.",
+      "en_us": "Find the beggar Jude.",
+      "speaker_en": "The Cap'n",
+      "speaker_ko": "캡틴"
     },
     {
       "id": "den.scirlock.hythloth-entrance",
       "place": "den",
       "npc": "Jeremy James\nScirlock",
       "topic": "HYTH",
+      "goal": "enter:hythloth-castle",
       "speaker_en": "Jeremy James Scirlock",
       "speaker_ko": "제레미 제임스 스킬록",
       "en": "{hythloth}: reached only by a secret entrance in the great castle.",
-      "ko": "{hythloth}: 큰 성의 비밀 입구로만 갈 수 있다."
+      "ko": "{hythloth}: 큰 성의 비밀 입구로만 갈 수 있다.",
+      "en_u4": "{hythloth}: reached only by a secret entrance in the great castle.",
+      "en_us": "{hythloth}: reached only by a secret entrance in the great castle."
     },
     {
       "id": "den.sniflet.balloon",
       "place": "den",
       "npc": "Sniflet",
       "topic": "SOME_YES",
-      "en": "Search near dungeon {hythloth}.",
-      "ko": "{hythloth} 던전 근처에서 찾기",
-      "en_u4": "Search near dungeon {hythloth}.",
-      "en_us": "Search near dungeon {hythloth}."
+      "goal": "see:balloon",
+      "speaker_en": "Sniflet",
+      "speaker_ko": "스니플렛",
+      "en": "Find the stolen lighter-than-air device near dungeon {hythloth}.",
+      "ko": "훔친 공기보다 가벼운 장치를 {hythloth} 던전 근처에서 찾기",
+      "en_u4": "Seek the stolen lighter-than-air device near dungeon {hythloth}.",
+      "en_us": "Find the stolen balloon near dungeon {hythloth}."
     },
     {
       "id": "den.seanna.sleep-spell",

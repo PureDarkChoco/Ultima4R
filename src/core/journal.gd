@@ -331,6 +331,8 @@ static func try_capture(gs: Node, place: String, npc: String, topic: String) -> 
 			any = true
 	if mark_goals_for_inventory(gs):
 		any = true
+	if _apply_pending_journal_completions(gs):
+		any = true
 	if any:
 		_prefer_unseen_in_place(gs, p)
 	return any
@@ -593,22 +595,39 @@ static func seed_referral_rows(gs: Node, note_new: bool = false) -> bool:
 	return any
 
 
-static func _catalog_has_complete_if_recorded(cat: Dictionary) -> bool:
-	var raw: Variant = cat.get("complete_if_recorded", "")
+static func _catalog_recorded_ids(raw: Variant) -> Array[String]:
+	var out: Array[String] = []
 	if typeof(raw) == TYPE_ARRAY:
-		return not raw.is_empty()
-	return not str(raw).strip_edges().is_empty()
+		for sid in raw:
+			var id := str(sid).strip_edges()
+			if not id.is_empty():
+				out.append(id)
+		return out
+	var id := str(raw).strip_edges()
+	if not id.is_empty():
+		out.append(id)
+	return out
+
+
+static func _catalog_has_complete_if_recorded(cat: Dictionary) -> bool:
+	return (
+		not _catalog_recorded_ids(cat.get("complete_if_recorded", "")).is_empty()
+		or not _catalog_recorded_ids(cat.get("complete_if_all_recorded", "")).is_empty()
+	)
 
 
 static func _catalog_completion_recorded(gs: Node, cat: Dictionary) -> bool:
-	var raw: Variant = cat.get("complete_if_recorded", "")
-	if typeof(raw) == TYPE_ARRAY:
-		for id in raw:
-			if has_entry_id(gs, str(id)):
-				return true
+	## complete_if_recorded = any one id; complete_if_all_recorded = every id.
+	for id in _catalog_recorded_ids(cat.get("complete_if_recorded", "")):
+		if has_entry_id(gs, id):
+			return true
+	var all_ids := _catalog_recorded_ids(cat.get("complete_if_all_recorded", ""))
+	if all_ids.is_empty():
 		return false
-	var id := str(raw).strip_edges()
-	return not id.is_empty() and has_entry_id(gs, id)
+	for id in all_ids:
+		if not has_entry_id(gs, id):
+			return false
+	return true
 
 
 static func mark_goal(gs: Node, goal: String) -> bool:
@@ -1014,6 +1033,11 @@ static func _reconcile_pending_action_goal(gs: Node, row: Dictionary, cat: Dicti
 			row["done"] = false
 			return true
 		return changed
+	if catalog_goal.begins_with("enter:") or catalog_goal.begins_with("see:"):
+		if bool(row.get("done", false)) != inventory_done:
+			row["done"] = inventory_done
+			return true
+		return changed
 	if (
 		catalog_goal.begins_with("ask:")
 		or catalog_goal.begins_with("meet:")
@@ -1081,6 +1105,9 @@ static func goal_already_met(gs: Node, goal: String) -> bool:
 	if g == "enter:hythloth-castle":
 		## Descended into Hythloth from Castle Britannia (secret entrance).
 		return bool(gs.journal_hythloth_castle)
+	if g == "see:balloon":
+		## Saw the balloon at the Hythloth world entrance.
+		return bool(gs.journal_seen_hythloth_balloon)
 	if g == "enter:magincia":
 		var mag_i := _WorldPortals.town_moon_index("magincia")
 		return mag_i >= 0 and (int(gs.journal_known_cities) & (1 << mag_i)) != 0

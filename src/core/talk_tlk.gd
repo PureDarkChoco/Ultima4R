@@ -74,6 +74,7 @@ const _MODERN_PHRASES: Array = [
 	["thy blood", "your blood"],
 	["thy life", "your life"],
 	["thy ship", "your ship"],
+	["own\na ship!", "own\na ship?"],
 	["dost thou", "do you"],
 	["hast thou", "have you"],
 	["wilt thou", "will you"],
@@ -806,10 +807,12 @@ static func _keyword_before_ok(text: String, i: int, hangul_kw: bool, kw_len: in
 	var prev := text.unicode_at(i - 1)
 	if not _is_word_char(prev):
 		return true
-	## One-syllable topics must not match inside another word (말하길 → 길)
-	## except listed compounds.
-	if hangul_kw and _is_hangul_code(prev) and kw_len == 1:
-		return _hangul_compound_prefix_ok(text.substr(i - 1, 1), text.substr(i, 1))
+	## Topics must not match inside another word (말하길 → 길) except listed
+	## compounds (은뿔, 흑마법).
+	if hangul_kw and _is_hangul_code(prev):
+		return _hangul_compound_prefix_ok(
+			text.substr(i - 1, 1), text.substr(i, kw_len)
+		)
 	return false
 
 
@@ -825,8 +828,10 @@ static func _hangul_keyword_after_ok(text: String, after_i: int, kw_len: int = 1
 	var next := text.substr(after_i, 1)
 	if _hangul_particle_after_ok(next):
 		return true
-	## 여행하다 / 수리하다 … — tint the noun, leave -하… plain.
-	if kw_len >= 2 and next == "하":
+	if _hangul_particle_span_ok(text, after_i):
+		return true
+	## 여행하다 / 은신해 / 수리한 … — tint the noun, leave -하/해… plain.
+	if kw_len >= 2 and next in ["하", "해", "한", "할", "했"]:
 		return true
 	return false
 
@@ -841,11 +846,22 @@ static func _hangul_particle_after_ok(syl: String) -> bool:
 			return false
 
 
+static func _hangul_particle_span_ok(text: String, after_i: int) -> bool:
+	## Two-syllable particles (마법으로 → tint 마법).
+	match text.substr(after_i, 2):
+		"으로", "에서", "에게", "한테", "부터", "까지":
+			return true
+		_:
+			return false
+
+
 static func _hangul_compound_prefix_ok(prev: String, keyword: String) -> bool:
-	## 은뿔: tint 뿔. Do not treat connective -길 (말하길) as PATH.
+	## 은뿔: tint 뿔. 흑마법: tint 마법. Do not treat connective -길 as PATH.
 	match keyword:
 		"뿔":
 			return prev == "은"
+		"마법":
+			return prev == "흑"
 		_:
 			return false
 

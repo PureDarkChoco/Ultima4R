@@ -51,10 +51,15 @@ const LOC_COLOR := Color(0.91, 0.9, 0.82, 1)
 const LOC_BG := Color(0.0, 0.0, 0.0, 0.58)
 const LOC_PAD_X := 4
 const LOC_PAD_Y := 1
+## Party cell flash so the gem is easy to read in a crowd.
+const BLINK_HALF_SEC := 0.32
+const MARKER_ON := Color(1.0, 0.92, 0.22, 0.62)
+const MARKER_OFF := Color(1.0, 0.92, 0.22, 0.0)
 
 var _dim: ColorRect
 var _panel: Panel
 var _tex_rect: TextureRect
+var _party_marker: ColorRect
 var _loc_plate: Panel
 var _loc_label: Label
 var _gem_sheet: Image
@@ -72,11 +77,15 @@ var _scaled_chip_size := Vector2i.ZERO
 var _bank_chips: Array = []
 var _bank_chip_size := Vector2i.ZERO
 var _bank_chip_set := ""
+var _party_cell := Vector2i(-1, -1)
+var _blink_accum := 0.0
+var _blink_show := true
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
+	set_process(false)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	_load_gem_sheet()
@@ -156,8 +165,66 @@ func close_peer() -> void:
 	if not _open:
 		return
 	_open = false
+	_stop_party_blink()
 	visible = false
 	closed.emit()
+
+
+func _process(delta: float) -> void:
+	if not _open:
+		_stop_party_blink()
+		return
+	_blink_accum += delta
+	if _blink_accum < BLINK_HALF_SEC:
+		return
+	_blink_accum -= BLINK_HALF_SEC
+	_blink_show = not _blink_show
+	_sync_party_marker()
+
+
+func _start_party_blink(gx: int, gy: int) -> void:
+	if gx < 0 or gy < 0 or gx >= _view_w or gy >= _view_h:
+		_stop_party_blink()
+		return
+	_party_cell = Vector2i(gx, gy)
+	_blink_accum = 0.0
+	_blink_show = true
+	_layout_party_marker()
+	_sync_party_marker()
+	set_process(true)
+
+
+func _stop_party_blink() -> void:
+	set_process(false)
+	_party_cell = Vector2i(-1, -1)
+	_blink_accum = 0.0
+	_blink_show = true
+	if _party_marker:
+		_party_marker.visible = false
+
+
+func _layout_party_marker() -> void:
+	if _party_marker == null or _tex_rect == null:
+		return
+	if _party_cell.x < 0 or _party_cell.y < 0:
+		_party_marker.visible = false
+		return
+	var cell := Vector2(
+		_tex_rect.size.x / float(maxi(_view_w, 1)),
+		_tex_rect.size.y / float(maxi(_view_h, 1))
+	)
+	_party_marker.size = cell
+	_party_marker.position = _tex_rect.position + Vector2(
+		float(_party_cell.x) * cell.x,
+		float(_party_cell.y) * cell.y
+	)
+
+
+func _sync_party_marker() -> void:
+	if _party_marker == null:
+		return
+	_party_marker.visible = _party_cell.x >= 0
+	_party_marker.color = MARKER_ON if _blink_show else MARKER_OFF
 
 
 func _build() -> void:
@@ -187,6 +254,12 @@ func _build() -> void:
 	_tex_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	_tex_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_panel.add_child(_tex_rect)
+
+	_party_marker = ColorRect.new()
+	_party_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_party_marker.visible = false
+	_party_marker.color = MARKER_ON
+	_panel.add_child(_party_marker)
 
 	## Inside the gem frame, bottom-center (not outside on the explore pane).
 	_loc_plate = Panel.new()
@@ -225,6 +298,7 @@ func _load_gem_sheet() -> void:
 
 
 func _begin_view(view_w: int, view_h: int, tile_size: Vector2) -> void:
+	_stop_party_blink()
 	_view_w = view_w
 	_view_h = view_h
 	_layout_panel(tile_size)
@@ -289,6 +363,7 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i, map_view = null) -> vo
 		ids[half_y * GEM_VIEW_W + half_x] = _party_gem_tile()
 		_blit_apple2_grid(ids, GEM_VIEW_W, GEM_VIEW_H, Vector2i.ZERO)
 		_tex.update(_buf)
+		_start_party_blink(half_x, half_y)
 		return
 	for gy in GEM_VIEW_H:
 		for gx in GEM_VIEW_W:
@@ -308,6 +383,7 @@ func _blit_gem_map(world: WorldMapData, center: Vector2i, map_view = null) -> vo
 				_blit_world_object(Vector2i(int(c.x), int(c.y)), int(c.tid), center)
 	_blit_gem_actor(half_x, half_y, _party_gem_tile())
 	_tex.update(_buf)
+	_start_party_blink(half_x, half_y)
 
 
 func _blit_gem_dungeon(dungeon, center: Vector2i, level: int) -> void:
@@ -343,6 +419,7 @@ func _blit_gem_dungeon(dungeon, center: Vector2i, level: int) -> void:
 				if dx != 0 or dy != 0:
 					pending.append(screen_pos + Vector2i(dx, dy))
 	_tex.update(_buf)
+	_start_party_blink(center_x, center_y)
 
 
 func _blit_dungeon_cell(
@@ -543,6 +620,13 @@ func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 			Vector2i(origin_x * _cell_w, origin_y * _cell_h)
 		)
 		_tex.update(_buf)
+		if (
+			party_pos.x >= 0
+			and party_pos.x < city_w
+			and party_pos.y >= 0
+			and party_pos.y < city_h
+		):
+			_start_party_blink(origin_x + party_pos.x, origin_y + party_pos.y)
 		return
 	for cy in city_h:
 		for cx in city_w:
@@ -561,6 +645,9 @@ func _blit_gem_city(city, party_pos: Vector2i = Vector2i(-1, -1)) -> void:
 			_blit_gem_actor(origin_x + px, origin_y + py, int(p.z))
 	if party_pos.x >= 0 and party_pos.x < city_w and party_pos.y >= 0 and party_pos.y < city_h:
 		_blit_gem_actor(origin_x + party_pos.x, origin_y + party_pos.y, _party_gem_tile())
+		_tex.update(_buf)
+		_start_party_blink(origin_x + party_pos.x, origin_y + party_pos.y)
+		return
 	_tex.update(_buf)
 
 
@@ -797,3 +884,4 @@ func _layout_panel(tile_size: Vector2) -> void:
 	_cell_w = maxi(1, int(round((inner_w / float(_view_w)) * px.x)))
 	_cell_h = maxi(1, int(round((inner_h / float(_view_h)) * px.y)))
 	_layout_loc_label()
+	_layout_party_marker()

@@ -468,6 +468,8 @@ var _talk_pending_ask := false
 var _talk_ask_kind := 0
 ## Swindrik / Presto: after the reagent riddle, the keyword list is the eight reagents.
 var _talk_reagent_pick := false
+## Scirlock: after "Which?", the keyword list is known dungeons only.
+var _talk_dungeon_pick := false
 ## True after this NPC has spoken their name (random intro or player asked).
 var _talk_npc_gave_name := false
 ## Skara Ankh: OM stays hidden until the "Mantra?" / "만트라?" line.
@@ -613,6 +615,7 @@ func _apply_world_save(w: Dictionary) -> void:
 			_map.set_transport_tile(-1)
 		_sync_balloon_view()
 		_sync_moongate(true)
+		_maybe_complete_hythloth_balloon()
 
 
 func _restore_city_from_save(w: Dictionary) -> void:
@@ -760,6 +763,8 @@ func _do_board() -> void:
 	_map.set_transport_tile(_transport_tile)
 	_sync_balloon_view()
 	_refresh_ship_hull_hud()
+	if _transport == Transport.BALLOON:
+		_maybe_complete_hythloth_balloon()
 	_finish_party_turn()
 
 
@@ -3305,6 +3310,54 @@ func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true)
 	if not _is_in_city() and _world_creatures != null:
 		if _world_creatures.try_humility_daemon_ambush(dir, _tile_pos) > 0:
 			_sync_creatures_to_map()
+	_maybe_complete_hythloth_balloon()
+
+
+func _hythloth_world_entrance() -> Vector2i:
+	## WORLD.MAP portal for Hythloth (DungeonPortals.WORLD).
+	return Vector2i(239, 240)
+
+
+func _balloon_tid_at(pos: Vector2i) -> bool:
+	if _map != null and MapView.is_balloon_tile(_map.overlay_at(pos)):
+		return true
+	return MapView.is_balloon_tile(_effective_world_tid(pos))
+
+
+func _can_see_hythloth_balloon() -> bool:
+	## Balloon visible at Hythloth's world mouth — overlay, terrain, or boarded.
+	if _is_in_city() or _is_in_dungeon() or _combat_active or _map == null:
+		return false
+	var hyth := _hythloth_world_entrance()
+	const NEAR := 8
+	if _transport == Transport.BALLOON:
+		return (
+			maxi(absi(_tile_pos.x - hyth.x), absi(_tile_pos.y - hyth.y)) <= NEAR
+		)
+	var half_x := MapView.VIEW_W / 2
+	var half_y := MapView.VIEW_H / 2
+	for y in range(_tile_pos.y - half_y, _tile_pos.y + half_y + 1):
+		for x in range(_tile_pos.x - half_x, _tile_pos.x + half_x + 1):
+			var pos := Vector2i(x, y)
+			if not _map.is_tile_visible(x, y):
+				continue
+			if not _balloon_tid_at(pos):
+				continue
+			if maxi(absi(pos.x - hyth.x), absi(pos.y - hyth.y)) <= NEAR:
+				return true
+			if maxi(absi(_tile_pos.x - hyth.x), absi(_tile_pos.y - hyth.y)) <= NEAR:
+				return true
+	return false
+
+
+func _maybe_complete_hythloth_balloon() -> void:
+	if GameState.journal_seen_hythloth_balloon:
+		return
+	if not _can_see_hythloth_balloon():
+		return
+	GameState.journal_seen_hythloth_balloon = true
+	if GameState.journal_mark_goal("see:balloon"):
+		_refresh_journal_panel()
 
 
 func _play_transport_step_sfx() -> void:
@@ -4471,6 +4524,9 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	if _talk_reagent_pick:
 		_show_talk_reagent_keyword_menu()
 		return
+	if _talk_dungeon_pick:
+		_show_talk_dungeon_keyword_menu()
+		return
 	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
 	## Hawkwind / LB keep the first row. City NPCs: Name until they give it,
 	## then Job (or a journal shortcut). Do not assume Job on first contact.
@@ -4875,6 +4931,63 @@ func _show_talk_reagent_keyword_menu() -> void:
 
 func _finish_talk_reagent_keyword_menu() -> void:
 	_talk_reagent_pick = false
+	_restore_talk_keyword_menu_after_temp_pick()
+
+
+func _talk_known_dungeon_keyword_items() -> Array[Dictionary]:
+	## Same index order as Journal._dungeon_from_token / journal Codex.
+	var ids := [
+		"deceit", "despise", "destard", "wrong",
+		"covetous", "shame", "hythloth", "abyss",
+	]
+	var out: Array[Dictionary] = []
+	var mask := _JournalScript.known_dungeon_mask(GameState)
+	for i in ids.size():
+		if (mask & (1 << i)) == 0:
+			continue
+		var dungeon_id := str(ids[i])
+		var label := Locale.place(dungeon_id)
+		if label.is_empty():
+			continue
+		out.append({
+			"key": "dung_%s" % dungeon_id,
+			"label": label,
+			"input": label,
+			"revealed": true,
+		})
+	return out
+
+
+func _begin_talk_dungeon_keyword_menu() -> void:
+	## After Scirlock asks which dungeon, list only those already known.
+	if _talk_known_dungeon_keyword_items().is_empty():
+		return
+	_talk_dungeon_pick = true
+	if not _talk_keyword_menu_active:
+		_talk_gamepad_requested = true
+		_begin_talk_keyword_menu_if_requested()
+		return
+	_show_talk_dungeon_keyword_menu()
+
+
+func _show_talk_dungeon_keyword_menu() -> void:
+	_talk_keyword_menu_active = true
+	_talk_keyword_menu_items = _talk_known_dungeon_keyword_items()
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
+	_talk_keyword_menu_seen.clear()
+	_sync_talk_keyword_menu_scroll()
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
+	_layout_prompt_row()
+
+
+func _finish_talk_dungeon_keyword_menu() -> void:
+	_talk_dungeon_pick = false
+	_restore_talk_keyword_menu_after_temp_pick()
+
+
+func _restore_talk_keyword_menu_after_temp_pick() -> void:
 	if not _talk_keyword_menu_active:
 		return
 	_talk_keyword_menu_items = _talk_keyword_menu_initial_items()
@@ -5765,6 +5878,15 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		default_key = _talk_keyword_stable_key(
 			"돌" if GameState.lang_short() == "ko" else "stone"
 		)
+	elif (
+		_talk_city_id() == "den"
+		and str(entry.name).strip_edges().to_lower() == "ragnar"
+		and GameState.journal_has_id("den.ragnar.ask-skull")
+		and not GameState.journal_has_id("den.ragnar.skull-warning")
+	):
+		default_key = _talk_keyword_stable_key(
+			"해골" if GameState.lang_short() == "ko" else "skull"
+		)
 	elif _zair_castle_king_word_default(entry):
 		default_key = _talk_keyword_stable_key(
 			"말씀" if GameState.lang_short() == "ko" else "word"
@@ -6610,6 +6732,8 @@ func _offer_named_npc_journal_keywords() -> void:
 	_maybe_offer_paws_chain_keyword()
 	_maybe_offer_cove_chain_keyword()
 	_maybe_offer_keep_chain_keyword()
+	_maybe_offer_den_chain_keyword()
+	_maybe_offer_jude_skull_keyword()
 	_maybe_offer_lassorn_ship_keyword()
 	_maybe_offer_lycaeum_chain_keyword()
 
@@ -6928,31 +7052,68 @@ func _maybe_offer_wheatpin_rune_keyword() -> void:
 	)
 
 
+func _ragnar_skull_keyword_ready() -> bool:
+	## Sebastian's pub tip covers both the Cap'n and Ragnar.
+	return (
+		_talk_city_id() == "den"
+		and _talk_npc_key_flat(str(_talk_entry.name) if _talk_entry != null else "") == "ragnar"
+		and (
+			GameState.journal_has_id("den.ragnar.ask-skull")
+			or GameState.journal_has_id("britain.sebastian.den-skull")
+		)
+	)
+
+
+func _maybe_offer_den_chain_keyword() -> void:
+	## Ragnar: Skull stays offered after the ask-the-skull journal exists.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if not _ragnar_skull_keyword_ready():
+		return
+	if GameState.journal_has_id("den.ragnar.skull-warning"):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var skull_key := _talk_keyword_stable_key("해골" if korean else "skull")
+	_offer_talk_keyword_item(
+		skull_key,
+		"해골" if korean else "Skull",
+		"해골" if korean else "skull"
+	)
+
+
+func _maybe_offer_jude_skull_keyword() -> void:
+	## Cap'n / journal tip: ask Jude about the skull in Minoc.
+	if not _talk_keyword_menu_active or _talk_entry == null:
+		return
+	if _talk_city_id() != "minoc":
+		return
+	if str(_talk_entry.name).strip_edges().to_lower() != "jude":
+		return
+	if GameState.journal_has_id("minoc.jude.skull-location"):
+		return
+	if not (
+		GameState.journal_has_id("den.pub.skull-jude")
+		or GameState.journal_has_id("minoc.jude.ask-skull")
+	):
+		return
+	var korean := GameState.lang_short() == "ko"
+	var skull_key := _talk_keyword_stable_key("해골" if korean else "skull")
+	_offer_talk_keyword_item(
+		skull_key,
+		"해골" if korean else "Skull",
+		"해골" if korean else "skull"
+	)
+
+
 func _maybe_offer_den_prompt_keywords() -> void:
-	## Buccaneer's Den: after Yes, Ragnar asks "On what?" / Scirlock "Which?".
+	## Buccaneer's Den: after Yes, Ragnar asks "On what?" and may offer Skull.
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	if _talk_city_id() != "den":
 		return
 	var npc := _talk_npc_key_flat(str(_talk_entry.name))
-	var korean := GameState.lang_short() == "ko"
 	if npc == "ragnar":
-		var skull_key := _talk_keyword_stable_key("해골" if korean else "skull")
-		_offer_talk_keyword_item(
-			skull_key,
-			"해골" if korean else "Skull",
-			"해골" if korean else "skull"
-		)
-	elif npc.contains("scirlock"):
-		var hyth_name := Locale.place("hythloth")
-		var hyth_key := _talk_keyword_stable_key(
-			hyth_name if korean else "hythloth"
-		)
-		_offer_talk_keyword_item(
-			hyth_key,
-			hyth_name,
-			hyth_name if korean else "hythloth"
-		)
+		_maybe_offer_den_chain_keyword()
 
 
 func _heard_love_abbey() -> bool:
@@ -13933,6 +14094,7 @@ func _exit_dungeon_to_surface() -> void:
 	_sync_music()
 	_refresh_locate_hud()
 	_reveal_locate_chart()
+	_maybe_complete_hythloth_balloon()
 
 
 func _dungeon_handle_dir(dir: Vector2i) -> void:
@@ -17529,6 +17691,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_pending_ask = false
 	_talk_ask_kind = 0
 	_talk_reagent_pick = false
+	_talk_dungeon_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
 	_talk_requirements_asked = false
@@ -18359,6 +18522,8 @@ func _key_printable_char(k: InputEventKey) -> String:
 func _talk_process_keyword(input: String) -> void:
 	if _talk_reagent_pick:
 		_finish_talk_reagent_keyword_menu()
+	if _talk_dungeon_pick:
+		_finish_talk_dungeon_keyword_menu()
 	var e := _talk_entry
 	if e == null:
 		_end_talk(false)
@@ -18467,6 +18632,7 @@ func _talk_ask_question() -> void:
 		return
 	_push_talk_script(str(e.question))
 	_maybe_offer_wheatpin_rune_keyword()
+	_maybe_offer_den_chain_keyword()
 	_talk_buffer = ""
 	_reset_talk_hangul()
 	_talk_pending_ask = false
@@ -18986,6 +19152,13 @@ func _talk_answer_yn(yes: bool) -> void:
 		and _TalkTlk._speaker_key(e) in ["swindrik", "presto"]
 	):
 		_begin_talk_reagent_keyword_menu()
+	if (
+		yes
+		and ask_kind == _TalkTlk.REPLY_TOPIC1
+		and _talk_city_id() == "den"
+		and _talk_npc_key_flat(str(e.name)).contains("scirlock")
+	):
+		_begin_talk_dungeon_keyword_menu()
 
 
 func _talk_person_is_child() -> bool:
@@ -19130,6 +19303,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_ask_kind = 0
 	_talk_count_return_to_menu = false
 	_talk_reagent_pick = false
+	_talk_dungeon_pick = false
 	_talk_npc_gave_name = false
 	_talk_skara_ankh_om_ready = false
 	_talk_requirements_asked = false
@@ -22033,11 +22207,6 @@ func _try_journal_talk_capture(entry: Variant, kind: int) -> void:
 		if GameState.journal_mark_id("magincia.nate.britain-pub-stone"):
 			refresh = true
 		if GameState.journal_mark_goal("ask:britain-pub-black-stone"):
-			refresh = true
-	if place == "den" and npc_key == "ragnar" and topic == "SKUL":
-		if GameState.journal_mark_id("britain.sebastian.den-skull"):
-			refresh = true
-		if GameState.journal_mark_goal("ask:den-skull"):
 			refresh = true
 	if place == "trinsic" and npc_key == "winthrop" and topic == "RUNE":
 		if GameState.journal_mark_id("trinsic.kline.winthrop-rune"):
