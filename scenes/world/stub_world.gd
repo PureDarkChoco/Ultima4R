@@ -59,6 +59,8 @@ const _ResImage := preload("res://src/core/res_image.gd")
 @onready var _compact_pane: Control = %CompactPane
 @onready var _roster: PartyRoster = %PartyRoster
 @onready var _compact_roster: PartyRoster = %CompactRoster
+## Last party size used to size the closed (compact) character pane.
+var _compact_party_n := -1
 @onready var _foe_roster: VBoxContainer = %FoeRoster
 @onready var _journal_panel: VBoxContainer = %JournalPanel
 @onready var _msg_block: Control = %MsgBlock
@@ -333,6 +335,8 @@ const DEATH_LCB_WORLD := Vector2i(86, 107)
 ## Remake QoL: brief pause after "Searching..." so S can't be mashed.
 ## xu4 has no Search-specific delay (only finishTurn screenWait(1)).
 const SEARCH_PAUSE_SEC := 0.45
+## Shepherd (Katrina / Avatar) warns once when food would last this many turns or fewer.
+const SHEPHERD_FOOD_TURNS := 400
 ## Quit & Save / Esc Load: 0 = idle, 1 = save picker, 2 = load picker.
 var _save_stage := 0
 var _save_panel # SaveSlotPanel
@@ -356,6 +360,8 @@ var _dungeon_skip_room := false
 var _dungeon_last_flee_dir := Vector2i.ZERO
 var _dungeon_saved_sides_open := false
 var _dungeon_sides_forced := false
+## True after the shepherd has spoken for this low-food stretch.
+var _shepherd_food_warned := false
 var _codex_stage := 0
 var _codex_buffer := ""
 var _codex_overlay # CodexChamberOverlay — preload instance, not class_name type
@@ -2958,6 +2964,7 @@ func _close_order_roster() -> void:
 	var g := _side_geom()
 	var right_closed_x: float = g["right_closed_x"]
 	if _compact_pane:
+		_sync_compact_pane_size(true)
 		_compact_pane.visible = true
 		_compact_pane.modulate.a = 0.0
 	if not is_inside_tree():
@@ -3008,6 +3015,7 @@ func _on_order_roster_closed() -> void:
 	if _right_top:
 		_right_top.visible = false
 	if _compact_pane:
+		_sync_compact_pane_size(true)
 		_compact_pane.visible = true
 		_compact_pane.modulate.a = 1.0
 
@@ -3311,6 +3319,9 @@ func _apply_world_step(next: Vector2i, dir: Vector2i, with_message: bool = true)
 		if _world_creatures.try_humility_daemon_ambush(dir, _tile_pos) > 0:
 			_sync_creatures_to_map()
 	_maybe_complete_hythloth_balloon()
+	if _is_in_city():
+		_shamino_note_city_cell()
+		_shamino_city_sense()
 
 
 func _hythloth_world_entrance() -> Vector2i:
@@ -14185,20 +14196,93 @@ func _dungeon_is_rocks_trap() -> bool:
 	return sub == _DungeonMapData.TRAP_ROCKS
 
 
-func _shamino_party_slot() -> int:
-	## Companion Shamino only (not a Ranger Avatar). Must be alive and awake.
-	var ranger := Virtues.ClassId.RANGER
-	if GameState.player_class == ranger:
-		return -1
+func _alive_awake_class_slot(klass: int) -> int:
 	for i in GameState.party_size():
-		if GameState.party_member_at(i) != ranger:
+		if GameState.party_member_at(i) != klass:
 			continue
-		if GameState.is_class_dead(ranger):
+		if GameState.is_class_dead(klass):
 			return -1
-		if GameState.status_of_class(ranger) == PartyRoster.Status.SLEEPING:
+		if GameState.status_of_class(klass) == PartyRoster.Status.SLEEPING:
 			return -1
 		return i
 	return -1
+
+
+func _shamino_party_slot() -> int:
+	## Any living, awake Ranger in the party (Avatar or companion Shamino).
+	return _alive_awake_class_slot(Virtues.ClassId.RANGER)
+
+
+func _shepherd_party_slot() -> int:
+	## Any living, awake Shepherd in the party (Avatar or companion Katrina).
+	return _alive_awake_class_slot(Virtues.ClassId.SHEPHERD)
+
+
+func _shamino_sense_is_avatar(slot: int) -> bool:
+	return slot >= 0 and GameState.party_member_at(slot) == GameState.player_class
+
+
+func _maybe_shepherd_food_warn() -> void:
+	## Once per low-food stretch: ≤ SHEPHERD_FOOD_TURNS of rations left.
+	if GameState.food <= 0:
+		return
+	var turns := GameState.food_turns_remaining()
+	if turns > SHEPHERD_FOOD_TURNS:
+		_shepherd_food_warned = false
+		return
+	if _shepherd_food_warned:
+		return
+	var slot := _shepherd_party_slot()
+	if slot < 0:
+		return
+	_shepherd_food_warned = true
+	if _shamino_sense_is_avatar(slot):
+		_push_message(Locale.t("cmd_shepherd_food_low"), false)
+		return
+	var nm := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_katrina_food_low", [nm]), false)
+
+
+func _push_ranger_sense(kind: String) -> void:
+	## Companion speaks as dialogue; Avatar Ranger mutters the same thought.
+	var slot := _shamino_party_slot()
+	if slot < 0:
+		return
+	if _shamino_sense_is_avatar(slot):
+		_push_message(Locale.t("cmd_ranger_sense_%s" % kind), false)
+		return
+	var nm := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_shamino_sense_%s" % kind, [nm]), false)
+
+
+func _shamino_note_city_cell() -> void:
+	## Stepping onto a secret door retires Shamino's warning for that cell.
+	if _city_map == null or not _city_map.loaded:
+		return
+	if _TileRules.is_secret_door(_city_map.effective_tile_at(_tile_pos.x, _tile_pos.y)):
+		_city_map.mark_shamino_known(_tile_pos.x, _tile_pos.y)
+
+
+func _shamino_city_sense() -> void:
+	## Adjacent unopened city secret door (tile 73) → same line as dungeon walls.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return
+	if _shamino_party_slot() < 0:
+		return
+	var sensed := false
+	for d in _CityMapData._DIRS:
+		var n: Vector2i = _tile_pos + d
+		if n.x < 0 or n.y < 0 or n.x >= _CityMapData.WIDTH or n.y >= _CityMapData.HEIGHT:
+			continue
+		if _city_map.is_shamino_known(n.x, n.y):
+			continue
+		if not _TileRules.is_secret_door(_city_map.effective_tile_at(n.x, n.y)):
+			continue
+		_city_map.mark_shamino_known(n.x, n.y)
+		sensed = true
+	if not sensed:
+		return
+	_push_ranger_sense("wall")
 
 
 func _shamino_note_dungeon_cell() -> void:
@@ -14235,11 +14319,10 @@ func _shamino_dungeon_sense() -> void:
 			sense_trap = true
 	if not sense_wall and not sense_trap:
 		return
-	var nm := GameState.party_member_display_name(_shamino_party_slot())
 	if sense_wall:
-		_push_message(Locale.t("cmd_shamino_sense_wall", [nm]), false)
+		_push_ranger_sense("wall")
 	if sense_trap:
-		_push_message(Locale.t("cmd_shamino_sense_trap", [nm]), false)
+		_push_ranger_sense("trap")
 
 
 func _dungeon_rocks_trap_async() -> void:
@@ -16249,6 +16332,8 @@ func _run_party_turn_once(in_combat: bool = false) -> void:
 		_pass_map_annotations()
 	if result.get("food_changed", false):
 		_refresh_inventory_bars()
+	if not in_combat:
+		_maybe_shepherd_food_warn()
 	if result.get("starving", false):
 		_push_message(Locale.t("cmd_starving"), false)
 	if result.get("ship_hull_changed", false):
@@ -19228,8 +19313,10 @@ func _talk_do_join() -> void:
 					if _map != null and _map.has_method("refresh"):
 						_map.refresh()
 				_refresh_party()
+				_sync_compact_pane_size(true)
 				_refresh_journal_panel()
 				_end_talk(false)
+				_maybe_shepherd_food_warn()
 				return
 			GameState.JoinError.NOT_VIRTUOUS:
 				var virt := GameState.companion_class_by_name(name)
@@ -21233,6 +21320,7 @@ func _combat_resolve_foe_melee(plan: Dictionary) -> void:
 		if _WorldCreaturesScript.steals_food(tid):
 			AudioSfx.play_id(AudioSfx.ID_ITEM_STOLEN)
 			GameState.adjust_food(-2500)
+			_maybe_shepherd_food_warn()
 		if GameState.status_of_class(klass) == PartyRoster.Status.DEAD:
 			_push_message(Locale.t("cmd_killed", [defender]), false)
 			_map.remove_combat_party_at(party_i)
@@ -21810,7 +21898,27 @@ func _refresh_party() -> void:
 		_roster.refresh()
 	if _compact_roster:
 		_compact_roster.refresh()
+	_sync_compact_pane_size()
 	_refresh_foe_roster()
+
+
+func _sync_compact_pane_size(force: bool = false) -> void:
+	## Closed right pane is only as tall as current members. Always write the
+	## size even while the talk/order peek hides it, so the pane is ready on close.
+	if _compact_pane == null or _map_pane == null:
+		return
+	var n := clampi(GameState.party_size(), 1, 8)
+	if not force and n == _compact_party_n:
+		return
+	_compact_party_n = n
+	var g := _side_geom()
+	var cw: float = g["compact_w"]
+	var ch: float = g["compact_h"]
+	_compact_pane.custom_minimum_size = Vector2(cw, ch)
+	_compact_pane.size = Vector2(cw, ch)
+	_compact_pane.position = Vector2(g["compact_x"], 0.0)
+	if _compact_roster:
+		_compact_roster.relayout()
 
 
 func _refresh_foe_roster() -> void:

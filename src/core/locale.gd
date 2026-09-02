@@ -2778,6 +2778,26 @@ const _T := {
 		"en_us": "%s: Wait... something feels wrong here.",
 		"ko": "%s: 잠깐.. 여기 뭔가 이상한한데",
 	},
+	"cmd_ranger_sense_wall": {
+		"en_u4": "(Wait... this wall seemeth strange.)",
+		"en_us": "(Wait... this wall feels odd.)",
+		"ko": "(잠깐.. 이 벽, 뭔가 이상한데)",
+	},
+	"cmd_ranger_sense_trap": {
+		"en_u4": "(Wait... something feels amiss here.)",
+		"en_us": "(Wait... something feels wrong here.)",
+		"ko": "(잠깐.. 여기 뭔가 이상한한데)",
+	},
+	"cmd_katrina_food_low": {
+		"en_u4": "%s: Our food is not sufficient. 'Twere well to make provision.",
+		"en_us": "%s: Food is not sufficient. We should prepare supplies.",
+		"ko": "%s: 식량이 충분하지 않습니다. 보급을 준비하는 것이 좋겠습니다.",
+	},
+	"cmd_shepherd_food_low": {
+		"en_u4": "(Our food is not sufficient. 'Twere well to make provision.)",
+		"en_us": "(Food is not sufficient. We should prepare supplies.)",
+		"ko": "(식량이 충분하지 않습니다. 보급을 준비하는 것이 좋겠습니다.)",
+	},
 	"cmd_dungeon_fountain_found": {
 		"en_u4": "You find a Fountain.",
 		"en_us": "You find a fountain.",

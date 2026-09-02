@@ -3019,6 +3019,14 @@ func living_party_count() -> int:
 	return n
 
 
+func food_turns_remaining() -> int:
+	## World/dungeon turns until food hits 0 at the current living party size.
+	var eat := living_party_count()
+	if eat <= 0:
+		return 0
+	return int(food / eat)
+
+
 func end_party_turn(on_world_map: bool = true, in_combat: bool = false) -> Dictionary:
 	## xu4 Party::endTurn.
 	## - World/dungeon: moves++ then food / sleep wake / poison / starve / MP / hull.

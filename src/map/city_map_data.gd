@@ -82,6 +82,8 @@ var annotations: Array[Dictionary] = []
 var opened_chests: Dictionary = {}
 ## Chests looted on an earlier visit. Their original .ULT tile is treated as floor.
 var removed_chests: Dictionary = {}
+## Shamino sense: secret doors approached or entered — no more adjacent warnings.
+var shamino_known: Dictionary = {}
 
 
 func clear() -> void:
@@ -99,6 +101,7 @@ func clear() -> void:
 	annotations.clear()
 	opened_chests.clear()
 	removed_chests.clear()
+	shamino_known.clear()
 	loaded = false
 	source_path = ""
 
@@ -188,6 +191,14 @@ func pass_annotation_turns() -> bool:
 
 static func chest_key(x: int, y: int) -> String:
 	return "%d,%d" % [x, y]
+
+
+func mark_shamino_known(x: int, y: int) -> void:
+	shamino_known[chest_key(x, y)] = true
+
+
+func is_shamino_known(x: int, y: int) -> bool:
+	return shamino_known.has(chest_key(x, y))
 
 
 func remove_remembered_chests(keys: Array) -> void:
