@@ -14,6 +14,8 @@ EXACT_SOURCES = (
     "assets/tiles/cannonball.png",
     "assets/tiles/horse_rider_w.png",
     "assets/tiles/horse_rider_e.png",
+    "assets/tiles/apple2_horse_mount_w.png",
+    "assets/tiles/apple2_horse_mount_e.png",
     "assets/tiles/u4graphics/charset.png",
     "assets/ui/weapons/sling_missile.png",
     "assets/ui/weapons/dagger.png",

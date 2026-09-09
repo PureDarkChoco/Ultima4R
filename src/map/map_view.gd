@@ -15,6 +15,7 @@ const _ArmorIconsScript := preload("res://src/core/armor_icons.gd")
 const _DungeonViewScript := preload("res://src/map/dungeon_view.gd")
 const _DungeonPortalsScript := preload("res://src/map/dungeon_portals.gd")
 const _Apple2HgrNtscScript := preload("res://src/map/apple2_hgr_ntsc.gd")
+const _Apple2ProgramDiskScript := preload("res://src/core/apple2_program_disk.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
@@ -174,6 +175,14 @@ const TILE_BRICK_WALL := 127
 ## Mounted party marker (person on horse) — left / right.
 const HORSE_RIDER_W_PATH := "res://assets/tiles/horse_rider_w.png"
 const HORSE_RIDER_E_PATH := "res://assets/tiles/horse_rider_e.png"
+## Apple II: fixed rider silhouette (class-independent). SHP 20/21 are riderless.
+const APPLE2_HORSE_MOUNT_W_PATH := "res://assets/tiles/apple2_horse_mount_w.png"
+const APPLE2_HORSE_MOUNT_E_PATH := "res://assets/tiles/apple2_horse_mount_e.png"
+## Class-painted mounts: `020_horse_west_{slug}.png` / `021_horse_east_{slug}.png`.
+const HORSE_RIDER_SHAPE_DIR := "res://assets/tiles/u4graphics/shapes/"
+const HORSE_RIDER_CLASS_SLUG := [
+	"mage", "bard", "fighter", "druid", "tinker", "paladin", "ranger", "shepherd",
+]
 ## Cannonball: black_pearl ~12×12, centered on transparent 32×32.
 const CANNONBALL_PATH := "res://assets/tiles/cannonball.png"
 const _ResImage := preload("res://src/core/res_image.gd")
@@ -3472,7 +3481,7 @@ func _load_horse_rider_assets() -> void:
 
 
 func _ensure_horse_riders() -> void:
-	## Live-composite horse + party #1 upper body when possible; else PNG assets.
+	## New Color: class mount PNGs. Apple II: original horse + fixed rider stamp.
 	var cls := GameState.party_leader_class()
 	if (
 		_horse_rider_w != null
@@ -3483,10 +3492,158 @@ func _ensure_horse_riders() -> void:
 	):
 		return
 	_horse_rider_class = cls
-	_horse_rider_w_frames = _compose_horse_rider_frames(TILE_HORSE_W, _horse_rider_w_asset)
-	_horse_rider_e_frames = _compose_horse_rider_frames(TILE_HORSE_E, _horse_rider_e_asset)
+	if GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		_horse_rider_w_frames = _apple2_fixed_horse_frames(TILE_HORSE_W)
+		_horse_rider_e_frames = _apple2_fixed_horse_frames(TILE_HORSE_E)
+	else:
+		var class_w := _load_class_horse_rider_frames(true, cls)
+		var class_e := _load_class_horse_rider_frames(false, cls)
+		if not class_w.is_empty() and not class_e.is_empty():
+			_horse_rider_w_frames = class_w
+			_horse_rider_e_frames = class_e
+		else:
+			_horse_rider_w_frames = _compose_horse_rider_frames(TILE_HORSE_W, _horse_rider_w_asset)
+			_horse_rider_e_frames = _compose_horse_rider_frames(TILE_HORSE_E, _horse_rider_e_asset)
 	_horse_rider_w = _horse_rider_frame_or(_horse_rider_w_frames, HORSE_STAND_FRAME, _horse_rider_w_asset)
 	_horse_rider_e = _horse_rider_frame_or(_horse_rider_e_frames, HORSE_STAND_FRAME, _horse_rider_e_asset)
+
+
+func _apple2_fixed_horse_frames(horse_id: int) -> Array:
+	## Original SHP horse + fixed rider stamp. Last row sits on the back.
+	var img := _apple2_compose_mount(horse_id)
+	if img == null or img.is_empty():
+		return [_U4TileBankScript.keyed_copy(horse_id, 0)]
+	return [img]
+
+
+func _apple2_compose_mount(horse_id: int) -> Image:
+	## Color keeps the two delayed NTSC fringe columns; mono is a fixed 32px cell.
+	var horse := (
+		_Apple2HgrNtscScript.render_flying_tile(horse_id)
+		if _U4TileBankScript.uses_hgr_ntsc()
+		else _U4TileBankScript.keyed_copy(horse_id, 0)
+	)
+	if horse == null or horse.is_empty():
+		return null
+	var west := horse_id == TILE_HORSE_W
+	var ref := _load_image_path(
+		APPLE2_HORSE_MOUNT_W_PATH if west else APPLE2_HORSE_MOUNT_E_PATH
+	)
+	if ref == null or ref.is_empty():
+		return horse
+	var cells := _apple2_rider_stamp(west)
+	var out := horse.duplicate()
+	var mono := not _U4TileBankScript.uses_hgr_ntsc()
+	var body := _apple2_horse_ink_color(horse) if mono else Color(1, 1, 1, 1)
+	var dim := float(_Apple2ProgramDiskScript.MONO_DIM) / 255.0
+	for p in cells:
+		var ink := body if mono else ref.get_pixel(p.x, p.y)
+		var dx := p.x * 2
+		## One native Apple II pixel upward (one 16px source row = two output rows).
+		var dy := p.y * 2 - 2
+		## Keep the seated row at its old bottom edge so no gap opens above the horse.
+		var draw_h := 4 if p.y == 5 else 2
+		for py in draw_h:
+			for px in 2:
+				var x := dx + px
+				var y := dy + py
+				if x < 0 or y < 0 or x >= out.get_width() or y >= out.get_height():
+					continue
+				var c := ink
+				if (y & 1) == 1:
+					c = Color(c.r * dim, c.g * dim, c.b * dim, c.a)
+				out.set_pixel(x, y, c)
+	## Arm is inside the extended seated row, so apply it last:
+	## left-facing purple at (7,6), right-facing green at (8,6).
+	var arm := Vector2i(7, 6) if west else Vector2i(8, 6)
+	var arm_ink := Color(0, 0, 0, 1) if mono else ref.get_pixel(arm.x, arm.y)
+	var arm_dx := arm.x * 2
+	var arm_dy := arm.y * 2 - 2
+	for py in 2:
+		for px in 2:
+			var x := arm_dx + px
+			var y := arm_dy + py
+			if x < 0 or y < 0 or x >= out.get_width() or y >= out.get_height():
+				continue
+			var c := arm_ink
+			if (y & 1) == 1:
+				c = Color(c.r * dim, c.g * dim, c.b * dim, c.a)
+			out.set_pixel(x, y, c)
+	return out
+
+
+func _apple2_rider_stamp(west: bool) -> Array[Vector2i]:
+	## Exact person-only pixels from the supplied 16×16 W/E references.
+	## The broad last row is the seated torso where it meets the original horse.
+	var out: Array[Vector2i] = []
+	if west:
+		out.append_array([
+			Vector2i(8, 1), Vector2i(9, 1),
+			Vector2i(8, 2), Vector2i(9, 2),
+			Vector2i(9, 3),
+			Vector2i(8, 4), Vector2i(9, 4), Vector2i(10, 4),
+			Vector2i(6, 5), Vector2i(7, 5), Vector2i(8, 5),
+			Vector2i(9, 5), Vector2i(10, 5),
+		])
+	else:
+		out.append_array([
+			Vector2i(6, 1), Vector2i(7, 1),
+			Vector2i(6, 2), Vector2i(7, 2),
+			Vector2i(6, 3),
+			Vector2i(5, 4), Vector2i(6, 4), Vector2i(7, 4),
+			Vector2i(5, 5), Vector2i(6, 5), Vector2i(7, 5),
+			Vector2i(8, 5), Vector2i(9, 5),
+		])
+	return out
+
+
+func _apple2_horse_ink_color(horse: Image) -> Color:
+	## Brightest horse pixel so the rider matches white / green phosphor.
+	var best := Color(1, 1, 1, 1)
+	var best_l := -1.0
+	for y in TILE_SRC:
+		for x in TILE_SRC:
+			var c := horse.get_pixel(x, y)
+			if not _apple2_pixel_is_ink(c):
+				continue
+			var lum := c.r + c.g + c.b
+			if lum > best_l:
+				best_l = lum
+				best = c
+	return best
+
+
+func _apple2_pixel_is_ink(c: Color) -> bool:
+	return c.a > 0.5 and maxf(c.r, maxf(c.g, c.b)) > 0.12
+
+
+func _horse_rider_class_path(west: bool, cls: int, frame: int) -> String:
+	if cls < 0 or cls >= HORSE_RIDER_CLASS_SLUG.size():
+		return ""
+	var slug: String = HORSE_RIDER_CLASS_SLUG[cls]
+	var side := "020_horse_west_" if west else "021_horse_east_"
+	var suf := "" if frame <= 0 else ("_%d" % frame)
+	return HORSE_RIDER_SHAPE_DIR + side + slug + suf + ".png"
+
+
+func _load_class_horse_rider_frames(west: bool, cls: int) -> Array:
+	## New Color only — Apple II uses the fixed mount silhouettes.
+	if GraphicsSettings.is_apple2_tileset(GraphicsSettings.tileset_id()):
+		return []
+	var out: Array = []
+	for i in 3:
+		var path := _horse_rider_class_path(west, cls, i)
+		if path.is_empty():
+			return []
+		var img := _load_image_path(path)
+		if img == null or img.is_empty():
+			return []
+		if not _U4TileBankScript.keeps_opaque_black():
+			img = _U4TileBankScript.key_border_black(img)
+			if img == null or img.is_empty():
+				return []
+		out.append(img)
+	return out
 
 
 func _compose_horse_rider_frames(horse_id: int, fallback: Image) -> Array:
@@ -5705,7 +5862,7 @@ func _apple2_party_grid_tid(mx: int, my: int) -> int:
 
 func _apple2_party_sprite_tid() -> int:
 	if _transport_tile >= 0:
-		## Mounted art is a runtime horse+rider composite, not one raw HGR tile.
+		## Mounted art is the fixed rider overlay, not riderless SHP 20/21.
 		if is_horse_tile(_transport_tile):
 			return -1
 		return clampi(_transport_tile, 0, TILE_ID_MAX)
@@ -5755,7 +5912,7 @@ func _apple2_party_scroll_slice() -> Image:
 
 
 func _apple2_party_is_grid_composed() -> bool:
-	## City and settled world: walker is in the HGR row. Scroll / horse stay overlay.
+	## Settled walker/ship/balloon stay in the HGR row. Horse uses the mount overlay.
 	return (
 		_U4TileBankScript.uses_hgr_ntsc()
 		and _scroll_frames_left <= 0
@@ -6825,7 +6982,10 @@ func _paint_party_marker() -> void:
 		else:
 			ride = _overlay_slice(_transport_tile)
 		if ride != null and not ride.is_empty():
-			_buf.blend_rect(ride, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+			## Apple II Color mount is 34px wide: preserve delayed right-edge fringe.
+			var rw := mini(ride.get_width(), _buf.get_width() - dst.x)
+			var rh := mini(ride.get_height(), TILE_SRC)
+			_buf.blend_rect(ride, Rect2i(0, 0, rw, rh), dst)
 			return
 	var img := _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
 	if img != null and not img.is_empty():
