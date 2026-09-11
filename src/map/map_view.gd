@@ -1585,8 +1585,39 @@ func _top_combat_chest_at(pos: Vector2i) -> Dictionary:
 	return (raw as Dictionary).duplicate(true)
 
 
+func _combat_map_has_chest_tile(pos: Vector2i) -> bool:
+	## Dungeon-room chests are TILE_CHEST on the .CON grid, not slain-foe overlays.
+	if _combat_map == null or not _combat_in_bounds(pos):
+		return false
+	return _TileRulesCamp.is_chest(int(_combat_map.tile_at(pos.x, pos.y)))
+
+
+func _ensure_map_tile_combat_chest(pos: Vector2i) -> bool:
+	## Lift a room chest tile into the overlay pile so Open/Get share slain-foe loot.
+	if not _combat_chest_pile_at(pos).is_empty():
+		return true
+	if not _combat_map_has_chest_tile(pos):
+		return false
+	_combat_map.set_tile(pos.x, pos.y, TILE_BRICK_FLOOR)
+	var stack: Array = [{
+		"kind": GameState.CHEST_LOOT_GOLD,
+		"amount": GameState.roll_chest_gold_amount(),
+		"id": 0,
+	}]
+	_combat_chests[_combat_chest_key(pos.x, pos.y)] = [{
+		"x": pos.x,
+		"y": pos.y,
+		"open": false,
+		"stack": stack,
+		"from_spider": false,
+		"from_mage": false,
+		"room_tile": true,
+	}]
+	return true
+
+
 func has_combat_chest_at(pos: Vector2i) -> bool:
-	return not _combat_chest_pile_at(pos).is_empty()
+	return not _combat_chest_pile_at(pos).is_empty() or _combat_map_has_chest_tile(pos)
 
 
 func has_closed_combat_chest() -> bool:
@@ -1598,6 +1629,11 @@ func has_closed_combat_chest() -> bool:
 				(raw_chest as Dictionary).get("open", false)
 			):
 				return true
+	if _combat_map != null:
+		for y in CAMP_H:
+			for x in CAMP_W:
+				if _TileRulesCamp.is_chest(int(_combat_map.tile_at(x, y))):
+					return true
 	return false
 
 
@@ -1624,6 +1660,8 @@ func combat_chest_has_loot(pos: Vector2i) -> bool:
 
 func open_combat_chest_at(pos: Vector2i) -> bool:
 	## Open the newest (top) chest; each same-tile chest remains independent.
+	if not _ensure_map_tile_combat_chest(pos):
+		return false
 	var key := _combat_chest_key(pos.x, pos.y)
 	var pile := _combat_chest_pile_at(pos)
 	if pile.is_empty():
@@ -5956,7 +5994,8 @@ func _apple2_combat_occupant_tid(cx: int, cy: int) -> int:
 		return _WorldCreaturesScript.resolve_paint_tile(
 			int(f.get("tile", 0)), _combat_foe_anim_tick_at(j)
 		)
-	if has_combat_chest_at(Vector2i(cx, cy)):
+	## Overlay piles only — room TILE_CHEST terrain already occupies the cell.
+	if not _combat_chest_pile_at(Vector2i(cx, cy)).is_empty():
 		return TILE_CHEST
 	return -1
 
