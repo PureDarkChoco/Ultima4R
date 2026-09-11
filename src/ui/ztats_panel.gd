@@ -85,6 +85,8 @@ const INV_QTY_W := 32
 const INV_PAD_H := 22
 const INV_PAD_V := 6
 const INV_ROOT_SEP := 6
+## Ready-style gap between the qty column and the vertical scrollbar.
+const INV_SCROLL_GUTTER := 10
 ## Spell A–Z index beside Korean names — brighter gold than body text.
 const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
 ## Shop sell cursor (matches Ready / Wear highlight).
@@ -98,6 +100,7 @@ var _inv_root: Control
 var _inv_title: Label
 var _inv_host: VBoxContainer
 var _inv_scroll: ScrollContainer
+var _inv_list_pad: MarginContainer
 var _inv_list: VBoxContainer
 ## Absorbs leftover panel pixels so the list viewport is an exact N-row height.
 var _inv_tail: Control
@@ -1343,23 +1346,23 @@ func _build_inv() -> void:
 	_inv_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_inv_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_inv_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	## Programmatic whole-row scroll only — hide bar so rows share full width.
-	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	## Gear / items / mixtures: same AUTO bar as Cast / Mix. Reagents disable it.
+	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	_inv_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 	_inv_scroll.clip_contents = true
 	_inv_scroll.gui_input.connect(_on_inv_scroll_gui_input)
 	_inv_host.add_child(_inv_scroll)
 
-	var list_pad := MarginContainer.new()
-	list_pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_inv_scroll.add_child(list_pad)
+	_inv_list_pad = MarginContainer.new()
+	_inv_list_pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inv_list_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inv_scroll.add_child(_inv_list_pad)
 
 	_inv_list = VBoxContainer.new()
 	_inv_list.add_theme_constant_override("separation", INV_LIST_SEP)
 	_inv_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_inv_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	list_pad.add_child(_inv_list)
+	_inv_list_pad.add_child(_inv_list)
 
 	_inv_tail = Control.new()
 	_inv_tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1379,6 +1382,16 @@ func _on_inv_scroll_gui_input(event: InputEvent) -> void:
 	elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		scroll_inventory(1)
 		_inv_scroll.accept_event()
+
+
+func _sync_inv_scroll_gutter() -> void:
+	## Equipment / magic lists keep a Ready-sized gap before the scrollbar.
+	if _inv_list_pad == null:
+		return
+	var gutter := 0
+	if _inv_page == InvPage.GEAR or _inv_page == InvPage.MIXTURES:
+		gutter = INV_SCROLL_GUTTER
+	_inv_list_pad.add_theme_constant_override("margin_right", gutter)
 
 
 func _reset_inv_viewport_flex() -> void:
@@ -1494,8 +1507,9 @@ func _refresh_inventory() -> void:
 		_inv_list.remove_child(c)
 		c.queue_free()
 	_inv_scroll.scroll_vertical = 0
-	## Whole-row scroll only (wheel + keys); reagents disable scrolling entirely.
-	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	## Whole-row scroll (wheel + keys); reagents disable scrolling entirely.
+	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_sync_inv_scroll_gutter()
 	_reset_inv_viewport_flex()
 	_inv_list.add_theme_constant_override("separation", INV_LIST_SEP)
 	match _inv_page:
