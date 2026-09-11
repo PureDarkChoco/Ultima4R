@@ -2779,9 +2779,9 @@ const _T := {
 		"ko": "%s: 잠깐.. 이 벽, 뭔가 이상한데",
 	},
 	"cmd_shamino_sense_trap": {
-		"en_u4": "%s: Wait... something feels amiss here.",
-		"en_us": "%s: Wait... something feels wrong here.",
-		"ko": "%s: 잠깐.. 여기 뭔가 이상한한데",
+		"en_u4": "%s: Wait... have a care here.",
+		"en_us": "%s: Wait... we should be careful here.",
+		"ko": "%s: 잠깐.. 여기 조심해야 될 것 같아",
 	},
 	"cmd_ranger_sense_wall": {
 		"en_u4": "(Wait... this wall seemeth strange.)",
@@ -2789,9 +2789,9 @@ const _T := {
 		"ko": "(잠깐.. 이 벽, 뭔가 이상한데)",
 	},
 	"cmd_ranger_sense_trap": {
-		"en_u4": "(Wait... something feels amiss here.)",
-		"en_us": "(Wait... something feels wrong here.)",
-		"ko": "(잠깐.. 여기 뭔가 이상한한데)",
+		"en_u4": "(Wait... have a care here.)",
+		"en_us": "(Wait... we should be careful here.)",
+		"ko": "(잠깐.. 여기 조심해야 될 것 같아)",
 	},
 	"cmd_katrina_food_low": {
 		"en_u4": "%s: Our food is not sufficient. 'Twere well to make provision.",
