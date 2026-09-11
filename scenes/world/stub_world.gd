@@ -10580,6 +10580,14 @@ func _handle_ready_input(event: InputEvent) -> bool:
 		return false
 	if event.is_echo():
 		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	if _is_cancel_event(event):
+		_close_ready(true)
+		return true
 	if _ready_stage == 2:
 		return _handle_ready_weapon_input(event)
 	return true
@@ -10834,6 +10842,14 @@ func _handle_wear_input(event: InputEvent) -> bool:
 		return false
 	if event.is_echo():
 		return false
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
+			_on_escape()
+			return true
+	if _is_cancel_event(event):
+		_close_wear(true)
+		return true
 	if _wear_stage == 2:
 		return _handle_wear_armor_input(event)
 	return true
