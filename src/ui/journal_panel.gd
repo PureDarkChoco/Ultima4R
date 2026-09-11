@@ -58,6 +58,12 @@ const CODEX_DUNGEONS := [
 ]
 
 var _title: Label
+var _dungeon_map_box: VBoxContainer
+var _dungeon_map_caption: Label
+var _dungeon_map_rect: TextureRect
+var _dungeon_map_tex: ImageTexture
+var _dungeon_map_id := ""
+var _dungeon_map_z := 0
 var _hide_done_lab: Label
 var _page_mark: HBoxContainer
 var _page_num_1: Label
@@ -185,6 +191,31 @@ func _ready() -> void:
 	add_theme_constant_override("separation", 6)
 	_pending_tex = load(PENDING_ICON) as Texture2D
 	_done_tex = load(DONE_ICON) as Texture2D
+	_dungeon_map_box = VBoxContainer.new()
+	_dungeon_map_box.add_theme_constant_override("separation", 4)
+	_dungeon_map_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dungeon_map_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dungeon_map_box.visible = false
+	_dungeon_map_caption = Label.new()
+	_dungeon_map_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_dungeon_map_caption.add_theme_font_size_override("font_size", PLACE_SIZE)
+	_dungeon_map_caption.add_theme_color_override("font_color", COL_PLACE)
+	_dungeon_map_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(_dungeon_map_caption)
+	_dungeon_map_box.add_child(_dungeon_map_caption)
+	_dungeon_map_rect = TextureRect.new()
+	_dungeon_map_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dungeon_map_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_dungeon_map_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_dungeon_map_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_dungeon_map_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dungeon_map_box.add_child(_dungeon_map_rect)
+	var dungeon_map_bottom_gap := Control.new()
+	dungeon_map_bottom_gap.custom_minimum_size = Vector2(0, 10)
+	dungeon_map_bottom_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dungeon_map_box.add_child(dungeon_map_bottom_gap)
+	add_child(_dungeon_map_box)
+	resized.connect(_fit_dungeon_map)
 	_title = Label.new()
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.add_theme_font_size_override("font_size", TITLE_SIZE)
@@ -439,10 +470,58 @@ func focus_place(place_id: String) -> bool:
 	return true
 
 
+func set_dungeon_minimap(img: Image, dungeon_id: String, z: int) -> void:
+	if _dungeon_map_box == null:
+		return
+	_dungeon_map_id = dungeon_id.strip_edges().to_lower()
+	_dungeon_map_z = clampi(z, 0, 7)
+	if img == null or img.is_empty():
+		clear_dungeon_minimap()
+		return
+	if _dungeon_map_tex == null:
+		_dungeon_map_tex = ImageTexture.create_from_image(img)
+	else:
+		_dungeon_map_tex.set_image(img)
+	_dungeon_map_rect.texture = _dungeon_map_tex
+	_dungeon_map_caption.text = _dungeon_map_caption_text()
+	_dungeon_map_box.visible = true
+	_fit_dungeon_map()
+
+
+func clear_dungeon_minimap() -> void:
+	_dungeon_map_id = ""
+	_dungeon_map_z = 0
+	if _dungeon_map_rect != null:
+		_dungeon_map_rect.texture = null
+	if _dungeon_map_box != null:
+		_dungeon_map_box.visible = false
+
+
+func _dungeon_map_caption_text() -> String:
+	if _dungeon_map_id.is_empty():
+		return Locale.t("journal_dungeon_map")
+	return "%s  %s" % [
+		Locale.place(_dungeon_map_id),
+		Locale.t("hud_dungeon_level", [_dungeon_map_z + 1]),
+	]
+
+
+func _fit_dungeon_map() -> void:
+	if _dungeon_map_rect == null or not _dungeon_map_box.visible:
+		return
+	var side := maxi(32, int(floor(size.x * 0.5)))
+	if size.y > 1.0:
+		side = mini(side, maxi(32, int(floor(size.y * 0.21))))
+	side = maxi(8, (side / 8) * 8)
+	_dungeon_map_rect.custom_minimum_size = Vector2(side, side)
+
+
 func refresh(journal_visible: bool = false) -> void:
 	if _title == null:
 		return
 	_title.text = Locale.t("journal_title")
+	if _dungeon_map_box != null and _dungeon_map_box.visible:
+		_dungeon_map_caption.text = _dungeon_map_caption_text()
 	_empty.text = Locale.t("journal_empty")
 	var hide_done := _hide_done_active()
 	if _hide_done_lab != null:

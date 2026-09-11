@@ -43,6 +43,7 @@ const _FoeRosterScript := preload("res://src/ui/foe_roster.gd")
 const _JournalScript := preload("res://src/core/journal.gd")
 const _DungeonMapData := preload("res://src/map/dungeon_map_data.gd")
 const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
+const _DungeonAutomap := preload("res://src/map/dungeon_automap.gd")
 const _ShrineMantras := preload("res://src/core/shrine.gd")
 const _CodexChamber := preload("res://src/core/codex_chamber.gd")
 const _CodexChamberOverlay := preload("res://src/ui/codex_chamber_overlay.gd")
@@ -9244,6 +9245,8 @@ func _on_tileset_changed(_tileset_id: String) -> void:
 	if _peer_overlay != null and _peer_overlay.has_method("invalidate_tileset"):
 		_peer_overlay.invalidate_tileset()
 	_fit_explore_map()
+	if _is_in_dungeon():
+		_update_dungeon_minimap()
 	if _options_panel != null and _options_panel.is_open():
 		_options_panel.refresh()
 
@@ -13903,6 +13906,35 @@ func _refresh_dungeon_view() -> void:
 		return
 	_map.set_dungeon_pose(_tile_pos, _dungeon_z, _dungeon_dir, _dungeon_is_lit())
 	_sync_dungeon_hud()
+	_update_dungeon_minimap()
+
+
+func _update_dungeon_minimap() -> void:
+	if _journal_panel == null or not _journal_panel.has_method("set_dungeon_minimap"):
+		return
+	if not _is_in_dungeon() or _dungeon_map == null:
+		_journal_panel.clear_dungeon_minimap()
+		return
+	## Standing on a secret passage means it is known, even if search never
+	## flagged it (teleport, initial placement) — reflect that immediately.
+	if _dungeon_map.reveal_secret(_tile_pos.x, _tile_pos.y, _dungeon_z):
+		GameState.dungeon_mark_seen(_dungeon_id, [_tile_pos], _dungeon_z)
+	var cells: Array[Vector2i] = _DungeonAutomap.visible_cells(
+		_dungeon_map,
+		_tile_pos,
+		_dungeon_z,
+		_dungeon_dir,
+		_dungeon_is_lit()
+	)
+	GameState.dungeon_mark_seen(_dungeon_id, cells, _dungeon_z)
+	var img: Image = _DungeonAutomap.paint(
+		_dungeon_map,
+		GameState.dungeon_explored_mask(_dungeon_id),
+		_dungeon_z,
+		_tile_pos,
+		_dungeon_dir
+	)
+	_journal_panel.set_dungeon_minimap(img, _dungeon_id, _dungeon_z)
 
 
 func _sync_dungeon_hud() -> void:
@@ -13929,6 +13961,8 @@ func _clear_dungeon_state() -> void:
 	if _map != null and _map.is_in_dungeon():
 		_map.exit_dungeon()
 	_sync_dungeon_hud()
+	if _journal_panel != null and _journal_panel.has_method("clear_dungeon_minimap"):
+		_journal_panel.clear_dungeon_minimap()
 	if was_in:
 		_restore_sides_after_dungeon()
 
@@ -14040,6 +14074,7 @@ func _enter_dungeon_from_portal_wipe(portal: Dictionary, from_city: bool = false
 	)
 	_sync_music()
 	_refresh_locate_hud()
+	_refresh_dungeon_view()
 
 
 func _restore_dungeon_from_save(w: Dictionary) -> void:
@@ -14075,6 +14110,7 @@ func _restore_dungeon_from_save(w: Dictionary) -> void:
 	_open_sides_for_dungeon()
 	_sync_music()
 	_refresh_locate_hud()
+	_refresh_dungeon_view()
 
 
 func _exit_dungeon_to_surface() -> void:
@@ -14531,6 +14567,7 @@ func _dungeon_tick_torch() -> void:
 		GameState.dungeon_torch_left = 0
 		GameState.dungeon_light_is_magic = false
 		_push_message(Locale.t("cmd_dungeon_torch_out"), false)
+		_refresh_dungeon_view()
 
 
 func _dungeon_search() -> void:
@@ -14547,11 +14584,13 @@ func _dungeon_search() -> void:
 	var found := false
 	if _dungeon_map.reveal_secret(_tile_pos.x, _tile_pos.y, _dungeon_z):
 		_push_message(Locale.t("cmd_dungeon_secret"), false)
+		GameState.dungeon_mark_seen(_dungeon_id, [_tile_pos], _dungeon_z)
 		found = true
 	for d in 4:
 		var n: Vector2i = _dungeon_map.neighbor(_tile_pos.x, _tile_pos.y, d)
 		if _dungeon_map.reveal_secret(n.x, n.y, _dungeon_z):
 			_push_message(Locale.t("cmd_dungeon_secret"), false)
+			GameState.dungeon_mark_seen(_dungeon_id, [n], _dungeon_z)
 			found = true
 	if _dungeon_try_take_altar_stone():
 		found = true
@@ -21941,6 +21980,8 @@ func _sync_left_panel_mode() -> void:
 		_journal_panel.visible = not in_combat
 		if not in_combat:
 			_refresh_journal_panel()
+			if _is_in_dungeon():
+				_update_dungeon_minimap()
 
 
 func _refresh_journal_panel() -> void:

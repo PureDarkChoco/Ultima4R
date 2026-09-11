@@ -6,6 +6,7 @@ const _Journal := preload("res://src/core/journal.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
 const LocateChart := preload("res://src/map/locate_chart.gd")
+const _DungeonAutomap := preload("res://src/map/dungeon_automap.gd")
 const _WorldPortals := preload("res://src/map/world_portals.gd")
 
 signal language_changed(lang: String)
@@ -162,6 +163,8 @@ var has_sextant: bool = false
 var guild_sextant_listed: bool = false
 ## Locate chart: explored world tiles (256×256 bitfield) + hidden landmarks.
 var locate_explored: PackedByteArray = PackedByteArray()
+## Per-dungeon 8×8×8 fog (id → 64-byte mask). Seen cells persist across visits.
+var dungeon_explored: Dictionary = {}
 var locate_found_abyss: bool = false
 var locate_found_skull: bool = false
 var locate_found_bell: bool = false
@@ -484,6 +487,7 @@ func reset_party() -> void:
 	has_sextant = false
 	guild_sextant_listed = false
 	_reset_locate_chart()
+	dungeon_explored.clear()
 	ship_hull = 50
 	lastreagent = 0
 	search_taken.clear()
@@ -537,6 +541,33 @@ func locate_mark_visited(place_id: String) -> bool:
 
 func locate_has_visited(place_id: String) -> bool:
 	return locate_visited_places.has(place_id.strip_edges().to_lower())
+
+
+func dungeon_explored_mask(dungeon_id: String) -> PackedByteArray:
+	var key := dungeon_id.strip_edges().to_lower()
+	if key.is_empty():
+		return _DungeonAutomap.empty_mask()
+	var raw: Variant = dungeon_explored.get(key, null)
+	if typeof(raw) == TYPE_PACKED_BYTE_ARRAY and (raw as PackedByteArray).size() == _DungeonAutomap.MASK_BYTES:
+		return (raw as PackedByteArray)
+	var mask := _DungeonAutomap.empty_mask()
+	dungeon_explored[key] = mask
+	return mask
+
+
+func dungeon_mark_seen(dungeon_id: String, cells: Array[Vector2i], z: int) -> bool:
+	var key := dungeon_id.strip_edges().to_lower()
+	if key.is_empty():
+		return false
+	var mask := dungeon_explored_mask(key)
+	if not _DungeonAutomap.mark_cells(mask, cells, z):
+		return false
+	dungeon_explored[key] = mask
+	return true
+
+
+func dungeon_cell_seen(dungeon_id: String, x: int, y: int, z: int) -> bool:
+	return _DungeonAutomap.is_explored(dungeon_explored_mask(dungeon_id), x, y, z)
 
 
 func _seed_locate_visited_from_known_cities() -> void:
@@ -3230,6 +3261,7 @@ func to_save_dict() -> Dictionary:
 		"has_sextant": has_sextant,
 		"guild_sextant_listed": guild_sextant_listed,
 		"locate_explored": LocateChart.mask_to_save(locate_explored),
+		"dungeon_explored": _DungeonAutomap.masks_to_save(dungeon_explored),
 		"locate_found_abyss": locate_found_abyss,
 		"locate_found_skull": locate_found_skull,
 		"locate_found_bell": locate_found_bell,
@@ -3384,6 +3416,7 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	## Older saves: owning a sextant means the guild already parted with item D.
 	guild_sextant_listed = bool(d.get("guild_sextant_listed", has_sextant))
 	locate_explored = LocateChart.mask_from_save(d.get("locate_explored", ""))
+	dungeon_explored = _DungeonAutomap.masks_from_save(d.get("dungeon_explored", {}))
 	locate_found_abyss = bool(d.get("locate_found_abyss", false))
 	locate_found_skull = bool(d.get("locate_found_skull", false))
 	locate_found_bell = bool(d.get("locate_found_bell", false))

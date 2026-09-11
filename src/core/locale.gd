@@ -1044,6 +1044,11 @@ const _T := {
 		"en_us": "Journal",
 		"ko": "여행 기록",
 	},
+	"journal_dungeon_map": {
+		"en_u4": "Dungeon Map",
+		"en_us": "Dungeon Map",
+		"ko": "던전 지도",
+	},
 	"journal_empty": {
 		"en_u4": "No notes yet.",
 		"en_us": "No notes yet.",
