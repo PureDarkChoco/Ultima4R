@@ -361,20 +361,12 @@ func _right_of(dmap, pos: Vector2i, dir: int) -> Vector2i:
 
 func _is_side_entrance(dmap, cell: Vector2i, z: int) -> bool:
 	var tok: int = dmap.token_at(cell.x, cell.y, z)
-	if tok == _DungeonMap.TOK_DOOR or tok == _DungeonMap.TOK_ROOM:
-		return true
-	if tok == _DungeonMap.TOK_SECRET and bool(dmap.is_secret_revealed(cell.x, cell.y, z)):
-		return true
-	return false
+	return tok == _DungeonMap.TOK_DOOR or tok == _DungeonMap.TOK_ROOM
 
 
 func _is_blocking_wall(dmap, cell: Vector2i, z: int) -> bool:
 	var tok: int = dmap.token_at(cell.x, cell.y, z)
-	if tok == _DungeonMap.TOK_WALL:
-		return true
-	if tok == _DungeonMap.TOK_SECRET and not bool(dmap.is_secret_revealed(cell.x, cell.y, z)):
-		return true
-	return false
+	return tok == _DungeonMap.TOK_WALL or tok == _DungeonMap.TOK_SECRET
 
 
 func _paint_peek_wall(buf: Image, dmap, pos: Vector2i, z: int, dir: int, w: int, h: int) -> void:

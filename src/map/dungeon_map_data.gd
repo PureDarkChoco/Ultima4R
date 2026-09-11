@@ -244,12 +244,10 @@ func token_at(x: int, y: int, z: int) -> int:
 
 
 func looks_like_wall(x: int, y: int, z: int) -> bool:
+	## Secrets stay walls in the first-person view (original U4). The journal
+	## minimap is the only place a found passage is marked.
 	var tok := token_at(x, y, z)
-	if tok == TOK_WALL:
-		return true
-	if tok == TOK_SECRET and not is_secret_revealed(x, y, z):
-		return true
-	return false
+	return tok == TOK_WALL or tok == TOK_SECRET
 
 
 func is_solid_wall(x: int, y: int, z: int) -> bool:

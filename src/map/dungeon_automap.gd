@@ -21,7 +21,6 @@ const TILE_ALTAR := 74
 const TILE_ORB := 78
 const TILE_FOUNTAIN := 75
 const TILE_DOOR := 59
-const TILE_SECRET := 73
 const WIND_DIR_PATH := "res://assets/ui/wind"
 const WIND_CARDINAL_FILES := ["n", "e", "s", "w"]
 const FRAME := Color(0.22, 0.24, 0.22, 1.0)
@@ -178,11 +177,7 @@ static func _side(dmap, pos: Vector2i, dir: int, turn: int) -> Vector2i:
 
 static func _is_blocking_wall(dmap, cell: Vector2i, z: int) -> bool:
 	var tok: int = dmap.token_at(cell.x, cell.y, z)
-	if tok == _DungeonMap.TOK_WALL:
-		return true
-	if tok == _DungeonMap.TOK_SECRET and not bool(dmap.is_secret_revealed(cell.x, cell.y, z)):
-		return true
-	return false
+	return tok == _DungeonMap.TOK_WALL or tok == _DungeonMap.TOK_SECRET
 
 
 static func _blocks_view(dmap, cell: Vector2i, z: int) -> bool:
@@ -200,8 +195,6 @@ static func tile_for_cell(dmap, x: int, y: int, z: int) -> int:
 		_DungeonMap.TOK_WALL:
 			return TILE_WALL
 		_DungeonMap.TOK_SECRET:
-			if bool(dmap.is_secret_revealed(x, y, z)):
-				return TILE_SECRET
 			return TILE_WALL
 		_DungeonMap.TOK_LADDER_UP, _DungeonMap.TOK_CEILING_HOLE:
 			return TILE_LADDER_UP
