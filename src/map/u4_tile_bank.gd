@@ -371,6 +371,16 @@ static func keyed_copy(tile_id: int, frame: int = 0, force_key: bool = false) ->
 	return key_border_black(img)
 
 
+static func isolated_overlay(tile_id: int, frame: int = 0) -> Image:
+	## Isolated sprite (dungeon orb, flying missile). Apple II Color keeps the
+	## delayed NTSC right-fringe (34px) so round tiles are not chopped.
+	if uses_hgr_ntsc():
+		var hgr: Image = _Apple2HgrNtsc.render_flying_tile(tile_id)
+		if hgr != null and not hgr.is_empty():
+			return key_border_black(hgr)
+	return keyed_copy(tile_id, frame, true)
+
+
 static func key_border_black(src: Image) -> Image:
 	if src == null or src.is_empty():
 		return null

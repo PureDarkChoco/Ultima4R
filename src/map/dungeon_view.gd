@@ -1346,10 +1346,14 @@ func _paint_tile_object(
 		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
 	elif tid == TILE_ORB or tid == TILE_ALTAR or is_monster:
 		## Orb / altar / monster PNGs keep an opaque black plate; key it out.
+		## Apple II Color orb needs the NTSC right-fringe (34px), not the 32px cut.
 		if _keyed_monster_cache.has(paint_tid):
 			img = _keyed_monster_cache[paint_tid] as Image
 		else:
-			img = _U4TileBank.keyed_copy(paint_tid)
+			if tid == TILE_ORB:
+				img = _U4TileBank.isolated_overlay(paint_tid)
+			else:
+				img = _U4TileBank.keyed_copy(paint_tid)
 			_keyed_monster_cache[paint_tid] = img
 	else:
 		img = _U4TileBank.image(paint_tid)

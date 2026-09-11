@@ -262,7 +262,11 @@ static func paint(
 
 
 static func _blit_tile(dest: Image, tid: int, dst: Vector2i, cell: int) -> void:
-	var src: Image = _U4TileBank.keyed_copy(tid)
+	var src: Image
+	if tid == TILE_ORB and _U4TileBank.uses_hgr_ntsc():
+		src = _U4TileBank.isolated_overlay(tid)
+	else:
+		src = _U4TileBank.keyed_copy(tid)
 	if src == null or src.is_empty():
 		src = _U4TileBank.image(tid)
 	if src == null or src.is_empty():
