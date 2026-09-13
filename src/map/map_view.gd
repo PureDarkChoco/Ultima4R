@@ -16,6 +16,7 @@ const _DungeonViewScript := preload("res://src/map/dungeon_view.gd")
 const _DungeonPortalsScript := preload("res://src/map/dungeon_portals.gd")
 const _Apple2HgrNtscScript := preload("res://src/map/apple2_hgr_ntsc.gd")
 const _Apple2ProgramDiskScript := preload("res://src/core/apple2_program_disk.gd")
+const _TorchFlickerShader := preload("res://assets/shaders/torch_flicker.gdshader")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
@@ -441,6 +442,7 @@ var _dungeon_field: Image
 var _dungeon_z := 0
 var _dungeon_dir := 2
 var _dungeon_lit := false
+var _torch_flicker_mat: ShaderMaterial
 ## Falling-rock trap overlay: keyed sprite chunks in dungeon-field pixels.
 var _dungeon_rock_fx: Dictionary = {}
 var _dungeon_rock_img: Image
@@ -3908,9 +3910,46 @@ func _scroll_step_count() -> int:
 	return SCROLL_STEPS
 
 
+func _torch_flicker_wanted() -> bool:
+	## Physical torch only — Light (L) stays a steady glow.
+	return (
+		is_in_dungeon()
+		and _combat_map == null
+		and _camp_map == null
+		and _dungeon_lit
+		and not GameState.dungeon_light_is_magic
+	)
+
+
+func _sync_torch_flicker() -> void:
+	if not _torch_flicker_wanted():
+		if material != null:
+			material = null
+		return
+	if _torch_flicker_mat == null:
+		_torch_flicker_mat = ShaderMaterial.new()
+		_torch_flicker_mat.shader = _TorchFlickerShader
+	var buf_w := maxi(view_w * TILE_SRC, 1)
+	var buf_h := maxi(view_h * TILE_SRC, 1)
+	var ox := ((view_w - CAMP_W) / 2) * TILE_SRC
+	var oy := ((view_h - CAMP_H) / 2) * TILE_SRC
+	_torch_flicker_mat.set_shader_parameter(
+		"field_uv",
+		Vector4(
+			float(ox) / float(buf_w),
+			float(oy) / float(buf_h),
+			float(CAMP_W * TILE_SRC) / float(buf_w),
+			float(CAMP_H * TILE_SRC) / float(buf_h)
+		)
+	)
+	if material != _torch_flicker_mat:
+		material = _torch_flicker_mat
+
+
 func _rebuild() -> void:
 	if _scene_trans_busy:
 		return
+	_sync_torch_flicker()
 	_ensure_buffers()
 	_buf.fill(Color(0.05, 0.08, 0.07, 1))
 
@@ -3986,6 +4025,7 @@ func _rebuild() -> void:
 
 func _rebuild_dungeon() -> void:
 	## xu4 map window: paint only the center 11×11. No left/right margin work.
+	_sync_torch_flicker()
 	_buf.fill(Color(0, 0, 0, 1))
 	if _dungeon_view == null:
 		_dungeon_view = _DungeonViewScript.new()
