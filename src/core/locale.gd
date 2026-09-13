@@ -2393,6 +2393,41 @@ const _T := {
 		"en_us": "DEF: ",
 		"ko": "방어: ",
 	},
+	"ztats_auto_manual": {
+		"en_u4": "Manual",
+		"en_us": "Manual",
+		"ko": "수동",
+	},
+	"ztats_auto_attack": {
+		"en_u4": "Auto Attack",
+		"en_us": "Auto Attack",
+		"ko": "자동 공격",
+	},
+	"ztats_auto_magic": {
+		"en_u4": "Auto Magick",
+		"en_us": "Auto Magic",
+		"ko": "자동 마법",
+	},
+	"ztats_auto_protect": {
+		"en_u4": "Auto Protect",
+		"en_us": "Auto Protect",
+		"ko": "자동 보호",
+	},
+	"ztats_auto_wait": {
+		"en_u4": "Wait",
+		"en_us": "Wait",
+		"ko": "대기",
+	},
+	"ztats_auto_hint_up": {
+		"en_u4": "▲",
+		"en_us": "▲",
+		"ko": "▲",
+	},
+	"ztats_auto_hint_down": {
+		"en_u4": "▼",
+		"en_us": "▼",
+		"ko": "▼",
+	},
 	"item_dagger": {
 		"en_u4": "Dagger",
 		"en_us": "Dagger",

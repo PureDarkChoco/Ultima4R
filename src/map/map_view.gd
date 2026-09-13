@@ -1941,6 +1941,54 @@ func try_move_combat_focus(dir: Vector2i) -> int:
 	return COMBAT_MOVE_OK
 
 
+func combat_focus_can_step(dir: Vector2i) -> bool:
+	## Auto-combat peek: ortho step that stays on the arena (never flee).
+	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return false
+	if dir == Vector2i.ZERO or (dir.x != 0 and dir.y != 0):
+		return false
+	var u: Dictionary = _combat_party[_combat_focus]
+	var from := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+	var dest := from + dir
+	if not _combat_in_bounds(dest):
+		return false
+	if not _combat_can_walk(from, dest, dir):
+		return false
+	if _combat_occupied(dest, _combat_focus, -1):
+		return false
+	var dest_tid := int(_combat_map.tile_at(dest.x, dest.y))
+	if _TileRulesCamp.slowed_by_tile(dest_tid):
+		return false
+	return true
+
+
+func combat_auto_step_dir(target: Vector2i) -> Vector2i:
+	## One NESW step toward `target`, or ZERO if boxed in / already there.
+	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return Vector2i.ZERO
+	var u: Dictionary = _combat_party[_combat_focus]
+	var from := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+	var dx := target.x - from.x
+	var dy := target.y - from.y
+	var horiz := Vector2i(signi(dx), 0) if dx != 0 else Vector2i.ZERO
+	var vert := Vector2i(0, signi(dy)) if dy != 0 else Vector2i.ZERO
+	var ordered: Array[Vector2i] = []
+	if absi(dx) >= absi(dy):
+		if horiz != Vector2i.ZERO:
+			ordered.append(horiz)
+		if vert != Vector2i.ZERO:
+			ordered.append(vert)
+	else:
+		if vert != Vector2i.ZERO:
+			ordered.append(vert)
+		if horiz != Vector2i.ZERO:
+			ordered.append(horiz)
+	for d in ordered:
+		if combat_focus_can_step(d):
+			return d
+	return Vector2i.ZERO
+
+
 func has_combat_foe_adjacent_to_focus() -> bool:
 	## Context-command palette: Attack appears only for a living foe one step away.
 	if _combat_focus < 0 or _combat_focus >= _combat_party.size():

@@ -348,6 +348,16 @@ var member_str: Array[int] = []
 var member_dex: Array[int] = []
 var member_int: Array[int] = []
 var member_xp: Array[int] = []
+## Per-class combat automation (Ztats ↑↓). Default Manual.
+enum AutoCombat {
+	MANUAL = 0,
+	ATTACK = 1,
+	MAGIC = 2,
+	PROTECT = 3,
+	WAIT = 4,
+}
+const AUTO_COMBAT_COUNT := 5
+var member_auto_combat: Array[int] = []
 ## xu4 starving / poison: 2 HP each turn while afflicted.
 const STARVE_DAMAGE := 2
 const POISON_DAMAGE := 2
@@ -624,6 +634,7 @@ func _reset_member_arrays_blank() -> void:
 	member_dex.clear()
 	member_int.clear()
 	member_xp.clear()
+	member_auto_combat.clear()
 	member_weapons.resize(8)
 	member_armor.resize(8)
 	member_hp.resize(8)
@@ -635,6 +646,7 @@ func _reset_member_arrays_blank() -> void:
 	member_dex.resize(8)
 	member_int.resize(8)
 	member_xp.resize(8)
+	member_auto_combat.resize(8)
 	for i in 8:
 		member_weapons[i] = 0
 		member_armor[i] = 0
@@ -647,6 +659,7 @@ func _reset_member_arrays_blank() -> void:
 		member_dex[i] = 15
 		member_int[i] = 15
 		member_xp[i] = 0
+		member_auto_combat[i] = AutoCombat.MANUAL
 
 
 func _seed_spell_known_from_mixtures() -> void:
@@ -1772,6 +1785,85 @@ func is_member_poisoned(klass: int) -> bool:
 	if klass < 0 or klass >= member_poisoned.size():
 		return false
 	return bool(member_poisoned[klass])
+
+
+func _clamp_auto_combat(mode: int) -> int:
+	return clampi(mode, AutoCombat.MANUAL, AutoCombat.WAIT)
+
+
+func auto_combat_of_class(klass: int) -> int:
+	if klass < 0 or klass >= member_auto_combat.size():
+		return AutoCombat.MANUAL
+	return _clamp_auto_combat(int(member_auto_combat[klass]))
+
+
+func auto_combat_of_slot(slot: int) -> int:
+	return auto_combat_of_class(party_member_at(slot))
+
+
+func set_auto_combat_of_class(klass: int, mode: int) -> void:
+	if klass < 0 or klass >= member_auto_combat.size():
+		return
+	member_auto_combat[klass] = _clamp_auto_combat(mode)
+	_ensure_avatar_manual_if_all_wait()
+
+
+func cycle_auto_combat_of_class(klass: int, delta: int) -> int:
+	if klass < 0 or klass >= member_auto_combat.size() or delta == 0:
+		return auto_combat_of_class(klass)
+	var next := posmod(auto_combat_of_class(klass) + delta, AUTO_COMBAT_COUNT)
+	member_auto_combat[klass] = next
+	_ensure_avatar_manual_if_all_wait()
+	return auto_combat_of_class(klass)
+
+
+func cycle_auto_combat_of_slot(slot: int, delta: int) -> int:
+	return cycle_auto_combat_of_class(party_member_at(slot), delta)
+
+
+func auto_combat_label(mode: int) -> String:
+	match _clamp_auto_combat(mode):
+		AutoCombat.ATTACK:
+			return Locale.t("ztats_auto_attack")
+		AutoCombat.MAGIC:
+			return Locale.t("ztats_auto_magic")
+		AutoCombat.PROTECT:
+			return Locale.t("ztats_auto_protect")
+		AutoCombat.WAIT:
+			return Locale.t("ztats_auto_wait")
+		_:
+			return Locale.t("ztats_auto_manual")
+
+
+func reset_auto_combat_to_manual() -> void:
+	for i in member_auto_combat.size():
+		member_auto_combat[i] = AutoCombat.MANUAL
+
+
+func avatar_class() -> int:
+	return player_class if player_class >= 0 else party_leader_class()
+
+
+func _party_all_living_wait() -> bool:
+	var any := false
+	for slot in party_size():
+		var mid := party_member_at(slot)
+		if mid < 0 or is_class_dead(mid):
+			continue
+		any = true
+		if auto_combat_of_class(mid) != AutoCombat.WAIT:
+			return false
+	return any
+
+
+func _ensure_avatar_manual_if_all_wait() -> void:
+	## At least the hero must be able to act — all-Wait is not allowed.
+	if not _party_all_living_wait():
+		return
+	var avatar := avatar_class()
+	if avatar < 0 or avatar >= member_auto_combat.size():
+		return
+	member_auto_combat[avatar] = AutoCombat.MANUAL
 
 
 func is_party_immobilized() -> bool:
@@ -3285,6 +3377,7 @@ func to_save_dict() -> Dictionary:
 		"member_dex": member_dex.duplicate(),
 		"member_int": member_int.duplicate(),
 		"member_xp": member_xp.duplicate(),
+		"member_auto_combat": member_auto_combat.duplicate(),
 		"moon_phase": moon_phase,
 		"trammel_phase": trammel_phase,
 		"felucca_phase": felucca_phase,
@@ -3454,6 +3547,10 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	_apply_int_array(member_dex, d.get("member_dex", []), 8)
 	_apply_int_array(member_int, d.get("member_int", []), 8)
 	_apply_int_array(member_xp, d.get("member_xp", []), 8)
+	_apply_int_array(member_auto_combat, d.get("member_auto_combat", []), 8)
+	for i in member_auto_combat.size():
+		member_auto_combat[i] = _clamp_auto_combat(int(member_auto_combat[i]))
+	_ensure_avatar_manual_if_all_wait()
 	## Older saves without attrs: seed companion/avatar defaults from class tables.
 	if not d.has("member_str"):
 		_seed_stats_from_class_defaults()

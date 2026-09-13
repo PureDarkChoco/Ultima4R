@@ -32,6 +32,7 @@ const _VendorShop := preload("res://src/core/vendor_shop.gd")
 const _VendorLocale := preload("res://src/core/vendor_locale.gd")
 const _CombatMaps := preload("res://src/map/combat_maps.gd")
 const _CombatEncounter := preload("res://src/map/combat_encounter.gd")
+const _AutoCombatAI := preload("res://src/core/auto_combat.gd")
 const _ShrinePortals := preload("res://src/map/shrine_portals.gd")
 const _Shrine := preload("res://src/core/shrine.gd")
 const _Hawkwind := preload("res://src/core/hawkwind.gd")
@@ -97,8 +98,6 @@ const MSG_INSET_X := 8
 const MSG_INSET_Y := 6
 const MSG_FONT_SIZE := 14
 const MSG_COLOR := Color(0.91, 0.9, 0.82, 1)
-## Talk keyword menu: not-yet-spoken NPC topics (still selectable for debugging).
-const MSG_COLOR_LATENT := Color(0.48, 0.5, 0.52, 1)
 const CHARSET_PATH := "res://assets/tiles/u4graphics/charset.png"
 const CHARSET_GLYPH := 16
 ## xu4 CHARSET_PROMPT ('\020' = index 16) — blue right-triangle from charset.png.
@@ -214,6 +213,9 @@ var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## U5-style Attack aim: A → move cursor → A/Enter strike; Esc cancels.
 var _combat_aiming := false
+## Auto-combat think delay — swallows input like resolving.
+var _combat_auto_acting := false
+var _combat_auto_gen := 0
 var _combat_aim_pos := Vector2i.ZERO
 var _combat_aim_from := Vector2i.ZERO
 var _combat_aim_weapon := 0
@@ -430,7 +432,7 @@ var _command_menu_rows: Array[ColorRect] = []
 const COMMAND_MENU_UNFOLD_SEC := 0.14
 var _command_menu_reveal := 1.0
 var _command_menu_tween: Tween
-## LOCAL CHEAT (⌘/Ctrl+P) — city warp list. Do not commit.
+## LOCAL CHEAT — city warp list.
 var _city_warp_open := false
 ## Cmd/Ctrl+J: browse the left-pane journal; Esc restores prior side-panel state.
 var _journal_focus_active := false
@@ -1684,13 +1686,7 @@ func _rebuild_command_menu_rows() -> void:
 			if abs_i < 0 or abs_i >= _talk_keyword_menu_items.size():
 				continue
 			var item: Dictionary = _talk_keyword_menu_items[abs_i]
-			var lab := str(item.get("label", ""))
-			if not bool(item.get("revealed", true)):
-				lab = "[color=#%s]%s[/color]" % [
-					MSG_COLOR_LATENT.to_html(false),
-					lab,
-				]
-			row_texts.append(lab)
+			row_texts.append(str(item.get("label", "")))
 	else:
 		for cmd in _command_menu_items:
 			var letter := U4Commands.letter_for(cmd)
@@ -3043,6 +3039,8 @@ func _process(delta: float) -> void:
 			_tick_dialogue_choice_nav(delta)
 		elif _cast_stage == 6:
 			_tick_combat_aim_move()
+		elif _ztats_stage == 2:
+			_tick_ztats_view_navigation(delta)
 		elif _ztats_stage == 1 or _cast_stage == 1:
 			_tick_select_cursor(delta)
 		elif _ready_stage == 2:
@@ -3057,6 +3055,7 @@ func _process(delta: float) -> void:
 			_tick_combat_victory_move()
 		elif (
 			not _combat_resolving
+			and not _combat_auto_acting
 			and not _combat_victory_aftermath
 			and not _combat_aiming
 			and _map != null
@@ -3679,13 +3678,16 @@ func _tick_simple_menu_navigation(delta: float) -> void:
 
 func _tick_ztats_view_navigation(delta: float) -> void:
 	var can_scroll := _ztats_panel != null and _ztats_panel.is_inventory_page()
+	var can_auto := _ztats_panel != null and _ztats_panel.is_member_sheet()
 	var held := Vector2i(
 		_GameInput.read_select_step_x(),
-		_read_select_step() if can_scroll else 0
+		_read_select_step() if (can_scroll or can_auto) else 0
 	)
 	var nav := _menu_hold_repeat.poll(delta, held)
 	if nav.y != 0 and can_scroll:
 		_ztats_panel.scroll_inventory(nav.y)
+	elif nav.y != 0 and can_auto:
+		_ztats_panel.cycle_auto_combat(nav.y)
 	elif nav.x != 0:
 		_nudge_ztats_view(nav.x)
 
@@ -4283,7 +4285,7 @@ func _can_open_command_menu() -> bool:
 		return false
 	if _is_locate_map_open():
 		return false
-	if _combat_active and (_combat_resolving or _combat_aiming or _combat_exit_prompt):
+	if _combat_active and (_combat_resolving or _combat_auto_acting or _combat_aiming or _combat_exit_prompt):
 		return false
 	return true
 
@@ -4561,8 +4563,8 @@ func _begin_talk_keyword_menu_if_requested() -> void:
 	_talk_keyword_menu_await_neutral = true
 	_reset_hold_state()
 	_GameInput.latch_current_stick_navigation()
-	_seed_talk_latent_keywords()
 	_restore_talk_known_keywords()
+	_maybe_offer_iolo_compassion_keyword()
 	if _talk_npc_gave_name:
 		_offer_named_npc_journal_keywords()
 	_talk_keyword_menu_apply_intro_default()
@@ -4577,25 +4579,18 @@ func _talk_keyword_menu_health_index() -> int:
 	return _talk_keyword_menu_items.size()
 
 
-func _reveal_talk_keyword_if_latent(key: String) -> int:
-	## 0 = missing, 1 = already revealed, 2 = flipped gray → white.
+func _talk_keyword_menu_has_key(key: String) -> bool:
 	if key.is_empty():
-		return 0
+		return false
 	for i in _talk_keyword_menu_items.size():
 		var item: Dictionary = _talk_keyword_menu_items[i]
-		if not _talk_stored_key_matches(key, str(item.get("key", ""))):
-			continue
-		if bool(item.get("revealed", true)):
-			return 1
-		item["revealed"] = true
-		_talk_keyword_menu_items[i] = item
-		_persist_talk_known_word(str(item.get("input", item.get("key", ""))))
-		return 2
-	return 0
+		if _talk_stored_key_matches(key, str(item.get("key", ""))):
+			return true
+	return false
 
 
 func _insert_talk_keyword_menu_item(
-	key: String, label: String, input: String, revealed: bool
+	key: String, label: String, input: String
 ) -> void:
 	## Insert before Health (same slot as discovered / journal-directed topics).
 	var health_index := _talk_keyword_menu_health_index()
@@ -4603,54 +4598,10 @@ func _insert_talk_keyword_menu_item(
 		"key": key,
 		"label": label,
 		"input": input,
-		"revealed": revealed,
 	})
 	_remember_talk_keyword_menu_word(key)
 	_remember_talk_keyword_menu_word(input)
-	if revealed:
-		_persist_talk_known_word(input if not input.is_empty() else key)
-
-
-func _seed_talk_latent_keywords() -> void:
-	## Every NPC interest starts on the list. Look/Name/Job/Health/Give/Bye
-	## are already white. Join and unspoken topics are gray. Iolo's compassion
-	## flips white immediately if anyone else in town already said 연민.
-	if not _talk_keyword_menu_active or _talk_is_hawkwind:
-		return
-	var korean := GameState.lang_short() == "ko"
-	for word in _TalkLocale.latent_menu_words(_talk_keywords):
-		if _talk_word_is_hidden_menu_interest(word):
-			continue
-		var key := _talk_keyword_stable_key(word)
-		if key.is_empty() or _talk_keyword_menu_seen.has(key):
-			continue
-		if _talk_is_white_builtin_key(key):
-			continue
-		if (
-			_talk_npc_is_skara_ankh(str(_talk_entry.name) if _talk_entry != null else "")
-			and _talk_word_is_om(word)
-			and not _talk_skara_ankh_om_ready
-		):
-			continue
-		if _talk_should_hide_zair_word(word):
-			continue
-		if _talk_should_hide_life_love_word(word):
-			continue
-		if _talk_should_hide_serpent_passage_name_word(word):
-			continue
-		if _talk_should_hide_lassorn_ship_word(word):
-			continue
-		if _talk_should_hide_serpent_dungeon_word(word):
-			continue
-		if _talk_should_hide_antos_foreign_relic_word(word):
-			continue
-		var revealed := (
-			_talk_npc_is_iolo()
-			and _talk_word_is_compassion(word)
-			and _talk_has_heard_interest(word)
-		)
-		var label := word if korean else word.capitalize()
-		_insert_talk_keyword_menu_item(key, label, word, revealed)
+	_persist_talk_known_word(input if not input.is_empty() else key)
 
 
 func _talk_has_heard_interest(word: String) -> bool:
@@ -4687,6 +4638,22 @@ func _talk_word_is_compassion(word: String) -> bool:
 	return false
 
 
+func _maybe_offer_iolo_compassion_keyword() -> void:
+	## Heard 연민 / compassion from anyone else — offer it white on Iolo's list.
+	if not _talk_keyword_menu_active or not _talk_npc_is_iolo():
+		return
+	var korean := GameState.lang_short() == "ko"
+	for raw in _talk_keywords:
+		var word := str(raw).strip_edges()
+		if word.is_empty() or not _talk_word_is_compassion(word):
+			continue
+		if not _talk_has_heard_interest(word):
+			continue
+		var label := word if korean else word.capitalize()
+		_offer_talk_keyword_item(_talk_keyword_stable_key(word), label, word)
+		return
+
+
 func _talk_word_is_passage_word(word: String) -> bool:
 	var key := _talk_keyword_stable_key(word)
 	if key.is_empty():
@@ -4698,8 +4665,8 @@ func _talk_word_is_passage_word(word: String) -> bool:
 
 
 func _talk_should_hide_zair_word(word: String) -> bool:
-	## Paws Zair: Word is Romasco-directed — not a gray starter topic.
-	## Offer after name once skara.romasco.zair-word is recorded.
+	## Paws Zair: Word is Romasco-directed — offer after name once
+	## skara.romasco.zair-word is recorded.
 	if _talk_entry == null:
 		return false
 	if _talk_city_id() != "paws":
@@ -5009,8 +4976,8 @@ func _restore_talk_keyword_menu_after_temp_pick() -> void:
 	for item in _talk_keyword_menu_items:
 		_remember_talk_keyword_menu_word(str(item.get("key", "")))
 		_remember_talk_keyword_menu_word(str(item.get("input", "")))
-	_seed_talk_latent_keywords()
 	_restore_talk_known_keywords()
+	_maybe_offer_iolo_compassion_keyword()
 	if _talk_npc_gave_name:
 		_offer_named_npc_journal_keywords()
 	_sync_talk_keyword_menu_scroll()
@@ -5212,19 +5179,12 @@ func _discover_talk_keywords(text: String) -> void:
 		_persist_talk_known_word(str(discovery.get("input", key)))
 		if not _talk_keyword_menu_active:
 			continue
-		var reveal_status := _reveal_talk_keyword_if_latent(key)
-		if reveal_status == 1:
-			continue
-		if reveal_status == 2:
-			changed = true
-			continue
-		if _talk_keyword_menu_seen.has(key):
+		if _talk_keyword_menu_has_key(key) or _talk_keyword_menu_seen.has(key):
 			continue
 		_insert_talk_keyword_menu_item(
 			key,
 			str(discovery.get("label", "")),
-			str(discovery.get("input", "")),
-			true
+			str(discovery.get("input", ""))
 		)
 		changed = true
 	if changed:
@@ -5246,23 +5206,14 @@ func _offer_talk_join_keyword() -> void:
 
 func _offer_talk_keyword_item(key: String, label: String, input: String) -> void:
 	## Insert a selectable interest before Health (same order as discovered topics).
-	## Latent (gray) rows flip white when journal / dialogue unlocks them.
 	if key.is_empty():
 		return
 	_persist_talk_known_word(input if not input.is_empty() else key)
 	if not _talk_keyword_menu_active:
 		return
-	var reveal_status := _reveal_talk_keyword_if_latent(key)
-	if reveal_status == 1:
+	if _talk_keyword_menu_has_key(key) or _talk_keyword_menu_seen.has(key):
 		return
-	if reveal_status == 2:
-		_sync_talk_keyword_menu_scroll()
-		_rebuild_command_menu_rows()
-		_sync_talk_keyword_menu_visibility()
-		return
-	if _talk_keyword_menu_seen.has(key):
-		return
-	_insert_talk_keyword_menu_item(key, label, input, true)
+	_insert_talk_keyword_menu_item(key, label, input)
 	_sync_talk_keyword_menu_scroll()
 	_rebuild_command_menu_rows()
 	_sync_talk_keyword_menu_visibility()
@@ -6401,7 +6352,7 @@ func _talk_memory_legacy_npc_id() -> String:
 
 
 func _talk_is_white_builtin_key(key: String) -> bool:
-	## Already on the opening row as white. Join is a builtin but stays gray.
+	## Already on the opening row. Join is offered when the NPC invites the party.
 	return key in ["look", "name", "job", "heal", "give", "bye"]
 
 
@@ -6574,9 +6525,7 @@ func _restore_talk_known_keywords() -> void:
 			continue
 		if _talk_should_hide_antos_foreign_relic_word(stored):
 			continue
-		if _reveal_talk_keyword_if_latent(stored) != 0:
-			continue
-		if _talk_keyword_menu_seen.has(stored):
+		if _talk_keyword_menu_has_key(stored) or _talk_keyword_menu_seen.has(stored):
 			continue
 		if _talk_keyword_menu_has_stored_key(stored):
 			continue
@@ -6584,7 +6533,7 @@ func _restore_talk_known_keywords() -> void:
 		if word.is_empty():
 			word = stored
 		var label := word if korean else word.capitalize()
-		_insert_talk_keyword_menu_item(stored, label, word, true)
+		_insert_talk_keyword_menu_item(stored, label, word)
 
 
 func _maybe_offer_paws_chain_keyword() -> void:
@@ -8004,7 +7953,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_do_show_karma()
 			_mark_input_handled()
 			return
-		## LOCAL CHEAT: Ctrl/⌘+P — warp to a city entrance on the world map.
+		## Ctrl/⌘+P: local city warp cheat.
 		if _is_mod_chord_key(event) and _is_city_warp_key(event):
 			_open_city_warp()
 			_mark_input_handled()
@@ -8407,7 +8356,6 @@ func _is_karma_key(event: InputEventKey) -> bool:
 
 
 func _is_city_warp_key(event: InputEventKey) -> bool:
-	## LOCAL CHEAT — do not commit.
 	return event.keycode == KEY_P or event.physical_keycode == KEY_P
 
 
@@ -8574,10 +8522,6 @@ func _handle_city_warp_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
 	if _is_cancel_event(event):
-		_close_city_warp()
-		return true
-	if event is InputEventKey and _is_mod_chord_key(event as InputEventKey) \
-			and _is_city_warp_key(event as InputEventKey):
 		_close_city_warp()
 		return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
@@ -10224,11 +10168,20 @@ func _ensure_ztats_panel() -> void:
 
 func _do_ztats() -> void:
 	## xu4 ztatsFor(): "Ztats for: " → pick member → character sheet.
+	## Combat: open the acting member immediately; ←→ browses the whole party.
 	_clear_pending_order()
 	_close_ready(false)
 	_close_wear(false)
 	if GameState.party_size() <= 0:
 		_push_message(Locale.t("cmd_none"), false)
+		return
+	if _combat_active and _map != null and _map.is_in_combat():
+		var slot := _map.get_combat_focus_party_slot()
+		if slot < 0 or slot >= GameState.party_size():
+			slot = 0
+		var name := GameState.party_member_display_name(slot)
+		_push_message(Locale.t("cmd_ztats_for_done", [name]), false)
+		_show_ztats_member(slot)
 		return
 	_open_order_roster()
 	_ztats_stage = 1
@@ -10275,7 +10228,7 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		if _is_ztats_dismiss(event):
 			_close_ztats(false)
 			return true
-		## ↑↓ scroll inventory lists; ←→ cycle pages (chars → gear → items → reagents → mixtures).
+		## ↑↓ scroll inventory / cycle auto-combat on a sheet; ←→ cycle pages.
 		if _ztats_panel and _ztats_panel.is_inventory_page():
 			if _try_ztats_inv_scroll(event):
 				return true
@@ -10363,6 +10316,9 @@ func _nudge_ztats_view(delta: int) -> void:
 
 func _ztats_flat_count() -> int:
 	## Party character sheets + Equipment + Items + Reagents + Mixtures.
+	## Combat: party sheets only so ←→ stays on auto-combat settings.
+	if _combat_active:
+		return maxi(GameState.party_size(), 1)
 	return maxi(GameState.party_size(), 1) + 4
 
 
@@ -19707,6 +19663,7 @@ func _begin_combat(
 			_combat_resolving = false
 			return
 	_combat_resolving = false
+	await _combat_on_focus_ready()
 
 
 func _combat_clear_aim_state() -> void:
@@ -19732,6 +19689,8 @@ func _begin_combat_victory_aftermath() -> void:
 	_combat_clear_aim_state()
 	_clear_pending_dir()
 	_combat_exit_prompt = false
+	_combat_auto_gen += 1
+	_combat_auto_acting = false
 	## Always free combat input after Victory (even if a turn-gap coroutine still runs).
 	_combat_victory_aftermath = true
 	_victory_solo_party_slot = -1
@@ -19971,7 +19930,7 @@ func _handle_combat_input(event: InputEvent) -> bool:
 			return true
 		if _combat_aiming:
 			return _handle_combat_aim_input_event(event)
-		if _combat_resolving:
+		if _combat_resolving or _combat_auto_acting:
 			## Don't latch a tilt while foes act — that would eat the next move.
 			_GameInput.stick_clear_if_released(event)
 			return true
@@ -19993,8 +19952,8 @@ func _handle_combat_input(event: InputEvent) -> bool:
 	## After Victory!: free roam / Open / Get / ESC leave — never swallow on resolving.
 	if _combat_victory_aftermath:
 		return _handle_combat_victory_input_event(event)
-	## Swallow other keys while foe turns / gaps / strike FX play out.
-	if _combat_resolving and not _combat_aiming:
+	## Swallow other keys while foe turns / gaps / strike FX / auto-combat play out.
+	if (_combat_resolving or _combat_auto_acting) and not _combat_aiming:
 		return true
 	if _combat_aiming:
 		return _handle_combat_aim_input_event(event)
@@ -20712,6 +20671,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 		_sync_combat_focus_roster()
 		_refresh_party()
 		_combat_resolving = false
+		await _combat_on_focus_ready()
 		return
 	_combat_apply_round_end_turn()
 	await _combat_run_foe_phase()
@@ -20730,6 +20690,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 	_sync_combat_focus_roster()
 	_refresh_party()
 	_combat_resolving = false
+	await _combat_on_focus_ready()
 
 
 func _combat_resolve_melee_attack(
@@ -20959,6 +20920,217 @@ func _combat_dir_from_key(k: InputEventKey) -> Vector2i:
 	return Vector2i.ZERO
 
 
+func _combat_on_focus_ready() -> void:
+	## After a living member gains the turn: run auto-combat or wait for input.
+	if (
+		not _combat_active
+		or _map == null
+		or not _map.is_in_combat()
+		or _combat_victory_aftermath
+		or _combat_resolving
+		or _combat_aiming
+		or _combat_auto_acting
+	):
+		return
+	var klass := _map.get_combat_focus_klass()
+	if klass < 0 or GameState.is_member_disabled(klass):
+		return
+	var mode := GameState.auto_combat_of_class(klass)
+	if mode == GameState.AutoCombat.MANUAL:
+		return
+	_combat_auto_acting = true
+	_combat_auto_gen += 1
+	var gen := _combat_auto_gen
+	await get_tree().create_timer(COMBAT_TURN_GAP * 0.55).timeout
+	if gen != _combat_auto_gen:
+		return
+	if (
+		not _combat_active
+		or _map == null
+		or not _map.is_in_combat()
+		or _combat_victory_aftermath
+		or _combat_resolving
+		or _combat_aiming
+		or _map.get_combat_focus_klass() != klass
+	):
+		_combat_auto_acting = false
+		return
+	var slot := _map.get_combat_focus_party_slot()
+	var plan := _AutoCombatAI.decide(
+		mode, _map, klass, slot, _spell_location_context()
+	)
+	_combat_auto_acting = false
+	await _combat_auto_execute(plan)
+
+
+func _combat_auto_execute(plan: Dictionary) -> void:
+	if plan.is_empty():
+		await _combat_auto_pass()
+		return
+	match str(plan.get("action", "pass")):
+		"attack":
+			await _combat_auto_attack(
+				int(plan.get("weapon", 0)),
+				plan.get("from", Vector2i.ZERO) as Vector2i,
+				plan.get("target", Vector2i.ZERO) as Vector2i
+			)
+		"move":
+			_combat_try_move(plan.get("dir", Vector2i.ZERO) as Vector2i)
+		"cast_aim":
+			await _combat_auto_cast_aim(
+				int(plan.get("spell", -1)),
+				plan.get("from", Vector2i.ZERO) as Vector2i,
+				plan.get("target", Vector2i.ZERO) as Vector2i
+			)
+		"cast_player":
+			await _combat_auto_cast_player(
+				int(plan.get("spell", -1)),
+				int(plan.get("target_slot", -1))
+			)
+		"cast_none":
+			await _combat_auto_cast_none(int(plan.get("spell", -1)))
+		_:
+			await _combat_auto_pass()
+
+
+func _combat_auto_pass() -> void:
+	_push_message(Locale.t("cmd_pass"), false)
+	await _combat_finish_member_turn()
+
+
+func _combat_auto_attack(wid: int, from: Vector2i, target: Vector2i) -> void:
+	if _map == null or not _map.is_in_combat():
+		return
+	var klass := _map.get_combat_focus_klass()
+	var slot := _map.get_combat_focus_party_slot()
+	var pname := GameState.party_member_display_name(slot) if slot >= 0 else ""
+	if pname.is_empty():
+		pname = U4Commands.label(U4Commands.Id.ATTACK, GameState.lang_short())
+	_push_message(
+		Locale.t("cmd_attack_with", [pname, Locale.weapon_name(wid)]),
+		false
+	)
+	await _combat_resolve_attack(klass, wid, from, target)
+
+
+func _combat_auto_cast_aim(spell_id: int, from: Vector2i, target: Vector2i) -> void:
+	if _map == null or not _map.is_in_combat() or spell_id < 0:
+		await _combat_auto_pass()
+		return
+	var slot := _map.get_combat_focus_party_slot()
+	var caster := GameState.party_member_at(slot)
+	_cast_caster_slot = slot
+	_cast_spell_id = spell_id
+	_push_message(Locale.t("cast_named", [Locale.spell_name(spell_id)]), false)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_combat_auto_clear_cast()
+		await _combat_finish_member_turn()
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	_refresh_party()
+	if _cast_blocked_by_negate():
+		_combat_auto_clear_cast()
+		await _combat_finish_member_turn()
+		return
+	await _play_cast_sfx()
+	_combat_auto_clear_cast()
+	_combat_resolving = true
+	await _apply_cast_magic_attack(spell_id, from, target, caster)
+	if not _combat_active or _map == null or not _map.is_in_combat():
+		_combat_resolving = false
+		return
+	if _map.is_combat_won():
+		await _begin_combat_victory_aftermath()
+		_combat_resolving = false
+		return
+	_combat_resolving = false
+	await _combat_finish_member_turn()
+
+
+func _combat_auto_cast_player(spell_id: int, target_slot: int) -> void:
+	if spell_id < 0 or target_slot < 0:
+		await _combat_auto_pass()
+		return
+	var slot := _map.get_combat_focus_party_slot() if _map != null else -1
+	var caster := GameState.party_member_at(slot)
+	_cast_caster_slot = slot
+	_cast_spell_id = spell_id
+	_push_message(Locale.t("cast_named", [Locale.spell_name(spell_id)]), false)
+	_push_message(GameState.party_member_display_name(target_slot), false)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_combat_auto_clear_cast()
+		await _combat_finish_member_turn()
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	_refresh_party()
+	if _cast_blocked_by_negate():
+		_combat_auto_clear_cast()
+		await _combat_finish_member_turn()
+		return
+	await _play_cast_sfx()
+	var target := GameState.party_member_at(target_slot)
+	if _apply_cast_player_spell(spell_id, target):
+		_refresh_party()
+		if _combat_active and _map != null and _map.is_in_combat():
+			_map.refresh_combat_view()
+	else:
+		_push_message(Locale.t("cast_failed"), false)
+	_combat_auto_clear_cast()
+	await _combat_finish_member_turn()
+
+
+func _combat_auto_cast_none(spell_id: int) -> void:
+	if spell_id < 0:
+		await _combat_auto_pass()
+		return
+	var slot := _map.get_combat_focus_party_slot() if _map != null else -1
+	var caster := GameState.party_member_at(slot)
+	_cast_caster_slot = slot
+	_cast_spell_id = spell_id
+	_push_message(Locale.t("cast_named", [Locale.spell_name(spell_id)]), false)
+	var loc_ctx := _spell_location_context()
+	var err := GameState.spell_prereq_error(spell_id, caster, loc_ctx)
+	GameState.consume_mixture(spell_id)
+	if err != Spells.CASTERR_NOERROR:
+		if err != Spells.CASTERR_NOMIX:
+			_push_cast_spell_error(spell_id, err)
+		_combat_auto_clear_cast()
+		await _combat_finish_member_turn()
+		return
+	GameState.adjust_mp(caster, -Spells.mp_cost(spell_id))
+	_refresh_party()
+	if _cast_blocked_by_negate():
+		_combat_auto_clear_cast()
+		await _combat_finish_member_turn()
+		return
+	await _play_cast_sfx()
+	var ok := false
+	if spell_id == Spells.PROTECTION:
+		ok = _apply_cast_protection()
+	if not ok:
+		_push_message(Locale.t("cast_failed"), false)
+	_combat_auto_clear_cast()
+	await _combat_finish_member_turn()
+
+
+func _combat_auto_clear_cast() -> void:
+	_cast_stage = 0
+	_cast_caster_slot = -1
+	_cast_spell_id = -1
+	_cast_field_tid = -1
+	_cast_cursor = 0
+
+
 func _combat_try_move(dir: Vector2i) -> void:
 	if _map == null or not _map.is_in_combat():
 		return
@@ -21158,6 +21330,7 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		## DOS C_5D14 / xu4 finishTurn — Quickness 50% same member acts again.
 		if _combat_try_quickness_extra_turn(after_flee):
 			_combat_resolving = false
+			await _combat_on_focus_ready()
 			return
 		var still_party := (
 			_map.refocus_after_flee() if after_flee else _map.advance_combat_focus()
@@ -21182,6 +21355,7 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 		_combat_resolving = false
 		return
 	_combat_resolving = false
+	await _combat_on_focus_ready()
 
 
 func _combat_try_quickness_extra_turn(after_flee: bool) -> bool:

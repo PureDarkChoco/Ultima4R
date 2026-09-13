@@ -95,6 +95,9 @@ const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 
 
 var _title: Label
+var _auto_box: PanelContainer
+var _auto_lab: Label
+var _auto_hint: VBoxContainer
 var _char_root: Control
 var _inv_root: Control
 var _inv_title: Label
@@ -192,6 +195,18 @@ func is_open() -> bool:
 
 func is_inventory_page() -> bool:
 	return visible and _inv_page != InvPage.NONE
+
+
+func is_member_sheet() -> bool:
+	return visible and _inv_page == InvPage.NONE and _slot >= 0
+
+
+func cycle_auto_combat(delta: int) -> bool:
+	if not is_member_sheet() or delta == 0:
+		return false
+	GameState.cycle_auto_combat_of_slot(_slot, delta)
+	_sync_auto_mode()
+	return true
 
 
 func open_member(slot: int) -> void:
@@ -485,6 +500,61 @@ func _apply_status_visuals(st: int, hp_critical: bool) -> void:
 	set_process(visible and _needs_process())
 
 
+func _make_auto_hint_arrow(key: String) -> Label:
+	var lab := Label.new()
+	lab.text = Locale.t(key)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_END
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lab.add_theme_font_size_override("font_size", FONT_SIZE - 3)
+	lab.add_theme_color_override("font_color", COL_ACCENT)
+	UiTheme.apply_font(lab)
+	return lab
+
+
+func _auto_mode_style() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.16, 0.20, 0.92)
+	sb.border_color = COL_ACCENT
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	return sb
+
+
+func _sync_auto_mode() -> void:
+	if _auto_box == null or _auto_lab == null:
+		return
+	if _inv_page != InvPage.NONE or _slot < 0:
+		_auto_box.visible = false
+		if _auto_hint:
+			_auto_hint.visible = false
+		_auto_lab.text = ""
+		return
+	_auto_box.visible = true
+	if _auto_hint:
+		_auto_hint.visible = true
+	var mode := GameState.auto_combat_of_slot(_slot)
+	_auto_lab.text = GameState.auto_combat_label(mode)
+	var font := _auto_lab.get_theme_font("font")
+	if font == null:
+		return
+	var w := 0.0
+	for m in GameState.AUTO_COMBAT_COUNT:
+		w = maxf(
+			w,
+			font.get_string_size(
+				GameState.auto_combat_label(m), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+			).x
+		)
+	_auto_lab.custom_minimum_size = Vector2(w, 0)
+
+
 func _add_section_spacer(parent: VBoxContainer) -> void:
 	## Equal flex gaps between zones 1-2 / 2-3 / 3-4 (moves only zones 2 & 3).
 	var sp := Control.new()
@@ -515,14 +585,55 @@ func _build() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.add_child(root)
 
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 8)
+	title_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	title_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(title_row)
+
 	_title = Label.new()
-	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_title.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_title.add_theme_font_size_override("font_size", FONT_SIZE)
 	_title.add_theme_color_override("font_color", COL_ACCENT)
 	UiTheme.apply_font(_title)
-	root.add_child(_title)
+	title_row.add_child(_title)
+
+	var auto_wrap := HBoxContainer.new()
+	auto_wrap.add_theme_constant_override("separation", 3)
+	auto_wrap.size_flags_horizontal = Control.SIZE_SHRINK_END
+	auto_wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	auto_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_row.add_child(auto_wrap)
+
+	_auto_box = PanelContainer.new()
+	_auto_box.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_auto_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_auto_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_auto_box.add_theme_stylebox_override("panel", _auto_mode_style())
+	auto_wrap.add_child(_auto_box)
+
+	_auto_lab = Label.new()
+	_auto_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_auto_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_auto_lab.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_auto_lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_auto_lab.add_theme_font_size_override("font_size", FONT_SIZE)
+	_auto_lab.add_theme_color_override("font_color", COL_TEXT)
+	UiTheme.apply_font(_auto_lab)
+	_auto_box.add_child(_auto_lab)
+
+	_auto_hint = VBoxContainer.new()
+	_auto_hint.add_theme_constant_override("separation", -2)
+	_auto_hint.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_auto_hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_auto_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	auto_wrap.add_child(_auto_hint)
+	_auto_hint.add_child(_make_auto_hint_arrow("ztats_auto_hint_up"))
+	_auto_hint.add_child(_make_auto_hint_arrow("ztats_auto_hint_down"))
 
 	## Fixed ~1-line gap under name.
 	var title_gap := Control.new()
@@ -1209,8 +1320,10 @@ func _refresh() -> void:
 		_set_bar(_hp_fill, _hp_lab, 0, 0, COL_HP)
 		_set_bar(_mp_fill, _mp_lab, 0, 0, COL_MP)
 		_set_bar(_exp_fill, _exp_lab, 0, 0, COL_EXP)
+		_sync_auto_mode()
 		return
 	_title.text = str(data.get("name", "?"))
+	_sync_auto_mode()
 	_meta.text = str(data.get("class", "?"))
 	var sex := str(data.get("sex", "M")).to_upper()
 	if _sex:
