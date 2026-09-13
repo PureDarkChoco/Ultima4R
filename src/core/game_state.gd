@@ -3676,7 +3676,7 @@ func clear_apple2_dsk() -> void:
 
 
 func refresh_apple2_dsk() -> void:
-	## Re-check a saved Program .dsk (moved / missing files fail).
+	## Re-check the user:// pack only — never reopen a remembered .dsk path.
 	var was_ok := apple2_dsk_ok
 	apple2_dsk_ok = _probe_apple2_dsk()
 	if was_ok and not apple2_dsk_ok:
@@ -3684,23 +3684,25 @@ func refresh_apple2_dsk() -> void:
 			GraphicsSettings.ensure_available_tileset()
 
 
+func apple2_picker_start_dir() -> String:
+	## Empty on sandboxed macOS so the picker does not pre-touch Documents.
+	if OS.get_name() == "macOS" and OS.is_sandboxed():
+		return ""
+	var home := OS.get_environment("HOME")
+	if home.is_empty():
+		home = OS.get_environment("USERPROFILE")
+	return home
+
+
 func _probe_apple2_dsk() -> bool:
+	## No default disk search. A remembered path is only opened after the user
+	## picks a file (native dialog). Startup uses the user:// tile pack only.
 	apple2_dsk_needs_macos_permission = false
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) == OK:
 		apple2_dsk_prompted = bool(cfg.get_value(SETTINGS_SECTION, "apple2_dsk_prompted", false))
 		apple2_dsk_path = str(cfg.get_value(SETTINGS_SECTION, "apple2_dsk_path", "")).strip_edges()
-	if apple2_dsk_path.is_empty():
-		return false
-	apple2_dsk_prompted = true
-	if _Apple2ProgramDisk.looks_like_program_dsk(apple2_dsk_path):
-		if _Apple2ProgramDisk.ensure_pack_from_dsk(apple2_dsk_path):
-			return true
-	if OS.get_name() == "macOS" and OS.is_sandboxed() and FileAccess.file_exists(apple2_dsk_path):
-		## Path remembered but unreadable until the user re-picks the file.
-		if not _Apple2ProgramDisk.is_dsk_image(apple2_dsk_path):
-			apple2_dsk_needs_macos_permission = true
-	return false
+	return _Apple2ProgramDisk.pack_is_ready()
 
 
 func _persist_apple2_dsk() -> void:

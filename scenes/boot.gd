@@ -218,11 +218,7 @@ func _open_apple2_dialog() -> void:
 	if _apple2_dialog == null:
 		_ensure_apple2_ui()
 	_picking_apple2 = true
-	var start := GameState.apple2_dsk_path.get_base_dir()
-	if start.is_empty() or not DirAccess.dir_exists_absolute(start):
-		start = OS.get_environment("HOME")
-		if start.is_empty():
-			start = OS.get_environment("USERPROFILE")
+	var start := GameState.apple2_picker_start_dir()
 	if not start.is_empty() and not _apple2_dialog.use_native_dialog:
 		_apple2_dialog.current_dir = start
 	_apple2_dialog.popup_centered_ratio(0.65)

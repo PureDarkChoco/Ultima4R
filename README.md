@@ -13,17 +13,17 @@ This fan project is not affiliated with or endorsed by Electronic Arts or the or
 
 ## 플레이하려면
 
-원작 **Ultima IV DOS** 데이터가 필요합니다. 이 저장소는 그 데이터를 배포하지 않습니다. GOG 등에서 합법적으로 구한 뒤, 게임 데이터 폴더를 `data/u4`로 연결하거나 실행 시 경로를 지정하세요.
+원작 **Ultima IV DOS** 데이터가 필요합니다. 이 저장소는 그 데이터를 배포하지 않습니다. GOG에서 설치하면 실행 시 그 경로를 찾습니다. 없으면 `data/u4`로 연결하거나 부트 화면에서 폴더를 지정하세요.
 
-Apple II Color / Mono 그래픽은 별도로 Apple II **Program** 디스크(`.dsk`)가 필요합니다. 없어도 DOS 데이터만으로 플레이할 수 있고, 나중에 옵션에서 지정할 수 있습니다.
+Apple II Color / Mono 그래픽은 별도로 Apple II **Program** 디스크(`.dsk`)가 필요합니다. 기본 폴더를 뒤지지 않으며, 부트·옵션에서 직접 고를 때만 물어봅니다. 없어도 DOS 데이터만으로 플레이할 수 있습니다.
 
 원본 데이터는 사용자가 취득한 라이선스와 배포처 조건을 따릅니다.
 
 ## To play
 
-You need original **Ultima IV for DOS** game data. This repository does not ship that data. Obtain it lawfully (for example from GOG), then point the game at it with a `data/u4` link or a path at runtime.
+You need original **Ultima IV for DOS** game data. This repository does not ship that data. A GOG install is detected at launch. Otherwise link it as `data/u4` or pick the folder on the boot screen.
 
-Apple II Color / Mono graphics also need an Apple II **Program** disk (`.dsk`). The game is playable without it; you can set the disk later in Options.
+Apple II Color / Mono graphics also need an Apple II **Program** disk (`.dsk`). The game does not search default folders for it; you choose the file on the boot screen or in Options. The game is playable without it.
 
 That data remains subject to the license and terms under which you acquired it.
 
@@ -37,7 +37,7 @@ That data remains subject to the license and terms under which you acquired it.
 | `en_us` | English (Modern) | 현대 미국 영어 |
 | `ko` | 한국어 | 현대 한국어 |
 
-키보드 A–Z는 원작 명령입니다. 게임패드로도 플레이할 수 있게 맞추는 중입니다.
+키보드 A–Z는 원작 명령입니다. 게임패드만으로도 끝까지 플레이할 수 있습니다.
 
 ---
 
