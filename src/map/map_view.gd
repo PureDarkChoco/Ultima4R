@@ -327,10 +327,12 @@ var _horse_rider_class := -999
 ## Fallback Avatar-on-horse art from disk.
 var _horse_rider_w_asset: Image
 var _horse_rider_e_asset: Image
-## Mounted gait: stand on `_1` until a tile step, then A/`_2` per tile; stand again after idle.
+## Mounted gait: stand on `_1` until a move, then A/`_2` per move; stand again after idle.
 var _horse_standing := true
 ## Last walk frame: true = `_2`. Start true so the first step of a session is frame A.
 var _horse_walk_on_b := true
+## Gallop issues two set_center calls in one move — only flip gait once per frame.
+var _horse_step_process_frame := -1
 var _horse_idle_left := 0.0
 
 var _scroll_from := Vector2i.ZERO
@@ -3810,8 +3812,13 @@ func _note_horse_step() -> void:
 	if not is_horse_tile(_transport_tile):
 		return
 	_horse_standing = false
-	_horse_walk_on_b = not _horse_walk_on_b
 	_horse_idle_left = HORSE_IDLE_STAND_SEC
+	## Y-gallop walks two tiles in one keypress; keep A/B alternating per move.
+	var f := Engine.get_process_frames()
+	if _horse_step_process_frame == f:
+		return
+	_horse_step_process_frame = f
+	_horse_walk_on_b = not _horse_walk_on_b
 
 
 func _tick_horse_idle(delta: float) -> bool:
