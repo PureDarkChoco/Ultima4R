@@ -127,6 +127,24 @@ const _MODERN_PHRASES: Array = [
 ]
 
 
+static func strip_speaker_lead(text: String) -> String:
+	## Overlay speech: drop "He says:" / "그 말하길:" so only the line remains.
+	var t := text.strip_edges()
+	if t.is_empty():
+		return t
+	var en := t.findn(" says:")
+	if en >= 0:
+		var head := t.substr(0, en)
+		if not head.contains("\n") and head.length() <= 48:
+			return t.substr(en + " says:".length()).strip_edges()
+	var ko := t.find("말하길:")
+	if ko >= 0:
+		var head_ko := t.substr(0, ko)
+		if not head_ko.contains("\n") and head_ko.length() <= 48:
+			return t.substr(ko + "말하길:".length()).strip_edges()
+	return t
+
+
 static func present_script(text: String) -> String:
 	## Original TLK is classic English. en_us modernizes; en_u4 keeps as-is;
 	## ko uses city talk packs (TalkLocale) with classic keys from .TLK.
@@ -679,6 +697,19 @@ static func apply_yesno_rewards(entry: Entry, yes: bool) -> bool:
 			## Quickness — but one bloodmoss (after “can thou cast it?”).
 			return GameState.mark_spell_known(Spells.QUICKNESS)
 	return false
+
+
+static func has_personal_name(entry: Entry) -> bool:
+	if entry == null:
+		return false
+	var n := str(entry.name).replace("\n", " ").replace("\r", " ").strip_edges().to_lower()
+	if n.is_empty():
+		return false
+	return not (
+		n.begins_with("a ")
+		or n.begins_with("an ")
+		or n.begins_with("the ")
+	)
 
 
 static func _speaker_key(entry: Entry) -> String:

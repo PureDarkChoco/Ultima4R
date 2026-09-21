@@ -233,6 +233,8 @@ var journal_seen_hythloth_balloon: bool = false
 ## Spoken NPC interests: "city/d{discourse}" → Array of stable keyword keys.
 ## Legacy saves may still use "city/npc-name".
 var talk_known_keywords: Dictionary = {}
+## NPC ids whose personal name the avatar has heard ("city/d3").
+var talk_known_names: Dictionary = {}
 ## Interest words actually heard in any spoken line (any NPC). Used to surface
 ## another speaker's hidden topic (e.g. Iolo + compassion) from the first prompt.
 var talk_heard_words: Array = []
@@ -524,6 +526,7 @@ func reset_party() -> void:
 	journal_hythloth_castle = false
 	journal_seen_hythloth_balloon = false
 	talk_known_keywords.clear()
+	talk_known_names.clear()
 	talk_heard_words.clear()
 	reagent_shop_prices.clear()
 	clear_aura()
@@ -3346,6 +3349,7 @@ func to_save_dict() -> Dictionary:
 		"journal_hythloth_castle": journal_hythloth_castle,
 		"journal_seen_hythloth_balloon": journal_seen_hythloth_balloon,
 		"talk_known_keywords": talk_known_keywords.duplicate(true),
+		"talk_known_names": talk_known_names.duplicate(true),
 		"talk_heard_words": talk_heard_words.duplicate(),
 		"lastreagent": lastreagent,
 		"search_taken": search_taken.keys(),
@@ -3478,6 +3482,14 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 				talk_known_keywords[str(npc_id)] = keys
 	## Legacy Le Chef rows keyed by English name — stale food/cook duplicates.
 	talk_known_keywords.erase("lcb/le chef")
+	talk_known_names.clear()
+	var names_raw: Variant = d.get("talk_known_names", {})
+	if typeof(names_raw) == TYPE_DICTIONARY:
+		for npc_id in (names_raw as Dictionary).keys():
+			var id := str(npc_id).strip_edges().to_lower()
+			if id.is_empty():
+				continue
+			talk_known_names[id] = true
 	talk_heard_words.clear()
 	var heard_raw: Variant = d.get("talk_heard_words", [])
 	if typeof(heard_raw) == TYPE_ARRAY:
@@ -3957,6 +3969,18 @@ func talk_prune_npc_keywords(
 		if same:
 			return
 	talk_known_keywords[id] = pruned
+
+
+func talk_knows_npc_name(npc_id: String) -> bool:
+	var id := npc_id.strip_edges().to_lower()
+	return not id.is_empty() and talk_known_names.has(id)
+
+
+func talk_remember_npc_name(npc_id: String) -> void:
+	var id := npc_id.strip_edges().to_lower()
+	if id.is_empty():
+		return
+	talk_known_names[id] = true
 
 
 func talk_remember_keyword(npc_id: String, key: String) -> void:

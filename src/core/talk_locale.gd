@@ -374,50 +374,6 @@ static func word_has_hangul(s: String) -> bool:
 	return false
 
 
-static func latent_menu_words(highlight_words: Array) -> Array[String]:
-	## Language-filtered interest words for the gray “not yet spoken” menu rows.
-	## Prefer Hangul in Korean UI; fall back to Latin when a pack has no KO aliases.
-	var hangul: Array[String] = []
-	var latin: Array[String] = []
-	var seen_h: Dictionary = {}
-	var seen_l: Dictionary = {}
-	for raw in highlight_words:
-		var word := str(raw).strip_edges()
-		if word.is_empty():
-			continue
-		if normalize_interest(word) == normalize_interest("관심사"):
-			continue
-		if word_has_hangul(word):
-			var hk := normalize_interest(word)
-			if hk.is_empty() or seen_h.has(hk):
-				continue
-			seen_h[hk] = true
-			hangul.append(word)
-		else:
-			var lk := normalize_interest(word)
-			if lk.is_empty() or seen_l.has(lk):
-				continue
-			seen_l[lk] = true
-			latin.append(word)
-	var candidates: Array[String] = hangul if (is_korean() and not hangul.is_empty()) else latin
-	## Drop short stems covered by a longer sibling (writ⊂write, 점⊂점술).
-	var out: Array[String] = []
-	for i in candidates.size():
-		var a := candidates[i]
-		var al := a.to_lower()
-		var dominated := false
-		for j in candidates.size():
-			if i == j:
-				continue
-			var bl := candidates[j].to_lower()
-			if bl.length() > al.length() and bl.begins_with(al):
-				dominated = true
-				break
-		if not dominated:
-			out.append(a)
-	return out
-
-
 static func extra_npcs_for_map(ult_path: String) -> Array:
 	## Extra talk NPCs to spawn on this .ULT (not in the 16-slot .TLK).
 	ensure_city_for_path(ult_path)
@@ -436,6 +392,114 @@ static func extra_npcs_for_map(ult_path: String) -> Array:
 				out.append(item)
 				break
 	return out
+
+
+## Photo captions only — dialogue still uses the pack / TLK name.
+const CAPTION_SHORT := {
+	"moonglow/patric": {
+		"en_u4": "Patric",
+		"en_us": "Patric",
+		"ko": "패트릭",
+	},
+}
+
+
+static func spoken_name(npc_name: String, city_id: String) -> String:
+	var short := _caption_short(npc_name, city_id)
+	if not short.is_empty():
+		return short
+	if is_korean():
+		var spec := pack_spec(npc_name, city_id)
+		var ko: Variant = spec.get("ko", {})
+		if typeof(ko) == TYPE_DICTIONARY:
+			var kn := str((ko as Dictionary).get("name", "")).strip_edges()
+			if not kn.is_empty():
+				return kn
+	return _first_name_line(npc_name)
+
+
+static func _caption_short(npc_name: String, city_id: String) -> String:
+	var city := city_id.strip_edges().to_lower()
+	var slug := _first_name_line(npc_name).to_lower()
+	var first := ""
+	for i in slug.length():
+		var ch := slug.unicode_at(i)
+		var is_alnum := (ch >= 48 and ch <= 57) or (ch >= 97 and ch <= 122)
+		if is_alnum:
+			first += String.chr(ch)
+		elif not first.is_empty():
+			break
+	if first.is_empty():
+		return ""
+	var key := "%s/%s" % [city, first]
+	if not CAPTION_SHORT.has(key):
+		return ""
+	var pack: Dictionary = CAPTION_SHORT[key]
+	if is_korean():
+		return str(pack.get("ko", ""))
+	if _lang() == "en_u4":
+		return str(pack.get("en_u4", pack.get("en_us", "")))
+	return str(pack.get("en_us", pack.get("en_u4", "")))
+
+
+static func role_caption(look_en: String, npc_name: String, city_id: String) -> String:
+	if is_korean():
+		var spec := pack_spec(npc_name, city_id)
+		var ko: Variant = spec.get("ko", {})
+		var look_ko := ""
+		if typeof(ko) == TYPE_DICTIONARY:
+			look_ko = str((ko as Dictionary).get("look", ""))
+		if look_ko.is_empty():
+			look_ko = _lookup_line(look_en)
+		if not look_ko.is_empty() and look_ko != look_en:
+			var noun := _look_ko_to_noun(look_ko)
+			var last := _last_token(noun)
+			if not last.is_empty():
+				return last
+	var en := _look_en_to_noun(look_en)
+	if en.is_empty():
+		en = _look_en_to_noun(npc_name)
+	return _title_en(en)
+
+
+static func _first_name_line(npc_name: String) -> String:
+	var s := npc_name.replace("\r", " ").replace("\n", " ").strip_edges()
+	if s.is_empty():
+		return s
+	var comma := s.find(",")
+	if comma > 0:
+		s = s.substr(0, comma).strip_edges()
+	return s
+
+
+static func _look_en_to_noun(look: String) -> String:
+	var s := look.replace("\n", " ").replace("\r", " ").strip_edges().to_lower()
+	if s.begins_with("a "):
+		s = s.substr(2)
+	elif s.begins_with("an "):
+		s = s.substr(3)
+	elif s.begins_with("the "):
+		s = s.substr(4)
+	while not s.is_empty() and s.unicode_at(s.length() - 1) in [ord("."), ord("!"), ord("?"), ord(",")]:
+		s = s.substr(0, s.length() - 1).strip_edges()
+	return _last_token(s)
+
+
+static func _last_token(phrase: String) -> String:
+	var s := phrase.strip_edges()
+	if s.is_empty():
+		return s
+	var parts := s.split(" ", false)
+	if parts.is_empty():
+		return s
+	return str(parts[parts.size() - 1]).strip_edges()
+
+
+static func _title_en(word: String) -> String:
+	var s := word.strip_edges()
+	if s.is_empty():
+		return s
+	return s.substr(0, 1).to_upper() + s.substr(1)
 
 
 static func pack_spec(npc_name: String, city_id: String) -> Dictionary:

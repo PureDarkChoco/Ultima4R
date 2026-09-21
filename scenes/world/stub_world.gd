@@ -49,6 +49,8 @@ const _ShrineMantras := preload("res://src/core/shrine.gd")
 const _CodexChamber := preload("res://src/core/codex_chamber.gd")
 const _CodexChamberOverlay := preload("res://src/ui/codex_chamber_overlay.gd")
 const _LocateMapOverlay := preload("res://src/ui/locate_map_overlay.gd")
+const _TalkOverlay := preload("res://src/ui/talk_overlay.gd")
+const _TalkPortraits := preload("res://src/core/talk_portraits.gd")
 const _ResImage := preload("res://src/core/res_image.gd")
 
 @onready var _top_bar: Control = %TopBar
@@ -69,6 +71,8 @@ var _compact_party_n := -1
 
 var _peer_overlay: PeerGemOverlay
 var _locate_map_overlay: LocateMapOverlay
+var _talk_overlay # TalkOverlay — preload instance
+## Keyboard-started talks keep the type-in row; gamepad talks hide it.
 var _focus_ring: Control
 var _focus_kind := ""
 var _ztats_panel: ZtatsPanel
@@ -442,9 +446,10 @@ var _journal_opened_left_only := false
 var _city_warp_cursor := 0
 var _city_warp_scroll := 0
 var _city_warp_items: Array[Dictionary] = []
-## Gamepad-started conversations reuse the command palette chrome for keywords.
+## Gamepad-started conversations hide the type-in row; keywords always show.
 ## Each item stores a stable dedupe key plus the displayed/submitted word.
 var _talk_gamepad_requested := false
+var _talk_from_keyboard := false
 var _talk_keyword_menu_active := false
 var _talk_keyword_menu_cursor := 0
 var _talk_keyword_menu_scroll := 0
@@ -518,6 +523,7 @@ func _ready() -> void:
 	_ensure_msg_terminal()
 	_ensure_peer_overlay()
 	_ensure_locate_map_overlay()
+	_ensure_talk_overlay()
 	_ensure_codex_overlay()
 	_ensure_ztats_panel()
 	_ensure_save_panel()
@@ -1064,6 +1070,7 @@ func _fit_map_tiles_and_sides() -> void:
 	_layout_side_panels(false)
 	_layout_locate_hud()
 	_layout_ship_hull_hud()
+	_layout_talk_overlay()
 	_refresh_message_view()
 
 
@@ -1141,6 +1148,9 @@ func _panel_focus_kind() -> String:
 	):
 		return "top"
 	if _talk_stage != 0 and _right_bottom != null and _right_bottom.visible:
+		## Overlay talk already has its own chrome; keep the old strip un-ringed.
+		if _talk_overlay_owns_script():
+			return ""
 		return "bottom"
 	return ""
 
@@ -1997,7 +2007,29 @@ func _make_talk_ime_edit() -> LineEdit:
 	edit.add_theme_constant_override("minimum_character_width", 0)
 	edit.text_changed.connect(_on_talk_ime_text_changed)
 	edit.text_submitted.connect(_on_talk_ime_text_submitted)
+	edit.gui_input.connect(_on_talk_ime_gui_input)
 	return edit
+
+
+func _on_talk_ime_gui_input(event: InputEvent) -> void:
+	## Empty type-in: left/right move keyword chips instead of the caret.
+	if not _talk_overlay_typein_active():
+		return
+	if not event.is_pressed() or event.is_echo():
+		return
+	if not _talk_typed_draft().is_empty():
+		return
+	if not (event is InputEventKey):
+		return
+	var key_event := event as InputEventKey
+	if (
+		key_event.keycode == KEY_LEFT or key_event.physical_keycode == KEY_LEFT
+		or key_event.keycode == KEY_RIGHT or key_event.physical_keycode == KEY_RIGHT
+		or key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
+		or key_event.keycode == KEY_DOWN or key_event.physical_keycode == KEY_DOWN
+	):
+		## Tick owns arrows; only swallow caret motion here.
+		accept_event()
 
 
 func _apply_msg_geometry() -> void:
@@ -2132,6 +2164,9 @@ func _prompt_row_text() -> String:
 	if _combat_aiming:
 		return Locale.t("cmd_attack_aim")
 	## Talk: xu4 has no CHARSET_PROMPT on dialogue input — only the live cursor.
+	## Overlay type-in lives next to the avatar, so the strip stays empty.
+	if _talk_overlay_typein_active():
+		return ""
 	if _talk_stage == 1:
 		return (
 			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
@@ -2203,7 +2238,12 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		return
 	if font_sz < 0:
 		font_sz = clampi(int(floorf(_msg_pitch)) - 2, 10, MSG_FONT_SIZE)
-	if _binary_prompt_active():
+	if _talk_overlay_choice_active():
+		if _enter_btn_row != null:
+			_enter_btn_row.visible = false
+		if _count_choice_row != null:
+			_count_choice_row.visible = false
+	elif _binary_prompt_active():
 		_layout_enter_prompt_row(font_sz)
 		return
 	if _enter_btn_row != null:
@@ -2245,19 +2285,30 @@ func _layout_prompt_row(font_sz: int = -1) -> void:
 		x += text_w
 	else:
 		_msg_prompt_label.visible = false
-	var ime_active := _talk_ime_stage_active()
+	var overlay_owns := _talk_overlay_owns_script()
+	var overlay_typein := _talk_overlay_typein_active()
+	var overlay_ime := overlay_typein and _talk_ime_stage_active()
+	var ime_active := _talk_ime_stage_active() and not overlay_ime
 	if _talk_edit != null:
-		_talk_edit.visible = ime_active
+		if overlay_ime:
+			pass
+		else:
+			_talk_edit.visible = ime_active
 		if ime_active:
 			_talk_edit.add_theme_font_size_override("font_size", font_sz)
 			_talk_edit.position = Vector2(x, 0.0)
 			_talk_edit.size = Vector2(maxf(_msg_prompt_row.size.x - x, 8.0), _msg_pitch)
 			_talk_edit.custom_minimum_size = Vector2.ZERO
 			_sync_talk_ime_edit()
+		elif overlay_ime:
+			pass
 		elif _talk_edit.has_focus():
 			_talk_edit.release_focus()
+	if overlay_owns:
+		_sync_talk_overlay_input()
 	if _msg_cursor:
-		_msg_cursor.visible = not ime_active
+		_msg_cursor.visible = not ime_active and not overlay_owns
+		_sync_talk_overlay_spin_cursor()
 		## Charset @ sits inset in the 16×16 cell; scale slightly past font_sz.
 		var cside := float(font_sz) * 1.2
 		cside = minf(cside, _msg_pitch) if _msg_pitch > 0.0 else cside
@@ -2339,6 +2390,8 @@ func _set_enter_prompt_choice(index: int) -> void:
 	_enter_prompt_choice = clampi(index, 0, n - 1)
 	if _count_choice_row != null and _talk_stage == TALK_STAGE_COUNT:
 		_count_choice_row.set_selected(_enter_prompt_choice)
+	if _talk_overlay != null and _talk_overlay_choice_active():
+		_talk_overlay.set_cursor(_enter_prompt_choice)
 	_sync_enter_prompt_style()
 
 
@@ -2367,11 +2420,31 @@ func _shop_choice_keys() -> String:
 	return ""
 
 
+func _talk_overlay_choice_active() -> bool:
+	return (
+		_talk_overlay_owns_script()
+		and _talk_stage in [3, 13, TALK_STAGE_COUNT]
+	)
+
+
+func _talk_overlay_choice_labels() -> Array:
+	var out: Array = []
+	if _talk_stage == TALK_STAGE_COUNT:
+		for i in 8:
+			out.append(_talk_count_label(i + 1))
+		return out
+	out.append(Locale.t("cmd_yes"))
+	out.append(Locale.t("cmd_no"))
+	return out
+
+
 func _talk_gamepad_yes_no_active() -> bool:
-	## NPC follow-up Y/N (gamepad keyword talks) + Lord British "Art thou well?".
+	## NPC follow-up Y/N + Lord British "Art thou well?".
 	if _talk_stage == 13:
 		return true
-	return _talk_keyword_menu_active and _talk_stage == 3
+	if _talk_stage != 3:
+		return false
+	return _talk_overlay_choice_active() or _talk_keyword_menu_active
 
 
 func _prompt_choice_keys() -> String:
@@ -2384,7 +2457,9 @@ func _prompt_choice_keys() -> String:
 	if _enter_prompt_stage == 1:
 		return "yn"
 	if _talk_stage == TALK_STAGE_COUNT:
-		return "12345678" if _talk_count_return_to_menu else ""
+		if _talk_overlay_choice_active() or _talk_count_return_to_menu:
+			return "12345678"
+		return ""
 	if _talk_gamepad_yes_no_active():
 		return "yn"
 	return _shop_choice_keys()
@@ -2744,6 +2819,7 @@ func _layout_side_panels(animate: bool) -> void:
 	_layout_ship_hull_hud()
 	_sync_aura_hud_pos()
 	_layout_codex_overlay()
+	_layout_talk_overlay()
 
 
 func _sync_aura_hud_pos() -> void:
@@ -2787,6 +2863,7 @@ func _on_sides_closed() -> void:
 			_msg_h = floorf(_side_geom()["bottom_closed_h"])
 		_apply_msg_geometry()
 		_refresh_message_view()
+		_layout_talk_overlay()
 
 
 func _on_sides_opened() -> void:
@@ -2795,6 +2872,7 @@ func _on_sides_opened() -> void:
 	_msg_h = _msg_full_h
 	_apply_msg_geometry()
 	_refresh_message_view()
+	_layout_talk_overlay()
 	if _journal_focus_active and _journal_panel != null and _journal_panel.has_method("recenter_selection"):
 		_journal_panel.recenter_selection()
 
@@ -2873,6 +2951,7 @@ func _toggle_left_panel_during_talk() -> void:
 			_msg_h = _msg_full_h
 			_apply_msg_geometry()
 			_refresh_message_view()
+	_layout_talk_overlay()
 
 
 func _animate_left_panel_only(open: bool, restore_compact: bool = false) -> void:
@@ -3625,10 +3704,10 @@ func _tick_dialogue_choice_nav(delta: float) -> void:
 	var step_y := 0
 	var vertical := false
 	if _talk_keyword_menu_can_select():
+		step_x = _GameInput.read_select_step_x()
 		step_y = _read_select_step()
-		vertical = true
 		if _talk_keyword_menu_await_neutral:
-			if step_y == 0:
+			if step_x == 0 and step_y == 0:
 				_talk_keyword_menu_await_neutral = false
 			else:
 				_reset_hold_state()
@@ -3651,15 +3730,15 @@ func _tick_dialogue_choice_nav(delta: float) -> void:
 	var nav := _menu_hold_repeat.poll(delta, held)
 	if nav == Vector2i.ZERO:
 		return
-	if vertical:
+	if _talk_keyword_menu_can_select() and (nav.x != 0 or nav.y != 0):
+		_nudge_talk_keyword_menu_cursor(nav.x, nav.y)
+	elif vertical:
 		var step := nav.y
-		if _talk_keyword_menu_can_select():
-			_move_talk_keyword_menu_cursor(step)
-		elif not _shop_item_menu_items.is_empty():
+		if not _shop_item_menu_items.is_empty():
 			_move_shop_item_menu_cursor(step)
 		elif _ztats_panel != null:
 			_ztats_panel.shop_pick_nudge(step)
-	else:
+	elif nav.x != 0:
 		_set_enter_prompt_choice(_enter_prompt_choice + nav.x)
 
 
@@ -4517,8 +4596,7 @@ func _toggle_talk_pad_select_ui() -> bool:
 	if not _talk_can_toggle_pad_select_ui():
 		return false
 	if _talk_keyword_menu_active:
-		_end_talk_keyword_menu()
-		_layout_prompt_row()
+		## Overlay keeps keywords visible for the whole conversation.
 		return true
 	if _talk_stage == 10 and _shop != null and bool(_shop.is_tavern_topic_prompt()):
 		_sync_tavern_topic_keyword_menu()
@@ -4531,9 +4609,10 @@ func _toggle_talk_pad_select_ui() -> bool:
 
 
 func _begin_talk_keyword_menu_if_requested() -> void:
-	if not _talk_gamepad_requested:
-		return
+	## Overlay always lists keywords. The gamepad flag only hides the type-in row.
 	_talk_gamepad_requested = false
+	if _talk_keyword_menu_active:
+		return
 	_talk_keyword_menu_active = true
 	if _talk_reagent_pick:
 		_show_talk_reagent_keyword_menu()
@@ -5100,17 +5179,14 @@ func _sync_tavern_topic_keyword_menu() -> void:
 func _sync_talk_keyword_menu_visibility() -> void:
 	if _talk_stage == TALK_STAGE_COUNT:
 		_hide_command_menu_layer(false)
+		_refresh_talk_overlay()
 		return
-	if not _talk_keyword_menu_active:
-		return
-	_ensure_command_menu_layer()
-	if _command_menu_layer == null:
-		return
-	var show := _talk_keyword_menu_can_select()
-	if show:
-		_show_command_menu_layer(true)
-	else:
+	if _talk_keyword_menu_active:
+		## Keywords live on the map overlay, not the command-palette chrome.
 		_hide_command_menu_layer(true)
+		_refresh_talk_overlay()
+		return
+	_refresh_talk_overlay()
 
 
 func _discover_talk_keywords(text: String) -> void:
@@ -7306,19 +7382,102 @@ func _clear_talk_typed_draft() -> void:
 	_layout_prompt_row()
 
 
+func _talk_keyword_visual_indices() -> Array[int]:
+	## Overlay paints builtins on the first row and discoveries below. Move
+	## left/right in that visual order, not the insert-before-Health array order.
+	var defaults := _talk_overlay_default_keys()
+	var head: Array[int] = []
+	var tail: Array[int] = []
+	for i in _talk_keyword_menu_items.size():
+		var key := str(_talk_keyword_menu_items[i].get("key", ""))
+		if defaults.has(key) or defaults.has(key.to_lower()):
+			head.append(i)
+		else:
+			tail.append(i)
+	head.append_array(tail)
+	return head
+
+
+func _talk_keyword_row_map() -> Array:
+	if _talk_overlay != null and _talk_overlay.is_open():
+		var painted: Array = _talk_overlay.keyword_rows()
+		if not painted.is_empty():
+			return painted
+	var defaults := _talk_overlay_default_keys()
+	var head: Array = []
+	var tail: Array = []
+	for i in _talk_keyword_menu_items.size():
+		var key := str(_talk_keyword_menu_items[i].get("key", ""))
+		if defaults.has(key) or defaults.has(key.to_lower()):
+			head.append(i)
+		else:
+			tail.append(i)
+	var rows: Array = []
+	if not head.is_empty():
+		rows.append(head)
+	if not tail.is_empty():
+		rows.append(tail)
+	return rows
+
+
+func _talk_keyword_nearest_in_row(row: Array, from_index: int) -> int:
+	if row.is_empty():
+		return from_index
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		var col := row.find(from_index)
+		return int(row[clampi(col if col >= 0 else 0, 0, row.size() - 1)])
+	var from_x: float = _talk_overlay.chip_center_x(from_index)
+	var best := int(row[0])
+	var best_d := 1.0e9
+	for raw in row:
+		var idx := int(raw)
+		var d := absf(_talk_overlay.chip_center_x(idx) - from_x)
+		if d < best_d:
+			best_d = d
+			best = idx
+	return best
+
+
 func _move_talk_keyword_menu_cursor(step: int) -> void:
-	if _talk_keyword_menu_items.is_empty() or step == 0:
+	_nudge_talk_keyword_menu_cursor(step, 0)
+
+
+func _nudge_talk_keyword_menu_cursor(dx: int, dy: int) -> void:
+	if _talk_keyword_menu_items.is_empty() or (dx == 0 and dy == 0):
 		return
 	## Navigating the list abandons typed draft; Enter then picks the row again.
 	if not _talk_typed_draft().is_empty():
 		_clear_talk_typed_draft()
-	_talk_keyword_menu_cursor = posmod(
-		_talk_keyword_menu_cursor + step,
-		_talk_keyword_menu_items.size()
-	)
+	if dy != 0:
+		var rows := _talk_keyword_row_map()
+		if rows.size() >= 2:
+			var row_i := 0
+			var found := false
+			for r in rows.size():
+				if (rows[r] as Array).find(_talk_keyword_menu_cursor) >= 0:
+					row_i = r
+					found = true
+					break
+			if not found:
+				row_i = 0
+			var next_row: Array = rows[posmod(row_i + dy, rows.size())]
+			_talk_keyword_menu_cursor = _talk_keyword_nearest_in_row(
+				next_row, _talk_keyword_menu_cursor
+			)
+			_sync_talk_keyword_menu_scroll()
+			_refresh_talk_overlay_cursor()
+			return
+	if dx == 0:
+		return
+	var order := _talk_keyword_visual_indices()
+	if order.is_empty():
+		return
+	var pos := order.find(_talk_keyword_menu_cursor)
+	if pos < 0:
+		pos = 0
+	_talk_keyword_menu_cursor = order[posmod(pos + dx, order.size())]
 	_sync_talk_keyword_menu_scroll()
-	_rebuild_command_menu_rows()
-	_layout_command_menu_layer()
+	_refresh_talk_overlay_cursor()
 
 
 func _choose_talk_keyword_menu_item() -> void:
@@ -7353,21 +7512,25 @@ func _choose_talk_keyword_menu_item() -> void:
 				selected_index = i
 				break
 		if selected_index >= 0:
-			var next_index := mini(
-				selected_index + 1,
-				_talk_keyword_menu_items.size() - 1
-			)
-			## Donate remains selectable manually, but automatic progression
-			## skips it and lands directly on Bye.
-			if (
-				next_index < _talk_keyword_menu_items.size() - 1
-				and str(_talk_keyword_menu_items[next_index].get("key", "")) == "give"
-			):
-				next_index += 1
+			var order := _talk_keyword_visual_indices()
+			var pos := order.find(selected_index)
+			var next_index := selected_index
+			if pos >= 0 and pos + 1 < order.size():
+				## Give / Bye stay selectable by hand, but auto-advance skips
+				## them so Health continues into discoveries.
+				var i := pos + 1
+				while i < order.size():
+					var skip_key := str(
+						_talk_keyword_menu_items[order[i]].get("key", "")
+					)
+					if skip_key in ["give", "bye"] and i + 1 < order.size():
+						i += 1
+						continue
+					break
+				next_index = order[i]
 			_talk_keyword_menu_cursor = next_index
 			_sync_talk_keyword_menu_scroll()
-			_rebuild_command_menu_rows()
-			_layout_command_menu_layer()
+			_refresh_talk_overlay()
 
 
 func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
@@ -7381,18 +7544,23 @@ func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
 		if (
-			key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
+			key_event.keycode == KEY_LEFT or key_event.physical_keycode == KEY_LEFT
+			or key_event.keycode == KEY_RIGHT or key_event.physical_keycode == KEY_RIGHT
+			or key_event.keycode == KEY_UP or key_event.physical_keycode == KEY_UP
 			or key_event.keycode == KEY_DOWN or key_event.physical_keycode == KEY_DOWN
 		):
-			return true
+			## Empty type-in: arrows move the chip. Typed text keeps caret motion.
+			if _talk_typed_draft().is_empty():
+				return true
+			return false
 		var key_dir := _GameInput.dir_from_event(key_event)
-		if key_dir.y != 0:
+		if key_dir != Vector2i.ZERO and _talk_typed_draft().is_empty():
 			return true
 		if not key_event.echo and (
 			_is_talk_enter(key_event)
 			or key_event.is_action_pressed("confirm")
 		):
-			## Typed keyword + Enter submits the draft; empty Enter picks the row.
+			## Typed keyword + Enter submits the draft; empty Enter picks the chip.
 			if not _talk_typed_draft().is_empty():
 				return false
 			_choose_talk_keyword_menu_item()
@@ -7401,11 +7569,15 @@ func _handle_talk_keyword_menu_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton:
 		if event.is_echo():
 			return false
-		if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		if (
+			_GameInput.is_select(event)
+			or event.is_action_pressed("confirm")
+			or (event as InputEventJoypadButton).button_index == JOY_BUTTON_X
+		):
 			_choose_talk_keyword_menu_item()
 			return true
 		var pad_dir := _GameInput.dir_from_event(event)
-		if pad_dir.y != 0:
+		if pad_dir != Vector2i.ZERO:
 			return true
 	return false
 
@@ -7707,9 +7879,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _binary_prompt_active() and _enter_prompt_stage != 1:
 			if _handle_enter_prompt_input(event):
 				_mark_input_handled()
-			elif event.is_pressed():
-				_mark_input_handled()
-			return
+				return
+			if not _talk_overlay_typein_active():
+				if event.is_pressed():
+					_mark_input_handled()
+				return
+			## Overlay Y/N / count: unused keys fall through to type-in.
 		if _handle_shop_number_input(event):
 			_mark_input_handled()
 			return
@@ -8158,6 +8333,280 @@ func _handle_command(cmd: int) -> void:
 	else:
 		_push_message(Locale.t("cmd_stub", [letter, name]))
 		_finish_party_turn()
+
+
+func _ensure_talk_overlay() -> void:
+	if _map_pane == null:
+		return
+	if _talk_overlay != null and is_instance_valid(_talk_overlay):
+		return
+	_talk_overlay = _TalkOverlay.new()
+	if _talk_overlay == null:
+		push_error("TalkOverlay failed to instantiate")
+		return
+	_talk_overlay.name = "TalkOverlay"
+	_map_pane.add_child(_talk_overlay)
+	if _map != null:
+		_map_pane.move_child(_talk_overlay, _map.get_index() + 1)
+	_talk_overlay.keyword_clicked.connect(_on_talk_overlay_keyword_clicked)
+
+
+func _talk_overlay_owns_script() -> bool:
+	return (
+		_talk_overlay != null
+		and _talk_overlay.is_open()
+		and _talk_stage != 0
+		and _talk_stage != 10
+	)
+
+
+func _talk_overlay_typein_active() -> bool:
+	if not _talk_overlay_owns_script():
+		return false
+	return _talk_stage in [1, 3, 4, 11, 12, 13, TALK_STAGE_COUNT]
+
+
+func _is_talk_interest_prompt(text: String) -> bool:
+	var t := text.strip_edges().trim_suffix(":").strip_edges().to_lower()
+	t = t.trim_suffix("?").strip_edges()
+	return (
+		t == "your interest"
+		or t == "관심사"
+		or t == "what else"
+		or t == "또 무엇이오"
+	)
+
+
+func _open_talk_overlay() -> void:
+	_ensure_talk_overlay()
+	if _talk_overlay == null:
+		return
+	_TalkPortraits.reload()
+	_talk_overlay.open()
+	_talk_overlay.set_placeholder(Locale.t("talk_type_keyword"))
+	_talk_overlay.set_portraits(_talk_npc_portrait(), _talk_avatar_portrait())
+	_talk_overlay.set_npc_caption(_talk_overlay_caption())
+	_layout_talk_overlay()
+	_refresh_talk_overlay()
+	_sync_talk_overlay_input()
+	_sync_panel_focus_border()
+
+
+func _close_talk_overlay() -> void:
+	_talk_from_keyboard = false
+	if _talk_overlay == null:
+		return
+	_restore_talk_ime_edit_to_prompt()
+	_talk_overlay.set_spin_cursor(null, false)
+	_talk_overlay.close()
+	_sync_panel_focus_border()
+
+
+func _talk_npc_portrait() -> Texture2D:
+	if _talk_is_lb:
+		return _TalkPortraits.npc_texture("lcb", "Lord British")
+	if _talk_is_hawkwind:
+		return _TalkPortraits.npc_texture("lcb", "Hawkwind")
+	if _talk_entry == null:
+		return null
+	var slot := -1
+	if _city_map != null and _talk_person_i >= 0 and _talk_person_i < _city_map.person_file_slot.size():
+		slot = int(_city_map.person_file_slot[_talk_person_i])
+	return _TalkPortraits.npc_texture(
+		_talk_city_id(),
+		str(_talk_entry.name),
+		_talk_discourse_index(),
+		str(_talk_entry.topic2),
+		slot
+	)
+
+
+func _talk_avatar_portrait() -> Texture2D:
+	return _TalkPortraits.avatar_texture(GameState.avatar_class(), GameState.player_sex)
+
+
+func _talk_name_is_remembered() -> bool:
+	if _talk_is_lb or _talk_is_hawkwind:
+		return true
+	if _talk_entry == null or not _TalkTlk.has_personal_name(_talk_entry):
+		return false
+	return (
+		GameState.talk_knows_npc_name(_talk_memory_npc_id())
+		or GameState.talk_knows_npc_name(_talk_memory_legacy_npc_id())
+	)
+
+
+func _talk_remember_spoken_name() -> void:
+	if _talk_entry == null or not _TalkTlk.has_personal_name(_talk_entry):
+		return
+	GameState.talk_remember_npc_name(_talk_memory_npc_id())
+	GameState.talk_remember_npc_name(_talk_memory_legacy_npc_id())
+	if _talk_overlay != null and _talk_overlay.is_open():
+		_talk_overlay.set_npc_caption(_talk_overlay_caption())
+
+
+func _talk_overlay_caption() -> String:
+	if _talk_is_lb:
+		return Locale.t("talk_name_lord_british")
+	if _talk_is_hawkwind:
+		return Locale.t("talk_name_hawkwind")
+	if _talk_entry == null:
+		return ""
+	var city := _talk_city_id()
+	if _talk_name_is_remembered() or _talk_npc_gave_name:
+		if _TalkTlk.has_personal_name(_talk_entry):
+			return _TalkLocale.spoken_name(str(_talk_entry.name), city)
+	return _TalkLocale.role_caption(str(_talk_entry.look), str(_talk_entry.name), city)
+
+
+func _talk_overlay_default_keys() -> Dictionary:
+	var keys := {}
+	if _talk_reagent_pick or _talk_dungeon_pick:
+		for item in _talk_keyword_menu_items:
+			keys[str(item.get("key", ""))] = true
+		return keys
+	if _talk_is_hawkwind:
+		## Eight virtues + bye do not fit the single default row.
+		return keys
+	if _talk_is_lb:
+		for item in _lord_british_keyword_menu_items():
+			keys[str(item.get("key", ""))] = true
+		return keys
+	for key in ["look", "name", "job", "heal", "give", "bye"]:
+		keys[key] = true
+	return keys
+
+
+func _begin_talk_overlay_reply() -> void:
+	## New keyword question: wipe the last answer. Follow-up lines append.
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	_talk_overlay.clear_dialogue()
+
+
+func _refresh_talk_overlay() -> void:
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	_talk_overlay.set_portraits(_talk_npc_portrait(), _talk_avatar_portrait())
+	_talk_overlay.set_npc_caption(_talk_overlay_caption())
+	_layout_talk_overlay()
+	if _talk_overlay_choice_active():
+		_talk_overlay.set_player_lead(Locale.t("talk_you_say"))
+		_talk_overlay.set_choices(_talk_overlay_choice_labels(), _enter_prompt_choice)
+	elif _talk_keyword_menu_can_select():
+		_talk_overlay.set_player_lead("")
+		_talk_overlay.set_keywords(
+			_talk_keyword_menu_items,
+			_talk_keyword_menu_cursor,
+			_talk_overlay_default_keys()
+		)
+	else:
+		_talk_overlay.set_player_lead("")
+		_talk_overlay.set_keywords([], 0, {})
+	_sync_talk_overlay_input()
+
+
+func _refresh_talk_overlay_cursor() -> void:
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	_talk_overlay.set_cursor(_talk_keyword_menu_cursor)
+
+
+func _layout_talk_overlay() -> void:
+	if _talk_overlay == null or _map_pane == null:
+		return
+	var g := _side_geom()
+	## 11-tile map field, then a centered 9-tile talk column. Tab must not drag it.
+	var field_left := float(g["left_w"])
+	var field_right := float(g["right_open_x"])
+	var field_w := maxf(field_right - field_left, 80.0)
+	var tile_w := field_w / float(MapView.VIEW_H)
+	var use_w := tile_w * 9.0
+	var left := field_left + (field_w - use_w) * 0.5
+	var pad := 24.0
+	var area := Rect2(
+		Vector2(left, pad),
+		Vector2(use_w, maxf(float(g["pane_h"]) - pad * 2.0, 80.0))
+	)
+	_talk_overlay.set_safe_rect(area)
+
+
+func _sync_talk_overlay_spin_cursor() -> void:
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	var tex: Texture2D = null
+	if not _cursor_frames.is_empty():
+		tex = _cursor_frames[_cursor_frame]
+	var show := _talk_overlay_owns_script() and not _talk_ime_stage_active()
+	_talk_overlay.set_spin_cursor(tex, show)
+
+
+func _sync_talk_overlay_input() -> void:
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	_sync_talk_overlay_spin_cursor()
+	var show := _talk_overlay_typein_active()
+	if _talk_stage == 4:
+		_talk_overlay.set_placeholder(Locale.t("talk_type_gold"))
+	else:
+		_talk_overlay.set_placeholder(Locale.t("talk_type_keyword"))
+	_talk_overlay.set_input_visible(show)
+	if show:
+		if _talk_stage == 4:
+			_talk_overlay.set_mode_marker("")
+		else:
+			_talk_overlay.set_mode_marker(_talk_input_mode_marker())
+	else:
+		_talk_overlay.set_mode_marker("")
+		_restore_talk_ime_edit_to_prompt()
+		return
+	if _talk_ime_stage_active():
+		_ensure_msg_terminal()
+		if _talk_edit != null:
+			_talk_overlay.attach_input_edit(_talk_edit)
+			if not _talk_edit.has_focus():
+				_talk_edit.grab_focus()
+			_sync_talk_ime_edit()
+		return
+	_restore_talk_ime_edit_to_prompt()
+	var typed := (
+		_talk_buffer + _talk_hangul_preedit
+		if _talk_native_hangul_active()
+		else _talk_buffer
+	)
+	_talk_overlay.set_input_text(typed)
+	_sync_talk_overlay_spin_cursor()
+
+
+func _restore_talk_ime_edit_to_prompt() -> void:
+	if _talk_overlay != null:
+		_talk_overlay.release_input_edit()
+	if _talk_edit == null or not is_instance_valid(_talk_edit):
+		return
+	if _msg_prompt_row == null:
+		return
+	if _talk_edit.get_parent() == _msg_prompt_row:
+		return
+	var parent := _talk_edit.get_parent()
+	if parent != null:
+		parent.remove_child(_talk_edit)
+	_msg_prompt_row.add_child(_talk_edit)
+	_talk_edit.visible = false
+
+
+func _on_talk_overlay_keyword_clicked(index: int) -> void:
+	if _talk_overlay_choice_active():
+		_set_enter_prompt_choice(index)
+		_resolve_prompt_choice_index(index)
+		return
+	if not _talk_keyword_menu_can_select():
+		return
+	if index < 0 or index >= _talk_keyword_menu_items.size():
+		return
+	_talk_keyword_menu_cursor = index
+	_sync_talk_keyword_menu_scroll()
+	_refresh_talk_overlay_cursor()
+	_choose_talk_keyword_menu_item()
 
 
 func _ensure_peer_overlay() -> void:
@@ -13214,9 +13663,14 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 		if not ch.is_empty():
 			var idx := keys.find(ch)
 			if idx >= 0:
+				if _talk_overlay_typein_active():
+					## y/n / 1–8 are typed on the overlay, then submitted with Enter.
+					return false
 				_resolve_prompt_choice_index(idx)
 				return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
+		if _talk_overlay_typein_active() and not _talk_typed_draft().is_empty():
+			return false
 		_resolve_prompt_choice_index(_enter_prompt_choice)
 		return true
 	if _is_cancel_event(event):
@@ -13234,7 +13688,11 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 			_shop.on_escape()
 			_flush_shop_output()
 			return true
+		if _talk_overlay_typein_active():
+			return false
 		return true
+	if _talk_overlay_typein_active():
+		return false
 	return true
 
 
@@ -17084,7 +17542,9 @@ func _begin_lord_british_talk(person_i: int) -> void:
 	_talk_is_lb = true
 	_talk_keywords = _LordBritish.highlight_keywords()
 	_shop = null
+	_talk_from_keyboard = not _talk_gamepad_requested
 	_begin_talk_keyword_menu_if_requested()
+	_open_talk_overlay()
 	var revive := _LordBritish.revive_leader_if_dead()
 	if not revive.is_empty():
 		_push_talk_script(revive)
@@ -17143,9 +17603,12 @@ func _begin_hawkwind_talk(person_i: int) -> void:
 	_talk_is_lb = false
 	_talk_keywords = _Hawkwind.highlight_keywords()
 	_shop = null
+	_talk_from_keyboard = not _talk_gamepad_requested
 	_begin_talk_keyword_menu_if_requested()
+	_open_talk_overlay()
 	if not _Hawkwind.party_leader_can_speak():
 		_end_talk_keyword_menu()
+		_close_talk_overlay()
 		_talk_stage = 0
 		_push_talk_script(_Hawkwind.refuse_for_unconscious())
 		_talk_person_i = -1
@@ -17789,7 +18252,7 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 	_talk_ask_kind = 0
 	_talk_reagent_pick = false
 	_talk_dungeon_pick = false
-	_talk_npc_gave_name = false
+	_talk_npc_gave_name = _talk_name_is_remembered()
 	_talk_skara_ankh_om_ready = false
 	_talk_requirements_asked = false
 	_talk_keywords = entry.highlight_keywords(_talk_city_id())
@@ -17804,10 +18267,12 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 			str(entry.name),
 			_talk_city_id()
 		)
+	_talk_from_keyboard = not _talk_gamepad_requested
 	_begin_talk_keyword_menu_if_requested()
 	_city_map.pause_follow(person_i)
 	## Message + character panels (left inventory stays closed unless already Tab-open).
 	_open_talk_message_panel()
+	_open_talk_overlay()
 	## "You meet %s"
 	_push_talk_script("You meet %s" % str(entry.look))
 	if _maybe_complete_meet_journal_on_intro(entry):
@@ -17819,7 +18284,6 @@ func _begin_talk(person_i: int, entry: Variant) -> void:
 		_refresh_journal_panel()
 	if _talk_keyword_menu_active:
 		_talk_keyword_menu_apply_intro_default()
-		_layout_command_menu_layer()
 	_push_talk_script("Your Interest:")
 	_layout_prompt_row()
 	_sync_talk_ime_edit()
@@ -17908,6 +18372,7 @@ func _talk_say_name() -> void:
 	if e == null:
 		return
 	_talk_npc_gave_name = true
+	_talk_remember_spoken_name()
 	_push_talk_script("%s says: I am %s" % [str(e.pronoun), str(e.name)])
 	_offer_named_npc_journal_keywords()
 	_talk_keyword_menu_apply_intro_default()
@@ -17930,6 +18395,15 @@ func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
 	if match_keywords:
 		_remember_heard_requirement_words(flat)
 		_discover_talk_keywords(flat)
+	if _is_talk_interest_prompt(flat):
+		_refresh_talk_overlay()
+		return
+	if _talk_overlay_owns_script():
+		var keys: Array = _talk_keywords if match_keywords else []
+		var spoken := _TalkTlk.strip_speaker_lead(flat.replace("\n", " "))
+		_talk_overlay.append_dialogue(_TalkTlk.colorize_keywords(spoken, keys))
+		_refresh_talk_overlay()
+		return
 	## Ensure geometry before measuring wrap width (first line of a talk).
 	if _msg_rw < 8.0 or (_msg_block != null and _msg_block.size.x < 8.0):
 		if _map_pane != null:
@@ -18169,6 +18643,7 @@ func _talk_input_lord_british(k: InputEventKey) -> bool:
 		var match_input := _TalkLocale.normalize_interest(submitted)
 		_talk_buffer = ""
 		_layout_prompt_row()
+		_begin_talk_overlay_reply()
 		_push_talk_player_input(submitted)
 		var kind := _LordBritish.reply_kind(match_input)
 		if kind == "bye":
@@ -18285,6 +18760,7 @@ func _talk_input_hawkwind(k: InputEventKey) -> bool:
 		var match_input := _TalkLocale.normalize_interest(submitted)
 		_talk_buffer = ""
 		_layout_prompt_row()
+		_begin_talk_overlay_reply()
 		_push_talk_player_input(submitted)
 		var reply := _Hawkwind.reply_to_interest(match_input)
 		if reply.is_empty():
@@ -18402,7 +18878,9 @@ func _is_shop_sell_nudge_key(k: InputEventKey) -> bool:
 
 func _push_talk_player_input(typed: String) -> void:
 	## xu4: words typed after "Your Interest:" / "You say:" stay in the log.
-	## Plain history — no keyword gold, no classic modernization, no prompt glyph.
+	## Overlay talks keep spoken lines off the message strip.
+	if _talk_overlay_owns_script():
+		return
 	var s := typed.strip_edges()
 	if s.is_empty():
 		return
@@ -18418,6 +18896,7 @@ func _talk_input_interest(k: InputEventKey) -> bool:
 		var submitted := _talk_buffer.strip_edges()
 		_talk_buffer = ""
 		_layout_prompt_row()
+		_begin_talk_overlay_reply()
 		_push_talk_player_input(submitted)
 		_talk_process_keyword(submitted)
 		return true
@@ -19281,6 +19760,7 @@ func _talk_start_give() -> void:
 		_talk_stage = 4
 		_talk_buffer = ""
 		_GameInput.reset_stick_navigation()
+		_refresh_talk_overlay()
 		_layout_prompt_row()
 		return
 	if _talk_person_is_child():
@@ -19380,6 +19860,7 @@ func _end_talk(_aborted: bool) -> void:
 	if _talk_stage == 0:
 		return
 	_end_talk_keyword_menu()
+	_close_talk_overlay()
 	## Mark closed before farewell so Esc cannot re-enter or open the menu
 	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
 	var farewell := "Bye."
@@ -23122,10 +23603,16 @@ func _tick_cursor(delta: float) -> void:
 
 
 func _apply_cursor_frame() -> void:
-	if _msg_cursor == null or _cursor_frames.is_empty():
+	if _cursor_frames.is_empty():
 		return
-	_msg_cursor.texture = _cursor_frames[_cursor_frame]
-	_msg_cursor.visible = not _talk_ime_stage_active()
+	var tex := _cursor_frames[_cursor_frame]
+	if _msg_cursor != null:
+		_msg_cursor.texture = tex
+		if _talk_overlay_owns_script():
+			_msg_cursor.visible = false
+		else:
+			_msg_cursor.visible = not _talk_ime_stage_active()
+	_sync_talk_overlay_spin_cursor()
 
 
 func _refresh_message_view() -> void:

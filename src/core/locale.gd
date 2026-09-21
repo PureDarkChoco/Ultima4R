@@ -2241,6 +2241,31 @@ const _T := {
 		"en_us": "Not yet implemented.",
 		"ko": "아직 시전할 수 없다.",
 	},
+	"talk_type_keyword": {
+		"en_u4": "Type a word...",
+		"en_us": "Type a word...",
+		"ko": "단어를 입력...",
+	},
+	"talk_type_gold": {
+		"en_u4": "How much?",
+		"en_us": "How much?",
+		"ko": "얼마를?",
+	},
+	"talk_you_say": {
+		"en_u4": "You say:",
+		"en_us": "You say:",
+		"ko": "당신은 말한다:",
+	},
+	"talk_name_lord_british": {
+		"en_u4": "Lord British",
+		"en_us": "Lord British",
+		"ko": "로드 브리티시",
+	},
+	"talk_name_hawkwind": {
+		"en_u4": "Hawkwind",
+		"en_us": "Hawkwind",
+		"ko": "호크윈드",
+	},
 	"talk_learned_reagent_mix": {
 		"en_u4": "Thou hast learned a new reagent mixture.",
 		"en_us": "You have learned a new reagent mixture.",
