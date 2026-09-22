@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://fsscqmo2hvr5"
-path="res://.godot/imported/rune_spirituality.png-4d987ff5a406bd33de2cd7bd1f769136.ctex"
+path="res://.godot/imported/rune_spirituality.png-30a7225dc04658cdda53fe3984b44a54.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/ui/special_items/rune_spirituality.png"
-dest_files=["res://.godot/imported/rune_spirituality.png-4d987ff5a406bd33de2cd7bd1f769136.ctex"]
+dest_files=["res://.godot/imported/rune_spirituality.png-30a7225dc04658cdda53fe3984b44a54.ctex"]
 
 [params]
 

@@ -2,6 +2,23 @@
 .godot/
 /android/
 /build/
+/dist/
+
+# macOS / editor junk
+.DS_Store
+**/.DS_Store
+Library/
+
+# Local scratch / dumps (never commit)
+.tmp_*/
+MEMDUMP.*
+tools/__pycache__/
+tools/ko_tlk_extract/
+tools/_tmp_*
+tools/_present_zone.png*
+tools/_title_*.png*
+tools/_top_band.png*
+assets/portraits/companions copy/
 
 # Ultima IV original data (symlink or copy — never commit)
 /data/u4

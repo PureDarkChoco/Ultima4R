@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://da824xfu6ye0t"
-path="res://.godot/imported/rune_honor.png-beb606f02f537c151ba1cc2e24c16e62.ctex"
+path="res://.godot/imported/rune_honor.png-0a01591eb54cc688bb60b8e127a34b25.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://assets/ui/special_items/rune_honor.png"
-dest_files=["res://.godot/imported/rune_honor.png-beb606f02f537c151ba1cc2e24c16e62.ctex"]
+dest_files=["res://.godot/imported/rune_honor.png-0a01591eb54cc688bb60b8e127a34b25.ctex"]
 
 [params]
 
