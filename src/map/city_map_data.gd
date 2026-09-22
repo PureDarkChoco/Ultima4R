@@ -800,9 +800,10 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 			person_move[i] = MOVE_FOLLOW
 			return false
 		MOVE_WANDER:
+			## Shopkeeper only: hold when the party faces them (not patrons).
+			if _shopkeeper_holds_for_avatar(i, avatar):
+				return false
 			## Town: 50% stay put (world map always moves — not used here).
-			## Do not apply shop-counter hold — letter signs (SPIRITS/FOOD) sit
-			## beside patrons who must still wander.
 			if (randi() % 2) != 0:
 				return false
 		MOVE_FOLLOW:
@@ -850,21 +851,33 @@ func _move_one(i: int, avatar: Vector2i) -> bool:
 
 
 func _shopkeeper_holds_for_avatar(i: int, avatar: Vector2i) -> bool:
-	## Hold on the counter facing cell (through a letter), or adjacent to an
-	## open-floor shop NPC (healer / inn). Standing beside a counter does not
-	## freeze — and letter-adjacent townsfolk are not shop NPCs.
-	return _is_shop_npc(i) and _shop_talk_reach(i, avatar)
+	## Tagged vendors / LB / Hawkwind only. Hold solely on the facing cell:
+	## across a letter counter ("A | shop"), or adjacent for open-floor shops
+	## (healer / inn). Standing beside them does not freeze; regular townsfolk
+	## never hold for this reason.
+	if not is_shop_like_at(i):
+		return false
+	return _shop_facing_reach(i, avatar)
 
 
-func _is_shop_npc(i: int) -> bool:
-	## maps.b vendors / LB / Hawkwind, or standing on a letter counter tile.
-	## Merely standing beside SPIRITS/FOOD letters does not count (patrons).
+func _shop_facing_reach(i: int, avatar: Vector2i) -> bool:
 	if i < 0 or i >= persons.size():
 		return false
-	if is_shop_like_at(i):
-		return true
 	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
-	return _TileRules.can_talk_over(effective_tile_at(pos.x, pos.y))
+	var dx := pos.x - avatar.x
+	var dy := pos.y - avatar.y
+	if dx != 0 and dy != 0:
+		return false
+	var dist := absi(dx) + absi(dy)
+	if dist == 1:
+		## Counter shops stand beside letter tiles — adjacent is "beside",
+		## not the facing cell. Open-floor vendors hold when adjacent.
+		return not _npc_beside_letter_counter(i)
+	if dist != 2:
+		return false
+	## Facing across a letter counter: avatar — letter — shopkeeper.
+	var mid := avatar + Vector2i(signi(dx), signi(dy))
+	return _TileRules.can_talk_over(effective_tile_at(mid.x, mid.y))
 
 
 func _npc_beside_letter_counter(i: int) -> bool:
@@ -878,30 +891,6 @@ func _npc_beside_letter_counter(i: int) -> bool:
 		if _TileRules.can_talk_over(effective_tile_at(n.x, n.y)):
 			return true
 	return false
-
-
-func _shop_talk_reach(i: int, avatar: Vector2i) -> bool:
-	## Counter facing = one step past a letter between avatar and NPC.
-	## Adjacent hold only for open-floor shop NPCs (no letter beside them).
-	if i < 0 or i >= persons.size():
-		return false
-	var pos := Vector2i(int(persons[i].x), int(persons[i].y))
-	var dx := pos.x - avatar.x
-	var dy := pos.y - avatar.y
-	if dx != 0 and dy != 0:
-		return false
-	var dist := absi(dx) + absi(dy)
-	if dist == 1:
-		if not is_shop_like_at(i):
-			return false
-		## Beside the counter (letter next to NPC) — still roam.
-		if _npc_beside_letter_counter(i):
-			return false
-		return true
-	if dist != 2:
-		return false
-	var mid := avatar + Vector2i(signi(dx), signi(dy))
-	return _TileRules.can_talk_over(effective_tile_at(mid.x, mid.y))
 
 
 func _valid_dirs(from: Vector2i, self_i: int, avatar: Vector2i) -> Array[Vector2i]:
