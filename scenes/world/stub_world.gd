@@ -2384,7 +2384,12 @@ func _layout_enter_prompt_row(font_sz: int) -> void:
 			Control.SIZE_EXPAND_FILL if expand else Control.SIZE_SHRINK_CENTER
 		)
 		btn.custom_minimum_size = Vector2(min_w, btn_h)
-		btn.text = _prompt_choice_label(keys.substr(i, 1))
+		## Same "Y) 예" shortcut style as the start menu / talk chips.
+		btn.text = (
+			keys.substr(i, 1)
+			if expand
+			else _prompt_choice_chip_label(keys.substr(i, 1))
+		)
 	_sync_enter_prompt_style()
 
 
@@ -2438,21 +2443,22 @@ func _talk_overlay_choice_labels() -> Array:
 		for i in keys.length():
 			out.append(_prompt_choice_chip_label(keys.substr(i, 1)))
 		return out
-	## Town / LB follow-up Y/N: type Yes/No freely — no (Y)/(N) chip hints.
+	## Town / LB follow-up Y/N: type Yes/No freely — no letter) chip hints.
 	out.append(_prompt_choice_label("y"))
 	out.append(_prompt_choice_label("n"))
 	return out
 
 
 func _prompt_choice_chip_label(key: String) -> String:
-	## Keyword-row caption with keyboard shortcut — not echoed as spoken input.
+	## Same style as the start menu: "Y) 예", "B) 사겠소" (space after ')').
+	## Caption only — not echoed as spoken input.
 	var label := _prompt_choice_label(key)
 	var k := key.strip_edges().to_upper()
 	if label.is_empty() or k.is_empty():
 		return label
-	if label.find("(%s)" % k) >= 0:
+	if label.begins_with("%s) " % k) or label.begins_with("(%s)" % k):
 		return label
-	return "(%s)%s" % [k, label]
+	return "%s) %s" % [k, label]
 
 
 func _talk_gamepad_yes_no_active() -> bool:

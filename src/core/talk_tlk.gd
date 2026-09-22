@@ -981,12 +981,19 @@ static func colorize_shop_dialogue(text: String) -> String:
 			out += KW_BBCODE + hit + KW_BBCODE_END
 			i += hit_len
 			continue
-		## Catalog keys: isolated letter + hyphen (A-Staff) or " - " (E - Mace).
+		## Catalog keys: "B)", "A-Staff", or "E - Mace".
 		var u := text.unicode_at(i)
 		var is_letter := (u >= 65 and u <= 90) or (u >= 97 and u <= 122)
 		if is_letter:
 			var before_letter := i == 0 or not _is_word_char(text.unicode_at(i - 1))
 			if before_letter:
+				if i + 1 < text.length() and text[i + 1] == ")":
+					out += SHOP_INDEX_BBCODE + text[i] + SHOP_INDEX_BBCODE_END + ")"
+					i += 2
+					if i < text.length() and text[i] == " ":
+						out += " "
+						i += 1
+					continue
 				if i + 1 < text.length() and text[i + 1] == "-":
 					out += SHOP_INDEX_BBCODE + text[i] + SHOP_INDEX_BBCODE_END + "-"
 					i += 2

@@ -568,30 +568,18 @@ func _make_catalog_row(index: int, caption: String, icon: Texture2D, selected: b
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.gui_input.connect(_on_catalog_gui_input.bind(index))
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_theme_constant_override("separation", 6)
-	row.add_child(box)
-	if icon != null:
-		var face := TextureRect.new()
-		face.texture = icon
-		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		face.custom_minimum_size = Vector2(_icon_side, _icon_side)
-		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		box.add_child(face)
+	## One RichTextLabel so letter / icon / name share the same inline line box
+	## (separate TextureRect + SHRINK_CENTER RTLs looked top-heavy vs the glyph).
 	var body := RichTextLabel.new()
 	body.bbcode_enabled = true
-	body.fit_content = true
+	body.fit_content = false
 	body.scroll_active = false
 	body.autowrap_mode = TextServer.AUTOWRAP_OFF
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_style_overlay_text(body)
-	## Icon already drawn as TextureRect — strip marks from the caption text.
 	var text := caption
 	while text.find("\u0002") >= 0:
 		var a := text.find("\u0002")
@@ -600,11 +588,55 @@ func _make_catalog_row(index: int, caption: String, icon: Texture2D, selected: b
 			text = text.substr(0, a)
 			break
 		text = text.substr(0, a) + text.substr(b + 1)
-	body.append_text(text.strip_edges())
-	box.add_child(body)
+	text = text.strip_edges()
+	var key_bb := ""
+	var rest := text
+	var split := _split_catalog_key(text)
+	if not split.is_empty():
+		key_bb = str(split.get("key", ""))
+		rest = str(split.get("rest", "")).strip_edges()
+	if not key_bb.is_empty():
+		body.append_text(key_bb)
+		body.add_text(" ")
+	if icon != null:
+		## Baseline-center the glyph with surrounding text (not a separate HBox cell).
+		body.add_image(
+			icon,
+			_icon_side,
+			_icon_side,
+			Color.WHITE,
+			INLINE_ALIGNMENT_CENTER
+		)
+		if not rest.is_empty():
+			body.add_text(" ")
+	if not rest.is_empty():
+		body.append_text(rest)
+	row.add_child(body)
 	row.set_meta("body", body)
 	_style_catalog_row(row, selected)
 	return row
+
+
+func _split_catalog_key(caption: String) -> Dictionary:
+	## "B) rest", "[color]B[/color]) rest", or legacy "B - rest".
+	if caption.is_empty():
+		return {}
+	var close_paren := caption.find(")")
+	if close_paren > 0:
+		var after := close_paren + 1
+		if after < caption.length() and caption[after] == " ":
+			after += 1
+		return {
+			"key": caption.substr(0, close_paren + 1),
+			"rest": caption.substr(after),
+		}
+	var dash := caption.find(" - ")
+	if dash > 0:
+		return {
+			"key": caption.substr(0, dash) + ")",
+			"rest": caption.substr(dash + 3),
+		}
+	return {}
 
 
 func _style_catalog_row(row: PanelContainer, selected: bool) -> void:
@@ -615,12 +647,15 @@ func _style_catalog_row(row: PanelContainer, selected: bool) -> void:
 	sb.set_corner_radius_all(2)
 	sb.content_margin_left = 4
 	sb.content_margin_right = 4
-	sb.content_margin_top = 1
-	sb.content_margin_bottom = 1
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
 	row.add_theme_stylebox_override("panel", sb)
-	row.custom_minimum_size.y = _line_pitch
+	var row_h := maxf(_line_pitch, float(_icon_side) + 4.0)
+	row.custom_minimum_size.y = row_h
 	var body: RichTextLabel = row.get_meta("body", null) as RichTextLabel
 	if body != null:
+		body.custom_minimum_size.y = maxf(row_h - 4.0, float(_icon_side))
+		body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_style_overlay_text(body, KW_GOLD if selected else TEXT)
 
 

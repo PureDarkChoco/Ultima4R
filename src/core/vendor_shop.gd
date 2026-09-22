@@ -702,7 +702,7 @@ func _on_w_bs(c0: String) -> void:
 
 
 func _w_show_inv() -> void:
-	## One catalog line per item: "E - Mace / 100G / (eq / inv)".
+	## One catalog line per item: "E) Mace / 100G / (eq / inv)".
 	_say(_L("We Have:"))
 	var data: Dictionary = WEAPON_STOCKS[_locale]
 	for row in data["stock"]:
@@ -744,14 +744,14 @@ func _format_gear_stock_line(
 	inventory: int,
 	can_equip: bool
 ) -> String:
-	## "E - [icon]Mace / 100G / (eq / inv)". Red index / red price when applicable.
+	## "E) [icon]Mace / 100G / (eq / inv)". Red index / red price when applicable.
 	var key := letter
 	if not can_equip:
 		key = "[color=#e74c3c]%s[/color]" % letter
 	var price_s := "[color=#f0c93a]%dG[/color]" % price
 	if GameState.gold < price:
 		price_s = "[color=#e74c3c]%dG[/color]" % price
-	return "%s - %s%s / %s / (%d / %d)" % [key, icon_mark, item_name, price_s, equipped, inventory]
+	return "%s) %s%s / %s / (%d / %d)" % [key, icon_mark, item_name, price_s, equipped, inventory]
 
 
 func _on_w_inv(c0: String) -> void:
@@ -910,7 +910,7 @@ func _on_a_bs(c0: String) -> void:
 
 
 func _a_show_inv() -> void:
-	## One catalog line per item: "C - Leather / 200G / (eq / inv)".
+	## One catalog line per item: "C) Leather / 200G / (eq / inv)".
 	_say(_L("We've got:"))
 	var data: Dictionary = ARMOR_STOCKS[_locale]
 	for row in data["stock"]:
@@ -1370,7 +1370,7 @@ func _r_show() -> void:
 
 
 func _format_reagent_stock_line(i: int) -> String:
-	## "A - [icon]Sulfurous Ash / 2G" — icon + unit price like weapon stock lines.
+	## "A) [icon]Sulfurous Ash / 2G" — icon + unit price like weapon stock lines.
 	## Cheapest among visited shops: reagent name in keyword gold.
 	var letter := String.chr(65 + i)
 	var icon := TalkTlk.mark_reagent_icon(i)
@@ -1381,7 +1381,7 @@ func _format_reagent_stock_line(i: int) -> String:
 	var price_s := "%dG" % price
 	if GameState.gold < price:
 		price_s = "[color=#e74c3c]%s[/color]" % price_s
-	return "%s - %s%s / %s" % [letter, icon, name, price_s]
+	return "%s) %s%s / %s" % [letter, icon, name, price_s]
 
 
 func _on_r_item(c0: String) -> void:
