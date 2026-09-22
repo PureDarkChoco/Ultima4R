@@ -14,7 +14,7 @@ const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
 const ROWS := 25.0
-const APP_DISPLAY_VERSION := "0.10.0"
+const APP_DISPLAY_VERSION := "0.11.0"
 
 @onready var _tagline: Label = %Tagline
 @onready var _options_head: Label = %OptionsHead

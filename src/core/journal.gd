@@ -1478,7 +1478,12 @@ static func entry_speaker(row: Dictionary, lang: String) -> String:
 static func format_time(unix_at: int) -> String:
 	if unix_at <= 0:
 		return ""
-	var dt := Time.get_datetime_dict_from_unix_time(unix_at)
+	## get_datetime_dict_from_unix_time is UTC; shift by system bias (KST = +540).
+	var bias_min := 0
+	var tz: Dictionary = Time.get_time_zone_from_system()
+	if tz.has("bias"):
+		bias_min = int(tz["bias"])
+	var dt := Time.get_datetime_dict_from_unix_time(unix_at + bias_min * 60)
 	return "%04d-%02d-%02d %02d:%02d" % [
 		int(dt.get("year", 0)),
 		int(dt.get("month", 0)),
