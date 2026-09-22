@@ -287,12 +287,29 @@ func is_tavern_topic_prompt() -> bool:
 	return mode == Mode.TEXT and _phase == "t_topic"
 
 
+func is_tip_number_prompt() -> bool:
+	return mode == Mode.NUMBER and _phase == "t_tip"
+
+
+func is_gold_number_prompt() -> bool:
+	## Gold amount entry (tip / ale price / reagent pay), not quantity.
+	return mode == Mode.NUMBER and _phase in ["t_tip", "t_ale_pay", "r_pay"]
+
+
 func tavern_topics() -> Array:
 	return _topics.duplicate()
 
 
 func locale_name() -> String:
 	return _locale
+
+
+func owner_name() -> String:
+	return _owner
+
+
+func shop_name() -> String:
+	return _shop
 
 
 func item_list_entries() -> Array[Dictionary]:
@@ -319,16 +336,30 @@ func item_list_entries() -> Array[Dictionary]:
 					"key": String.chr(97 + i),
 					"label": _format_reagent_stock_line(i),
 				})
-		"g_item":
-			for key in _guild_visible_keys():
-				entries.append({
-					"key": key,
-					"label": _format_guild_stock_line(key),
-				})
+		## Guild goods use keyword chips (short names), not the catalog list.
 	return entries
 
 
-func begin(role: int, locale: String) -> void:
+func is_keyword_choice_prompt() -> bool:
+	## Short named choices for the talk overlay (not stock catalogs).
+	if mode != Mode.CHOICE:
+		return false
+	if is_sell_letter_pick() or is_healer_target_pick():
+		return false
+	var keys := choice_keys.to_lower().strip_edges()
+	if keys in ["yn", "ny", "bs", "sb", "fa", "abc", "123"]:
+		return true
+	## Guild A–D / rumor "?"
+	if _phase == "g_item":
+		return true
+	return false
+
+
+func is_catalog_list_prompt() -> bool:
+	return mode == Mode.CHOICE and _phase in ["w_inv", "a_inv", "r_item"]
+
+
+func begin(role: int, locale: String, person_slot: int = -1) -> void:
 	_reset()
 	_role = role
 	_locale = locale
@@ -341,7 +372,7 @@ func begin(role: int, locale: String) -> void:
 		_Roles.Role.VENDOR_FOOD:
 			_start_food()
 		_Roles.Role.VENDOR_TAVERN:
-			_start_tavern()
+			_start_tavern(person_slot)
 		_Roles.Role.VENDOR_REAGENTS:
 			_start_reagents()
 		_Roles.Role.VENDOR_HEALER:
@@ -580,6 +611,16 @@ func _L(en: String) -> String:
 	return _TalkTlk.present_script(_VL.line(en))
 
 
+func _gp_bb(amount: int) -> String:
+	## Yellow gold amount for buy/sell dialogue (matches keyword gold).
+	return "[color=#f0c93a]%dgp[/color]" % amount
+
+
+func _qty_bb(amount: int) -> String:
+	## Yellow count (ration packs / food units) in vendor dialogue.
+	return "[color=#f0c93a]%d[/color]" % amount
+
+
 func _finish(push_done: bool = true) -> void:
 	mode = Mode.DONE
 	finished = true
@@ -627,13 +668,13 @@ func _start_weapons() -> void:
 	_shop = str(data["shop"])
 	_owner = str(data["owner"])
 	_build_stock_keys(data["stock"])
-	_say(_L("Welcome to\n%s\n\n%s says:\nWelcome friend!\nArt thou here to\nBuy (B) or Sell (S)?") % [_shop, _owner])
+	_say(_L("Welcome to\n%s\n\nWelcome friend!\nArt thou here to\nBuy or Sell?") % _shop)
 	_want_choice("bs", "w_bs")
 
 
 func _w_prompt_buy_sell() -> void:
 	## After Esc from catalog / sell letter — re-ask without replaying welcome.
-	_say(_L("%s says:\nArt thou here to\nBuy (B) or Sell (S)?") % _owner)
+	_say(_L("Art thou here to\nBuy or Sell?"))
 	_want_choice("bs", "w_bs")
 
 
@@ -707,9 +748,9 @@ func _format_gear_stock_line(
 	var key := letter
 	if not can_equip:
 		key = "[color=#e74c3c]%s[/color]" % letter
-	var price_s := "%dG" % price
+	var price_s := "[color=#f0c93a]%dG[/color]" % price
 	if GameState.gold < price:
-		price_s = "[color=#e74c3c]%s[/color]" % price_s
+		price_s = "[color=#e74c3c]%dG[/color]" % price
 	return "%s - %s%s / %s / (%d / %d)" % [key, icon_mark, item_name, price_s, equipped, inventory]
 
 
@@ -726,13 +767,13 @@ func _on_w_inv(c0: String) -> void:
 		_say(_L("You have not the funds for even one!"))
 		_w_anything_else()
 		return
-	var desc := _VL.weapon_desc(str(WEAPON_DESC.get(_item_id, ""))).replace("$", str(_price))
+	var desc := _VL.weapon_desc(str(WEAPON_DESC.get(_item_id, ""))).replace("$gp", _gp_bb(_price))
 	_say(desc)
 	if GameState.gold > _price * 2:
 		_say(_L("How many would\nyou like?"))
 		_want_number(2, "w_howmany")
 	else:
-		_say(_L("Take it? (Y/N)"))
+		_say(_L("Take it?"))
 		_want_choice("yn", "w_take")
 
 
@@ -755,12 +796,12 @@ func _w_buy() -> void:
 		_w_anything_else()
 		return
 	GameState.add_pack_weapons(_item_id, _quant)
-	_say(_L("%s says: A fine choice!") % _owner)
+	_say(_L("A fine choice!"))
 	_w_anything_else()
 
 
 func _w_anything_else() -> void:
-	_say(_L("Anything\nelse? (Y/N)"))
+	_say(_L("Anything\nelse?"))
 	_want_choice("yn", "w_else")
 
 
@@ -790,7 +831,7 @@ func _on_w_sell_key(c0: String) -> void:
 		_w_you_sell()
 	elif own == 1:
 		_quant = 1
-		_say(_L("I will give you %dgp for that %s.\nDeal? (Y/N)") % [_price, _item_name])
+		_say(_L("I will give you %s for that %s.\nDeal?") % [_gp_bb(_price), _item_name])
 		_want_choice("yn", "w_sell_deal")
 	else:
 		_say(_L("How many %ss\nwould you wish\nto sell?") % _item_name)
@@ -811,7 +852,7 @@ func _w_sell_many_offer() -> void:
 		_finish()
 		return
 	_price = _unit_price * _quant
-	_say(_L("I will give you %dgp for them.\nDeal? (Y/N)") % _price)
+	_say(_L("I will give you %s for them.\nDeal?") % _gp_bb(_price))
 	_want_choice("yn", "w_sell_many_deal")
 
 
@@ -833,7 +874,7 @@ func _w_do_sell(q: int, gold_out: int) -> void:
 
 
 func _w_adieu() -> void:
-	_say(_L("%s says:\nFare thee well!") % _owner)
+	_say(_L("Fare thee well!"))
 	_finish()
 
 
@@ -849,13 +890,13 @@ func _start_armor() -> void:
 	_shop = str(data["shop"])
 	_owner = str(data["owner"])
 	_build_stock_keys(data["stock"])
-	_say(_L("Welcome to\n%s\n\n%s says:\nWelcome friend!\nWant to Buy (B) or\nSell (S)?") % [_shop, _owner])
+	_say(_L("Welcome to\n%s\n\nWelcome friend!\nWant to Buy or\nSell?") % _shop)
 	_want_choice("bs", "a_bs")
 
 
 func _a_prompt_buy_sell() -> void:
 	## After Esc from catalog / sell letter — re-ask without replaying welcome.
-	_say(_L("%s says:\nWant to Buy (B) or\nSell (S)?") % _owner)
+	_say(_L("Want to Buy or\nSell?"))
 	_want_choice("bs", "a_bs")
 
 
@@ -891,13 +932,13 @@ func _on_a_inv(c0: String) -> void:
 		_say(_L("You have not the funds for even one!"))
 		_a_anything_else()
 		return
-	var desc := _VL.armor_desc(str(ARMOR_DESC.get(_item_id, ""))).replace("$", str(_price))
+	var desc := _VL.armor_desc(str(ARMOR_DESC.get(_item_id, ""))).replace("$gp", _gp_bb(_price))
 	_say(desc)
 	if GameState.gold > _price * 2:
 		_say(_L("How many would\nyou like?"))
 		_want_number(2, "a_howmany")
 	else:
-		_say(_L("Take it? (Y/N)"))
+		_say(_L("Take it?"))
 		_want_choice("yn", "a_take")
 
 
@@ -920,12 +961,12 @@ func _a_buy() -> void:
 		_a_anything_else()
 		return
 	GameState.add_pack_armor(_item_id, _quant)
-	_say(_L("%s says: Good choice!") % _owner)
+	_say(_L("Good choice!"))
 	_a_anything_else()
 
 
 func _a_anything_else() -> void:
-	_say(_L("Anything\nelse? (Y/N)"))
+	_say(_L("Anything\nelse?"))
 	_want_choice("yn", "a_else")
 
 
@@ -955,7 +996,7 @@ func _on_a_sell_key(c0: String) -> void:
 		_a_you_sell()
 	elif own == 1:
 		_quant = 1
-		_say(_L("I will give you %dgp for that %s.\nDeal? (Y/N)") % [_price, _item_name])
+		_say(_L("I will give you %s for that %s.\nDeal?") % [_gp_bb(_price), _item_name])
 		_want_choice("yn", "a_sell_deal")
 	else:
 		_say(_L("How many %ss\nwould you wish\nto sell?") % _item_name)
@@ -976,7 +1017,7 @@ func _a_sell_many_offer() -> void:
 		_finish()
 		return
 	_price = _unit_price * _quant
-	_say(_L("I will give you %dgp for them.\nDeal? (Y/N)") % _price)
+	_say(_L("I will give you %s for them.\nDeal?") % _gp_bb(_price))
 	_want_choice("yn", "a_sell_many_deal")
 
 
@@ -999,7 +1040,7 @@ func _a_do_sell(q: int, gold_out: int) -> void:
 
 
 func _a_adieu() -> void:
-	_say(_L("%s says:\nGood Bye.") % _owner)
+	_say(_L("Good Bye."))
 	_finish()
 
 
@@ -1014,17 +1055,17 @@ func _start_food() -> void:
 	_shop = str(data["shop"])
 	_owner = str(data["owner"])
 	_price = int(data["price"])
-	_say(_L("Welcome to %s\n\n%s says: Good day, and Welcome friend.") % [_shop, _owner])
+	_say(_L("Welcome to %s\n\nGood day, and Welcome friend.") % _shop)
 	if GameState.gold < _price:
 		_say(_L("Come back when you have some money!"))
 		_finish()
 		return
-	_say(_L("May I interest you in some rations? (Y/N)"))
+	_say(_L("May I interest you in some rations?"))
 	_want_choice("yn", "f_interest")
 
 
 func _f_prompt_interest() -> void:
-	_say(_L("May I interest you in some rations? (Y/N)"))
+	_say(_L("May I interest you in some rations?"))
 	_want_choice("yn", "f_interest")
 
 
@@ -1032,8 +1073,8 @@ func _on_f_interest(c0: String) -> void:
 	if c0 != "y":
 		_f_adieu()
 		return
-	_say(_L("We have the best adventure rations, 25 for only %dgp.") % _price)
-	_say(_L("How many packs of 25 would you like?"))
+	_say(_L("We have the best adventure rations, %s for only %s.") % [_qty_bb(25), _gp_bb(_price)])
+	_say(_L("How many packs of %s would you like?") % _qty_bb(25))
 	_want_number(3, "f_howmany")
 
 
@@ -1041,8 +1082,8 @@ func _f_buy() -> void:
 	var cost := _price * _quant
 	if not GameState.try_pay_gold(cost):
 		var can := int(GameState.gold / _price) if _price > 0 else 0
-		_say(_L("You can only afford %d packs.") % can)
-		_say(_L("How many packs of 25 would you like?"))
+		_say(_L("You can only afford %s packs.") % _qty_bb(can))
+		_say(_L("How many packs of %s would you like?") % _qty_bb(25))
 		_want_number(3, "f_howmany")
 		return
 	GameState.add_food_units(25 * _quant)
@@ -1051,13 +1092,13 @@ func _f_buy() -> void:
 		_say(_L("Come again!"))
 		_finish()
 	else:
-		_say(_L("Anything\nelse? (Y/N)"))
+		_say(_L("Anything\nelse?"))
 		_want_choice("yn", "f_else")
 
 
 func _on_f_else(c0: String) -> void:
 	if c0 == "y":
-		_say(_L("How many packs of 25 would you like?"))
+		_say(_L("How many packs of %s would you like?") % _qty_bb(25))
 		_want_number(3, "f_howmany")
 	else:
 		_f_adieu()
@@ -1070,17 +1111,17 @@ func _f_adieu() -> void:
 
 # ── Tavern ───────────────────────────────────────────────────────────
 
-func _start_tavern() -> void:
-	if not _init_tavern_locale():
+func _start_tavern(person_slot: int = -1) -> void:
+	if not _init_tavern_locale(person_slot):
 		_say(_L("Closed."))
 		_finish()
 		return
 	_ales_drunk = 0
-	_say(_L("%s says: Welcome to %s") % [_owner, _shop])
+	_say(_L("Welcome to %s") % _shop)
 	_t_whatll()
 
 
-func _init_tavern_locale() -> bool:
+func _init_tavern_locale(person_slot: int = -1) -> bool:
 	match _locale:
 		"Britain":
 			_shop = "Jolly Spirits"
@@ -1102,7 +1143,12 @@ func _init_tavern_locale() -> bool:
 			_topics = _topics_from(2)
 		"Paws":
 			_shop = "Folley Tavern"
-			_owner = "Greg 'n Rob"
+			## Two bartenders share the classic "Greg 'n Rob" line; split by .ULT slot.
+			match person_slot:
+				29:
+					_owner = "Rob"
+				_:
+					_owner = "Greg"
 			_specialty = "Folley Filet"
 			_spec_price = 2
 			_topics = _topics_from(3)
@@ -1125,12 +1171,12 @@ func _init_tavern_locale() -> bool:
 
 func _topics_from(skip_pairs: int) -> Array:
 	var all_t := [
-		{"name": "black stone", "need": 20, "rumor": "% says: Ah, the Black Stone. Yes I've heard of it. But, the only one who knows where it lies is the wizard Merlin."},
-		{"name": "sextant", "need": 30, "rumor": "% says: For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!"},
+		{"name": "black stone", "need": 20, "rumor": "Ah, the Black Stone. Yes I've heard of it. But, the only one who knows where it lies is the wizard Merlin."},
+		{"name": "sextant", "need": 30, "rumor": "For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!"},
 		{"name": "white stone", "need": 10, "rumor": "Now let me see... Yes it was the old Hermit... Sloven! He is tough to find, lives near Lock Lake I hear."},
-		{"name": "mandrake", "need": 40, "rumor": "% says: The last person I knew that had any Mandrake was an old alchemist named Calumny."},
-		{"name": "skull", "need": 99, "rumor": "% says: If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!"},
-		{"name": "nightshade", "need": 25, "rumor": "% says: Of Nightshade I know but this... Seek out Virgil or thou shalt miss! Try in Trinsic!"},
+		{"name": "mandrake", "need": 40, "rumor": "The last person I knew that had any Mandrake was an old alchemist named Calumny."},
+		{"name": "skull", "need": 99, "rumor": "If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!"},
+		{"name": "nightshade", "need": 25, "rumor": "Of Nightshade I know but this... Seek out Virgil or thou shalt miss! Try in Trinsic!"},
 	]
 	var out: Array = []
 	for i in range(skip_pairs, all_t.size()):
@@ -1139,7 +1185,7 @@ func _topics_from(skip_pairs: int) -> Array:
 
 
 func _t_whatll() -> void:
-	_say(_L("%s says: What'll it be, Food (F) or Ale (A)?") % _owner)
+	_say(_L("What'll it be, Food or Ale?"))
 	_want_choice("fa", "t_fa")
 
 
@@ -1151,7 +1197,7 @@ func _on_t_fa(c0: String) -> void:
 	elif c0 == "a":
 		_ales_drunk += 1
 		if _ales_drunk > 2:
-			_say(_L("%s says: Sorry, you seem to have too many. Bye!") % _owner)
+			_say(_L("Sorry, you seem to have too many. Bye!"))
 			_finish()
 			return
 		_price = 2
@@ -1174,7 +1220,7 @@ func _t_buy_plates() -> void:
 
 
 func _t_something_else() -> void:
-	_say(_L("Somethin'\nelse? (Y/N)"))
+	_say(_L("Somethin'\nelse?"))
 	_want_choice("yn", "t_else")
 
 
@@ -1303,7 +1349,7 @@ func _start_reagents() -> void:
 	for p in data["prices"]:
 		_prices.append(int(p))
 	GameState.record_reagent_shop_prices(_locale, _prices)
-	_say(_L("A blind woman turns to you and says: Welcome to %s\n\nI am %s\nAre you in need of Reagents? (Y/N)") % [_shop, _owner])
+	_say(_L("Welcome to %s\n\nI am %s\nAre you in need of Reagents?") % [_shop, _owner])
 	_want_choice("yn", "r_need")
 
 
@@ -1382,7 +1428,7 @@ func _r_i_see() -> void:
 
 
 func _r_anything_else() -> void:
-	_say(_L("Anything\nelse? (Y/N)"))
+	_say(_L("Anything\nelse?"))
 	_want_choice("yn", "r_else")
 
 
@@ -1394,7 +1440,7 @@ func _on_r_else(c0: String) -> void:
 
 
 func _r_adieu() -> void:
-	_say(_L("%s says:\nPerhaps another time then....\nand slowly turns away.") % _owner)
+	_say(_L("Perhaps another time then....\nand slowly turns away."))
 	_finish()
 
 
@@ -1409,7 +1455,7 @@ func _start_healer() -> void:
 		return
 	_shop = str(data["shop"])
 	_owner = str(data["owner"])
-	_say(_L("Welcome unto\n%s\n\n%s says:\nPeace and Joy be with you friend.\nAre you in need of help? (Y/N)") % [_shop, _owner])
+	_say(_L("Welcome unto\n%s\n\nPeace and Joy be with you friend.\nAre you in need of help?") % _shop)
 	_want_choice("yn", "h_need")
 
 
@@ -1421,7 +1467,7 @@ func _on_h_need(c0: String) -> void:
 
 
 func _h_services() -> void:
-	_say(_L("%s says: We can perform:\nA-Curing\nB-Healing\nC-Resurrection\nYour need:") % _owner)
+	_say(_L("Curing, Healing, or Resurrection — which dost thou need?"))
 	_want_choice("abc", "h_svc")
 
 
@@ -1446,7 +1492,7 @@ func _on_h_svc(c0: String) -> void:
 		_heal_slot = 0
 		_h_will_pay()
 	else:
-		_say(_L("%s asks:\nWho is in\nneed?") % _owner)
+		_say(_L("Who is in\nneed?"))
 		_want_choice("12345678".substr(0, GameState.party_size()), "h_who")
 
 
@@ -1471,7 +1517,7 @@ func _h_will_pay() -> void:
 		_say(_L("I see by thy purse that thou hast not enough gold. I cannot aid thee."))
 		_h_more()
 		return
-	_say(_L("Wilt thou\npay? (Y/N)"))
+	_say(_L("Wilt thou\npay?"))
 	_want_choice("yn", "h_pay")
 
 
@@ -1487,7 +1533,7 @@ func _on_h_pay(c0: String) -> void:
 
 
 func _h_more() -> void:
-	_say(_L("%s asks: Do you need more help? (Y/N)") % _owner)
+	_say(_L("Do you need more help?"))
 	_want_choice("yn", "h_more")
 
 
@@ -1502,7 +1548,7 @@ func _h_give_blood() -> void:
 	if GameState.party_leader_hp() < 400:
 		_h_adieu()
 		return
-	_say(_L("Art thou willing to give 100pts of thy blood to aid others? (Y/N)"))
+	_say(_L("Art thou willing to give 100pts of thy blood to aid others?"))
 	_want_choice("yn", "h_blood")
 
 
@@ -1517,7 +1563,7 @@ func _on_h_blood(c0: String) -> void:
 
 
 func _h_adieu() -> void:
-	_say(_L("%s says: May thy life be guarded by the powers of good.") % _owner)
+	_say(_L("May thy life be guarded by the powers of good."))
 	_finish()
 
 
@@ -1529,13 +1575,13 @@ func _start_inn() -> void:
 		_say(_L("Closed."))
 		_finish()
 		return
-	_say(_L("The Innkeeper says: Welcome to %s\n\nI am %s.\n\nAre you in need of lodging? (Y/N)") % [_shop, _owner])
+	_say(_L("Welcome to %s\n\nI am %s.\n\nAre you in need of lodging?") % [_shop, _owner])
 	_want_choice("yn", "i_need")
 
 
 func begin_inn_refuse_horse() -> void:
 	_reset()
-	_say(_L("The Innkeeper says: Get that horse out of here!!!"))
+	_say(_L("Get that horse out of here!!!"))
 	_finish()
 
 
@@ -1589,7 +1635,7 @@ func _setup_inn() -> bool:
 
 func _on_i_need(c0: String) -> void:
 	if c0 != "y":
-		_say(_L("%s says: Then you have come to the wrong place!\nGood day.") % _owner)
+		_say(_L("Then you have come to the wrong place!\nGood day."))
 		_finish()
 		return
 	if _locale == "Minoc":
@@ -1611,7 +1657,7 @@ func _on_i_need(c0: String) -> void:
 		"Vesper":
 			msg = "All we have is that cot over there. But it is comfortable, and only 1 gp."
 	_say(_L(msg))
-	_say(_L("Will you take the room? (Y/N)"))
+	_say(_L("Will you take the room?"))
 	_want_choice("yn", "i_take")
 
 
@@ -1667,7 +1713,7 @@ func _start_guild() -> void:
 			_say(_L("Closed."))
 			_finish()
 			return
-	_say(_L("Avast ye mate! Shure ye wishes to buy from ol'\n%s?\n\n%s says: Welcome to %s.\nLike to see my goods? (Y/N)") % [_owner, _owner, _shop])
+	_say(_L("Avast ye mate! Shure ye wishes to buy from ol'\n%s?\n\nWelcome to %s.\nLike to see my goods?") % [_owner, _shop])
 	_want_choice("yn", "g_need")
 
 
@@ -1680,7 +1726,7 @@ func _on_g_need(c0: String) -> void:
 
 func _g_goods(after_hint: bool = false) -> void:
 	if not after_hint:
-		_say(_L("%s says: Good Mate!\nYa see I gots:") % _owner)
+		_say(_L("Good Mate!\nYa see I gots:"))
 	for key in _guild_visible_keys():
 		_say_item(key, _format_guild_stock_line(key))
 	_say(_L("Wat'l it be?"))
@@ -1762,7 +1808,7 @@ func _on_g_item(c0: String) -> void:
 		_:
 			_g_adieu()
 			return
-	_say(_L("Will ya buy? (Y/N)"))
+	_say(_L("Will ya buy?"))
 	_want_choice("yn", "g_buy")
 
 
@@ -1786,7 +1832,7 @@ func _on_g_buy(c0: String) -> void:
 		"sextant":
 			GameState.has_sextant = true
 			GameState.journal_mark_goal("item:sextant")
-	_say(_L("%s says: See\nmore? (Y/N)") % _owner)
+	_say(_L("See\nmore?"))
 	_want_choice("yn", "g_more")
 
 
@@ -1798,7 +1844,7 @@ func _on_g_more(c0: String) -> void:
 
 
 func _g_adieu() -> void:
-	_say(_L("%s says: See ya matie!") % _owner)
+	_say(_L("See ya matie!"))
 	_finish()
 
 
@@ -1806,7 +1852,7 @@ func _g_adieu() -> void:
 
 func _start_stable() -> void:
 	_price = GameState.party_size() * 100
-	_say(_L("Welcome friend!\nCan I interest thee in\nhorses? (Y/N)"))
+	_say(_L("Welcome friend!\nCan I interest thee in\nhorses?"))
 	_want_choice("yn", "s_need")
 
 
@@ -1815,7 +1861,7 @@ func _on_s_need(c0: String) -> void:
 		_say(_L("A shame, thou looks like thou could use a good horse!"))
 		_finish()
 		return
-	_say(_L("For only %dg.p.\nThou can have the best! Wilt thou buy? (Y/N)") % _price)
+	_say(_L("For only %dg.p.\nThou can have the best! Wilt thou buy?") % _price)
 	_want_choice("yn", "s_buy")
 
 

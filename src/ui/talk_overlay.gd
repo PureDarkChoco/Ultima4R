@@ -4,6 +4,7 @@ extends Control
 ## Town-talk chrome on the map: NPC face + lines, avatar + keyword chips.
 
 signal keyword_clicked(index: int)
+signal catalog_clicked(index: int)
 
 const BORDER := Color(0.28, 0.55, 0.98, 1)
 const BORDER_W := 3
@@ -27,7 +28,10 @@ var _avatar_row: HBoxContainer
 var _npc_frame: Panel
 var _npc_face: TextureRect
 var _npc_name: Label
+var _speech_col: VBoxContainer
 var _dialogue: RichTextLabel
+var _catalog_col: VBoxContainer
+var _dialogue_tail: RichTextLabel
 var _avatar_frame: Panel
 var _avatar_face: TextureRect
 var _key_col: VBoxContainer
@@ -41,10 +45,14 @@ var _prompt_row: HBoxContainer
 var _mode_label: Label
 var _spin_cursor: TextureRect
 var _chips: Array[Button] = []
+var _catalog_rows: Array[PanelContainer] = []
 var _cursor := 0
+var _catalog_cursor := 0
 var _open := false
 var _placeholder := ""
 var _face_box := FALLBACK_FACE
+var _icon_lookup: Callable = Callable()
+var _icon_side := 18
 
 
 func _ready() -> void:
@@ -64,6 +72,7 @@ func open() -> void:
 	_open = true
 	visible = true
 	clear_dialogue()
+	clear_catalog()
 	set_keywords([], 0, {})
 	set_input_visible(false)
 	move_to_front()
@@ -74,7 +83,14 @@ func close() -> void:
 	visible = false
 	release_input_edit()
 	clear_dialogue()
+	clear_catalog()
 	set_keywords([], 0, {})
+
+
+func set_icon_renderer(lookup: Callable, side: int) -> void:
+	## lookup(payload: String) -> Texture2D for TalkTlk gear marks (w12 / a3 / r1).
+	_icon_lookup = lookup
+	_icon_side = maxi(side, 8)
 
 
 func set_safe_rect(rect: Rect2) -> void:
@@ -104,15 +120,65 @@ func set_portraits(npc: Texture2D, avatar: Texture2D) -> void:
 func clear_dialogue() -> void:
 	if _dialogue != null:
 		_dialogue.clear()
+	if _dialogue_tail != null:
+		_dialogue_tail.clear()
+		_dialogue_tail.visible = false
 
 
 func append_dialogue(bbcode: String) -> void:
-	if _dialogue == null or bbcode.strip_edges().is_empty():
+	append_dialogue_to(false, bbcode)
+
+
+func append_dialogue_tail(bbcode: String) -> void:
+	## Lines that belong under the stock list (e.g. "What'll it be?").
+	append_dialogue_to(true, bbcode)
+
+
+func append_dialogue_to(tail: bool, bbcode: String) -> void:
+	var row: RichTextLabel = _dialogue_tail if tail else _dialogue
+	if row == null or bbcode.strip_edges().is_empty():
 		return
-	if not _dialogue.get_parsed_text().is_empty():
-		_dialogue.append_text("\n")
-	_dialogue.append_text(bbcode)
+	if not row.get_parsed_text().is_empty():
+		row.append_text("\n")
+	_append_marked_text(row, bbcode)
+	if tail:
+		row.visible = true
 	_layout_root()
+
+
+func clear_catalog() -> void:
+	for row in _catalog_rows:
+		if is_instance_valid(row):
+			row.queue_free()
+	_catalog_rows.clear()
+	_catalog_cursor = 0
+	if _catalog_col != null:
+		_catalog_col.visible = false
+
+
+func set_catalog(entries: Array, cursor: int) -> void:
+	## Selectable stock rows under NPC speech (icons + priced labels).
+	clear_catalog()
+	if _catalog_col == null:
+		return
+	_catalog_cursor = clampi(cursor, 0, maxi(entries.size() - 1, 0))
+	for i in entries.size():
+		var item: Dictionary = entries[i]
+		var label := str(item.get("label", ""))
+		var icon: Texture2D = item.get("icon", null) as Texture2D
+		var row := _make_catalog_row(i, label, icon, i == _catalog_cursor)
+		_catalog_rows.append(row)
+		_catalog_col.add_child(row)
+	_catalog_col.visible = not _catalog_rows.is_empty()
+	_layout_root()
+
+
+func set_catalog_cursor(index: int) -> void:
+	if _catalog_rows.is_empty():
+		return
+	_catalog_cursor = clampi(index, 0, _catalog_rows.size() - 1)
+	for i in _catalog_rows.size():
+		_style_catalog_row(_catalog_rows[i], i == _catalog_cursor)
 
 
 func set_keywords(items: Array, cursor: int, default_keys: Dictionary) -> void:
@@ -331,6 +397,12 @@ func _build() -> void:
 	_style_overlay_text(_npc_name)
 	npc_stack.add_child(_npc_name)
 	_npc_row.add_child(npc_stack)
+	_speech_col = VBoxContainer.new()
+	_speech_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_speech_col.add_theme_constant_override("separation", 4)
+	_speech_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_speech_col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_npc_row.add_child(_speech_col)
 	_dialogue = RichTextLabel.new()
 	_dialogue.bbcode_enabled = true
 	_dialogue.fit_content = true
@@ -340,7 +412,25 @@ func _build() -> void:
 	_dialogue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_dialogue.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_style_overlay_text(_dialogue)
-	_npc_row.add_child(_dialogue)
+	_speech_col.add_child(_dialogue)
+	_catalog_col = VBoxContainer.new()
+	_catalog_col.visible = false
+	_catalog_col.mouse_filter = Control.MOUSE_FILTER_STOP
+	_catalog_col.add_theme_constant_override("separation", 0)
+	_catalog_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_catalog_col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_speech_col.add_child(_catalog_col)
+	_dialogue_tail = RichTextLabel.new()
+	_dialogue_tail.visible = false
+	_dialogue_tail.bbcode_enabled = true
+	_dialogue_tail.fit_content = true
+	_dialogue_tail.scroll_active = false
+	_dialogue_tail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dialogue_tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dialogue_tail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dialogue_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_style_overlay_text(_dialogue_tail)
+	_speech_col.add_child(_dialogue_tail)
 	var spacer := Control.new()
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -471,6 +561,104 @@ func _make_chip(index: int, caption: String, selected: bool) -> Button:
 	chip.pressed.connect(_on_chip_pressed.bind(index))
 	_style_chip(chip, selected)
 	return chip
+
+
+func _make_catalog_row(index: int, caption: String, icon: Texture2D, selected: bool) -> PanelContainer:
+	var row := PanelContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.gui_input.connect(_on_catalog_gui_input.bind(index))
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 6)
+	row.add_child(box)
+	if icon != null:
+		var face := TextureRect.new()
+		face.texture = icon
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		face.custom_minimum_size = Vector2(_icon_side, _icon_side)
+		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(face)
+	var body := RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.fit_content = true
+	body.scroll_active = false
+	body.autowrap_mode = TextServer.AUTOWRAP_OFF
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_overlay_text(body)
+	## Icon already drawn as TextureRect — strip marks from the caption text.
+	var text := caption
+	while text.find("\u0002") >= 0:
+		var a := text.find("\u0002")
+		var b := text.find("\u0003", a)
+		if b < 0:
+			text = text.substr(0, a)
+			break
+		text = text.substr(0, a) + text.substr(b + 1)
+	body.append_text(text.strip_edges())
+	box.add_child(body)
+	row.set_meta("body", body)
+	_style_catalog_row(row, selected)
+	return row
+
+
+func _style_catalog_row(row: PanelContainer, selected: bool) -> void:
+	if row == null:
+		return
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.28, 0.42, 0.85) if selected else Color(0, 0, 0, 0)
+	sb.set_corner_radius_all(2)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	row.add_theme_stylebox_override("panel", sb)
+	row.custom_minimum_size.y = _line_pitch
+	var body: RichTextLabel = row.get_meta("body", null) as RichTextLabel
+	if body != null:
+		_style_overlay_text(body, KW_GOLD if selected else TEXT)
+
+
+func _on_catalog_gui_input(event: InputEvent, index: int) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			catalog_clicked.emit(index)
+
+
+func _append_marked_text(row: RichTextLabel, body: String) -> void:
+	## Stream BBCode + optional TalkTlk gear icon marks (\\u0002…\\u0003).
+	if row == null or body.is_empty():
+		return
+	if not body.contains("\u0002") or not _icon_lookup.is_valid():
+		row.append_text(body)
+		return
+	var i := 0
+	while i < body.length():
+		if body.unicode_at(i) == 0x02:
+			var end := body.find("\u0003", i + 1)
+			if end < 0:
+				row.append_text(body.substr(i))
+				return
+			var payload := body.substr(i + 1, end - i - 1)
+			var tex: Texture2D = _icon_lookup.call(payload) as Texture2D
+			if tex != null:
+				row.add_image(tex, _icon_side, _icon_side, Color.WHITE, INLINE_ALIGNMENT_CENTER)
+				row.add_text(" ")
+			i = end + 1
+			continue
+		var next := body.find("\u0002", i)
+		if next < 0:
+			row.append_text(body.substr(i))
+			return
+		if next > i:
+			row.append_text(body.substr(i, next - i))
+		i = next
 
 
 func _style_chip(chip: Button, selected: bool) -> void:

@@ -462,9 +462,12 @@ var _talk_count_return_to_menu := false
 ## Talk session (city .TLK discourse). 0 = idle.
 ## 1 Interest / 2 wait-any-key before YN / 3 Y-N answer / 4 give gold.
 ## 10 vendor shop (xu4 vendors.b) / 11 Hawkwind seer counsel / 12 Lord British /
-## 13 LB heal confirm (Art thou well?) / 15 numeric count (Tymus cities).
+## 13 LB heal confirm (Art thou well?) / 15 numeric count (Tymus cities) /
+## 16 farewell line held on the talk overlay until any key.
 const TALK_STAGE_COUNT := 15
+const TALK_STAGE_FAREWELL := 16
 var _talk_stage := 0
+var _talk_farewell_line := ""
 var _talk_person_i := -1
 var _talk_entry: RefCounted = null ## _TalkTlk.Entry
 var _talk_buffer := ""
@@ -2172,8 +2175,8 @@ func _prompt_row_text() -> String:
 			_talk_input_mode_marker() + _talk_buffer + _talk_hangul_preedit
 			if _talk_native_hangul_active() else ""
 		)
-	if _talk_stage == 2:
-		return "" ## wait any key before yes/no question
+	if _talk_stage == 2 or _talk_stage == TALK_STAGE_FAREWELL:
+		return "" ## wait any key before yes/no question / dismiss farewell
 	if _talk_stage == 3:
 		var say_pfx := "당신은 말한다: " if str(GameState.language) == "ko" else "You say: "
 		return say_pfx + (
@@ -2396,7 +2399,7 @@ func _set_enter_prompt_choice(index: int) -> void:
 
 
 func _shop_choice_keys() -> String:
-	## Vendor prompts that use the shared dialogue choice-button row.
+	## Vendor prompts that use the shared dialogue choice-button / overlay row.
 	if _talk_stage != 10 or _shop == null:
 		return ""
 	if int(_shop.mode) != _VendorShop.Mode.CHOICE:
@@ -2404,27 +2407,24 @@ func _shop_choice_keys() -> String:
 	if bool(_shop.is_sell_letter_pick()):
 		return ""
 	## Healer "Who is in need?" uses the highlighted right-side party roster.
-	## Number keys remain accepted directly by _talk_input_shop.
 	if bool(_shop.is_healer_target_pick()):
+		return ""
+	if not bool(_shop.is_keyword_choice_prompt()):
 		return ""
 	var keys := str(_shop.choice_keys).to_lower().strip_edges()
 	if keys == "ny":
 		return "yn"
 	if keys == "sb":
 		return "bs"
-	## Yes/No, Buy/Sell, tavern Food/Ale, Minoc inn beds 1/2/3, healer A/B/C.
-	if keys == "yn" or keys == "bs" or keys == "fa" or keys == "123" or keys == "abc":
-		return keys
-	## Dynamic 1..party-size choices are party targets and belong in a vertical
-	## roster/list. Never turn them back into horizontal number buttons here.
-	return ""
+	return keys
 
 
 func _talk_overlay_choice_active() -> bool:
-	return (
-		_talk_overlay_owns_script()
-		and _talk_stage in [3, 13, TALK_STAGE_COUNT]
-	)
+	if not _talk_overlay_owns_script():
+		return false
+	if _talk_stage in [3, 13, TALK_STAGE_COUNT]:
+		return true
+	return _talk_stage == 10 and not _shop_choice_keys().is_empty()
 
 
 func _talk_overlay_choice_labels() -> Array:
@@ -2433,9 +2433,26 @@ func _talk_overlay_choice_labels() -> Array:
 		for i in 8:
 			out.append(_talk_count_label(i + 1))
 		return out
-	out.append(Locale.t("cmd_yes"))
-	out.append(Locale.t("cmd_no"))
+	if _talk_stage == 10:
+		var keys := _shop_choice_keys()
+		for i in keys.length():
+			out.append(_prompt_choice_chip_label(keys.substr(i, 1)))
+		return out
+	## Town / LB follow-up Y/N: type Yes/No freely — no (Y)/(N) chip hints.
+	out.append(_prompt_choice_label("y"))
+	out.append(_prompt_choice_label("n"))
 	return out
+
+
+func _prompt_choice_chip_label(key: String) -> String:
+	## Keyword-row caption with keyboard shortcut — not echoed as spoken input.
+	var label := _prompt_choice_label(key)
+	var k := key.strip_edges().to_upper()
+	if label.is_empty() or k.is_empty():
+		return label
+	if label.find("(%s)" % k) >= 0:
+		return label
+	return "(%s)%s" % [k, label]
 
 
 func _talk_gamepad_yes_no_active() -> bool:
@@ -2485,6 +2502,30 @@ func _prompt_choice_label(key: String) -> String:
 				return Locale.t("shop_tavern_food")
 			"a":
 				return Locale.t("shop_tavern_ale")
+	if _shop_choice_keys() == "123":
+		match key:
+			"1":
+				return Locale.t("shop_inn_bed_1")
+			"2":
+				return Locale.t("shop_inn_bed_2")
+			"3":
+				return Locale.t("shop_inn_bed_3")
+	if _talk_stage == 10 and _shop != null and bool(_shop.is_keyword_choice_prompt()):
+		match key:
+			"a":
+				if str(_shop.choice_keys).to_lower().begins_with("abcd"):
+					return Locale.t("shop_guild_torch")
+			"b":
+				if str(_shop.choice_keys).to_lower().begins_with("abcd"):
+					return Locale.t("shop_guild_gem")
+			"c":
+				if str(_shop.choice_keys).to_lower().begins_with("abcd"):
+					return Locale.t("shop_guild_key")
+			"d":
+				if str(_shop.choice_keys).to_lower().begins_with("abcd"):
+					return Locale.t("shop_guild_sextant")
+			"?":
+				return Locale.t("shop_guild_item_d")
 	if _cast_stage == 5:
 		match key:
 			"p":
@@ -5072,7 +5113,10 @@ func _talk_keyword_menu_can_select() -> bool:
 	return (
 		_talk_stage == 10
 		and _shop != null
-		and bool(_shop.is_tavern_topic_prompt())
+		and (
+			bool(_shop.is_tavern_topic_prompt())
+			or bool(_shop.is_catalog_list_prompt())
+		)
 	)
 
 
@@ -5154,7 +5198,13 @@ func _tavern_topic_keyword_items() -> Array[Dictionary]:
 
 func _sync_tavern_topic_keyword_menu() -> void:
 	if _shop == null or not bool(_shop.is_tavern_topic_prompt()):
-		if _talk_keyword_menu_active and _talk_stage == 10:
+		## Catalog chips (weapons / armor / reagents) also use the keyword menu —
+		## do not wipe them just because this is not a tavern tip prompt.
+		if (
+			_talk_keyword_menu_active
+			and _talk_stage == 10
+			and (_shop == null or not bool(_shop.is_catalog_list_prompt()))
+		):
 			_end_talk_keyword_menu()
 		return
 	var items := _tavern_topic_keyword_items()
@@ -7490,6 +7540,17 @@ func _choose_talk_keyword_menu_item() -> void:
 		return
 	var item := _talk_keyword_menu_items[_talk_keyword_menu_cursor]
 	var selected_key := str(item.get("key", ""))
+	## Vendor stock letters submit as a shop choice, not typed interest.
+	if (
+		_talk_stage == 10
+		and _shop != null
+		and bool(_shop.is_catalog_list_prompt())
+	):
+		_reset_talk_hangul()
+		_talk_buffer = ""
+		_shop.submit_choice(selected_key.to_lower())
+		_flush_shop_output()
+		return
 	## A gamepad choice replaces any partially typed keyboard/IME text.
 	_reset_talk_hangul()
 	_talk_buffer = str(item.get("input", ""))
@@ -7857,7 +7918,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _talk_stage != 0:
 		if (
 			_talk_stage == 2
-			and (
+			or _talk_stage == TALK_STAGE_FAREWELL
+		) and (
 				(
 					event is InputEventMouseButton
 					and event.pressed
@@ -7869,11 +7931,13 @@ func _unhandled_input(event: InputEvent) -> void:
 					and not event.is_echo()
 					and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button()
 				)
-			)
-		):
+			):
 			## Mouse left click or the gamepad confirm button (A) advances
-			## the "Press any key" pause to its follow-up question.
-			_talk_ask_question()
+			## the "Press any key" pause to its follow-up question / farewell dismiss.
+			if _talk_stage == TALK_STAGE_FAREWELL:
+				_finish_talk_farewell()
+			else:
+				_talk_ask_question()
 			_mark_input_handled()
 			return
 		if _binary_prompt_active() and _enter_prompt_stage != 1:
@@ -8349,6 +8413,8 @@ func _ensure_talk_overlay() -> void:
 	if _map != null:
 		_map_pane.move_child(_talk_overlay, _map.get_index() + 1)
 	_talk_overlay.keyword_clicked.connect(_on_talk_overlay_keyword_clicked)
+	_talk_overlay.catalog_clicked.connect(_on_talk_overlay_catalog_clicked)
+	_talk_overlay.set_icon_renderer(_msg_gear_texture_from_mark, _msg_gear_icon_side(_msg_font_size()))
 
 
 func _talk_overlay_owns_script() -> bool:
@@ -8356,13 +8422,17 @@ func _talk_overlay_owns_script() -> bool:
 		_talk_overlay != null
 		and _talk_overlay.is_open()
 		and _talk_stage != 0
-		and _talk_stage != 10
 	)
 
 
 func _talk_overlay_typein_active() -> bool:
 	if not _talk_overlay_owns_script():
 		return false
+	if _talk_stage == 10 and _shop != null:
+		if int(_shop.mode) in [_VendorShop.Mode.NUMBER, _VendorShop.Mode.TEXT]:
+			return true
+		## Stock letter entry (type B/C/…) while the list lives under dialogue.
+		return bool(_shop.is_catalog_list_prompt())
 	return _talk_stage in [1, 3, 4, 11, 12, 13, TALK_STAGE_COUNT]
 
 
@@ -8383,6 +8453,10 @@ func _open_talk_overlay() -> void:
 		return
 	_TalkPortraits.reload()
 	_talk_overlay.open()
+	_talk_overlay.set_icon_renderer(
+		_msg_gear_texture_from_mark,
+		_msg_gear_icon_side(_msg_font_size())
+	)
 	_talk_overlay.set_placeholder(Locale.t("talk_type_keyword"))
 	_talk_overlay.set_portraits(_talk_npc_portrait(), _talk_avatar_portrait())
 	_talk_overlay.set_npc_caption(_talk_overlay_caption())
@@ -8407,6 +8481,14 @@ func _talk_npc_portrait() -> Texture2D:
 		return _TalkPortraits.npc_texture("lcb", "Lord British")
 	if _talk_is_hawkwind:
 		return _TalkPortraits.npc_texture("lcb", "Hawkwind")
+	if _talk_stage == 10 and _shop != null:
+		var owner := str(_shop.owner_name()).strip_edges()
+		var slot := -1
+		if _city_map != null and _talk_person_i >= 0 and _talk_person_i < _city_map.person_file_slot.size():
+			slot = int(_city_map.person_file_slot[_talk_person_i])
+		if not owner.is_empty():
+			return _TalkPortraits.npc_texture(_talk_city_id(), owner, -1, "", slot)
+		return null
 	if _talk_entry == null:
 		return null
 	var slot := -1
@@ -8450,6 +8532,12 @@ func _talk_overlay_caption() -> String:
 		return Locale.t("talk_name_lord_british")
 	if _talk_is_hawkwind:
 		return Locale.t("talk_name_hawkwind")
+	if _talk_stage == 10 and _shop != null:
+		var owner := str(_shop.owner_name()).strip_edges()
+		if not owner.is_empty():
+			return _VendorLocale.person_name(owner)
+		var shop := str(_shop.shop_name()).strip_edges()
+		return shop
 	if _talk_entry == null:
 		return ""
 	var city := _talk_city_id()
@@ -8461,6 +8549,11 @@ func _talk_overlay_caption() -> String:
 
 func _talk_overlay_default_keys() -> Dictionary:
 	var keys := {}
+	if _talk_stage == 10:
+		## Vendor chips (catalog / tavern topics) all sit on the keyword rows.
+		for item in _talk_keyword_menu_items:
+			keys[str(item.get("key", ""))] = true
+		return keys
 	if _talk_reagent_pick or _talk_dungeon_pick:
 		for item in _talk_keyword_menu_items:
 			keys[str(item.get("key", ""))] = true
@@ -8482,6 +8575,7 @@ func _begin_talk_overlay_reply() -> void:
 	if _talk_overlay == null or not _talk_overlay.is_open():
 		return
 	_talk_overlay.clear_dialogue()
+	_talk_overlay.clear_catalog()
 
 
 func _refresh_talk_overlay() -> void:
@@ -8491,7 +8585,10 @@ func _refresh_talk_overlay() -> void:
 	_talk_overlay.set_npc_caption(_talk_overlay_caption())
 	_layout_talk_overlay()
 	if _talk_overlay_choice_active():
-		_talk_overlay.set_player_lead(Locale.t("talk_you_say"))
+		if _talk_stage == 10:
+			_talk_overlay.set_player_lead("")
+		else:
+			_talk_overlay.set_player_lead(Locale.t("talk_you_say"))
 		_talk_overlay.set_choices(_talk_overlay_choice_labels(), _enter_prompt_choice)
 	elif _talk_keyword_menu_can_select():
 		_talk_overlay.set_player_lead("")
@@ -8546,13 +8643,35 @@ func _sync_talk_overlay_input() -> void:
 		return
 	_sync_talk_overlay_spin_cursor()
 	var show := _talk_overlay_typein_active()
-	if _talk_stage == 4:
+	if _talk_stage == 10 and _shop != null:
+		if int(_shop.mode) == _VendorShop.Mode.NUMBER:
+			if bool(_shop.is_gold_number_prompt()):
+				_talk_overlay.set_placeholder(
+					Locale.t("shop_type_tip")
+					if bool(_shop.is_tip_number_prompt())
+					else Locale.t("talk_type_gold")
+				)
+			else:
+				_talk_overlay.set_placeholder(Locale.t("shop_type_amount"))
+		else:
+			_talk_overlay.set_placeholder(Locale.t("talk_type_keyword"))
+	elif _talk_stage == 4:
 		_talk_overlay.set_placeholder(Locale.t("talk_type_gold"))
 	else:
 		_talk_overlay.set_placeholder(Locale.t("talk_type_keyword"))
 	_talk_overlay.set_input_visible(show)
 	if show:
-		if _talk_stage == 4:
+		if (
+			_talk_stage == 4
+			or (
+				_talk_stage == 10
+				and _shop != null
+				and (
+					int(_shop.mode) == _VendorShop.Mode.NUMBER
+					or bool(_shop.is_catalog_list_prompt())
+				)
+			)
+		):
 			_talk_overlay.set_mode_marker("")
 		else:
 			_talk_overlay.set_mode_marker(_talk_input_mode_marker())
@@ -8607,6 +8726,19 @@ func _on_talk_overlay_keyword_clicked(index: int) -> void:
 	_sync_talk_keyword_menu_scroll()
 	_refresh_talk_overlay_cursor()
 	_choose_talk_keyword_menu_item()
+
+
+func _on_talk_overlay_catalog_clicked(index: int) -> void:
+	if (
+		_talk_stage != 10
+		or _shop == null
+		or _shop_item_menu_items.is_empty()
+	):
+		return
+	_shop_item_menu_cursor = clampi(index, 0, _shop_item_menu_items.size() - 1)
+	if _talk_overlay != null:
+		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
+	_choose_shop_item_menu_item()
 
 
 func _ensure_peer_overlay() -> void:
@@ -17637,13 +17769,19 @@ func _begin_vendor_shop(person_i: int, role: int) -> void:
 	_reset_talk_hangul()
 	_talk_entry = null
 	_talk_keywords.clear()
+	_talk_is_lb = false
+	_talk_is_hawkwind = false
 	_shop = _VendorShop.new()
 	var locale := _VendorShop.locale_from_ult(str(_city_map.source_path) if _city_map else "")
+	var person_slot := -1
+	if _city_map != null and person_i >= 0 and person_i < _city_map.person_file_slot.size():
+		person_slot = int(_city_map.person_file_slot[person_i])
 	if role == _CityNpcRoles.Role.VENDOR_INN and _transport == Transport.HORSE:
 		_shop.begin_inn_refuse_horse()
 	else:
-		_shop.begin(role, locale)
+		_shop.begin(role, locale, person_slot)
 	_sync_music()
+	_open_talk_overlay()
 	_flush_shop_output()
 
 
@@ -17653,15 +17791,24 @@ func _flush_shop_output() -> void:
 	_shop_item_line_by_key.clear()
 	var item_line_offsets: Dictionary = {}
 	var flushed_line_count := 0
+	var overlay := _talk_overlay_owns_script()
+	var after_catalog := false
+	if overlay:
+		_begin_talk_overlay_reply()
 	for line in _shop.take_lines():
 		var raw := str(line)
 		var item_key := str(_VendorShop.item_line_key(raw))
 		var text := str(_VendorShop.item_line_text(raw))
+		## Overlay: stock rows go into the selectable catalog under speech, not
+		## as dialogue paragraphs (and not as keyword chips).
+		if overlay and not item_key.is_empty():
+			after_catalog = true
+			continue
 		var presented := _TalkTlk.present_script(text)
 		var wrapped_count := _wrap_msg_text(_reflow_talk_hard_breaks(presented)).size()
 		if not item_key.is_empty():
 			item_line_offsets[item_key] = flushed_line_count
-		_push_talk_script(text)
+		_push_talk_script(text, true, after_catalog and overlay)
 		flushed_line_count += wrapped_count
 	var flush_start := maxi(_msg_lines.size() - flushed_line_count, 0)
 	for item_key in item_line_offsets:
@@ -17681,6 +17828,7 @@ func _flush_shop_output() -> void:
 		_GameInput.reset_stick_navigation()
 		_reset_hold_state()
 	_layout_prompt_row()
+	_refresh_talk_overlay()
 	_refresh_inventory_bars()
 	_refresh_party()
 	_sync_shop_character_inv()
@@ -17724,6 +17872,15 @@ func _sync_shop_item_menu() -> void:
 	if entries.is_empty():
 		_shop_item_menu_cursor = 0
 		_shop_item_menu_line_indices.clear()
+		if _talk_overlay_owns_script() and _talk_overlay != null:
+			_talk_overlay.clear_catalog()
+			## Leaving a catalog: drop leftover stock keyword chips if any.
+			if (
+				_talk_keyword_menu_active
+				and _shop != null
+				and not bool(_shop.is_tavern_topic_prompt())
+			):
+				_end_talk_keyword_menu()
 		_refresh_message_view()
 		return
 	_shop_item_menu_cursor = 0
@@ -17744,7 +17901,98 @@ func _sync_shop_item_menu() -> void:
 		)
 	_GameInput.reset_stick_navigation()
 	_reset_hold_state()
+	## Overlay: list under dialogue + keyboard type-in — no keyword chips.
+	if _talk_overlay_owns_script():
+		if _talk_keyword_menu_active:
+			_end_talk_keyword_menu()
+		_sync_talk_overlay_catalog()
+		_refresh_message_view()
+		return
 	_refresh_message_view()
+
+
+func _sync_talk_overlay_catalog() -> void:
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	if _shop_item_menu_items.is_empty():
+		_talk_overlay.clear_catalog()
+		return
+	var rows: Array = []
+	for raw in _shop_item_menu_items:
+		var label := str(raw.get("label", ""))
+		var icon: Texture2D = null
+		var begin := label.find(_TalkTlk.MSG_ICON_BEGIN)
+		if begin >= 0:
+			var end := label.find(_TalkTlk.MSG_ICON_END, begin + 1)
+			if end > begin:
+				var payload := label.substr(begin + 1, end - begin - 1)
+				icon = _msg_gear_texture_from_mark(payload)
+		rows.append({
+			"key": str(raw.get("key", "")),
+			"label": label,
+			"icon": icon,
+		})
+	_talk_overlay.set_icon_renderer(
+		_msg_gear_texture_from_mark,
+		_msg_gear_icon_side(_msg_font_size())
+	)
+	_talk_overlay.set_catalog(rows, _shop_item_menu_cursor)
+
+
+func _sync_shop_catalog_keyword_menu(entries: Array[Dictionary]) -> void:
+	## Kept for non-overlay fallbacks; overlay catalogs use set_catalog instead.
+	var previous_key := ""
+	if (
+		_talk_keyword_menu_active
+		and _talk_keyword_menu_cursor >= 0
+		and _talk_keyword_menu_cursor < _talk_keyword_menu_items.size()
+	):
+		previous_key = str(_talk_keyword_menu_items[_talk_keyword_menu_cursor].get("key", ""))
+	var prefer := str(_shop.preferred_item_key).strip_edges() if _shop != null else ""
+	if _shop != null:
+		_shop.preferred_item_key = ""
+	var items: Array[Dictionary] = []
+	for raw in entries:
+		var key := str(raw.get("key", ""))
+		var label := str(raw.get("label", key))
+		## Strip shop color / icon markup for chip captions.
+		label = label.replace(_TalkTlk.KW_BBCODE, "").replace(_TalkTlk.KW_BBCODE_END, "")
+		while label.find("\u0002") >= 0:
+			var ia := label.find("\u0002")
+			var ib := label.find("\u0003", ia)
+			if ib < 0:
+				label = label.substr(0, ia)
+				break
+			label = label.substr(0, ia) + label.substr(ib + 1)
+		while label.find("[") >= 0 and label.find("]") > label.find("["):
+			var a := label.find("[")
+			var b := label.find("]", a)
+			if b < 0:
+				break
+			label = label.substr(0, a) + label.substr(b + 1)
+		items.append({
+			"key": key,
+			"label": label.strip_edges(),
+			"input": key,
+			"revealed": true,
+		})
+	_talk_keyword_menu_active = true
+	_talk_keyword_menu_items = items
+	_talk_keyword_menu_cursor = 0
+	_talk_keyword_menu_scroll = 0
+	var want := prefer if not prefer.is_empty() else previous_key
+	if not want.is_empty():
+		for i in items.size():
+			if str(items[i].get("key", "")) == want:
+				_talk_keyword_menu_cursor = i
+				break
+	_talk_keyword_menu_seen.clear()
+	for item in items:
+		_remember_talk_keyword_menu_word(str(item.get("key", "")))
+	_sync_talk_keyword_menu_scroll()
+	_talk_keyword_menu_await_neutral = true
+	_rebuild_command_menu_rows()
+	_sync_talk_keyword_menu_visibility()
 
 
 func _move_shop_item_menu_cursor(step: int) -> void:
@@ -17756,7 +18004,10 @@ func _move_shop_item_menu_cursor(step: int) -> void:
 		0,
 		_shop_item_menu_items.size() - 1
 	)
-	_refresh_message_view()
+	if _talk_overlay_owns_script() and _talk_overlay != null:
+		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
+	else:
+		_refresh_message_view()
 
 
 func _choose_shop_item_menu_item() -> void:
@@ -18019,6 +18270,7 @@ func _end_shop() -> void:
 	_shop = null
 	_talk_stage = 0
 	_talk_buffer = ""
+	_close_talk_overlay()
 	var pi := _talk_person_i
 	_talk_person_i = -1
 	if pi >= 0 and _city_map != null:
@@ -18380,7 +18632,7 @@ func _talk_say_name() -> void:
 		_refresh_journal_panel()
 
 
-func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
+func _push_talk_script(raw: String, match_keywords: bool = true, overlay_tail: bool = false) -> void:
 	## NPC / talk script lines. Classic .TLK is modernized when lang is en_us.
 	## DOS .tlk embeds hard breaks for the tiny classic text window — reflow to
 	## the modern message strip, then soft-wrap to full content width.
@@ -18401,7 +18653,11 @@ func _push_talk_script(raw: String, match_keywords: bool = true) -> void:
 	if _talk_overlay_owns_script():
 		var keys: Array = _talk_keywords if match_keywords else []
 		var spoken := _TalkTlk.strip_speaker_lead(flat.replace("\n", " "))
-		_talk_overlay.append_dialogue(_TalkTlk.colorize_keywords(spoken, keys))
+		var colored := _TalkTlk.colorize_keywords(spoken, keys)
+		if overlay_tail:
+			_talk_overlay.append_dialogue_tail(colored)
+		else:
+			_talk_overlay.append_dialogue(colored)
 		_refresh_talk_overlay()
 		return
 	## Ensure geometry before measuring wrap width (first line of a talk).
@@ -18615,6 +18871,9 @@ func _handle_talk_input(event: InputEvent) -> bool:
 		2:
 			## xu4 EventHandler::waitAnyKey before the follow-up question.
 			_talk_ask_question()
+			return true
+		TALK_STAGE_FAREWELL:
+			_finish_talk_farewell()
 			return true
 		3:
 			return _talk_input_yn(k)
@@ -19857,12 +20116,12 @@ func _end_talk(_aborted: bool) -> void:
 		else:
 			_end_shop()
 		return
+	if _talk_stage == TALK_STAGE_FAREWELL:
+		_finish_talk_farewell()
+		return
 	if _talk_stage == 0:
 		return
 	_end_talk_keyword_menu()
-	_close_talk_overlay()
-	## Mark closed before farewell so Esc cannot re-enter or open the menu
-	## mid-cleanup. Bye like xu4 screenMessage — no leading command prompt.
 	var farewell := "Bye."
 	if _talk_is_hawkwind:
 		farewell = _Hawkwind.bye_line()
@@ -19870,10 +20129,50 @@ func _end_talk(_aborted: bool) -> void:
 		farewell = _LordBritish.farewell()
 	elif str(GameState.language) == "ko":
 		farewell = _TalkTlk.present_script(farewell)
+	farewell = farewell.strip_edges()
+	## Keep the closing line on the map overlay until any key — closing the
+	## chrome immediately hid Bye / LB / Hawkwind farewells.
+	if (
+		_talk_overlay_owns_script()
+		and not farewell.is_empty()
+	):
+		_talk_farewell_line = farewell
+		_talk_stage = TALK_STAGE_FAREWELL
+		_talk_buffer = ""
+		_reset_talk_hangul()
+		if _talk_overlay != null:
+			_talk_overlay.set_player_lead("")
+			_talk_overlay.set_keywords([], 0, {})
+			_talk_overlay.set_input_visible(false)
+			_talk_overlay.set_mode_marker("")
+			_restore_talk_ime_edit_to_prompt()
+			var spoken := _TalkTlk.strip_speaker_lead(
+				_TalkTlk.present_script(farewell).replace("\n", " ")
+			)
+			_talk_overlay.append_dialogue(spoken)
+			_refresh_talk_overlay()
+		_layout_prompt_row()
+		return
+	_close_talk_and_farewell(farewell, true)
+
+
+func _finish_talk_farewell() -> void:
+	if _talk_stage != TALK_STAGE_FAREWELL:
+		return
+	var farewell := _talk_farewell_line
+	_talk_farewell_line = ""
+	## Already shown on the overlay — skip the right-side message strip.
+	_close_talk_and_farewell(farewell, false)
+
+
+func _close_talk_and_farewell(farewell: String, echo_to_strip: bool) -> void:
+	_close_talk_overlay()
+	## Mark closed so Esc cannot re-enter or open the menu mid-cleanup.
 	_talk_stage = 0
 	_talk_buffer = ""
 	_reset_talk_hangul()
-	_push_message(farewell, false)
+	if echo_to_strip and not farewell.is_empty():
+		_push_message(farewell, false)
 	var pi := _talk_person_i
 	_talk_person_i = -1
 	_talk_entry = null
@@ -19889,6 +20188,7 @@ func _end_talk(_aborted: bool) -> void:
 	_talk_requirements_asked = false
 	_talk_is_hawkwind = false
 	_talk_is_lb = false
+	_talk_farewell_line = ""
 	_shop = null
 	if pi >= 0 and _city_map != null:
 		_city_map.pause_follow(pi)

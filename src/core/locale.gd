@@ -1363,12 +1363,12 @@ const _T := {
 	"cmd_buy": {
 		"en_u4": "Buy",
 		"en_us": "Buy",
-		"ko": "구매",
+		"ko": "사겠소",
 	},
 	"cmd_sell": {
 		"en_u4": "Sell",
 		"en_us": "Sell",
-		"ko": "판매",
+		"ko": "팔겠소",
 	},
 	"shop_heal_cure": {
 		"en_u4": "Curing",
@@ -1394,6 +1394,56 @@ const _T := {
 		"en_u4": "Ale",
 		"en_us": "Ale",
 		"ko": "에일",
+	},
+	"shop_guild_torch": {
+		"en_u4": "Torches",
+		"en_us": "Torches",
+		"ko": "횃불",
+	},
+	"shop_guild_gem": {
+		"en_u4": "Magic Gems",
+		"en_us": "Magic Gems",
+		"ko": "마법 젬",
+	},
+	"shop_guild_key": {
+		"en_u4": "Magic Keys",
+		"en_us": "Magic Keys",
+		"ko": "마법 열쇠",
+	},
+	"shop_guild_sextant": {
+		"en_u4": "Sextant",
+		"en_us": "Sextant",
+		"ko": "육분의",
+	},
+	"shop_guild_item_d": {
+		"en_u4": "Item D",
+		"en_us": "Item D",
+		"ko": "D 물건",
+	},
+	"shop_inn_bed_1": {
+		"en_u4": "1 Bed",
+		"en_us": "1 Bed",
+		"ko": "1인실",
+	},
+	"shop_inn_bed_2": {
+		"en_u4": "2 Beds",
+		"en_us": "2 Beds",
+		"ko": "2인실",
+	},
+	"shop_inn_bed_3": {
+		"en_u4": "3 Beds",
+		"en_us": "3 Beds",
+		"ko": "3인실",
+	},
+	"shop_type_amount": {
+		"en_u4": "How many?",
+		"en_us": "How many?",
+		"ko": "몇 개?",
+	},
+	"shop_type_tip": {
+		"en_u4": "You give:",
+		"en_us": "You give:",
+		"ko": "얼마를 주겠소?",
 	},
 	"shop_guild_heard_d": {
 		"en_u4": "I heard tell of an item D.",

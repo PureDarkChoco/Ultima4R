@@ -126,6 +126,8 @@ const PERSON_NAMES := {
 	"Sam": "샘",
 	"Celestial": "셀레스티얼",
 	"Terran": "테란",
+	"Greg": "그렉",
+	"Rob": "롭",
 	"Greg 'n Rob": "그렉과 롭",
 	"The Cap'n": "선장",
 	"Arron": "애런",
@@ -156,18 +158,18 @@ const TOPIC_ALIAS := {
 }
 
 const RUMOR := {
-	"% says: Ah, the Black Stone. Yes I've heard of it. But, the only one who knows where it lies is the wizard Merlin.":
-		"% 말하길: 아, 검은 돌 말인가. 들었지. 다만 그 소재를 아는 이는 마법사 멀린뿐이라네.",
-	"% says: For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!":
-		"% 말하길: 항해엔 육분의가 필수라네… 길드 상점에서 물건 \"D\"를 청해 보게!",
+	"Ah, the Black Stone. Yes I've heard of it. But, the only one who knows where it lies is the wizard Merlin.":
+		"아, 검은 돌 말인가. 들었지. 다만 그 소재를 아는 이는 마법사 멀린뿐이라네.",
+	"For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!":
+		"항해엔 육분의가 필수라네… 길드 상점에서 물건 \"D\"를 청해 보게!",
 	"Now let me see... Yes it was the old Hermit... Sloven! He is tough to find, lives near Lock Lake I hear.":
 		"어디 보자… 그래, 늙은 은둔자 슬로벤이지! 찾기 힘들고, 로크 호수 근처에 산다고 들었네.",
-	"% says: The last person I knew that had any Mandrake was an old alchemist named Calumny.":
-		"% 말하길: 맨드레이크를 가진 이를 마지막으로 본 건 늙은 연금술사 칼럼니였지.",
-	"% says: If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!":
-		"% 말하길: 그 가장 사악한 것에 관해 알고 싶다면… 거지 주드를 찾게. 그는 몹시 가난하다네!",
-	"% says: Of Nightshade I know but this... Seek out Virgil or thou shalt miss! Try in Trinsic!":
-		"% 말하길: 밤그늘풀에 대해 내가 아는 건 이것뿐… 버질을 찾게, 놓치지 말게! {trinsic}에서 시험해 보게!",
+	"The last person I knew that had any Mandrake was an old alchemist named Calumny.":
+		"맨드레이크를 가진 이를 마지막으로 본 건 늙은 연금술사 칼럼니였지.",
+	"If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!":
+		"그 가장 사악한 것에 관해 알고 싶다면… 거지 주드를 찾게. 그는 몹시 가난하다네!",
+	"Of Nightshade I know but this... Seek out Virgil or thou shalt miss! Try in Trinsic!":
+		"밤그늘풀에 대해 내가 아는 건 이것뿐… 버질을 찾게, 놓치지 말게! {trinsic}에서 시험해 보게!",
 }
 
 const WEAPON_DESC_KO := {
@@ -221,71 +223,71 @@ const LINES := {
 	"Bye.": "안녕.",
 	"Too bad. Maybe next time.": "아쉽군. 다음에.",
 	"Closed.": "문을 닫았소.",
-	"Welcome to\n%s\n\n%s says:\nWelcome friend!\nArt thou here to\nBuy (B) or Sell (S)?":
-		"환영하오,\n%s\n\n%s 말하길:\n어서 오게, 벗이여!\n사겠소(B), 팔겠소(S)?",
-	"%s says:\nArt thou here to\nBuy (B) or Sell (S)?":
-		"%s 말하길:\n사겠소(B), 팔겠소(S)?",
+	"Welcome to\n%s\n\nWelcome friend!\nArt thou here to\nBuy or Sell?":
+		"환영하오,\n%s\n\n어서 오게, 벗이여!\n사겠소, 팔겠소?",
+	"Art thou here to\nBuy or Sell?":
+		"사겠소, 팔겠소?",
 	"Very Good!": "좋소!",
 	"Excellent! Which\nwouldst ": "좋소! 무엇을 팔겠소?",
 	"We Have:": "우리는 이런 것이 있소:",
 	"Your Interest?": "관심사는?",
 	"You have not the funds for even one!": "하나조차 살 돈이 없소!",
 	"How many would\nyou like?": "몇 개 원하시오?",
-	"Take it? (Y/N)": "가져가겠소? (Y/N)",
+	"Take it?": "가져가겠소?",
 	"Too bad.": "아쉽군.",
 	"I fear you have not the funds, perhaps something else.":
 		"골드가 부족한 듯하오. 다른 것은 어떠시오?",
-	"%s says: A fine choice!": "%s 말하길: 훌륭한 선택이오!",
-	"Anything\nelse? (Y/N)": "더\n필요하시오? (Y/N)",
+	"A fine choice!": "훌륭한 선택이오!",
+	"Anything\nelse?": "더\n필요하시오?",
 	"You sell:": "팔 것:",
 	"Thou dost not own that. What else might":
 		"그것은 갖고 있지 않소. 다른 것은?",
-	"I will give you %dgp for that %s.\nDeal? (Y/N)":
-		"%dgp에 그 %s를 사 들이겠소.\n거래하겠소? (Y/N)",
+	"I will give you %s for that %s.\nDeal?":
+		"%s에 그 %s를 사 들이겠소.\n거래하겠소?",
 	"How many %ss\nwould you wish\nto sell?":
 		"%s를 몇 개\n팔겠소?",
 	"Hmmph. What else\nwould ": "흥. 다른 것은?",
 	"You don't have that many swine!": "그렇게 많이 갖고 있지도 않소, 이 돼지 같으니!",
-	"I will give you %dgp for them.\nDeal? (Y/N)":
-		"그것들에 %dgp를 주겠소.\n거래하겠소? (Y/N)",
+	"I will give you %s for them.\nDeal?":
+		"그것들에 %s를 주겠소.\n거래하겠소?",
 	"Fine! What else?": "좋소! 다른 것은?",
-	"%s says:\nFare thee well!": "%s 말하길:\n잘 가게!",
-	"Welcome to\n%s\n\n%s says:\nWelcome friend!\nWant to Buy (B) or\nSell (S)?":
-		"환영하오,\n%s\n\n%s 말하길:\n어서 오게, 벗이여!\n사겠소(B), 팔겠소(S)?",
-	"%s says:\nWant to Buy (B) or\nSell (S)?":
-		"%s 말하길:\n사겠소(B),\n팔겠소(S)?",
+	"Fare thee well!": "잘 가게!",
+	"Welcome to\n%s\n\nWelcome friend!\nWant to Buy or\nSell?":
+		"환영하오,\n%s\n\n어서 오게, 벗이여!\n사겠소, 팔겠소?",
+	"Want to Buy or\nSell?":
+		"사겠소,\n팔겠소?",
 	"Well then,": "그럼,",
 	"What will": "무엇을 팔겠소?",
 	"We've got:": "우리는 이런 것이 있소:",
 	"What'll it be?": "무엇을 하겠어요?",
 	"You don't have enough gold. Maybe something cheaper?":
 		"골드가 부족하오. 더 싼 것은 어떠시오?",
-	"%s says: Good choice!": "%s 말하길: 좋은 선택이오!",
+	"Good choice!": "좋은 선택이오!",
 	"Come on, you\ndon't own any.": "이보게,\n가진 게 없소.",
 	"Harumph. What else would ": "흥. 다른 것은?",
-	"%s says:\nGood Bye.": "%s 말하길:\n안녕히.",
-	"Welcome to %s\n\n%s says: Good day, and Welcome friend.":
-		"%s에 온 것을 환영하오\n\n%s 말하길: 좋은 날이오, 어서 오게 벗이여.",
+	"Good Bye.": "안녕히.",
+	"Welcome to %s\n\nGood day, and Welcome friend.":
+		"%s에 온 것을 환영하오\n\n좋은 날이오, 어서 오게 벗이여.",
 	"Come back when you have some money!": "돈을 가지고 다시 오게!",
-	"May I interest you in some rations? (Y/N)": "식량에 관심 있소? (Y/N)",
-	"We have the best adventure rations, 25 for only %dgp.":
-		"최고급 모험 식량이 있소. 25개에 단 %dgp.",
-	"How many packs of 25 would you like?": "25개들이 팩을 몇 개 원하시오?",
-	"You can only afford %d packs.": "살 수 있는 건 %d팩뿐이오.",
+	"May I interest you in some rations?": "식량에 관심 있소?",
+	"We have the best adventure rations, %s for only %s.":
+		"최고급 모험 식량이 있소. %s개에 단 %s.",
+	"How many packs of %s would you like?": "%s개들이 팩을 몇 개 원하시오?",
+	"You can only afford %s packs.": "살 수 있는 건 %s팩뿐이오.",
 	"Thank you. ": "고맙소. ",
 	"Come again!": "또 오시오!",
 	"Goodbye. Come again!": "안녕히. 또 오시오!",
-	"%s says: Welcome to %s": "%s 말하길: %s에 온 것을 환영하네",
-	"%s says: What'll it be, Food (F) or Ale (A)?": "%s 말하길: 음식(F), 에일(A)?",
+	"Welcome to %s": "%s에 온 것을 환영하네",
+	"What'll it be, Food or Ale?": "음식, 에일?",
 	"Our specialty is %s, which costs %dgp.": "특선은 %s이오. 값은 %dgp.",
 	"How many plates would you\nlike?": "몇 접시\n원하오?",
-	"%s says: Sorry, you seem to have too many. Bye!":
-		"%s 말하길: 미안하군, 너무 많이 마신 듯해. 잘 가게!",
+	"Sorry, you seem to have too many. Bye!":
+		"미안하군, 너무 많이 마신 듯해. 잘 가게!",
 	"Here's a mug of our best.\nThat'll be 2gp.\nHow much will you pay?":
 		"우리 최고 잔일세.\n2gp.\n얼마를 내시겠나?",
 	"Ya can only afford %d plates.": "살 수 있는 건 %d접시뿐일세.",
 	"Here ye arr.": "여기 있네.",
-	"Somethin'\nelse? (Y/N)": "다른 것\n있나? (Y/N)",
+	"Somethin'\nelse?": "다른 것\n있나?",
 	"Won't pay, eh.\nYa scum, be gone\nfore ey call the\nguards!":
 		"안 낸다 이거지.\n이 쓰레기 같으니, 경비 부르기\n전에 썩 꺼져!",
 	"It seems that you have not the gold. Good Day!":
@@ -297,8 +299,8 @@ const LINES := {
 	"Ye don't have that mate!": "그 돈은 없구먼!",
 	"Sorry, I could\nnot help ya mate!": "미안하지만\n도와줄 수 없네!",
 	"See ya mate!": "잘 가게!",
-	"A blind woman turns to you and says: Welcome to %s\n\nI am %s\nAre you in need of Reagents? (Y/N)":
-		"눈먼 여인이 돌아보며 말합니다: %s에 오신 것을 환영합니다\n\n저는 %s입니다\n시약이 필요하신가요? (Y/N)",
+	"Welcome to %s\n\nI am %s\nAre you in need of Reagents?":
+		"%s에 오신 것을 환영합니다\n\n저는 %s입니다\n시약이 필요하신가요?",
 	"Very well,": "좋습니다,",
 	"I have": "있습니다",
 	"Your\nInterest:": "관심사는:",
@@ -311,39 +313,39 @@ const LINES := {
 	"It seems you have not the gold! ": "골드가 부족해 보이는군요! ",
 	"Very good. ": "좋습니다. ",
 	"I see, then ": "그렇군요, 그럼 ",
-	"%s says:\nPerhaps another time then....\nand slowly turns away.":
-		"%s 말하길:\n그럼 다음에....\n천천히 등을 돌립니다.",
-	"Welcome unto\n%s\n\n%s says:\nPeace and Joy be with you friend.\nAre you in need of help? (Y/N)":
-		"환영합니다,\n%s\n\n%s 말하길:\n평화와 기쁨이 함께 하기를, 벗이여.\n도움이 필요하시오? (Y/N)",
-	"%s says: We can perform:\nA-Curing\nB-Healing\nC-Resurrection\nYour need:":
-		"%s 말하길: 우리는 할 수 있소:\nA-해독\nB-치유\nC-부활\n필요한 것:",
-	"%s asks:\nWho is in\nneed?":
-		"%s가 묻소:\n누가\n필요하오?",
+	"Perhaps another time then....\nand slowly turns away.":
+		"그럼 다음에....\n천천히 등을 돌립니다.",
+	"Welcome unto\n%s\n\nPeace and Joy be with you friend.\nAre you in need of help?":
+		"환영합니다,\n%s\n\n평화와 기쁨이 함께 하기를, 벗이여.\n도움이 필요하시오?",
+	"Curing, Healing, or Resurrection — which dost thou need?":
+		"해독, 치유, 부활 — 어느 것이 필요하오?",
+	"Who is in\nneed?":
+		"누가\n필요하오?",
 	"Thou suffers not from Poison!": "당신은 독에 걸린 것이 아니오!",
 	"Thou art already quite healthy!": "벌써 아주 건강하오!",
 	"Thou art not dead fool!": "죽지 않았소, 바보!",
 	"%s will cost thee %dgp.": "%s는 %dgp요.",
 	"I see by thy purse that thou hast not enough gold. I cannot aid thee.":
 		"주머니를 보니 골드가 부족하오. 도울 수 없소.",
-	"Wilt thou\npay? (Y/N)": "지불하겠소? (Y/N)",
-	"%s asks: Do you need more help? (Y/N)": "%s가 묻소: 더 도움이 필요하시오? (Y/N)",
-	"Art thou willing to give 100pts of thy blood to aid others? (Y/N)":
-		"남을 돕기 위해 피 100을 주겠소? (Y/N)",
+	"Wilt thou\npay?": "지불하겠소?",
+	"Do you need more help?": "더 도움이 필요하시오?",
+	"Art thou willing to give 100pts of thy blood to aid others?":
+		"남을 돕기 위해 피 100을 주겠소?",
 	"Thou art a great help. We are in dire need!":
 		"큰 도움이 되시오. 우리는 절실히 필요하오!",
-	"%s says: May thy life be guarded by the powers of good.":
-		"%s 말하길: 선의 힘으로 삶이 지켜지기를.",
-	"The Innkeeper says: Welcome to %s\n\nI am %s.\n\nAre you in need of lodging? (Y/N)":
-		"여관 주인이 말합니다: %s에 오신 것을 환영합니다\n\n저는 %s입니다.\n\n숙박이 필요하신가요? (Y/N)",
-	"The Innkeeper says: Get that horse out of here!!!":
-		"여관 주인이 말합니다: 그 말은 당장 밖으로!!!",
-	"%s says: Then you have come to the wrong place!\nGood day.":
-		"%s 말하길: 그럼 이곳은 잘못 오셨소!\n좋은 날이오.",
+	"May thy life be guarded by the powers of good.":
+		"선의 힘으로 삶이 지켜지기를.",
+	"Welcome to %s\n\nI am %s.\n\nAre you in need of lodging?":
+		"%s에 오신 것을 환영합니다\n\n저는 %s입니다.\n\n숙박이 필요하신가요?",
+	"Get that horse out of here!!!":
+		"그 말은 당장 밖으로!!!",
+	"Then you have come to the wrong place!\nGood day.":
+		"그럼 이곳은 잘못 오셨소!\n좋은 날이오.",
 	"We have three rooms available,\na 1, 2 and 3 bed room for 30, 60\nand 90gp each.\n1, 2 or 3\nbeds? (1/2/3)":
 		"방이 셋 있소.\n1·2·3인 침대방, 각 30, 60,\n90gp.\n1, 2, 3\n침대? (1/2/3)",
 	"We have a room with 2 beds that rents for 20gp.":
 		"침대 두개짜리 방이 20gp요.",
-	"Will you take the room? (Y/N)": "묵으시겠소? (Y/N)",
+	"Will you take the room?": "묵으시겠소?",
 	"We have a modest sized room with 1 bed for 15 gp.":
 		"보통 크기에 침대 하나, 15gp요.",
 	"We have a very secure room of modest size and 1 bed for 10gp.":
@@ -362,12 +364,12 @@ const LINES := {
 		"좋습니다.  좋은\n밤 되시길.",
 	"Oh, and don't mind the strange noises, it's only rats!":
 		"아, 이상한 소리는 신경 쓰지 마시오. 쥐일 뿐이오!",
-	"Avast ye mate! Shure ye wishes to buy from ol'\n%s?\n\n%s says: Welcome to %s.\nLike to see my goods? (Y/N)":
-		"이봐 친구! 이 늙은\n%s에게서 사고 싶은가?\n\n%s 말하길: %s에 온 걸 환영하네.\n내 물건을 보겠나? (Y/N)",
-	"%s says: Good Mate!\nYa see I gots:\nA-Torches\nB-Magic Gems\nC-Magic Keys\nWat'l it be?":
-		"%s 말하길: 좋은 친구!\n내게 있네:\nA-횃불\nB-마법 보석\nC-마법 열쇠\n뭘로 하지?",
-	"%s says: Good Mate!\nYa see I gots:":
-		"%s 말하길: 좋은 친구!\n내게 있네:",
+	"Avast ye mate! Shure ye wishes to buy from ol'\n%s?\n\nWelcome to %s.\nLike to see my goods?":
+		"이봐 친구! 이 늙은\n%s에게서 사고 싶은가?\n\n%s에 온 걸 환영하네.\n내 물건을 보겠나?",
+	"Good Mate!\nYa see I gots:\nA-Torches\nB-Magic Gems\nC-Magic Keys\nWat'l it be?":
+		"좋은 친구!\n내게 있네:\nA-횃불\nB-마법 보석\nC-마법 열쇠\n뭘로 하지?",
+	"Good Mate!\nYa see I gots:":
+		"좋은 친구!\n내게 있네:",
 	"A-Torches": "A-횃불",
 	"B-Magic Gems": "B-마법 보석",
 	"C-Magic Keys": "C-마법 열쇠",
@@ -381,18 +383,18 @@ const LINES := {
 		"마법 열쇠, 각 1회용. 6개에 60gp, 공평한 값이지.",
 	"So...Ya want a Sextant...Well I gots one which I might part with fer 900 gold!":
 		"그래서… 육분의를 원하나… 내가 하나 갖고 있지. 900골드면 팔 수도 있지!",
-	"Will ya buy? (Y/N)": "사겠나? (Y/N)",
+	"Will ya buy?": "사겠나?",
 	"Hmmm...Grmbl...": "흠… 으르릉…",
 	"What? Can't pay! Buzz off swine!": "뭐? 못 내? 꺼져, 돼지 같으니!",
 	"Fine... fine...": "좋아… 좋아…",
-	"%s says: See\nmore? (Y/N)": "%s 말하길: 더\n보겠나? (Y/N)",
-	"%s says: See ya matie!": "%s 말하길: 잘 가게, 선원!",
-	"Welcome friend!\nCan I interest thee in\nhorses? (Y/N)":
-		"어서 오게 벗이여!\n말에 관심 있소? (Y/N)",
+	"See\nmore?": "더\n보겠나?",
+	"See ya matie!": "잘 가게, 선원!",
+	"Welcome friend!\nCan I interest thee in\nhorses?":
+		"어서 오게 벗이여!\n말에 관심 있소?",
 	"A shame, thou looks like thou could use a good horse!":
 		"아쉽군, 좋은 말이 필요해 보이는데!",
-	"For only %dg.p.\nThou can have the best! Wilt thou buy? (Y/N)":
-		"단 %dg.p.에\n최고를 가져갈 수 있소! 사겠소? (Y/N)",
+	"For only %dg.p.\nThou can have the best! Wilt thou buy?":
+		"단 %dg.p.에\n최고를 가져갈 수 있소! 사겠소?",
 	"It seems thou hast not gold enough to pay!":
 		"지불할 골드가 부족한 듯하오!",
 	"Here, a better breed thou shalt not find ever!":

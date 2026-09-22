@@ -27,6 +27,20 @@ const TOPIC_SLUGS := {
 	"yew/just": "guard_15",
 }
 
+## city/.ULT person slot → portrait when several vendors share one spoken name.
+const VENDOR_SLOT_SLUGS := {
+	## Britain: two Winstons — weapons vs armour.
+	"britain/29": "winston",
+	"britain/28": "winston_2",
+	## Jhelom: three Triplet healers.
+	"jhelom/25": "triplet",
+	"jhelom/26": "triplet_2",
+	"jhelom/27": "triplet_3",
+	## Paws: Greg 'n Rob bartenders (two bodies, one spoken name).
+	"paws/30": "greg",
+	"paws/29": "rob",
+}
+
 ## city/slugified TLK name → file slug when tokens do not match the PNG.
 const NAME_SLUGS := {
 	"cove/rabindranath_tagore": "rabindranath",
@@ -120,6 +134,13 @@ static func npc_path(
 ) -> String:
 	_ensure_city(city_id)
 	var city := city_id.strip_edges().to_lower()
+	## Numbered vendor faces (Winston×2, Triplet×3, Greg/Rob, …) win over name match.
+	if person_slot >= 0:
+		var slot_key := "%s/%d" % [city, person_slot]
+		if VENDOR_SLOT_SLUGS.has(slot_key):
+			var slot_path := _city_file(city, str(VENDOR_SLOT_SLUGS[slot_key]))
+			if not slot_path.is_empty():
+				return slot_path
 	var topic := topic2.strip_edges().to_lower()
 	if topic.length() > 4:
 		topic = topic.substr(0, 4)
