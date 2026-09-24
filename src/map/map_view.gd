@@ -17,6 +17,9 @@ const _DungeonPortalsScript := preload("res://src/map/dungeon_portals.gd")
 const _Apple2HgrNtscScript := preload("res://src/map/apple2_hgr_ntsc.gd")
 const _Apple2ProgramDiskScript := preload("res://src/core/apple2_program_disk.gd")
 const _TorchFlickerShader := preload("res://assets/shaders/torch_flicker.gdshader")
+const _CloudShadowShader := preload("res://assets/shaders/cloud_shadow.gdshader")
+const _Weather := preload("res://src/core/weather.gd")
+const _CityIndoor := preload("res://src/map/city_indoor.gd")
 ## xu4 invisible cells → solid black (not dimmed fog).
 const _LOS_BLACK := Color(0, 0, 0, 1)
 const VIEW_H := 11
@@ -445,6 +448,15 @@ var _dungeon_z := 0
 var _dungeon_dir := 2
 var _dungeon_lit := false
 var _torch_flicker_mat: ShaderMaterial
+var _cloud_mat: ShaderMaterial
+var _cloud_overlay: TextureRect
+var _weather_cam_hold := Vector2.ZERO
+var _weather_party_hold := Vector2.ZERO
+var _weather_cam_held := false
+var _indoor_tex: ImageTexture
+var _indoor_key := ""
+var _indoor_bits: PackedByteArray = PackedByteArray()
+var _hide_img: Image
 ## Falling-rock trap overlay: keyed sprite chunks in dungeon-field pixels.
 var _dungeon_rock_fx: Dictionary = {}
 var _dungeon_rock_img: Image
@@ -503,6 +515,7 @@ func _ready() -> void:
 	_magic_arrow_missile_img = _load_image_path(MAGIC_ARROW_MISSILE_PATH)
 	texture = _tex
 	material = null
+	_ensure_cloud_overlay()
 
 
 func setup(p_world: WorldMapData, _p_atlas: Texture2D = null) -> void:
@@ -857,6 +870,8 @@ func exit_city() -> void:
 	_city_out_pad = 0
 	_city_out_stride = 0
 	_city_nb.clear()
+	_indoor_key = ""
+	_indoor_bits = PackedByteArray()
 	_city_enter_side = 2
 	_npc_frame_bit.clear()
 	_npc_frame_cd.clear()
@@ -1010,6 +1025,7 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 
 func snapshot_frame() -> Image:
 	## Copy of the current map buffer for scene transitions.
+	_hold_weather_cam()
 	if _buf == null:
 		return null
 	return _buf.duplicate()
@@ -1024,6 +1040,7 @@ func await_combat_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_S
 	## Reveal combat one tile at a time, anti-diagonals first: cells with equal
 	## (cx + cy) flip together as a band that grows from top-left → bottom-right.
 	if from == null or _buf == null or duration <= 0.0:
+		_release_weather_cam()
 		return
 	var to: Image = _buf.duplicate()
 	var w: int = to.get_width()
@@ -1063,6 +1080,7 @@ func await_combat_enter_wipe(from: Image, duration: float = COMBAT_ENTER_TRANS_S
 	_buf.blit_rect(to, Rect2i(0, 0, w, h), Vector2i.ZERO)
 	_upload_buffer()
 	_scene_trans_busy = false
+	_release_weather_cam()
 	queue_redraw()
 
 
@@ -3274,7 +3292,171 @@ func _unwrap_step(from: Vector2i, to: Vector2i) -> Vector2i:
 	return d
 
 
+func _cloud_shadow_wanted() -> bool:
+	## Outdoor explore / town. Stay up during a wipe into those views.
+	## Dungeon, camp, and combat stay clear (including their enter wipe).
+	if not tiles_ready:
+		return false
+	if _combat_map != null or _camp_map != null or is_in_dungeon():
+		return false
+	return is_in_city() or (world != null and world.loaded) or _weather_cam_held
+
+
+func _hold_weather_cam() -> void:
+	## Freeze clouds, rain, and the hide mask for the whole enter wipe.
+	## Otherwise apply() rebuilds city indoor/LOS and the overlay goes clear
+	## (bright, no rain) until the destination map finishes wiping in.
+	_weather_cam_hold = _cam_tile()
+	_weather_party_hold = Vector2(center)
+	_weather_cam_held = true
+
+
+func _release_weather_cam() -> void:
+	_weather_cam_held = false
+	_refresh_weather_hide_mask()
+
+
+func _weather_sample_cam() -> Vector2:
+	if _weather_cam_held:
+		return _weather_cam_hold
+	## Current map tile (world or city-local). A frozen town world-pos makes
+	## clouds sit in screen space and follow the avatar.
+	return _cam_tile()
+
+
+func _weather_cover_cam() -> Vector2:
+	## Storm wash uses the Britannia tile the town sits on, so the city stays
+	## as dark as the world outside. Discrete clouds still follow `_cam_tile()`.
+	if _weather_cam_held:
+		return _weather_cam_hold
+	if is_in_city() and _city_world_pos.x >= 0:
+		return Vector2(_city_world_pos)
+	return _cam_tile()
+
+
+func _ensure_hide_tex(w: int, h: int) -> void:
+	if _hide_img == null or _hide_img.get_width() != w or _hide_img.get_height() != h:
+		_hide_img = Image.create(w, h, false, Image.FORMAT_RGBA8)
+		_hide_img.fill(Color(0, 0, 0, 1))
+		_indoor_tex = ImageTexture.create_from_image(_hide_img)
+		if _cloud_overlay != null:
+			_cloud_overlay.texture = _indoor_tex
+	elif _indoor_tex == null:
+		_indoor_tex = ImageTexture.create_from_image(_hide_img)
+
+
+func _sync_indoor_bits() -> void:
+	if not is_in_city():
+		if _indoor_key != "":
+			_indoor_key = ""
+			_indoor_bits = PackedByteArray()
+		return
+	var key := str(_city_map.source_path)
+	if key == _indoor_key:
+		return
+	_indoor_key = key
+	_indoor_bits = _CityIndoor.mask_for(key)
+
+
+func _refresh_weather_hide_mask() -> void:
+	if _weather_cam_held:
+		return
+	var dim := _los_grid_size()
+	var w: int = _los_w if _los_w > 0 else dim.x
+	var h: int = _los_h if _los_h > 0 else dim.y
+	_ensure_hide_tex(w, h)
+	_sync_indoor_bits()
+	var half_x := w / 2
+	var half_y := h / 2
+	var los_ok := los_enabled and _los.size() == w * h
+	var indoor_ok := is_in_city() and _indoor_bits.size() >= _CityIndoor.TILE_COUNT
+	var hide_c := Color(1, 1, 1, 1)
+	var show_c := Color(0, 0, 0, 1)
+	for vy in h:
+		for vx in w:
+			var hide := false
+			if los_ok and _los[vy * w + vx] == 0:
+				hide = true
+			elif indoor_ok:
+				var mx := center.x - half_x + vx
+				var my := center.y - half_y + vy
+				if mx >= 0 and my >= 0 and mx < _CityIndoor.WIDTH and my < _CityIndoor.HEIGHT:
+					hide = _indoor_bits[my * _CityIndoor.WIDTH + mx] != 0
+			_hide_img.set_pixel(vx, vy, hide_c if hide else show_c)
+	_indoor_tex.update(_hide_img)
+
+
+func _ensure_cloud_overlay() -> void:
+	if _cloud_overlay != null:
+		return
+	_cloud_mat = ShaderMaterial.new()
+	_cloud_mat.shader = _CloudShadowShader
+	var dim := _los_grid_size()
+	_ensure_hide_tex(dim.x, dim.y)
+	_cloud_overlay = TextureRect.new()
+	_cloud_overlay.name = "CloudShadow"
+	_cloud_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cloud_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_cloud_overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_cloud_overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	_cloud_overlay.texture = _indoor_tex
+	_cloud_overlay.material = _cloud_mat
+	_cloud_overlay.modulate = Color.WHITE
+	_cloud_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(_cloud_overlay)
+
+
+func _sync_cloud_shadow() -> void:
+	_ensure_cloud_overlay()
+	var wanted := _cloud_shadow_wanted()
+	_cloud_overlay.visible = wanted
+	if not wanted or _cloud_mat == null:
+		return
+	_cloud_mat.set_shader_parameter("cam_tile", _weather_sample_cam())
+	_cloud_mat.set_shader_parameter("cover_cam", _weather_cover_cam())
+	_cloud_mat.set_shader_parameter("view_tiles", Vector2(float(view_w), float(view_h)))
+	_cloud_mat.set_shader_parameter("cloud_period", _Weather.PERIOD)
+	var blobs: Array = _Weather.shader_blobs(GameState)
+	var shapes: Array = _Weather.shader_shapes(GameState)
+	var packed_a := PackedVector4Array()
+	var packed_b := PackedVector4Array()
+	var count := 0
+	for i in blobs.size():
+		var blob: Vector4 = blobs[i]
+		packed_a.append(blob)
+		packed_b.append(shapes[i] if i < shapes.size() else Vector4.ZERO)
+		if blob.w > 0.001:
+			count += 1
+	_cloud_mat.set_shader_parameter("clouds_a", packed_a)
+	_cloud_mat.set_shader_parameter("clouds_b", packed_b)
+	_cloud_mat.set_shader_parameter("cloud_count", count)
+	_cloud_mat.set_shader_parameter("overcast", GameState.rain_overcast)
+	_cloud_mat.set_shader_parameter("dim", GameState.rain_dim)
+	var wind: Vector2 = GameState.cloud_vel
+	if wind.length_squared() < 0.0001:
+		wind = Vector2(0.0, 1.0)
+	_cloud_mat.set_shader_parameter("rain_wind", Vector2(wind.normalized().x * 0.38, 1.0))
+	_cloud_mat.set_shader_parameter("rain_amt", GameState.rain_amt)
+	var rain_col := Color(0.86, 0.90, 0.96)
+	if GraphicsSettings.tileset_id() == _U4TileBankScript.SET_APPLE2_MONO_GREEN:
+		rain_col = Color(
+			float(_U4TileBankScript.MONO_GREEN_R) / 255.0,
+			float(_U4TileBankScript.MONO_GREEN_G) / 255.0,
+			float(_U4TileBankScript.MONO_GREEN_B) / 255.0
+		)
+	_cloud_mat.set_shader_parameter("rain_col", Vector3(rain_col.r, rain_col.g, rain_col.b))
+	var weather_cam := _weather_sample_cam()
+	_cloud_mat.set_shader_parameter("rain_cam", weather_cam)
+	if _weather_cam_held:
+		_cloud_mat.set_shader_parameter("party_tile", _weather_party_hold)
+	else:
+		_cloud_mat.set_shader_parameter("party_tile", Vector2(center))
+		_refresh_weather_hide_mask()
+	_cloud_mat.set_shader_parameter("hide_edge", 1.0 if los_enabled else 0.0)
+
+
 func _process(delta: float) -> void:
+	_sync_cloud_shadow()
 	## Freeze animation rebuilds during the enter-combat wipe.
 	if _scene_trans_busy:
 		return
@@ -6510,6 +6692,7 @@ func _refresh_los() -> void:
 	_los_h = dim.y
 	if not los_enabled:
 		_los = _LineOfSightScript.all_visible(_los_w, _los_h)
+		_refresh_weather_hide_mask()
 		return
 	var half_x := _los_w / 2
 	var half_y := _los_h / 2
@@ -6525,6 +6708,7 @@ func _refresh_los() -> void:
 	## Ultima4R: standing in forest (opaque underfoot) still shows the 8 neighbors.
 	if los_opacity and _TileRulesCamp.is_opaque(_terrain_tid_at(center.x, center.y)):
 		_reveal_center_moore_neighbors()
+	_refresh_weather_hide_mask()
 
 
 func _reveal_center_moore_neighbors() -> void:

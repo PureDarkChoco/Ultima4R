@@ -3,6 +3,7 @@ extends Node
 ## Global run state for Ultima4R (autoload: GameState).
 
 const _Journal := preload("res://src/core/journal.gd")
+const _Weather := preload("res://src/core/weather.gd")
 const _TalkLocale := preload("res://src/core/talk_locale.gd")
 const _Apple2ProgramDisk := preload("res://src/core/apple2_program_disk.gd")
 const LocateChart := preload("res://src/map/locate_chart.gd")
@@ -324,6 +325,19 @@ var felucca_phase: int = 0 ## 0..7
 var wind_dir: int = 0 ## N — xu4 starts DIR_NORTH
 var wind_counter: int = 0
 var wind_lock: bool = false
+## Outdoor weather (real-time; not tied to party moves or the map camera).
+var clouds: Array = []
+var cloud_vel := Vector2.ZERO
+var cloud_want: Array = [3, 3]
+var cloud_want_hold: Array = [0.0, 0.0]
+var rain_dry_left := 60.0
+var rain_started_once := false
+var rain_active := false
+var rain_age := 0.0
+var rain_dur := 180.0
+var rain_overcast := 0.0
+var rain_dim := 0.0
+var rain_amt := 0.0
 ## Party inventory counts (xu4 SaveGame arrays).
 var weapons: Array[int] = [] ## 16 — WEAP_HANDS..MYSTIC_SWORD
 var armor: Array[int] = [] ## 8 — ARMR_NONE..MYSTIC_ROBE
@@ -414,6 +428,11 @@ func _ready() -> void:
 	call_deferred("_boot_load_intro_assets")
 
 
+func _process(delta: float) -> void:
+	var wind_to := Vector2(balloon_drift_dir())
+	_Weather.tick_weather(self, delta, wind_to)
+
+
 func _boot_load_intro_assets() -> void:
 	intro_overlay.load_overlays()
 	if u4_data_ok:
@@ -482,6 +501,7 @@ func reset_party() -> void:
 	wind_counter = 0
 	wind_lock = false
 	_wind_spell_left = 0.0
+	_Weather.reset_weather(self)
 	## xu4 finishInitiateGame defaults (also used as clean slate).
 	food = 30000
 	moves = 0
@@ -3388,6 +3408,7 @@ func to_save_dict() -> Dictionary:
 		"wind_dir": wind_dir,
 		"wind_counter": wind_counter,
 		"wind_lock": wind_lock,
+		"weather": _Weather.to_save(self),
 		"language": language,
 		"options": options_snapshot(),
 	}
@@ -3573,6 +3594,9 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	wind_counter = maxi(0, int(d.get("wind_counter", wind_counter)))
 	## Coerce lock strictly — non-falsey JSON quirks must not freeze wind forever.
 	wind_lock = d.get("wind_lock", false) == true
+	var weather_v: Variant = d.get("weather", {})
+	if typeof(weather_v) == TYPE_DICTIONARY:
+		_Weather.apply_save(self, weather_v as Dictionary)
 	var opts_v: Variant = d.get("options", {})
 	if typeof(opts_v) == TYPE_DICTIONARY and not (opts_v as Dictionary).is_empty():
 		apply_session_options(opts_v as Dictionary)
