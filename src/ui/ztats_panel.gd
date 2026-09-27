@@ -1485,16 +1485,22 @@ func _build_inv() -> void:
 
 
 func _on_inv_scroll_gui_input(event: InputEvent) -> void:
-	## Native wheel steps are fractional rows; snap to one full inventory line.
+	## Let ScrollContainer use its About-style step (page / 8 × factor).
 	if not (event is InputEventMouseButton) or not event.pressed:
 		return
 	var mb := event as InputEventMouseButton
-	if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-		scroll_inventory(-1)
+	if mb.button_index != MOUSE_BUTTON_WHEEL_UP and mb.button_index != MOUSE_BUTTON_WHEEL_DOWN:
+		return
+	if _inv_page == InvPage.REAGENTS:
 		_inv_scroll.accept_event()
-	elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		scroll_inventory(1)
-		_inv_scroll.accept_event()
+		return
+	call_deferred("_store_inv_scroll")
+
+
+func _store_inv_scroll() -> void:
+	if _inv_scroll == null or _inv_page == InvPage.NONE:
+		return
+	_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
 
 
 func _sync_inv_scroll_gutter() -> void:

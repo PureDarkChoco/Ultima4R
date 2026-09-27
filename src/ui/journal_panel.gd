@@ -520,23 +520,23 @@ func _try_mouse_wheel_scroll(event: InputEvent) -> bool:
 	var mb := event as InputEventMouseButton
 	if not mb.pressed:
 		return false
-	var dir := 0
+	var sign := 0.0
 	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		dir = 1
+		sign = 1.0
 	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-		dir = -1
+		sign = -1.0
 	else:
 		return false
-	if mb.factor > 0.0:
-		dir *= maxi(1, int(round(mb.factor)))
+	## Match ScrollContainer (About): page / 8 * factor, not a page-chunk jump.
+	var factor := mb.factor if mb.factor > 0.0 else 1.0
 	if _current_page() == 0:
-		return _scroll_list_wheel(dir)
-	_scroll_codex(dir)
+		return _scroll_list_wheel_px(sign * factor)
+	_scroll_codex_wheel_px(sign * factor)
 	return true
 
 
-func _scroll_list_wheel(dir: int) -> bool:
-	if dir == 0 or _scroll == null or _list == null:
+func _scroll_list_wheel_px(signed_factor: float) -> bool:
+	if is_zero_approx(signed_factor) or _scroll == null or _list == null:
 		return false
 	_sync_list_min_size()
 	var view_h := _scroll.size.y
@@ -546,11 +546,27 @@ func _scroll_list_wheel(dir: int) -> bool:
 	var bottom_y := minf(0.0, view_h - content_h)
 	if bottom_y >= 0.0:
 		return true
-	var step := maxf(40.0, view_h * 0.2)
-	var y := clampf(_list.position.y - float(dir) * step, bottom_y, 0.0)
+	var step := view_h / 8.0 * signed_factor
+	var y := clampf(_list.position.y - step, bottom_y, 0.0)
 	_list.position = Vector2(0.0, y)
 	_pin_selection_top = false
 	return true
+
+
+func _scroll_codex_wheel_px(signed_factor: float) -> void:
+	if _page2 == null or _codex == null or is_zero_approx(signed_factor):
+		return
+	var view_h := _page2.size.y
+	if view_h < 8.0:
+		return
+	var max_scroll := maxf(_codex.size.y - view_h, 0.0)
+	if max_scroll <= 0.0:
+		return
+	_page2.scroll_vertical = clampi(
+		_page2.scroll_vertical + int(round(view_h / 8.0 * signed_factor)),
+		0,
+		int(round(max_scroll))
+	)
 
 
 func _on_hide_done_gui(event: InputEvent) -> void:

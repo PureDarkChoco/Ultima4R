@@ -164,7 +164,7 @@ func _ready() -> void:
 	_scroll.custom_minimum_size = Vector2(0, LIST_VIEW_H)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 	_list_block.add_child(_scroll)
 
 	var list_margin := MarginContainer.new()
