@@ -46,6 +46,7 @@ const ID_FIRE_FIELD := "fire_field"
 const ID_FIRE_WALKING := "fire_walking"
 const ID_DOOR := "door"
 const ID_JIMMY := "jimmy"
+const ID_VICTORY := "victory"
 
 ## Filename map matching xu4 module/Ultima-IV/config.b `sound:` (plus extras).
 const FILES := {
@@ -88,6 +89,7 @@ const FILES := {
 	ID_FIRE_WALKING: "fire_field_walking.ogg",
 	ID_DOOR: "door.ogg",
 	ID_JIMMY: "jimmy.ogg",
+	ID_VICTORY: "victory_u5.wav",
 }
 
 const _AudioMusic := preload("res://src/core/audio_music.gd")
@@ -451,6 +453,10 @@ func play_ui_click() -> void:
 
 func play_ui_tick() -> void:
 	play_id(ID_UI_TICK)
+
+
+func play_victory() -> void:
+	play_id(ID_VICTORY)
 
 
 func _build_pool() -> void:

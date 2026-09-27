@@ -4417,7 +4417,10 @@ func _can_open_command_menu() -> bool:
 		return false
 	if _is_locate_map_open():
 		return false
-	if _combat_active and (_combat_resolving or _combat_auto_acting or _combat_aiming or _combat_exit_prompt):
+	if _combat_active and (
+		_combat_resolving or _combat_auto_acting or _combat_aiming
+		or _combat_exit_prompt or _victory_turn_pending
+	):
 		return false
 	return true
 
@@ -20522,9 +20525,10 @@ func _begin_combat_victory_aftermath() -> void:
 	_combat_auto_gen += 1
 	_combat_auto_acting = false
 	## Always free combat input after Victory (even if a turn-gap coroutine still runs).
+	## Hold the party clock until the Victory fanfare finishes so nobody walks.
 	_combat_victory_aftermath = true
 	_victory_solo_party_slot = -1
-	_victory_turn_pending = false
+	_victory_turn_pending = true
 	_combat_resolving = false
 	_combat_aiming = false
 	## xu4 CampController::endCombat wakes sleepers; ordinary and dungeon
@@ -20557,6 +20561,10 @@ func _begin_combat_victory_aftermath() -> void:
 	_sync_combat_focus_roster()
 	_layout_prompt_row()
 	_stamp_command_time()
+	await AudioSfx.play_id_wait(AudioSfx.ID_VICTORY)
+	if not _combat_active or not _combat_victory_aftermath:
+		return
+	_victory_turn_pending = false
 	## Already empty (edge case) — leave immediately.
 	if _map == null or _map.combat_party_count() <= 0:
 		await _finish_combat_victory_exit()
