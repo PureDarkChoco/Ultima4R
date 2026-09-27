@@ -1059,6 +1059,16 @@ const _T := {
 		"en_us": "Hide completed",
 		"ko": "완료 숨김",
 	},
+	"journal_hide_done_hint_key": {
+		"en_u4": "(Spacebar)",
+		"en_us": "(Spacebar)",
+		"ko": "(Spacebar)",
+	},
+	"journal_hide_done_hint_pad": {
+		"en_u4": "(Y)",
+		"en_us": "(Y)",
+		"ko": "(Y)",
+	},
 	"journal_page_mark": {
 		"en_u4": "%d / %d",
 		"en_us": "%d / %d",

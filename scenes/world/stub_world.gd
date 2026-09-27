@@ -566,9 +566,14 @@ func _ready() -> void:
 	if not GraphicsSettings.tileset_changed.is_connected(_on_tileset_changed):
 		GraphicsSettings.tileset_changed.connect(_on_tileset_changed)
 	_JournalScript.ensure_catalog()
-	if _journal_panel != null and _journal_panel.has_method("prepare_session_selection"):
-		var place := _talk_city_id() if _is_in_city() else ""
-		_journal_panel.prepare_session_selection(place)
+	if _journal_panel != null:
+		if _journal_panel.has_signal("focus_requested"):
+			_journal_panel.focus_requested.connect(_activate_journal_focus)
+		if _journal_panel.has_method("prepare_session_selection"):
+			var place := _talk_city_id() if _is_in_city() else ""
+			_journal_panel.prepare_session_selection(place)
+	if _map_pane != null:
+		_map_pane.gui_input.connect(_on_map_pane_gui)
 	_sync_left_panel_mode()
 	if not _load_error.is_empty():
 		_push_message(_load_error)
@@ -7744,6 +7749,7 @@ func _mark_input_handled() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	_GameInput.note_input(event)
 	if _GameInput.should_block_event(event):
 		_mark_input_handled()
 		return
@@ -23008,7 +23014,11 @@ func _open_journal_focus() -> void:
 	if _journal_focus_active:
 		_close_journal_focus()
 		return
-	if not _can_open_journal_focus():
+	_activate_journal_focus()
+
+
+func _activate_journal_focus() -> void:
+	if _journal_focus_active or not _can_open_journal_focus():
 		return
 	_journal_saved_sides_open = _sides_open
 	_journal_opened_left_only = false
@@ -23030,6 +23040,19 @@ func _open_journal_focus() -> void:
 	var place := _talk_city_id() if _is_in_city() else ""
 	if _journal_panel != null and _journal_panel.has_method("begin_browse"):
 		_journal_panel.begin_browse(place)
+
+
+func _on_map_pane_gui(event: InputEvent) -> void:
+	## Visible map tiles sit on MapPane; side panes swallow their own clicks first.
+	if not _journal_focus_active:
+		return
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	_close_journal_focus()
+	accept_event()
 
 
 func _close_journal_focus(restore_sides: bool = true) -> void:

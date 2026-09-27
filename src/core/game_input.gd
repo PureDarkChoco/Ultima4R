@@ -14,6 +14,29 @@ static var _stick_nav_latches: Dictionary = {}
 static var _select_x_latches: Dictionary = {}
 static var _select_y_latches: Dictionary = {}
 static var _application_focused := true
+static var _using_gamepad := false
+
+
+static func note_input(event: InputEvent) -> void:
+	## Last device wins so HUD hints can switch between (Y) and (Spacebar).
+	if should_block_event(event):
+		return
+	if event is InputEventJoypadButton:
+		if (event as InputEventJoypadButton).pressed:
+			_using_gamepad = true
+	elif event is InputEventJoypadMotion:
+		if absf((event as InputEventJoypadMotion).axis_value) >= STICK_DEADZONE:
+			_using_gamepad = true
+	elif event is InputEventKey:
+		if (event as InputEventKey).pressed and not event.is_echo():
+			_using_gamepad = false
+	elif event is InputEventMouseButton:
+		if (event as InputEventMouseButton).pressed:
+			_using_gamepad = false
+
+
+static func using_gamepad() -> bool:
+	return _using_gamepad
 
 
 static func set_application_focused(focused: bool) -> void:

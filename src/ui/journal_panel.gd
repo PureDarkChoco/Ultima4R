@@ -64,10 +64,14 @@ var _dungeon_map_rect: TextureRect
 var _dungeon_map_tex: ImageTexture
 var _dungeon_map_id := ""
 var _dungeon_map_z := 0
+var _hide_done_row: HBoxContainer
+var _hide_done_check
 var _hide_done_lab: Label
+var _hide_done_hint: Label
 var _page_mark: HBoxContainer
+var _page_tab_1: PanelContainer
+var _page_tab_2: PanelContainer
 var _page_num_1: Label
-var _page_sep: Label
 var _page_num_2: Label
 var _pages: Control
 var _page1: VBoxContainer
@@ -87,6 +91,8 @@ var _pin_selection_top := false
 var _flash_tween: Tween
 var _flash_overlay: Control
 var _flash_id := ""
+## Last built travel-log + codex contents. Tab hide/show keeps the nodes.
+var _built_sig := ""
 
 
 class StatusIcon extends Control:
@@ -165,6 +171,23 @@ class WriteSweep extends Control:
 		draw_rect(core, Color(1.0, 1.0, 0.92, 1.0))
 
 
+class MiniCheck extends Control:
+	var on := false:
+		set(value):
+			on = value
+			queue_redraw()
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(14, 14)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var box := Rect2(Vector2.ZERO, size)
+		draw_rect(box, Color(0.98, 0.86, 0.28, 1), false, 1.5)
+		if on:
+			draw_rect(box.grow(-3.0), Color(0.98, 0.86, 0.28, 1), true)
+
+
 class PlaceHeader extends HBoxContainer:
 	var place_id := ""
 	var on_toggle: Callable
@@ -184,8 +207,12 @@ class PlaceHeader extends HBoxContainer:
 		accept_event()
 
 
+signal focus_requested
+
+
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	gui_input.connect(_on_panel_gui)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_theme_constant_override("separation", 6)
@@ -223,30 +250,23 @@ func _ready() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(_title, true)
 	add_child(_title)
-	_hide_done_lab = Label.new()
-	_hide_done_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hide_done_lab.add_theme_font_size_override("font_size", PLACE_SIZE)
-	_hide_done_lab.add_theme_color_override("font_color", COL_PAGE_NEW)
-	_hide_done_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hide_done_lab.visible = false
-	UiTheme.apply_font(_hide_done_lab)
-	add_child(_hide_done_lab)
 	_page_mark = HBoxContainer.new()
 	_page_mark.alignment = BoxContainer.ALIGNMENT_CENTER
-	_page_mark.add_theme_constant_override("separation", 0)
+	_page_mark.add_theme_constant_override("separation", 8)
 	_page_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_page_num_1 = _make_page_mark_label("1")
-	_page_sep = _make_page_mark_label(" / ")
-	_page_num_2 = _make_page_mark_label("2")
-	_page_mark.add_child(_page_num_1)
-	_page_mark.add_child(_page_sep)
-	_page_mark.add_child(_page_num_2)
+	_page_tab_1 = _make_page_tab(0, "1")
+	_page_tab_2 = _make_page_tab(1, "2")
+	_page_num_1 = _page_tab_1.get_child(0) as Label
+	_page_num_2 = _page_tab_2.get_child(0) as Label
+	_page_mark.add_child(_page_tab_1)
+	_page_mark.add_child(_page_tab_2)
 	add_child(_page_mark)
 	_pages = Control.new()
 	_pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_pages.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_pages.clip_contents = true
-	_pages.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pages.mouse_filter = Control.MOUSE_FILTER_STOP
+	_pages.gui_input.connect(_on_pages_gui)
 	add_child(_pages)
 	_page1 = VBoxContainer.new()
 	_page1.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -257,7 +277,8 @@ func _ready() -> void:
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.clip_contents = true
-	_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	_scroll.gui_input.connect(_on_pages_gui)
 	_scroll.resized.connect(_fit_list_width)
 	_page1.add_child(_scroll)
 	_list = VBoxContainer.new()
@@ -276,8 +297,32 @@ func _ready() -> void:
 	_page2.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_page2.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_page2.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	_page2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_page2.mouse_filter = Control.MOUSE_FILTER_STOP
+	_page2.gui_input.connect(_on_pages_gui)
 	_pages.add_child(_page2)
+	_hide_done_row = HBoxContainer.new()
+	_hide_done_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_hide_done_row.add_theme_constant_override("separation", 6)
+	_hide_done_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hide_done_row.size_flags_vertical = Control.SIZE_SHRINK_END
+	_hide_done_row.mouse_filter = Control.MOUSE_FILTER_STOP
+	_hide_done_row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_hide_done_row.gui_input.connect(_on_hide_done_gui)
+	_hide_done_check = MiniCheck.new()
+	_hide_done_row.add_child(_hide_done_check)
+	_hide_done_lab = Label.new()
+	_hide_done_lab.add_theme_font_size_override("font_size", PLACE_SIZE)
+	_hide_done_lab.add_theme_color_override("font_color", COL_PAGE_NEW)
+	_hide_done_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(_hide_done_lab)
+	_hide_done_row.add_child(_hide_done_lab)
+	_hide_done_hint = Label.new()
+	_hide_done_hint.add_theme_font_size_override("font_size", META_SIZE)
+	_hide_done_hint.add_theme_color_override("font_color", COL_META)
+	_hide_done_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply_font(_hide_done_hint)
+	_hide_done_row.add_child(_hide_done_hint)
+	add_child(_hide_done_row)
 	_codex = VBoxContainer.new()
 	_codex.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_codex.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -406,6 +451,126 @@ func toggle_hide_done() -> void:
 	refresh(is_visible_in_tree())
 
 
+func _sync_hide_done_row(hide_done: bool) -> void:
+	if _hide_done_lab != null:
+		_hide_done_lab.text = Locale.t("journal_hide_done")
+	if _hide_done_check != null:
+		_hide_done_check.on = hide_done
+	if _hide_done_row != null:
+		_hide_done_row.visible = true
+	_sync_hide_done_hint()
+
+
+func _sync_hide_done_hint() -> void:
+	if _hide_done_hint == null:
+		return
+	var pad := GameInput.using_gamepad()
+	var want := Locale.t("journal_hide_done_hint_pad" if pad else "journal_hide_done_hint_key")
+	if _hide_done_hint.text != want:
+		_hide_done_hint.text = want
+
+
+func _on_panel_gui(event: InputEvent) -> void:
+	if _try_mouse_activate(event) or _try_mouse_wheel_scroll(event):
+		accept_event()
+
+
+func _on_pages_gui(event: InputEvent) -> void:
+	if _try_mouse_activate(event) or _try_mouse_wheel_scroll(event):
+		accept_event()
+
+
+func _try_mouse_activate(event: InputEvent) -> bool:
+	if _browsing:
+		return false
+	if not (event is InputEventMouseButton):
+		return false
+	var mb := event as InputEventMouseButton
+	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return false
+	_request_focus()
+	return true
+
+
+func _request_focus() -> void:
+	if _browsing or not is_visible_in_tree():
+		return
+	focus_requested.emit()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	## Place headers swallow mouse hits; wheel still reaches here if unused.
+	if not is_visible_in_tree():
+		return
+	if _pages == null or not _pages.get_global_rect().has_point(_wheel_mouse_pos(event)):
+		return
+	if _try_mouse_wheel_scroll(event):
+		get_viewport().set_input_as_handled()
+
+
+func _wheel_mouse_pos(event: InputEvent) -> Vector2:
+	if event is InputEventMouse:
+		return (event as InputEventMouse).global_position
+	return get_global_mouse_position()
+
+
+func _try_mouse_wheel_scroll(event: InputEvent) -> bool:
+	if not (event is InputEventMouseButton):
+		return false
+	var mb := event as InputEventMouseButton
+	if not mb.pressed:
+		return false
+	var dir := 0
+	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		dir = 1
+	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+		dir = -1
+	else:
+		return false
+	if mb.factor > 0.0:
+		dir *= maxi(1, int(round(mb.factor)))
+	if _current_page() == 0:
+		return _scroll_list_wheel(dir)
+	_scroll_codex(dir)
+	return true
+
+
+func _scroll_list_wheel(dir: int) -> bool:
+	if dir == 0 or _scroll == null or _list == null:
+		return false
+	_sync_list_min_size()
+	var view_h := _scroll.size.y
+	if view_h < 8.0:
+		return false
+	var content_h := maxf(_list.custom_minimum_size.y, _list.size.y)
+	var bottom_y := minf(0.0, view_h - content_h)
+	if bottom_y >= 0.0:
+		return true
+	var step := maxf(40.0, view_h * 0.2)
+	var y := clampf(_list.position.y - float(dir) * step, bottom_y, 0.0)
+	_list.position = Vector2(0.0, y)
+	_pin_selection_top = false
+	return true
+
+
+func _on_hide_done_gui(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not _browsing:
+		_request_focus()
+	toggle_hide_done()
+	accept_event()
+
+
+func _process(_delta: float) -> void:
+	if not is_visible_in_tree():
+		return
+	_sync_hide_done_hint()
+
+
 func _hide_done_active() -> bool:
 	var gs = _game_state()
 	return gs != null and bool(gs.journal_hide_done)
@@ -524,16 +689,8 @@ func refresh(journal_visible: bool = false) -> void:
 		_dungeon_map_caption.text = _dungeon_map_caption_text()
 	_empty.text = Locale.t("journal_empty")
 	var hide_done := _hide_done_active()
-	if _hide_done_lab != null:
-		_hide_done_lab.text = Locale.t("journal_hide_done") if hide_done else ""
-		_hide_done_lab.visible = hide_done
+	_sync_hide_done_row(hide_done)
 	_refresh_page_mark()
-	_clear_list()
-	_kill_flash()
-	_flash_id = ""
-	_entry_nodes.clear()
-	_header_nodes.clear()
-	_nav_ids.clear()
 	var gs = _game_state()
 	if gs != null:
 		_Journal.mark_goals_for_inventory(gs)
@@ -541,8 +698,24 @@ func refresh(journal_visible: bool = false) -> void:
 	var lang := "en_us"
 	if gs != null:
 		lang = str(gs.language)
-	var has_any := false
 	var collapsed := _collapsed_map(gs)
+	var sig := _content_sig(gs, groups, hide_done, lang, collapsed)
+	if sig == _built_sig and _built_sig != "":
+		if journal_visible:
+			_reveal_unseen_if_visible(gs, true)
+			_normalize_selection(gs)
+			_apply_selection_visuals()
+			if not _flash_id.is_empty():
+				_schedule_center()
+		return
+	_built_sig = sig
+	_clear_list()
+	_kill_flash()
+	_flash_id = ""
+	_entry_nodes.clear()
+	_header_nodes.clear()
+	_nav_ids.clear()
+	var has_any := false
 	for group in groups:
 		var place := str(group.get("place", ""))
 		var rows := _visible_journal_rows(group.get("entries", []), hide_done)
@@ -669,6 +842,12 @@ func _normalize_selection(gs: Node) -> void:
 
 
 func _on_place_toggled(place_id: String) -> void:
+	if not _browsing:
+		_request_focus()
+		if not place_id.is_empty():
+			_set_selected_id(_place_key(place_id))
+			_apply_selection_visuals()
+		return
 	var gs = _game_state()
 	if gs == null or place_id.is_empty():
 		return
@@ -1299,6 +1478,58 @@ func _codex_icon_rect(path: String) -> TextureRect:
 	return icon
 
 
+func _content_sig(
+	gs: Node,
+	groups: Array,
+	hide_done: bool,
+	lang: String,
+	collapsed: Dictionary
+) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	parts.append(lang)
+	parts.append("1" if hide_done else "0")
+	if gs != null:
+		if gs.has_method("player_display_name"):
+			parts.append(str(gs.player_display_name()))
+		parts.append(
+			"%s:%s:%s:%s:%s:%s:%s:%s:%s" % [
+				str(gs.get("journal_known_cities")),
+				str(gs.get("journal_known_city_moons")),
+				str(gs.get("runes")),
+				str(_Journal.known_virtue_mask(gs)),
+				str(_Journal.known_dungeon_mask(gs)),
+				str(_Journal.known_mantra_mask(gs)),
+				str(_Journal.known_stone_mask(gs)),
+				str(_Journal.known_principle_mask(gs)),
+				str(int(gs.get("items")) if gs.get("items") != null else 0),
+			]
+		)
+	var coll_keys: Array = collapsed.keys()
+	coll_keys.sort()
+	for key in coll_keys:
+		if bool(collapsed[key]):
+			parts.append("c:%s" % str(key))
+	for group in groups:
+		if typeof(group) != TYPE_DICTIONARY:
+			continue
+		var place := str((group as Dictionary).get("place", ""))
+		var rows := _visible_journal_rows((group as Dictionary).get("entries", []), hide_done)
+		parts.append("p:%s:%d" % [place, rows.size()])
+		for raw in rows:
+			if typeof(raw) != TYPE_DICTIONARY:
+				continue
+			var d: Dictionary = raw
+			parts.append(
+				"%s|%s|%s|%s" % [
+					str(d.get("id", "")),
+					str(d.get("done", false)),
+					str(d.get("at", 0)),
+					str(d.get("chain", "")),
+				]
+			)
+	return "|".join(parts)
+
+
 func _clear_list() -> void:
 	if _list == null:
 		return
@@ -1335,7 +1566,11 @@ func _apply_page() -> void:
 	_refresh_page_mark()
 
 
-func _make_page_mark_label(text: String) -> Label:
+func _make_page_tab(page: int, text: String) -> PanelContainer:
+	var tab := PanelContainer.new()
+	tab.mouse_filter = Control.MOUSE_FILTER_STOP
+	tab.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tab.gui_input.connect(func(event: InputEvent) -> void: _on_page_tab_gui(page, event))
 	var lab := Label.new()
 	lab.text = text
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1343,7 +1578,33 @@ func _make_page_mark_label(text: String) -> Label:
 	lab.add_theme_color_override("font_color", COL_META)
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(lab)
-	return lab
+	tab.add_child(lab)
+	return tab
+
+
+func _on_page_tab_gui(page: int, event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not _browsing:
+		_request_focus()
+	if page != _current_page():
+		_set_page(page)
+	accept_event()
+
+
+func _page_tab_style(selected: bool) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.98, 0.86, 0.28, 0.16) if selected else Color(0, 0, 0, 0)
+	box.border_color = COL_PAGE_NEW if selected else Color(0, 0, 0, 0)
+	box.set_border_width_all(1)
+	box.content_margin_left = 8
+	box.content_margin_right = 8
+	box.content_margin_top = 2
+	box.content_margin_bottom = 2
+	return box
 
 
 func _refresh_page_mark() -> void:
@@ -1354,12 +1615,15 @@ func _refresh_page_mark() -> void:
 	if page == 1:
 		_Journal.clear_codex_unseen(gs)
 	var unseen := gs != null and bool(gs.journal_codex_unseen)
-	_page_num_1.add_theme_color_override("font_color", COL_TITLE if page == 0 else COL_META)
-	_page_sep.add_theme_color_override("font_color", COL_META)
+	if _page_tab_1 != null:
+		_page_tab_1.add_theme_stylebox_override("panel", _page_tab_style(page == 0))
+	if _page_tab_2 != null:
+		_page_tab_2.add_theme_stylebox_override("panel", _page_tab_style(page == 1))
+	_page_num_1.add_theme_color_override("font_color", COL_PAGE_NEW if page == 0 else COL_META)
 	if unseen and page != 1:
 		_page_num_2.add_theme_color_override("font_color", COL_PAGE_NEW)
 	else:
-		_page_num_2.add_theme_color_override("font_color", COL_TITLE if page == 1 else COL_META)
+		_page_num_2.add_theme_color_override("font_color", COL_PAGE_NEW if page == 1 else COL_META)
 
 
 func _selected_id() -> String:
