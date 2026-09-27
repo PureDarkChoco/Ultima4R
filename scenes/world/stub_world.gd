@@ -3149,6 +3149,7 @@ func _on_order_roster_closed() -> void:
 
 
 func _process(delta: float) -> void:
+	UiTheme.set_menu_cursor(_menu_cursor_should_be_sword())
 	_sync_panel_focus_border()
 	_tick_cursor(delta)
 	## xu4 timerFired still runs during menus; remake freezes the clock on gem/map view.
@@ -9702,6 +9703,31 @@ func _esc_menu_is_open() -> bool:
 
 func _options_panel_is_open() -> bool:
 	return _options_panel != null and _options_panel.is_open()
+
+
+func _menu_cursor_should_be_sword() -> bool:
+	## True while any list/choice menu is the active screen — sword shows
+	## everywhere on it (esc menu, ztats/ready/wear/mix/cast/use, journal
+	## browse, save/load, options, command palette, talk keyword picker,
+	## party target/order pick, debug city warp). Free map exploration and
+	## simple wait-for-key prompts stay on the ankh.
+	return (
+		_esc_menu_is_open()
+		or _options_panel_is_open()
+		or _ztats_stage != 0
+		or _ready_stage != 0
+		or _wear_stage != 0
+		or _mix_stage != 0
+		or _cast_stage != 0
+		or _use_stage != 0
+		or _save_stage != 0
+		or _command_menu_open
+		or _journal_focus_active
+		or _order_stage != 0
+		or _talk_keyword_menu_active
+		or _city_warp_open
+		or (_party_target_picker != null and _party_target_picker.active)
+	)
 
 
 func _open_esc_menu() -> void:

@@ -21,6 +21,8 @@ const PORTRAIT_PX := 192.0
 
 func _ready() -> void:
 	UiTheme.apply_root(self)
+	## Narrative interstitial — no menu, wait for any key. Ankh, not sword.
+	UiTheme.set_menu_cursor(false)
 	$ColorRect.color = Color.BLACK
 	$ColorRect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mouse_filter = Control.MOUSE_FILTER_STOP

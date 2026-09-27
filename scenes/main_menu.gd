@@ -77,6 +77,7 @@ func _ready() -> void:
 	if not _intro.setup(_intro_view):
 		## Fallback: skip titles, show menu on blank canvas.
 		_text_block.visible = true
+		UiTheme.set_menu_cursor(true)
 		_apply_pending_focus()
 	else:
 		_text_block.visible = false
@@ -93,6 +94,9 @@ func _ready() -> void:
 
 func _on_intro_mode(mode: int) -> void:
 	var menu_on := mode == _IntroController.Mode.MENU
+	## Titles/map intro = no menu yet (ankh); once the command menu (or any
+	## sub-panel opened from it) is on screen, the sword shows everywhere.
+	UiTheme.set_menu_cursor(menu_on)
 	_menu_hold_repeat.reset()
 	## Load / create / options forms fill the frame — keep Journey lines hidden.
 	_text_block.visible = (

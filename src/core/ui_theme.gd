@@ -18,6 +18,17 @@ const DANGER := Color("c45c4a")
 
 const FONT_PATH := "res://assets/fonts/d2coding/D2Coding.ttf"
 const FONT_BOLD_PATH := "res://assets/fonts/d2coding/D2CodingBold.ttf"
+## Custom mouse cursors: ankh (non-menu pages / background loading)
+## + sword (menu selection — shown regardless of pointer position).
+## Both bitmaps are native 32x32 pixel art.
+const CURSOR_ANKH_PATH := "res://assets/ui/cursors/cursor_ankh.png"
+const CURSOR_SWORD_PATH := "res://assets/ui/cursors/cursor_sword.png"
+const CURSOR_ANKH_HOTSPOT := Vector2(16, 1)
+const CURSOR_SWORD_HOTSPOT := Vector2(4, 0)
+
+## True while a menu (title/options/load/esc/ztats/…) is the active screen —
+## sword shows for every cursor shape so it never depends on hover position.
+static var _menu_cursor_active := false
 ## D2Coding is monospace — good for command/message columns.
 
 static var _font: Font
@@ -38,6 +49,36 @@ static func font_bold() -> Font:
 
 static func apply_root(control: Control) -> void:
 	control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	apply_cursors()
+
+
+static func apply_cursors() -> void:
+	_refresh_cursor_textures()
+
+
+## Call whenever a screen switches between "showing a menu to pick from"
+## (title menu, options, load, esc menu, ztats/ready/wear/cast/use/mix, …)
+## and "no menu" (free map exploration, narrative-only screens, loading).
+## Sword is shown for every hovered shape while a menu is active, so it
+## never flickers back to the ankh just because the pointer sits over a
+## non-interactive part of the same menu.
+static func set_menu_cursor(active: bool) -> void:
+	if active == _menu_cursor_active:
+		return
+	_menu_cursor_active = active
+	_refresh_cursor_textures()
+
+
+static func _refresh_cursor_textures() -> void:
+	var path := CURSOR_SWORD_PATH if _menu_cursor_active else CURSOR_ANKH_PATH
+	var hotspot := CURSOR_SWORD_HOTSPOT if _menu_cursor_active else CURSOR_ANKH_HOTSPOT
+	var tex := load(path) as Texture2D
+	if tex == null:
+		return
+	## Bind every shape our UI ever requests to the same texture so the
+	## icon depends only on context, not on which Control is hovered.
+	Input.set_custom_mouse_cursor(tex, Input.CURSOR_ARROW, hotspot)
+	Input.set_custom_mouse_cursor(tex, Input.CURSOR_POINTING_HAND, hotspot)
 
 
 static func make_panel() -> StyleBoxFlat:

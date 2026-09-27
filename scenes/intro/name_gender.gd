@@ -44,6 +44,8 @@ func _ready() -> void:
 	_hangul.max_length = 16
 	set_process_input(true)
 	UiTheme.apply_root(self)
+	## Name/sex picker is a choice form — sword regardless of pointer position.
+	UiTheme.set_menu_cursor(true)
 	if _bg:
 		_bg.color = UiTheme.BG
 		if _embedded:

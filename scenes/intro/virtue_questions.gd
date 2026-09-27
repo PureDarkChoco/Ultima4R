@@ -19,6 +19,8 @@ var _done: bool = false
 
 func _ready() -> void:
 	UiTheme.apply_root(self)
+	## A/B choice screen — sword regardless of pointer position.
+	UiTheme.set_menu_cursor(true)
 	$ColorRect.color = UiTheme.BG
 	%Panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
 

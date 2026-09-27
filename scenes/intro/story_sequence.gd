@@ -388,6 +388,8 @@ func _blink_then(after_black: Callable) -> void:
 
 func _present_story(ind: int) -> void:
 	_mode = Mode.STORY
+	## Pure narrative, press-any-key — no menu, ankh cursor.
+	UiTheme.set_menu_cursor(false)
 	_set_cards_visible(false)
 	_story_ind = clampi(ind, 0, STORY_COUNT - 1)
 	_apply_background_for_story(_story_ind)
@@ -460,6 +462,8 @@ func _draw_abacus_beads(row: int, selected: int, rejected: int) -> void:
 func _show_question_intro() -> void:
 	## Exactly 3 lines (xu4 lead / cards / consider) — same font as story.
 	_q_phase = QPhase.INTRO
+	## Cards aren't pickable yet on this beat — no menu, ankh cursor.
+	UiTheme.set_menu_cursor(false)
 	_set_card_cursor(-1)
 	_q_pair = _q_tree.current_pair()
 	_place_cards(_q_pair.x, _q_pair.y)
@@ -475,6 +479,8 @@ func _show_question_intro() -> void:
 func _show_question_ask() -> void:
 	## Full dilemma; A)/B) already in the question text.
 	_q_phase = QPhase.ASK
+	## Card A/B pick menu — sword regardless of pointer position.
+	UiTheme.set_menu_cursor(true)
 	_set_card_cursor(-1)
 	_q_pair = _q_tree.current_pair()
 	var q := Locale.virtue_question(_q_pair.x, _q_pair.y)

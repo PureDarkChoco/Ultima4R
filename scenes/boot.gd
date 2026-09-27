@@ -24,6 +24,8 @@ var _setup_open := false
 
 func _ready() -> void:
 	UiTheme.apply_root(self)
+	## Data-path setup is a choice screen (folder/disk pickers, Continue).
+	UiTheme.set_menu_cursor(true)
 	$ColorRect.color = UiTheme.BG
 	UiTheme.style_label(_brand, 42, UiTheme.ACCENT)
 	UiTheme.style_label(_status, 18, UiTheme.MUTED)
