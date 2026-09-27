@@ -2940,6 +2940,10 @@ func _on_sides_opened() -> void:
 	_apply_msg_geometry()
 	_refresh_message_view()
 	_layout_talk_overlay()
+	if _journal_panel != null and _journal_panel.has_method("prepare_first_show"):
+		_journal_panel.prepare_first_show()
+	if _journal_panel != null and _journal_panel.has_method("ensure_fitted"):
+		_journal_panel.ensure_fitted()
 	if _journal_focus_active and _journal_panel != null and _journal_panel.has_method("recenter_selection"):
 		_journal_panel.recenter_selection()
 
@@ -3046,6 +3050,13 @@ func _animate_left_panel_only(open: bool, restore_compact: bool = false) -> void
 	_side_tween = create_tween()
 	_side_tween.tween_property(_left_pane, "position", Vector2(target_x, 0.0), SIDE_TWEEN_SEC) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if open:
+		_side_tween.chain().tween_callback(func() -> void:
+			if _journal_panel != null and _journal_panel.has_method("prepare_first_show"):
+				_journal_panel.prepare_first_show()
+			if _journal_panel != null and _journal_panel.has_method("ensure_fitted"):
+				_journal_panel.ensure_fitted()
+		)
 	if not open:
 		_side_tween.chain().tween_callback(func() -> void:
 			if not _sides_open and _left_pane:

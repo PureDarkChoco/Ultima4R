@@ -93,6 +93,10 @@ var _flash_overlay: Control
 var _flash_id := ""
 ## Last built travel-log + codex contents. Tab hide/show keeps the nodes.
 var _built_sig := ""
+## True until the list has been wrapped at a real pane width (closed-on-load first Tab).
+var _list_needs_fit := true
+var _first_show_prepared := false
+var _first_show_preparing := false
 
 
 class StatusIcon extends Control:
@@ -329,6 +333,7 @@ func _ready() -> void:
 	_codex.add_theme_constant_override("separation", 20)
 	_page2.add_child(_codex)
 	_page2.resized.connect(_fit_codex_width)
+	visibility_changed.connect(_on_visibility_changed)
 	_apply_page()
 	if Engine.get_main_loop() != null:
 		var gs = Engine.get_main_loop().root.get_node_or_null("/root/GameState")
@@ -347,6 +352,7 @@ func begin_browse(current_place: String) -> void:
 	_browsing = true
 	_prepare_open_selection(current_place)
 	refresh(true)
+	prepare_first_show()
 
 
 func prepare_session_selection(current_place: String) -> void:
@@ -629,6 +635,55 @@ func nudge_selected_place(dir_x: int) -> bool:
 
 func recenter_selection() -> void:
 	_schedule_center()
+
+
+func prepare_first_show() -> void:
+	## A closed-on-load pane is initially built before it has usable geometry.
+	## Rebuild once after the first real show; later Tab toggles reuse these nodes.
+	if _first_show_prepared or _first_show_preparing or not is_visible_in_tree():
+		return
+	_first_show_preparing = true
+	_prepare_first_show_async()
+
+
+func _prepare_first_show_async() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_inside_tree() or not is_visible_in_tree():
+		_first_show_preparing = false
+		return
+	if _scroll == null or _scroll.size.x < 8.0:
+		_first_show_preparing = false
+		return
+	## The hidden build may have cached an empty/zero-width layout.
+	_built_sig = ""
+	_list_needs_fit = true
+	refresh(true)
+	_fit_list_width()
+	_fit_codex_width()
+	_fit_dungeon_map()
+	if _list_needs_fit:
+		_first_show_preparing = false
+		return
+	_first_show_prepared = true
+	_first_show_preparing = false
+	_schedule_center()
+
+
+func ensure_fitted() -> void:
+	## Content may be updated while hidden; only refit when that rebuild lacked width.
+	if not _list_needs_fit or not is_visible_in_tree():
+		return
+	_fit_list_width()
+	_fit_codex_width()
+	_fit_dungeon_map()
+	if not _list_needs_fit:
+		_schedule_center()
+
+
+func _on_visibility_changed() -> void:
+	if is_visible_in_tree():
+		prepare_first_show()
 
 
 func focus_place(place_id: String) -> bool:
@@ -1118,6 +1173,7 @@ func _sync_list_min_size() -> void:
 		return
 	var w := _scroll.size.x
 	if w < 8.0:
+		_list_needs_fit = true
 		return
 	_list.custom_minimum_size.x = w
 	for child in _list.get_children():
@@ -1139,6 +1195,7 @@ func _sync_list_min_size() -> void:
 			h += sep
 	_list.custom_minimum_size.y = h
 	_list.size = Vector2(w, h)
+	_list_needs_fit = false
 
 
 func _fit_list_width() -> void:
