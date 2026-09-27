@@ -11983,13 +11983,13 @@ func _do_cast() -> void:
 		var slot := _map.get_combat_focus_party_slot()
 		if slot < 0 or slot >= GameState.party_size():
 			_push_message(Locale.t("cmd_none"), false)
-			if not _combat_resolving and not _combat_victory_aftermath:
+			if not _combat_resolving:
 				_combat_finish_member_turn()
 			return
 		var klass := GameState.party_member_at(slot)
 		if klass < 0 or GameState.is_member_disabled(klass):
 			_push_message(Locale.t("cmd_cant"), false)
-			if not _combat_resolving and not _combat_victory_aftermath:
+			if not _combat_resolving:
 				_combat_finish_member_turn()
 			return
 		_cast_caster_slot = slot
@@ -13279,7 +13279,8 @@ func _close_cast(show_none: bool, spend_turn: bool) -> void:
 	if not spend_turn:
 		return
 	if _combat_active:
-		if not _combat_resolving and not _combat_victory_aftermath:
+		## Victory free-roam still uses the party clock (Pass / walk already do).
+		if not _combat_resolving:
 			_combat_finish_member_turn()
 	else:
 		_finish_party_turn()
