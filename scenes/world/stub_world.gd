@@ -1746,9 +1746,13 @@ func _rebuild_command_menu_rows() -> void:
 					letter,
 					rest,
 				])
-	for row_text in row_texts:
+	for i in row_texts.size():
+		var row_text: String = row_texts[i]
 		var row := ColorRect.new()
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.mouse_filter = Control.MOUSE_FILTER_STOP
+		var row_i := i
+		row.mouse_entered.connect(func() -> void: _on_command_menu_row_hover(row_i))
+		row.gui_input.connect(func(event: InputEvent) -> void: _on_command_menu_row_gui(row_i, event))
 		var label := RichTextLabel.new()
 		label.name = "Label"
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1768,6 +1772,35 @@ func _rebuild_command_menu_rows() -> void:
 		_command_menu_rows.append(row)
 	_command_menu_layer.move_to_front()
 	_layout_command_menu_layer()
+
+
+func _on_command_menu_row_hover(index: int) -> void:
+	if not _command_menu_open or index < 0 or index >= _command_menu_items.size():
+		return
+	if _command_menu_cursor == index:
+		return
+	_command_menu_cursor = index
+	_layout_command_menu_layer()
+
+
+func _on_command_menu_row_gui(index: int, event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed:
+		return
+	if mb.button_index == MOUSE_BUTTON_RIGHT:
+		if _command_menu_open:
+			_close_command_menu()
+			accept_event()
+		return
+	if mb.button_index != MOUSE_BUTTON_LEFT or not _command_menu_open:
+		return
+	if index < 0 or index >= _command_menu_items.size():
+		return
+	_command_menu_cursor = index
+	_choose_command_menu_item(false)
+	accept_event()
 
 
 func _layout_command_menu_layer() -> void:
@@ -4362,6 +4395,31 @@ func _is_command_menu_pad_event(event: InputEvent) -> bool:
 	return _is_cancel_event(event)
 
 
+func _mouse_over_journal_or_roster() -> bool:
+	var hovered: Control = get_viewport().gui_get_hovered_control()
+	if hovered == null:
+		return false
+	for pane in [_left_pane, _right_top, _compact_pane]:
+		if pane != null and pane.visible and (hovered == pane or pane.is_ancestor_of(hovered)):
+			return true
+	return false
+
+
+func _try_right_click_command_menu(event: InputEvent) -> bool:
+	## Play-field RMB mirrors gamepad B: open/close the A–Z palette.
+	if not _is_right_click(event):
+		return false
+	if _command_menu_open:
+		_close_command_menu()
+		return true
+	if _mouse_over_journal_or_roster():
+		return false
+	if not _can_open_command_menu():
+		return false
+	_open_command_menu()
+	return _command_menu_open
+
+
 func _talk_blocks_cancel_bye() -> bool:
 	## Wait-any-key between an NPC line and the next spoken line (not Y/N).
 	## Only A continues; B and Esc must not farewell.
@@ -5053,9 +5111,12 @@ func _handle_command_menu_input(event: InputEvent) -> bool:
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
-	if _is_cancel_event(event):
+	if _is_cancel_event(event) or _is_right_click(event):
 		_close_command_menu()
 		return true
+	if event is InputEventMouseButton:
+		## Row hover/click is handled by CommandMenuLayer GUI.
+		return false
 	## X / Space: dismiss the palette and Pass (same shortcut as when idle).
 	if _GameInput.is_pass(event) or (
 		event is InputEventKey and _is_space_key(event as InputEventKey)
@@ -8322,6 +8383,9 @@ func _input(event: InputEvent) -> void:
 	if _try_right_click_menu_back(event):
 		_mark_input_handled()
 		return
+	if _try_right_click_command_menu(event):
+		_mark_input_handled()
+		return
 	## L2 opens journal browse (left pane only if sides are closed).
 	## R2 mirrors Tab — open/close the side panels.
 	## Axis events repeat while held, so fire once after crossing the
@@ -8464,7 +8528,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _command_menu_open:
 		if _handle_command_menu_input(event):
 			_mark_input_handled()
-		elif event.is_pressed():
+		elif event.is_pressed() and not (event is InputEventMouseButton):
 			_mark_input_handled()
 		return
 	if _combat_exit_prompt:
