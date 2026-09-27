@@ -3910,10 +3910,19 @@ func _update_mouse_walk() -> void:
 	UiTheme.set_hand_cursor(_mouse_hand_cmd != U4Commands.Id.NONE)
 	UiTheme.set_attack_cursor(attack_dir != Vector2i.ZERO)
 	UiTheme.set_search_cursor(_mouse_ztats_slot >= 0)
+	var page_dir: Vector2i = _mouse_ztats_page_dir()
+	UiTheme.set_page_dir_cursor(page_dir)
 	if _mouse_ztats_slot >= 0:
 		_mouse_walk_dir = Vector2i.ZERO
 		if lmb_pressed:
 			_mouse_do_ztats(_mouse_ztats_slot)
+			_mouse_block_walk_until_release = true
+		_mouse_lmb_held = lmb
+		return
+	if page_dir != Vector2i.ZERO:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed:
+			_nudge_ztats_view(page_dir.x)
 			_mouse_block_walk_until_release = true
 		_mouse_lmb_held = lmb
 		return
@@ -4017,6 +4026,22 @@ func _apply_ztats_hover_cursor(slot: int) -> void:
 		return
 	_ztats_cursor = slot
 	_sync_ztats_selection()
+
+
+func _mouse_ztats_page_dir() -> Vector2i:
+	## Sheet view: split the character panel in half for ←→ pages.
+	if _ztats_stage != 2:
+		return Vector2i.ZERO
+	var panel: Control = _right_top
+	if panel == null or not panel.is_visible_in_tree():
+		return Vector2i.ZERO
+	var rect: Rect2 = panel.get_global_rect()
+	var pos: Vector2 = get_viewport().get_mouse_position()
+	if not rect.has_point(pos):
+		return Vector2i.ZERO
+	if pos.x < rect.position.x + rect.size.x * 0.5:
+		return Vector2i.LEFT
+	return Vector2i.RIGHT
 
 
 func _mouse_do_ztats(slot: int) -> void:

@@ -61,6 +61,8 @@ static var _hand_cursor_active := false
 static var _attack_cursor_active := false
 ## Right-panel party row: Ztats (Z) — search glass, even while a pick menu is open.
 static var _search_cursor_active := false
+## Ztats sheet: left/right half of the character panel (page ←→).
+static var _page_dir := Vector2i.ZERO
 ## D2Coding is monospace — good for command/message columns.
 
 static var _font: Font
@@ -112,6 +114,7 @@ static func set_play_dir_cursor(dir: Vector2i) -> void:
 		or _hand_cursor_active
 		or _attack_cursor_active
 		or _search_cursor_active
+		or _page_dir != Vector2i.ZERO
 	):
 		return
 	_refresh_cursor_textures()
@@ -160,12 +163,26 @@ static func set_search_cursor(active: bool) -> void:
 	_refresh_cursor_textures()
 
 
+static func set_page_dir_cursor(dir: Vector2i) -> void:
+	var next := Vector2i(signi(dir.x), 0)
+	if next == _page_dir:
+		return
+	_page_dir = next
+	_refresh_cursor_textures()
+
+
 static func _refresh_cursor_textures() -> void:
 	var path := CURSOR_ANKH_PATH
 	var hotspot := CURSOR_ANKH_HOTSPOT
 	if _search_cursor_active:
 		path = CURSOR_SEARCH_PATH
 		hotspot = CURSOR_SEARCH_HOTSPOT
+	elif _page_dir.x < 0:
+		path = CURSOR_ARROW_LEFT_PATH
+		hotspot = CURSOR_ARROW_LEFT_HOTSPOT
+	elif _page_dir.x > 0:
+		path = CURSOR_ARROW_RIGHT_PATH
+		hotspot = CURSOR_ARROW_RIGHT_HOTSPOT
 	elif _menu_cursor_active:
 		path = CURSOR_SWORD_PATH
 		hotspot = CURSOR_SWORD_HOTSPOT
