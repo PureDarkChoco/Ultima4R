@@ -1,7 +1,7 @@
 class_name EscMenuPanel
 extends Control
 
-## In-game Esc pause menu — ↑↓ + Enter; Esc closes (handled by world).
+## In-game Esc pause menu — ↑↓ + Enter, or click a row; Esc closes (world).
 
 enum Item {
 	SAVE = 0,
@@ -38,9 +38,12 @@ var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[TextureRect] = []
 var _cursor := 0
 
+signal item_activated(index: int)
+
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	z_index = 80
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	visible = false
@@ -134,7 +137,11 @@ func _build() -> void:
 		var wrap := Control.new()
 		wrap.custom_minimum_size = Vector2(0, ROW_H)
 		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.mouse_filter = Control.MOUSE_FILTER_STOP
+		wrap.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var item_i := i
+		wrap.mouse_entered.connect(func() -> void: set_cursor(item_i))
+		wrap.gui_input.connect(func(event: InputEvent) -> void: _on_row_gui(item_i, event))
 		list.add_child(wrap)
 
 		var bg := ColorRect.new()
@@ -186,3 +193,14 @@ func _sync_cursor() -> void:
 		var on := i == _cursor
 		_row_bgs[i].color = COL_CURSOR if on else Color(0, 0, 0, 0)
 		UiTheme.set_selection_edge_active(_row_edges[i], on, COL_CURSOR_EDGE)
+
+
+func _on_row_gui(index: int, event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if mb.button_index != MOUSE_BUTTON_LEFT or not mb.pressed:
+		return
+	set_cursor(index)
+	item_activated.emit(index)
+	accept_event()

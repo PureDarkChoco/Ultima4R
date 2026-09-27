@@ -47,6 +47,7 @@ func prompt(kind: int = Kind.QUIT) -> void:
 	if _open:
 		GameInput.reset_stick_navigation()
 		_refresh_text()
+		UiTheme.set_menu_cursor(true)
 		_btn_no.grab_focus()
 		_sync_choice_style()
 		return
@@ -58,6 +59,7 @@ func prompt(kind: int = Kind.QUIT) -> void:
 	_refresh_text()
 	_root.visible = true
 	_layer.visible = true
+	UiTheme.set_menu_cursor(true)
 	_btn_no.grab_focus()
 	_sync_choice_style()
 
@@ -120,7 +122,7 @@ func _build() -> void:
 	_btn_yes = Button.new()
 	_btn_no = Button.new()
 	for btn in [_btn_yes, _btn_no]:
-		btn.custom_minimum_size = Vector2(100, 0)
+		btn.custom_minimum_size = Vector2(120, 0)
 		UiTheme.style_button(btn)
 		btn.focus_mode = Control.FOCUS_ALL
 		row.add_child(btn)
@@ -147,8 +149,18 @@ func _refresh_text() -> void:
 			_title.text = Locale.t("load_delete_confirm")
 		_:
 			_title.text = Locale.t("quit_confirm")
-	_btn_yes.text = Locale.t("cmd_yes")
-	_btn_no.text = Locale.t("cmd_no")
+	_btn_yes.text = _yes_no_label(true)
+	_btn_no.text = _yes_no_label(false)
+
+
+func _yes_no_label(yes: bool) -> String:
+	var base := Locale.t("cmd_yes" if yes else "cmd_no")
+	if GameState.language != "ko":
+		return base
+	var letter := "Y" if yes else "N"
+	if base.begins_with("%s) " % letter):
+		return base
+	return "%s) %s" % [letter, base]
 
 
 func _sync_choice_style() -> void:

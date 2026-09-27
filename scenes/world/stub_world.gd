@@ -3189,7 +3189,7 @@ func _process(delta: float) -> void:
 			_tick_combat_aim_move()
 		elif _ztats_stage == 2:
 			_tick_ztats_view_navigation(delta)
-		elif _ztats_stage == 1 or _cast_stage == 1:
+		elif _ztats_stage == 1 or _cast_stage == 1 or _esc_menu_is_open() or _options_panel_is_open():
 			_tick_select_cursor(delta)
 		elif _ready_stage == 2:
 			_tick_ready_weapon_cursor(delta)
@@ -4325,6 +4325,23 @@ func _is_right_click(event: InputEvent) -> bool:
 		return false
 	var mb := event as InputEventMouseButton
 	return mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT
+
+
+func _try_right_click_menu_back(event: InputEvent) -> bool:
+	## Options / Save / Load: RMB backs out like Esc (to the Esc menu if we came from it).
+	if not _is_right_click(event):
+		return false
+	if QuitConfirm.is_open():
+		return false
+	if _options_panel_is_open():
+		if _options_panel != null and _options_panel.is_picking_file():
+			return true
+		_close_options_panel(true)
+		return true
+	if _save_stage != 0:
+		_cancel_save(true)
+		return true
+	return false
 
 
 func _is_command_menu_pad_event(event: InputEvent) -> bool:
@@ -8282,9 +8299,12 @@ func _input(event: InputEvent) -> void:
 	if _talk_try_advance_wait(event):
 		_mark_input_handled()
 		return
-	## Ztats panel (STOP) swallows RMB; close here like Esc.
+	## Overlay panels (STOP) swallow RMB; treat it as Esc.
 	if _ztats_stage != 0 and _is_right_click(event):
 		_close_ztats(_ztats_stage == 1)
+		_mark_input_handled()
+		return
+	if _try_right_click_menu_back(event):
 		_mark_input_handled()
 		return
 	## L2 opens journal browse (left pane only if sides are closed).
@@ -8405,6 +8425,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _ztats_stage != 0 and _is_right_click(event):
 		_close_ztats(_ztats_stage == 1)
+		_mark_input_handled()
+		return
+	if _try_right_click_menu_back(event):
 		_mark_input_handled()
 		return
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
@@ -8530,6 +8553,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_pressed():
 			_mark_input_handled()
 		return
+	if _options_panel_is_open():
+		if event is InputEventKey and event.pressed and not event.echo and _is_fullscreen_key(event as InputEventKey):
+			## Mode is toggled by DisplaySettings (input/poll); refresh label now.
+			if _options_panel != null:
+				_options_panel.refresh()
+			_mark_input_handled()
+			return
+		if _handle_options_input(event):
+			_mark_input_handled()
+		elif event.is_pressed() and not (event is InputEventMouseButton):
+			_mark_input_handled()
+		return
+	if _esc_menu_is_open():
+		if _handle_esc_menu_input(event):
+			_mark_input_handled()
+		elif event.is_pressed() and not (event is InputEventMouseButton):
+			_mark_input_handled()
+		return
 	if _combat_active:
 		## Nested UIs opened from combat (Ready / Use / Ztats / Open Who) before arena keys.
 		if _ready_stage != 0:
@@ -8581,24 +8622,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _save_stage != 0:
 		if _handle_save_input(event):
-			_mark_input_handled()
-		elif event.is_pressed():
-			_mark_input_handled()
-		return
-	if _options_panel_is_open():
-		if event is InputEventKey and event.pressed and not event.echo and _is_fullscreen_key(event as InputEventKey):
-			## Mode is toggled by DisplaySettings (input/poll); refresh label now.
-			if _options_panel != null:
-				_options_panel.refresh()
-			_mark_input_handled()
-			return
-		if _handle_options_input(event):
-			_mark_input_handled()
-		elif event.is_pressed() and not (event is InputEventMouseButton):
-			_mark_input_handled()
-		return
-	if _esc_menu_is_open():
-		if _handle_esc_menu_input(event):
 			_mark_input_handled()
 		elif event.is_pressed():
 			_mark_input_handled()
@@ -10202,6 +10225,7 @@ func _ensure_esc_menu() -> void:
 		return
 	_esc_menu = _EscMenuPanel.new()
 	_esc_menu.name = "EscMenuPanel"
+	_esc_menu.item_activated.connect(_confirm_esc_menu)
 	add_child(_esc_menu)
 
 
@@ -10385,6 +10409,9 @@ func _handle_esc_menu_input(event: InputEvent) -> bool:
 		if jb.button_index == _GameInput.confirm_button():
 			_confirm_esc_menu(_esc_menu.cursor() if _esc_menu else 0)
 			return true
+	if event is InputEventMouseButton:
+		## Row hover/click is handled by EscMenuPanel GUI.
+		return false
 	return true
 
 
@@ -10417,6 +10444,8 @@ func _handle_options_input(event: InputEvent) -> bool:
 			_confirm_options_item(_options_panel.cursor() if _options_panel else 0)
 			return true
 	if event is InputEventMouseButton:
+		if _is_right_click(event):
+			return _try_right_click_menu_back(event)
 		## Left/right arrows and row clicks are handled by the options panel GUI.
 		return false
 	return true
@@ -10538,6 +10567,8 @@ func _handle_save_input(event: InputEvent) -> bool:
 	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
 		_cancel_save(true)
 		return true
+	if _is_right_click(event):
+		return _try_right_click_menu_back(event)
 	return true
 
 
