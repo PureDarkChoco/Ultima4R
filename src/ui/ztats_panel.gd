@@ -204,6 +204,8 @@ func is_member_sheet() -> bool:
 func cycle_auto_combat(delta: int) -> bool:
 	if not is_member_sheet() or delta == 0:
 		return false
+	if GameState.auto_combat_is_locked_manual_slot(_slot):
+		return false
 	GameState.cycle_auto_combat_of_slot(_slot, delta)
 	_sync_auto_mode()
 	return true
@@ -530,7 +532,11 @@ func _auto_mode_style() -> StyleBoxFlat:
 func _sync_auto_mode() -> void:
 	if _auto_box == null or _auto_lab == null:
 		return
-	if _inv_page != InvPage.NONE or _slot < 0:
+	if (
+		_inv_page != InvPage.NONE
+		or _slot < 0
+		or GameState.auto_combat_is_locked_manual_slot(_slot)
+	):
 		_auto_box.visible = false
 		if _auto_hint:
 			_auto_hint.visible = false

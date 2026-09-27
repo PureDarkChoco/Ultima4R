@@ -1814,8 +1814,19 @@ func _clamp_auto_combat(mode: int) -> int:
 	return clampi(mode, AutoCombat.MANUAL, AutoCombat.WAIT)
 
 
+func auto_combat_is_locked_manual_class(klass: int) -> bool:
+	## Party #1 / the Avatar must always fight by hand (dungeon-room walls).
+	return klass >= 0 and klass == avatar_class()
+
+
+func auto_combat_is_locked_manual_slot(slot: int) -> bool:
+	return auto_combat_is_locked_manual_class(party_member_at(slot))
+
+
 func auto_combat_of_class(klass: int) -> int:
 	if klass < 0 or klass >= member_auto_combat.size():
+		return AutoCombat.MANUAL
+	if auto_combat_is_locked_manual_class(klass):
 		return AutoCombat.MANUAL
 	return _clamp_auto_combat(int(member_auto_combat[klass]))
 
@@ -1827,11 +1838,17 @@ func auto_combat_of_slot(slot: int) -> int:
 func set_auto_combat_of_class(klass: int, mode: int) -> void:
 	if klass < 0 or klass >= member_auto_combat.size():
 		return
+	if auto_combat_is_locked_manual_class(klass):
+		member_auto_combat[klass] = AutoCombat.MANUAL
+		return
 	member_auto_combat[klass] = _clamp_auto_combat(mode)
 	_ensure_avatar_manual_if_all_wait()
 
 
 func cycle_auto_combat_of_class(klass: int, delta: int) -> int:
+	if auto_combat_is_locked_manual_class(klass):
+		_lock_avatar_auto_combat()
+		return AutoCombat.MANUAL
 	if klass < 0 or klass >= member_auto_combat.size() or delta == 0:
 		return auto_combat_of_class(klass)
 	var next := posmod(auto_combat_of_class(klass) + delta, AUTO_COMBAT_COUNT)
@@ -1865,6 +1882,14 @@ func reset_auto_combat_to_manual() -> void:
 
 func avatar_class() -> int:
 	return player_class if player_class >= 0 else party_leader_class()
+
+
+func _lock_avatar_auto_combat() -> void:
+	## Old saves may still store Attack/Magic/… for the hero; never honor it.
+	var avatar := avatar_class()
+	if avatar < 0 or avatar >= member_auto_combat.size():
+		return
+	member_auto_combat[avatar] = AutoCombat.MANUAL
 
 
 func _party_all_living_wait() -> bool:
@@ -3583,6 +3608,7 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	_apply_int_array(member_auto_combat, d.get("member_auto_combat", []), 8)
 	for i in member_auto_combat.size():
 		member_auto_combat[i] = _clamp_auto_combat(int(member_auto_combat[i]))
+	_lock_avatar_auto_combat()
 	_ensure_avatar_manual_if_all_wait()
 	## Older saves without attrs: seed companion/avatar defaults from class tables.
 	if not d.has("member_str"):
