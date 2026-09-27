@@ -187,9 +187,9 @@ class MiniCheck extends Control:
 
 	func _draw() -> void:
 		var box := Rect2(Vector2.ZERO, size)
-		draw_rect(box, Color(0.98, 0.86, 0.28, 1), false, 1.5)
+		draw_rect(box, Color(0.96, 0.95, 0.9, 1), false, 1.5)
 		if on:
-			draw_rect(box.grow(-3.0), Color(0.98, 0.86, 0.28, 1), true)
+			draw_rect(box.grow(-3.0), Color(0.96, 0.95, 0.9, 1), true)
 
 
 class PlaceHeader extends HBoxContainer:
@@ -316,7 +316,7 @@ func _ready() -> void:
 	_hide_done_row.add_child(_hide_done_check)
 	_hide_done_lab = Label.new()
 	_hide_done_lab.add_theme_font_size_override("font_size", PLACE_SIZE)
-	_hide_done_lab.add_theme_color_override("font_color", COL_PAGE_NEW)
+	_hide_done_lab.add_theme_color_override("font_color", COL_BODY)
 	_hide_done_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UiTheme.apply_font(_hide_done_lab)
 	_hide_done_row.add_child(_hide_done_lab)
