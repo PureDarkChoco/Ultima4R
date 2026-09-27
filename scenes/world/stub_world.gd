@@ -8077,7 +8077,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if _handle_options_input(event):
 			_mark_input_handled()
-		elif event.is_pressed():
+		elif event.is_pressed() and not (event is InputEventMouseButton):
 			_mark_input_handled()
 		return
 	if _esc_menu_is_open():
@@ -9670,7 +9670,14 @@ func _ensure_save_panel() -> void:
 		return
 	_save_panel = _SaveSlotPanel.new()
 	_save_panel.name = "SaveSlotPanel"
+	if _save_panel.has_signal("slot_activated"):
+		_save_panel.slot_activated.connect(_on_save_slot_activated)
 	add_child(_save_panel)
+
+
+func _on_save_slot_activated(slot_index: int) -> void:
+	if _save_stage == 2:
+		_confirm_slot_pick(slot_index)
 
 
 func _ensure_esc_menu() -> void:
@@ -9845,6 +9852,9 @@ func _handle_options_input(event: InputEvent) -> bool:
 		if jb.button_index == _GameInput.confirm_button():
 			_confirm_options_item(_options_panel.cursor() if _options_panel else 0)
 			return true
+	if event is InputEventMouseButton:
+		## Left/right arrows and row clicks are handled by the options panel GUI.
+		return false
 	return true
 
 

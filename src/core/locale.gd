@@ -955,12 +955,12 @@ const _T := {
 		"ko": "전체화면 꺼짐",
 	},
 	"esc_options_sfx": {
-		"en_u4": "Sound",
-		"en_us": "Sound Effects",
+		"en_u4": "Sound Effect",
+		"en_us": "Sound Effect",
 		"ko": "효과음",
 	},
 	"esc_options_music": {
-		"en_u4": "Music",
+		"en_u4": "Background Music",
 		"en_us": "Background Music",
 		"ko": "배경음악",
 	},
@@ -3320,6 +3320,21 @@ func t(key: String, args: Array = []) -> String:
 	if args.size() == 1:
 		return s % args[0]
 	return s % args
+
+
+func variants(key: String, args: Array = []) -> PackedStringArray:
+	## All three UI languages, for measuring a stable options column width.
+	var pack: Dictionary = _T.get(key, {})
+	var out: PackedStringArray = PackedStringArray()
+	for lang in ["en_u4", "en_us", "ko"]:
+		var s: String = str(pack.get(lang, pack.get("en_us", key)))
+		if args.is_empty():
+			out.append(s)
+		elif args.size() == 1:
+			out.append(s % args[0])
+		else:
+			out.append(s % args)
+	return out
 
 
 func need_dir_prompt(cmd_name: String) -> String:

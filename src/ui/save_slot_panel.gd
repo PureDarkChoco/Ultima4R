@@ -57,6 +57,8 @@ var _mode: int = Mode.SAVE
 var _class_tiles: Array[Texture2D] = []
 var _embedded := false
 var _embed_rect := Rect2()
+signal slot_activated(slot_index: int)
+
 ## Live embed metrics (scaled so 4 slots fill frame height).
 var _e_face := EMBED_FACE_BASE
 var _e_comp := EMBED_COMP_BASE
@@ -400,7 +402,10 @@ func _build() -> void:
 		var wrap := Control.new()
 		wrap.custom_minimum_size = Vector2(0, ROW_H)
 		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.mouse_filter = Control.MOUSE_FILTER_STOP
+		wrap.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var slot_i := i
+		wrap.gui_input.connect(func(event: InputEvent) -> void: _on_row_gui(slot_i, event))
 		_list.add_child(wrap)
 
 		var bg := ColorRect.new()
@@ -599,6 +604,18 @@ func _class_tile(klass: int) -> Texture2D:
 	if klass < 0 or klass >= _class_tiles.size():
 		return null
 	return _class_tiles[klass]
+
+
+func _on_row_gui(index: int, event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if mb.button_index != MOUSE_BUTTON_LEFT or not mb.pressed:
+		return
+	set_cursor(index)
+	if mb.double_click:
+		slot_activated.emit(index)
+	accept_event()
 
 
 func _sync_cursor() -> void:

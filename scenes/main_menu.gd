@@ -394,6 +394,9 @@ func _input(event: InputEvent) -> void:
 		_mark_input_handled()
 		return
 	_note_menu_input_device(event)
+	if _try_skip_intro(event):
+		_mark_input_handled()
+		return
 	## Cancel/confirm on load/options list — use _input so Esc is not lost to GUI.
 	if _load_open:
 		if _handle_load_input(event):
@@ -477,26 +480,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		## Name/gender form owns Esc / accept; mute menu hotkeys.
 		return
 
+	if _try_skip_intro(event):
+		accept_event()
+		return
+
 	var pressed_key: bool = event is InputEventKey and event.pressed and not event.echo
-	var click: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
-	var joy: bool = event is InputEventJoypadButton and event.pressed
-
-	if _intro == null:
-		return
-
-	if _intro.mode == _IntroController.Mode.TITLES or _intro.mode == _IntroController.Mode.MAP:
-		## Keyboard / confirm only — a focus click must not skip the title fade.
-		var joy_ok := joy and (event as InputEventJoypadButton).button_index in [
-			JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START
-		]
-		if pressed_key or joy_ok:
-			_intro.skip_titles_or_advance()
-			accept_event()
-		elif click and _intro.mode == _IntroController.Mode.MAP:
-			_intro.skip_titles_or_advance()
-			accept_event()
-		return
-
 	if pressed_key:
 		var k := event as InputEventKey
 		var code := k.keycode
@@ -519,6 +507,33 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif code == KEY_Q or phys == KEY_Q:
 			get_tree().quit()
 			accept_event()
+
+
+func _try_skip_intro(event: InputEvent) -> bool:
+	if _intro == null:
+		return false
+	if (
+		_intro.mode != _IntroController.Mode.TITLES
+		and _intro.mode != _IntroController.Mode.MAP
+	):
+		return false
+	if not event.is_pressed() or event.is_echo():
+		return false
+	var key_ok := event is InputEventKey
+	var click_ok := (
+		event is InputEventMouseButton
+		and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
+	)
+	var joy_ok := (
+		event is InputEventJoypadButton
+		and (event as InputEventJoypadButton).button_index in [
+			JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_START
+		]
+	)
+	if not (key_ok or click_ok or joy_ok):
+		return false
+	_intro.skip_titles_or_advance()
+	return true
 
 
 func _note_menu_input_device(event: InputEvent) -> void:
@@ -696,7 +711,14 @@ func _ensure_save_panel() -> void:
 		return
 	_save_panel = _SaveSlotPanel.new()
 	_save_panel.name = "SaveSlotPanel"
+	if _save_panel.has_signal("slot_activated"):
+		_save_panel.slot_activated.connect(_on_save_slot_activated)
 	add_child(_save_panel)
+
+
+func _on_save_slot_activated(slot_index: int) -> void:
+	if _load_open:
+		_confirm_load(slot_index)
 
 
 func _open_name_form() -> void:
@@ -751,7 +773,7 @@ func _handle_options_input(event: InputEvent) -> bool:
 		return false
 	if _options_horizontal_nudge(event):
 		return true
-	if _GameInput.is_cancel(event):
+	if _GameInput.is_cancel(event) or _is_right_click(event):
 		if _options_panel != null and _options_panel.has_method("is_picking_file") and _options_panel.is_picking_file():
 			return true
 		_close_options()
@@ -790,7 +812,7 @@ func _close_options() -> void:
 func _handle_licenses_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
-	if _GameInput.is_cancel(event):
+	if _GameInput.is_cancel(event) or _is_right_click(event):
 		_close_licenses()
 		return true
 	if event is InputEventKey:
@@ -834,7 +856,7 @@ func _on_licenses_panel_closed() -> void:
 func _handle_load_input(event: InputEvent) -> bool:
 	if not event.is_pressed() or event.is_echo():
 		return false
-	if _GameInput.is_cancel(event):
+	if _GameInput.is_cancel(event) or _is_right_click(event):
 		_close_load()
 		return true
 	if _GameInput.is_select(event):
@@ -856,6 +878,13 @@ func _handle_load_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton:
 		return true
 	return false
+
+
+func _is_right_click(event: InputEvent) -> bool:
+	if not (event is InputEventMouseButton):
+		return false
+	var mb := event as InputEventMouseButton
+	return mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT
 
 
 func _is_delete_save_key(k: InputEventKey) -> bool:

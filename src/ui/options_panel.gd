@@ -40,6 +40,10 @@ var _title: Label
 var _col: VBoxContainer
 var _list: VBoxContainer
 var _row_labs: Array[Label] = []
+var _row_names: Array[Label] = []
+var _row_lefts: Array[Label] = []
+var _row_rights: Array[Label] = []
+var _row_boxes: Array[HBoxContainer] = []
 var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[TextureRect] = []
 var _row_wraps: Array[Control] = []
@@ -49,6 +53,7 @@ var _embedded := false
 var _embed_rect := Rect2()
 var _apple2_dialog: FileDialog
 var _picking_apple2 := false
+var _row_font_sz := FONT_SIZE
 
 
 func _ready() -> void:
@@ -325,6 +330,10 @@ func _build() -> void:
 	_col.add_child(_list)
 
 	_row_labs.clear()
+	_row_names.clear()
+	_row_lefts.clear()
+	_row_rights.clear()
+	_row_boxes.clear()
 	_row_bgs.clear()
 	_row_edges.clear()
 	_row_wraps.clear()
@@ -333,7 +342,10 @@ func _build() -> void:
 		var wrap := Control.new()
 		wrap.custom_minimum_size = Vector2(0, ROW_H)
 		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.mouse_filter = Control.MOUSE_FILTER_STOP
+		wrap.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		var item_i := i
+		wrap.gui_input.connect(func(event: InputEvent) -> void: _on_row_gui(item_i, event))
 		_list.add_child(wrap)
 
 		var bg := ColorRect.new()
@@ -345,19 +357,32 @@ func _build() -> void:
 		var edge := UiTheme.make_selection_edge("", FONT_SIZE)
 		wrap.add_child(edge)
 
-		var lab := Label.new()
-		lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		lab.offset_left = 12
-		lab.offset_right = -8
-		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lab.add_theme_font_override("font", UiTheme.font())
-		lab.add_theme_font_size_override("font_size", FONT_SIZE)
-		lab.add_theme_color_override("font_color", COL_TEXT)
-		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		wrap.add_child(lab)
+		var box := HBoxContainer.new()
+		box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		box.offset_left = 8
+		box.offset_right = -8
+		box.alignment = BoxContainer.ALIGNMENT_CENTER
+		box.add_theme_constant_override("separation", 8)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.add_child(box)
+
+		var name_lab := _make_row_text_label()
+		var left_lab := _make_row_arrow_label("◂")
+		left_lab.gui_input.connect(func(event: InputEvent) -> void: _on_arrow_gui(item_i, -1, event))
+		var lab := _make_row_text_label()
+		var right_lab := _make_row_arrow_label("▸")
+		right_lab.gui_input.connect(func(event: InputEvent) -> void: _on_arrow_gui(item_i, 1, event))
+		box.add_child(name_lab)
+		box.add_child(left_lab)
+		box.add_child(lab)
+		box.add_child(right_lab)
 
 		_row_wraps.append(wrap)
+		_row_boxes.append(box)
+		_row_names.append(name_lab)
+		_row_lefts.append(left_lab)
 		_row_labs.append(lab)
+		_row_rights.append(right_lab)
 		_row_bgs.append(bg)
 		_row_edges.append(edge)
 		if i in GROUP_AFTER:
@@ -407,11 +432,9 @@ func _apply_presentation() -> void:
 		_title.add_theme_font_size_override("font_size", font_sz + 1)
 		_title.custom_minimum_size = Vector2(0, row_h)
 		for i in ITEM_COUNT:
-			_row_labs[i].add_theme_font_size_override("font_size", font_sz)
-			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			_row_labs[i].offset_left = 8
-			_row_labs[i].offset_right = -8
+			_style_row_labels(i, font_sz)
 			_apply_row_slot(i, row_h)
+		_apply_fixed_columns(font_sz)
 		for gap in _group_gaps:
 			gap.custom_minimum_size = Vector2(0, group_gap)
 	else:
@@ -430,11 +453,9 @@ func _apply_presentation() -> void:
 		_title.add_theme_font_size_override("font_size", FONT_SIZE + 2)
 		_title.custom_minimum_size = Vector2.ZERO
 		for i in ITEM_COUNT:
-			_row_labs[i].add_theme_font_size_override("font_size", FONT_SIZE)
-			_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			_row_labs[i].offset_left = 8
-			_row_labs[i].offset_right = -8
+			_style_row_labels(i, FONT_SIZE)
 			_apply_row_slot(i, ROW_H)
+		_apply_fixed_columns(FONT_SIZE)
 		for gap in _group_gaps:
 			gap.custom_minimum_size = Vector2(0, GROUP_GAP)
 
@@ -442,35 +463,191 @@ func _apply_presentation() -> void:
 func _refresh_labels() -> void:
 	_title.text = Locale.t("esc_options_title")
 	for i in ITEM_COUNT:
-		if i == Item.LANGUAGE:
-			_row_labs[i].text = "%s: ◂ %s ▸" % [
-				Locale.t("menu_language"),
-				Locale.lang_label(),
-			]
-		elif i == Item.HANGUL_KEYBOARD:
-			_row_labs[i].text = "%s: ◂ %s ▸" % [
-				Locale.t("esc_options_hangul_keyboard"),
-				Locale.t("hangul_keyboard_" + HangulInputSettings.layout_id()),
-			]
-		elif i == Item.GAMEPAD:
-			_row_labs[i].text = "%s: ◂ %s ▸" % [
-				Locale.t("esc_options_gamepad"),
-				Locale.t("esc_options_gamepad_" + GamepadSettings.layout_id()),
-			]
-		elif i == Item.GRAPHICS:
-			_row_labs[i].text = _graphics_row_text()
-		elif i == Item.APPLE2_DISK:
-			_row_labs[i].text = _apple2_disk_row_text()
-		elif i == Item.RESOLUTION:
-			_row_labs[i].text = _resolution_row_text()
-		elif i == Item.FULLSCREEN:
-			_row_labs[i].text = _fullscreen_row_text()
-		elif i == Item.SFX:
-			_row_labs[i].text = _sfx_row_text()
-		elif i == Item.MUSIC:
-			_row_labs[i].text = _music_row_text()
-		_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
+		if i < _row_names.size():
+			_row_names[i].text = "%s:" % _item_name_text(i)
+		if i < _row_labs.size():
+			_row_labs[i].text = _item_value_text(i)
+			_row_labs[i].add_theme_color_override("font_color", COL_TEXT)
 	_apply_row_visibility()
+	_apply_fixed_columns(_row_font_sz)
+
+
+func _make_row_text_label() -> Label:
+	var lab := Label.new()
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.add_theme_font_override("font", UiTheme.font())
+	lab.add_theme_font_size_override("font_size", FONT_SIZE)
+	lab.add_theme_color_override("font_color", COL_TEXT)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return lab
+
+
+func _make_row_arrow_label(text: String) -> Label:
+	var lab := Label.new()
+	lab.text = text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.custom_minimum_size = Vector2(22, 0)
+	lab.add_theme_font_override("font", UiTheme.font_bold())
+	lab.add_theme_font_size_override("font_size", FONT_SIZE)
+	lab.add_theme_color_override("font_color", COL_ACCENT)
+	lab.mouse_filter = Control.MOUSE_FILTER_STOP
+	lab.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	return lab
+
+
+func _on_row_gui(index: int, event: InputEvent) -> void:
+	if not _is_left_click(event):
+		return
+	set_cursor(index)
+	accept_event()
+
+
+func _on_arrow_gui(index: int, delta: int, event: InputEvent) -> void:
+	if not _is_left_click(event):
+		return
+	set_cursor(index)
+	cycle_current(delta)
+	accept_event()
+
+
+func _is_left_click(event: InputEvent) -> bool:
+	if not (event is InputEventMouseButton):
+		return false
+	var mb := event as InputEventMouseButton
+	return mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and not mb.double_click
+
+
+func _style_row_labels(index: int, font_sz: int) -> void:
+	_row_font_sz = font_sz
+	for lab in [_row_names[index], _row_labs[index], _row_lefts[index], _row_rights[index]]:
+		lab.add_theme_font_size_override("font_size", font_sz)
+	if index < _row_boxes.size():
+		_row_boxes[index].offset_left = 8
+		_row_boxes[index].offset_right = -8
+
+
+func _apply_fixed_columns(font_sz: int) -> void:
+	if _row_names.is_empty() or _row_labs.is_empty():
+		return
+	var name_font := UiTheme.font()
+	var value_font := UiTheme.font()
+	var name_w := 0.0
+	for key in _item_name_keys():
+		for sample in Locale.variants(key):
+			name_w = maxf(name_w, _text_width(name_font, font_sz, "%s:" % sample))
+	var value_w := _text_width(value_font, font_sz, "Apple II Mono White")
+	for sample in _value_width_samples():
+		value_w = maxf(value_w, _text_width(value_font, font_sz, sample))
+	name_w = ceilf(name_w) + 2.0
+	value_w = ceilf(value_w) + 4.0
+	var arrow_w := maxf(22.0, float(font_sz) * 1.35)
+	for i in ITEM_COUNT:
+		_row_names[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_row_names[i].custom_minimum_size = Vector2(name_w, 0)
+		_row_names[i].size_flags_horizontal = Control.SIZE_SHRINK_END
+		_row_labs[i].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_row_labs[i].custom_minimum_size = Vector2(value_w, 0)
+		_row_labs[i].size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		_row_labs[i].clip_text = true
+		_row_lefts[i].custom_minimum_size = Vector2(arrow_w, 0)
+		_row_rights[i].custom_minimum_size = Vector2(arrow_w, 0)
+
+
+func _text_width(font: Font, font_sz: int, text: String) -> float:
+	if font == null or text.is_empty():
+		return 0.0
+	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_sz).x
+
+
+func _value_width_samples() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for key in [
+		"lang_en_us",
+		"lang_en_u4",
+		"lang_ko",
+		"hangul_keyboard_2",
+		"hangul_keyboard_39",
+		"hangul_keyboard_3f",
+		"esc_options_graphics_new_color",
+		"esc_options_graphics_apple2_color",
+		"esc_options_graphics_apple2_mono",
+		"esc_options_graphics_apple2_mono_green",
+		"esc_options_apple2_disk_none",
+		"esc_options_apple2_disk_set",
+		"esc_options_fullscreen_state_on",
+		"esc_options_fullscreen_state_off",
+		"esc_options_state_on",
+		"esc_options_state_off",
+		"esc_options_gamepad_xbox",
+		"esc_options_gamepad_nintendo",
+	]:
+		out.append_array(Locale.variants(key))
+	out.append_array(Locale.variants("esc_options_music_volume", [100]))
+	for pct in DisplaySettings.SCALE_PCTS:
+		var sz := DisplaySettings.size_for_scale_percent(int(pct))
+		out.append_array(Locale.variants(
+			"esc_options_resolution_windowed",
+			[int(pct), sz.x, sz.y]
+		))
+	return out
+
+
+func _item_name_keys() -> PackedStringArray:
+	return PackedStringArray([
+		"menu_language",
+		"esc_options_hangul_keyboard",
+		"esc_options_graphics",
+		"esc_options_apple2_disk",
+		"esc_options_resolution",
+		"esc_options_fullscreen",
+		"esc_options_sfx",
+		"esc_options_music",
+		"esc_options_gamepad",
+	])
+
+
+func _item_name_text(index: int) -> String:
+	var keys := _item_name_keys()
+	if index < 0 or index >= keys.size():
+		return ""
+	return Locale.t(keys[index])
+
+
+func _item_value_text(index: int) -> String:
+	match index:
+		Item.LANGUAGE:
+			return Locale.lang_label()
+		Item.HANGUL_KEYBOARD:
+			return Locale.t("hangul_keyboard_" + HangulInputSettings.layout_id())
+		Item.GRAPHICS:
+			return _graphics_value_text()
+		Item.APPLE2_DISK:
+			return (
+				Locale.t("esc_options_apple2_disk_set")
+				if GameState.apple2_dsk_ok
+				else Locale.t("esc_options_apple2_disk_none")
+			)
+		Item.RESOLUTION:
+			return _resolution_value_text()
+		Item.FULLSCREEN:
+			return (
+				Locale.t("esc_options_fullscreen_state_on")
+				if DisplaySettings.is_fullscreen_active()
+				else Locale.t("esc_options_fullscreen_state_off")
+			)
+		Item.SFX:
+			return _on_off_state(AudioSfx.is_enabled())
+		Item.MUSIC:
+			return (
+				Locale.t("esc_options_music_volume", [AudioSfx.music_volume_percent()])
+				if AudioSfx.music_enabled()
+				else Locale.t("esc_options_state_off")
+			)
+		Item.GAMEPAD:
+			return Locale.t("esc_options_gamepad_" + GamepadSettings.layout_id())
+		_:
+			return ""
 
 
 func _item_visible(index: int) -> bool:
@@ -520,7 +697,7 @@ func _apply_row_visibility() -> void:
 			_row_wraps[i].custom_minimum_size = Vector2.ZERO
 
 
-func _graphics_row_text() -> String:
+func _graphics_value_text() -> String:
 	var tid := GraphicsSettings.tileset_id()
 	var key := "esc_options_graphics_new_color"
 	if tid == "apple2_color":
@@ -529,53 +706,19 @@ func _graphics_row_text() -> String:
 		key = "esc_options_graphics_apple2_mono"
 	elif tid == "apple2_mono_green":
 		key = "esc_options_graphics_apple2_mono_green"
-	return "%s: ◂ %s ▸" % [Locale.t("esc_options_graphics"), Locale.t(key)]
+	return Locale.t(key)
 
 
-func _apple2_disk_row_text() -> String:
-	var state := (
-		Locale.t("esc_options_apple2_disk_set")
-		if GameState.apple2_dsk_ok
-		else Locale.t("esc_options_apple2_disk_none")
-	)
-	return "%s: ◂ %s ▸" % [Locale.t("esc_options_apple2_disk"), state]
-
-
-func _resolution_row_text() -> String:
+func _resolution_value_text() -> String:
 	var parts: Dictionary = DisplaySettings.resolution_label_parts()
 	var pct := int(parts.get("pct", 80))
 	var w := int(parts.get("width", 1280))
 	var h := int(parts.get("height", 720))
-	return "%s: ◂ %s ▸" % [
-		Locale.t("esc_options_resolution"),
-		Locale.t("esc_options_resolution_windowed", [pct, w, h]),
-	]
-
-
-func _fullscreen_row_text() -> String:
-	var state := (
-		Locale.t("esc_options_fullscreen_state_on")
-		if DisplaySettings.is_fullscreen_active()
-		else Locale.t("esc_options_fullscreen_state_off")
-	)
-	return "%s: ◂ %s ▸" % [Locale.t("esc_options_fullscreen"), state]
+	return Locale.t("esc_options_resolution_windowed", [pct, w, h])
 
 
 func _on_off_state(on: bool) -> String:
 	return Locale.t("esc_options_state_on" if on else "esc_options_state_off")
-
-
-func _sfx_row_text() -> String:
-	return "%s: ◂ %s ▸" % [Locale.t("esc_options_sfx"), _on_off_state(AudioSfx.is_enabled())]
-
-
-func _music_row_text() -> String:
-	var state := (
-		Locale.t("esc_options_music_volume", [AudioSfx.music_volume_percent()])
-		if AudioSfx.music_enabled()
-		else Locale.t("esc_options_state_off")
-	)
-	return "%s: ◂ %s ▸" % [Locale.t("esc_options_music"), state]
 
 
 func _sync_cursor() -> void:
