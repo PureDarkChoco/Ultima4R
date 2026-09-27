@@ -95,6 +95,7 @@ const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
 
 
 var _title: Label
+var _auto_wrap: HBoxContainer
 var _auto_box: PanelContainer
 var _auto_lab: Label
 var _auto_hint: VBoxContainer
@@ -532,19 +533,18 @@ func _auto_mode_style() -> StyleBoxFlat:
 func _sync_auto_mode() -> void:
 	if _auto_box == null or _auto_lab == null:
 		return
-	if (
-		_inv_page != InvPage.NONE
-		or _slot < 0
-		or GameState.auto_combat_is_locked_manual_slot(_slot)
-	):
-		_auto_box.visible = false
-		if _auto_hint:
-			_auto_hint.visible = false
+	var on_sheet := _inv_page == InvPage.NONE and _slot >= 0
+	var locked := on_sheet and GameState.auto_combat_is_locked_manual_slot(_slot)
+	## Keep the title-row box reserved on every member sheet so ←→ pages
+	## do not jump when the Avatar has no auto-combat control.
+	_auto_box.visible = on_sheet
+	if _auto_hint:
+		_auto_hint.visible = on_sheet
+	if _auto_wrap:
+		_auto_wrap.modulate = Color(1, 1, 1, 0) if locked else Color.WHITE
+	if not on_sheet:
 		_auto_lab.text = ""
 		return
-	_auto_box.visible = true
-	if _auto_hint:
-		_auto_hint.visible = true
 	var mode := GameState.auto_combat_of_slot(_slot)
 	_auto_lab.text = GameState.auto_combat_label(mode)
 	var font := _auto_lab.get_theme_font("font")
@@ -608,19 +608,19 @@ func _build() -> void:
 	UiTheme.apply_font(_title)
 	title_row.add_child(_title)
 
-	var auto_wrap := HBoxContainer.new()
-	auto_wrap.add_theme_constant_override("separation", 3)
-	auto_wrap.size_flags_horizontal = Control.SIZE_SHRINK_END
-	auto_wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	auto_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_row.add_child(auto_wrap)
+	_auto_wrap = HBoxContainer.new()
+	_auto_wrap.add_theme_constant_override("separation", 3)
+	_auto_wrap.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_auto_wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_auto_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_row.add_child(_auto_wrap)
 
 	_auto_box = PanelContainer.new()
 	_auto_box.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_auto_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_auto_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_auto_box.add_theme_stylebox_override("panel", _auto_mode_style())
-	auto_wrap.add_child(_auto_box)
+	_auto_wrap.add_child(_auto_box)
 
 	_auto_lab = Label.new()
 	_auto_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -637,7 +637,7 @@ func _build() -> void:
 	_auto_hint.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_auto_hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_auto_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	auto_wrap.add_child(_auto_hint)
+	_auto_wrap.add_child(_auto_hint)
 	_auto_hint.add_child(_make_auto_hint_arrow("ztats_auto_hint_up"))
 	_auto_hint.add_child(_make_auto_hint_arrow("ztats_auto_hint_down"))
 
