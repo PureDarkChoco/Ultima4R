@@ -8315,6 +8315,10 @@ func _input(event: InputEvent) -> void:
 		_close_ztats(_ztats_stage == 1)
 		_mark_input_handled()
 		return
+	if _journal_focus_active and _is_right_click(event):
+		_close_journal_focus()
+		_mark_input_handled()
+		return
 	if _try_right_click_menu_back(event):
 		_mark_input_handled()
 		return
