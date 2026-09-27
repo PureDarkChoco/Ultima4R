@@ -23,12 +23,44 @@ const FONT_BOLD_PATH := "res://assets/fonts/d2coding/D2CodingBold.ttf"
 ## Both bitmaps are native 32x32 pixel art.
 const CURSOR_ANKH_PATH := "res://assets/ui/cursors/cursor_ankh.png"
 const CURSOR_SWORD_PATH := "res://assets/ui/cursors/cursor_sword.png"
+const CURSOR_ARROW_UP_PATH := "res://assets/ui/cursors/arrow_up.png"
+const CURSOR_ARROW_DOWN_PATH := "res://assets/ui/cursors/arrow_down.png"
+const CURSOR_ARROW_LEFT_PATH := "res://assets/ui/cursors/arrow_left.png"
+const CURSOR_ARROW_RIGHT_PATH := "res://assets/ui/cursors/arrow_right.png"
+const CURSOR_BUBBLE_PATH := "res://assets/ui/cursors/cursor_bubble.png"
+const CURSOR_KEY_PATH := "res://assets/ui/cursors/cursor_key.png"
+const CURSOR_HAND_PATH := "res://assets/ui/cursors/cursor_hand.png"
+const CURSOR_SEARCH_PATH := "res://assets/ui/cursors/cursor_search.png"
 const CURSOR_ANKH_HOTSPOT := Vector2(16, 1)
 const CURSOR_SWORD_HOTSPOT := Vector2(4, 0)
+const CURSOR_ARROW_UP_HOTSPOT := Vector2(16, 1)
+const CURSOR_ARROW_DOWN_HOTSPOT := Vector2(16, 31)
+const CURSOR_ARROW_LEFT_HOTSPOT := Vector2(1, 16)
+const CURSOR_ARROW_RIGHT_HOTSPOT := Vector2(31, 16)
+## Tail sits at the lower-left of the 32×32 plate.
+const CURSOR_BUBBLE_HOTSPOT := Vector2(2, 30)
+## Bit of the key points upper-left after 180° rotation.
+const CURSOR_KEY_HOTSPOT := Vector2(10, 4)
+## Pinch point of the grab hand (opening at mid-left).
+const CURSOR_HAND_HOTSPOT := Vector2(7, 14)
+## Center of the search lens (upper-left circle).
+const CURSOR_SEARCH_HOTSPOT := Vector2(12, 11)
 
 ## True while a menu (title/options/load/esc/ztats/…) is the active screen —
 ## sword shows for every cursor shape so it never depends on hover position.
 static var _menu_cursor_active := false
+## Explore/combat walk hint: cardinally split from the player (X diagonals).
+static var _play_dir := Vector2i.ZERO
+## City talk: pointer is over a person `_do_talk` can actually address.
+static var _talk_cursor_active := false
+## Adjacent locked door: Jimmy (J) target under the pointer.
+static var _jimmy_cursor_active := false
+## Open / Get / Board / Klimb / Descend target under the pointer.
+static var _hand_cursor_active := false
+## Adjacent field foe: Attack (A) — same sword art as menus, hover-only.
+static var _attack_cursor_active := false
+## Right-panel party row: Ztats (Z) — search glass, even while a pick menu is open.
+static var _search_cursor_active := false
 ## D2Coding is monospace — good for command/message columns.
 
 static var _font: Font
@@ -69,9 +101,98 @@ static func set_menu_cursor(active: bool) -> void:
 	_refresh_cursor_textures()
 
 
+static func set_play_dir_cursor(dir: Vector2i) -> void:
+	if dir == _play_dir:
+		return
+	_play_dir = dir
+	if (
+		_menu_cursor_active
+		or _talk_cursor_active
+		or _jimmy_cursor_active
+		or _hand_cursor_active
+		or _attack_cursor_active
+		or _search_cursor_active
+	):
+		return
+	_refresh_cursor_textures()
+
+
+static func set_talk_cursor(active: bool) -> void:
+	if active == _talk_cursor_active:
+		return
+	_talk_cursor_active = active
+	if _menu_cursor_active:
+		return
+	_refresh_cursor_textures()
+
+
+static func set_jimmy_cursor(active: bool) -> void:
+	if active == _jimmy_cursor_active:
+		return
+	_jimmy_cursor_active = active
+	if _menu_cursor_active or _talk_cursor_active:
+		return
+	_refresh_cursor_textures()
+
+
+static func set_hand_cursor(active: bool) -> void:
+	if active == _hand_cursor_active:
+		return
+	_hand_cursor_active = active
+	if _menu_cursor_active or _talk_cursor_active or _jimmy_cursor_active:
+		return
+	_refresh_cursor_textures()
+
+
+static func set_attack_cursor(active: bool) -> void:
+	if active == _attack_cursor_active:
+		return
+	_attack_cursor_active = active
+	if _menu_cursor_active or _talk_cursor_active or _jimmy_cursor_active or _hand_cursor_active:
+		return
+	_refresh_cursor_textures()
+
+
+static func set_search_cursor(active: bool) -> void:
+	if active == _search_cursor_active:
+		return
+	_search_cursor_active = active
+	_refresh_cursor_textures()
+
+
 static func _refresh_cursor_textures() -> void:
-	var path := CURSOR_SWORD_PATH if _menu_cursor_active else CURSOR_ANKH_PATH
-	var hotspot := CURSOR_SWORD_HOTSPOT if _menu_cursor_active else CURSOR_ANKH_HOTSPOT
+	var path := CURSOR_ANKH_PATH
+	var hotspot := CURSOR_ANKH_HOTSPOT
+	if _search_cursor_active:
+		path = CURSOR_SEARCH_PATH
+		hotspot = CURSOR_SEARCH_HOTSPOT
+	elif _menu_cursor_active:
+		path = CURSOR_SWORD_PATH
+		hotspot = CURSOR_SWORD_HOTSPOT
+	elif _talk_cursor_active:
+		path = CURSOR_BUBBLE_PATH
+		hotspot = CURSOR_BUBBLE_HOTSPOT
+	elif _jimmy_cursor_active:
+		path = CURSOR_KEY_PATH
+		hotspot = CURSOR_KEY_HOTSPOT
+	elif _hand_cursor_active:
+		path = CURSOR_HAND_PATH
+		hotspot = CURSOR_HAND_HOTSPOT
+	elif _attack_cursor_active:
+		path = CURSOR_SWORD_PATH
+		hotspot = CURSOR_SWORD_HOTSPOT
+	elif _play_dir.y < 0:
+		path = CURSOR_ARROW_UP_PATH
+		hotspot = CURSOR_ARROW_UP_HOTSPOT
+	elif _play_dir.y > 0:
+		path = CURSOR_ARROW_DOWN_PATH
+		hotspot = CURSOR_ARROW_DOWN_HOTSPOT
+	elif _play_dir.x < 0:
+		path = CURSOR_ARROW_LEFT_PATH
+		hotspot = CURSOR_ARROW_LEFT_HOTSPOT
+	elif _play_dir.x > 0:
+		path = CURSOR_ARROW_RIGHT_PATH
+		hotspot = CURSOR_ARROW_RIGHT_HOTSPOT
 	var tex := load(path) as Texture2D
 	if tex == null:
 		return

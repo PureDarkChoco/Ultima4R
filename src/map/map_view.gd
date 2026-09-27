@@ -609,6 +609,31 @@ func displayed_tile_px() -> float:
 	return displayed_tile_size().x
 
 
+func player_local_center() -> Vector2:
+	## Center of the walking avatar (explore) or combat focus, in local pixels.
+	var ts := displayed_tile_size()
+	if ts.x <= 0.0 or ts.y <= 0.0:
+		return size * 0.5
+	var tile := Vector2i(view_w / 2, view_h / 2)
+	if is_in_combat():
+		var pos := get_combat_focus_pos()
+		if pos.x >= 0:
+			tile = Vector2i((view_w - CAMP_W) / 2, (view_h - CAMP_H) / 2) + pos
+	return Vector2((float(tile.x) + 0.5) * ts.x, (float(tile.y) + 0.5) * ts.y)
+
+
+func view_tile_at_local(local: Vector2) -> Vector2i:
+	## Grid cell under a MapView-local pixel. (-1,-1) if outside the view.
+	var ts: Vector2 = displayed_tile_size()
+	if ts.x <= 0.0 or ts.y <= 0.0:
+		return Vector2i(-1, -1)
+	var col: int = floori(local.x / ts.x)
+	var row: int = floori(local.y / ts.y)
+	if col < 0 or row < 0 or col >= view_w or row >= view_h:
+		return Vector2i(-1, -1)
+	return Vector2i(col, row)
+
+
 func cols_for_pane(_pane: Vector2) -> int:
 	## Explore width is fixed (VIEW_W); pane stretch sets the tile aspect.
 	return VIEW_W

@@ -155,6 +155,8 @@ var _compact := false
 ## New Order: cursor slot (-1 = off), locked first pick (-1 = none).
 var _order_cursor := -1
 var _order_locked := -1
+## Mouse hover over a party row (same blue fill as keyboard pick).
+var _hover_slot := -1
 ## Guard against resize ↔ distribute feedback loops.
 var _relayouting := false
 ## Map tile aspect (w/h). Size stays ICON_SIZE-based; only ratio follows tiles.
@@ -637,6 +639,27 @@ func clear_order_selection() -> void:
 	_apply_order_selection()
 
 
+func set_hover_slot(slot: int) -> void:
+	if slot == _hover_slot:
+		return
+	_hover_slot = slot
+	_apply_order_selection()
+
+
+func slot_at_global(pos: Vector2) -> int:
+	## Visible filled party row under `pos`, or -1.
+	var n := GameState.party_size()
+	for i in mini(n, _row_panels.size()):
+		var row := _row_panels[i]
+		if row == null or not row.is_visible_in_tree():
+			continue
+		if GameState.party_member_at(i) < 0:
+			continue
+		if row.get_global_rect().has_point(pos):
+			return i
+	return -1
+
+
 static func status_label(st: int) -> String:
 	match st:
 		Status.POISONED:
@@ -833,12 +856,13 @@ func _order_row_style(cursor: int, locked: int, index: int) -> StyleBoxFlat:
 
 
 func _apply_order_selection() -> void:
+	var shown := _hover_slot if _hover_slot >= 0 else _order_cursor
 	for i in _row_panels.size():
 		var panel := _row_panels[i]
 		if panel == null:
 			continue
 		panel.add_theme_stylebox_override(
-			"panel", _order_row_style(_order_cursor, _order_locked, i)
+			"panel", _order_row_style(shown, _order_locked, i)
 		)
 
 

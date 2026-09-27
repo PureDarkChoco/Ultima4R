@@ -161,6 +161,20 @@ var _move_repeating := false
 var _left_trigger_held := false
 var _right_trigger_held := false
 var _held_dir := Vector2i.ZERO
+## Mouse walk: X-split dir from the player while LMB is held (explore / victory).
+var _mouse_walk_dir := Vector2i.ZERO
+var _mouse_hover_dir := Vector2i.ZERO
+## Combat: one step per mouse-down so a hold does not walk the whole party.
+var _mouse_combat_step_done := false
+## Previous-frame LMB so talk needs a fresh press, not the walk hold.
+var _mouse_lmb_held := false
+## Dismissing Bye / wait-any-key with LMB must not start a walk on that hold.
+var _mouse_block_walk_until_release := false
+## Hand cursor: Open/Get (dir) or Board/Klimb/Descend (dir ZERO).
+var _mouse_hand_cmd: int = U4Commands.Id.NONE
+var _mouse_hand_dir := Vector2i.ZERO
+## Right-panel (or closed compact strip) party row under the pointer — Ztats.
+var _mouse_ztats_slot := -1
 var _pending_cmd: int = U4Commands.Id.NONE
 ## Label shown while waiting on the same line: "Attack: Dir?" (xu4 style).
 var _pending_cmd_name: String = ""
@@ -517,6 +531,7 @@ var _side_tween: Tween
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	UiTheme.apply_cursors()
 	resized.connect(_fit_explore_map)
 	_style_bars()
 	_style_side_panels()
@@ -3150,6 +3165,7 @@ func _on_order_roster_closed() -> void:
 
 func _process(delta: float) -> void:
 	UiTheme.set_menu_cursor(_menu_cursor_should_be_sword())
+	_update_mouse_walk()
 	_sync_panel_focus_border()
 	_tick_cursor(delta)
 	## xu4 timerFired still runs during menus; remake freezes the clock on gem/map view.
@@ -3197,6 +3213,17 @@ func _process(delta: float) -> void:
 			var fk := _map.get_combat_focus_klass()
 			if fk >= 0 and GameState.is_member_disabled(fk):
 				_combat_finish_member_turn()
+			elif (
+				_mouse_hover_dir != Vector2i.ZERO
+				and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+				and _mouse_over_play_map()
+				and not _mouse_combat_step_done
+				and fk >= 0
+				and not GameState.is_member_disabled(fk)
+			):
+				## One combat step per mouse-down (keyboard also spends the turn).
+				_mouse_combat_step_done = true
+				_combat_try_move(_mouse_hover_dir)
 		return
 	## xu4 force pass if no commands within last 20 seconds (explore only).
 	_tick_auto_pass(delta)
@@ -3830,11 +3857,449 @@ func _read_select_step() -> int:
 
 
 func _read_move_dir() -> Vector2i:
-	return _GameInput.read_move_dir()
+	var kb := _GameInput.read_move_dir()
+	if kb != Vector2i.ZERO:
+		return kb
+	return _mouse_walk_dir
+
+
+func _update_mouse_walk() -> void:
+	## Arrow cursor follows the X-split even without a click; LMB hold walks.
+	## A reachable townsfolk under the pointer takes the bubble cursor.
+	## Talk is a new press only — the walk hold must be released first.
+	var lmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var lmb_pressed := lmb and not _mouse_lmb_held
+	if not lmb:
+		_mouse_combat_step_done = false
+		_mouse_block_walk_until_release = false
+	_mouse_hover_dir = _mouse_x_dir_from_player()
+	var hover := _mouse_hover_dir
+	var over_map := _mouse_over_play_map()
+	var sword := _menu_cursor_should_be_sword()
+	var wait_key := _talk_is_wait_any_key()
+	var talk_dir: Vector2i = Vector2i.ZERO
+	var jimmy_dir: Vector2i = Vector2i.ZERO
+	var attack_dir: Vector2i = Vector2i.ZERO
+	_mouse_hand_cmd = U4Commands.Id.NONE
+	_mouse_hand_dir = Vector2i.ZERO
+	_mouse_ztats_slot = _mouse_ztats_slot_from_hover()
+	if _ztats_stage == 1:
+		## Hover moves the Z pick cursor like ↑↓; leaving the list keeps it.
+		if _mouse_ztats_slot >= 0:
+			_apply_ztats_hover_cursor(_mouse_ztats_slot)
+		_sync_mouse_ztats_hover(-1)
+	else:
+		_sync_mouse_ztats_hover(_mouse_ztats_slot)
+	if over_map and not sword and not wait_key:
+		talk_dir = _mouse_talk_dir_from_hover()
+		if talk_dir == Vector2i.ZERO:
+			jimmy_dir = _mouse_jimmy_dir_from_hover()
+		if talk_dir == Vector2i.ZERO and jimmy_dir == Vector2i.ZERO:
+			_mouse_resolve_hand_action()
+		if (
+			talk_dir == Vector2i.ZERO
+			and jimmy_dir == Vector2i.ZERO
+			and _mouse_hand_cmd == U4Commands.Id.NONE
+		):
+			attack_dir = _mouse_attack_dir_from_hover()
+	## Bye / wait-any-key: ankh until the click lands; arrows only after.
+	var show_dir: Vector2i = hover if (over_map and not sword and not wait_key) else Vector2i.ZERO
+	UiTheme.set_play_dir_cursor(show_dir)
+	UiTheme.set_talk_cursor(talk_dir != Vector2i.ZERO)
+	UiTheme.set_jimmy_cursor(jimmy_dir != Vector2i.ZERO)
+	UiTheme.set_hand_cursor(_mouse_hand_cmd != U4Commands.Id.NONE)
+	UiTheme.set_attack_cursor(attack_dir != Vector2i.ZERO)
+	UiTheme.set_search_cursor(_mouse_ztats_slot >= 0)
+	if _mouse_ztats_slot >= 0:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed:
+			_mouse_do_ztats(_mouse_ztats_slot)
+			_mouse_block_walk_until_release = true
+		_mouse_lmb_held = lmb
+		return
+	if wait_key:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb:
+			_mouse_block_walk_until_release = true
+		_mouse_lmb_held = lmb
+		return
+	if talk_dir != Vector2i.ZERO:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed and _mouse_talk_click_allowed():
+			_do_talk(talk_dir)
+		_mouse_lmb_held = lmb
+		return
+	if jimmy_dir != Vector2i.ZERO:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed and _mouse_talk_click_allowed():
+			_mouse_do_jimmy(jimmy_dir)
+		_mouse_lmb_held = lmb
+		return
+	if _mouse_hand_cmd != U4Commands.Id.NONE:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed and _mouse_hand_click_allowed():
+			_mouse_do_hand()
+		_mouse_lmb_held = lmb
+		return
+	if attack_dir != Vector2i.ZERO:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed and _mouse_talk_click_allowed():
+			_mouse_do_attack(attack_dir)
+		_mouse_lmb_held = lmb
+		return
+	if (
+		show_dir != Vector2i.ZERO
+		and lmb
+		and not _mouse_block_walk_until_release
+		and _mouse_walk_hold_allowed()
+	):
+		_mouse_walk_dir = hover
+	else:
+		_mouse_walk_dir = Vector2i.ZERO
+	_mouse_lmb_held = lmb
+
+
+func _mouse_over_play_map() -> bool:
+	if _map == null or _map_pane == null:
+		return false
+	var hovered: Control = get_viewport().gui_get_hovered_control()
+	return hovered == _map_pane or hovered == _map
+
+
+func _mouse_ztats_hover_allowed() -> bool:
+	## Ztats peek from the roster — explore/combat, or the Z pick list.
+	if _talk_is_wait_any_key() or _talk_stage != 0:
+		return false
+	if _esc_menu_is_open() or _options_panel_is_open():
+		return false
+	if _journal_focus_active or _save_stage != 0 or _command_menu_open:
+		return false
+	if _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0:
+		return false
+	if _cast_stage != 0 or _use_stage != 0 or _order_stage != 0:
+		return false
+	if _pending_cmd != U4Commands.Id.NONE:
+		return false
+	if _city_warp_open:
+		return false
+	if _party_target_picker != null and _party_target_picker.active:
+		return false
+	if _ztats_stage == 2:
+		return false
+	return true
+
+
+func _mouse_ztats_slot_from_hover() -> int:
+	if not _mouse_ztats_hover_allowed():
+		return -1
+	var pos := get_viewport().get_mouse_position()
+	if _compact_pane and _compact_pane.visible and _compact_pane.modulate.a > 0.35:
+		if _compact_roster:
+			var compact_slot: int = _compact_roster.slot_at_global(pos)
+			if compact_slot >= 0:
+				return compact_slot
+	if _roster and _roster.visible and _right_top and _right_top.visible:
+		return _roster.slot_at_global(pos)
+	return -1
+
+
+func _sync_mouse_ztats_hover(slot: int) -> void:
+	if _roster:
+		_roster.set_hover_slot(slot)
+	if _compact_roster:
+		_compact_roster.set_hover_slot(slot)
+
+
+func _apply_ztats_hover_cursor(slot: int) -> void:
+	if _ztats_stage != 1 or slot < 0 or slot >= GameState.party_size():
+		return
+	if slot == _ztats_cursor:
+		return
+	_ztats_cursor = slot
+	_sync_ztats_selection()
+
+
+func _mouse_do_ztats(slot: int) -> void:
+	if slot < 0 or slot >= GameState.party_size():
+		return
+	if _ztats_stage == 1:
+		_accept_ztats_slot(slot)
+		return
+	_clear_pending_order()
+	_close_ready(false)
+	_close_wear(false)
+	_open_order_roster()
+	var name := GameState.party_member_display_name(slot)
+	_push_message(Locale.t("cmd_ztats_for_done", [name]), false)
+	_show_ztats_member(slot)
+
+
+func _mouse_walk_hold_allowed() -> bool:
+	## Same moments the world poll would accept a held arrow.
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
+		return false
+	if _journal_focus_active or _talk_stage != 0:
+		return false
+	if _combat_aiming or _cast_stage == 4 or _cast_stage == 6:
+		return false
+	if _combat_active:
+		return _combat_victory_aftermath and not _combat_exit_prompt and not _victory_turn_pending
+	return true
+
+
+func _mouse_x_dir_from_player() -> Vector2i:
+	## Four triangles of an X through the avatar: |dx|>|dy| is E/W, else N/S.
+	if _map == null:
+		return Vector2i.ZERO
+	## Cast to Control: class_name MapView can miss CanvasItem helpers.
+	var map_ctl: Control = _map
+	var d: Vector2 = map_ctl.get_local_mouse_position() - _map.player_local_center()
+	var ax := absf(d.x)
+	var ay := absf(d.y)
+	if ax < 0.5 and ay < 0.5:
+		return Vector2i.ZERO
+	if ax > ay:
+		return Vector2i(1 if d.x > 0.0 else -1, 0)
+	return Vector2i(0, 1 if d.y > 0.0 else -1)
+
+
+func _mouse_talk_dir_from_hover() -> Vector2i:
+	## Bubble only when the pointed tile is a person `_do_talk` can reach.
+	if _combat_active or _talk_stage != 0:
+		return Vector2i.ZERO
+	var tile: Vector2i = _city_tile_under_mouse()
+	if tile.x < 0:
+		return Vector2i.ZERO
+	return _talk_dir_for_tile(tile)
+
+
+func _mouse_attack_dir_from_hover() -> Vector2i:
+	## Field (wilderness) only: orthogonally adjacent creature, same as A.
+	if _combat_active or _talk_stage != 0 or _is_in_city() or _is_in_dungeon():
+		return Vector2i.ZERO
+	var tile: Vector2i = _explore_tile_under_mouse()
+	if tile.x < 0:
+		return Vector2i.ZERO
+	var dir: Vector2i = _mouse_adjacent_dir_to_tile(tile, _tile_pos)
+	if dir == Vector2i.ZERO:
+		return Vector2i.ZERO
+	if not _command_menu_world_enemy_in_dir(dir):
+		return Vector2i.ZERO
+	return dir
+
+
+func _mouse_do_attack(dir: Vector2i) -> void:
+	_mouse_block_walk_until_release = true
+	_pending_cmd = U4Commands.Id.ATTACK
+	_pending_cmd_name = U4Commands.label(U4Commands.Id.ATTACK, str(GameState.language))
+	_finish_directed_command(dir)
+
+
+func _mouse_jimmy_dir_from_hover() -> Vector2i:
+	## Key cursor only on an orthogonally adjacent locked door (same as J).
+	if _combat_active or _talk_stage != 0:
+		return Vector2i.ZERO
+	var tile: Vector2i = _city_tile_under_mouse()
+	if tile.x < 0:
+		return Vector2i.ZERO
+	return _jimmy_dir_for_tile(tile)
+
+
+func _jimmy_dir_for_tile(tile: Vector2i) -> Vector2i:
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return Vector2i.ZERO
+	if (
+		tile.x < 0 or tile.y < 0
+		or tile.x >= _CityMapData.WIDTH
+		or tile.y >= _CityMapData.HEIGHT
+	):
+		return Vector2i.ZERO
+	var delta: Vector2i = tile - _tile_pos
+	if delta.x != 0 and delta.y != 0:
+		return Vector2i.ZERO
+	if absi(delta.x) + absi(delta.y) != 1:
+		return Vector2i.ZERO
+	var tid: int = int(_city_map.effective_tile_at(tile.x, tile.y))
+	if not _TileRules.is_locked_door(tid):
+		return Vector2i.ZERO
+	return Vector2i(signi(delta.x), signi(delta.y))
+
+
+func _mouse_do_jimmy(dir: Vector2i) -> void:
+	## Same path as keyboard J — including "No keys left!".
+	_mouse_block_walk_until_release = true
+	_pending_cmd = U4Commands.Id.JIMMY
+	_pending_cmd_name = U4Commands.label(U4Commands.Id.JIMMY, str(GameState.language))
+	_finish_directed_command(dir)
+
+
+func _mouse_over_player_tile() -> bool:
+	if _map == null:
+		return false
+	var map_ctl: Control = _map
+	var local: Vector2 = map_ctl.get_local_mouse_position()
+	var view_tile: Vector2i = _map.view_tile_at_local(local)
+	if view_tile.x < 0:
+		return false
+	if _is_in_combat() and _map.is_in_combat():
+		var focus: Vector2i = _map.get_combat_focus_pos()
+		if focus.x < 0:
+			return false
+		var origin: Vector2i = Vector2i(
+			(_map.view_w - MapView.CAMP_W) / 2,
+			(_map.view_h - MapView.CAMP_H) / 2
+		)
+		return view_tile == origin + focus
+	return view_tile == Vector2i(_map.view_w / 2, _map.view_h / 2)
+
+
+func _explore_tile_under_mouse() -> Vector2i:
+	if _map == null or _is_in_dungeon():
+		return Vector2i(-1, -1)
+	var map_ctl: Control = _map
+	var local: Vector2 = map_ctl.get_local_mouse_position()
+	var view_tile: Vector2i = _map.view_tile_at_local(local)
+	if view_tile.x < 0:
+		return Vector2i(-1, -1)
+	if _is_in_combat() and _map.is_in_combat():
+		var origin: Vector2i = Vector2i(
+			(_map.view_w - MapView.CAMP_W) / 2,
+			(_map.view_h - MapView.CAMP_H) / 2
+		)
+		return view_tile - origin
+	var center: Vector2i = Vector2i(_map.view_w / 2, _map.view_h / 2)
+	return _tile_pos + (view_tile - center)
+
+
+func _mouse_adjacent_dir_to_tile(tile: Vector2i, from: Vector2i) -> Vector2i:
+	var delta: Vector2i = tile - from
+	if delta.x != 0 and delta.y != 0:
+		return Vector2i.ZERO
+	if absi(delta.x) + absi(delta.y) != 1:
+		return Vector2i.ZERO
+	return Vector2i(signi(delta.x), signi(delta.y))
+
+
+func _mouse_resolve_hand_action() -> void:
+	## Hand: Open door / closed chest, Get open chest, Board, Klimb/Descend.
+	_mouse_hand_cmd = U4Commands.Id.NONE
+	_mouse_hand_dir = Vector2i.ZERO
+	if _talk_stage != 0 or _chest_open_stage != 0:
+		return
+	if _mouse_over_player_tile():
+		if (
+			not _combat_active
+			and _transport == Transport.FOOT
+			and _map != null
+			and not _is_in_dungeon()
+		):
+			var board_tid: int = int(_map.overlay_at(_tile_pos))
+			if (
+				MapView.is_ship_tile(board_tid)
+				or MapView.is_horse_tile(board_tid)
+				or MapView.is_balloon_tile(board_tid)
+			):
+				_mouse_hand_cmd = U4Commands.Id.BOARD
+				return
+		if not _combat_active and not _is_in_dungeon():
+			if _command_menu_on_city_portal(_CityFloorPortals.Action.CLIMB):
+				_mouse_hand_cmd = U4Commands.Id.KLIMB
+				return
+			if (
+				_command_menu_on_city_portal(_CityFloorPortals.Action.DESCEND)
+				or _command_menu_on_city_dungeon_portal(_CityFloorPortals.Action.DESCEND)
+			):
+				_mouse_hand_cmd = U4Commands.Id.DESCEND
+				return
+		return
+	if _is_in_dungeon() and not _is_in_combat():
+		return
+	var tile: Vector2i = _explore_tile_under_mouse()
+	if tile.x < 0:
+		return
+	var from: Vector2i = _tile_pos
+	if _is_in_combat() and _map != null and _map.is_in_combat():
+		from = _map.get_combat_focus_pos()
+		if from.x < 0:
+			return
+	var dir: Vector2i = _mouse_adjacent_dir_to_tile(tile, from)
+	if dir == Vector2i.ZERO:
+		return
+	if _is_in_combat() and _map != null and _map.is_in_combat():
+		if _command_menu_combat_chest_in_dir(dir, true):
+			_mouse_hand_cmd = U4Commands.Id.GET_CHEST
+			_mouse_hand_dir = dir
+			return
+		if _command_menu_combat_chest_in_dir(dir, false) or _command_menu_combat_door_in_dir(dir):
+			_mouse_hand_cmd = U4Commands.Id.OPEN
+			_mouse_hand_dir = dir
+		return
+	if _command_menu_city_chest_in_dir(dir, true):
+		_mouse_hand_cmd = U4Commands.Id.GET_CHEST
+		_mouse_hand_dir = dir
+		return
+	if _command_menu_city_tile_in_dir(dir, "door") or _command_menu_city_chest_in_dir(dir, false):
+		_mouse_hand_cmd = U4Commands.Id.OPEN
+		_mouse_hand_dir = dir
+
+
+func _mouse_hand_click_allowed() -> bool:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
+		return false
+	if _journal_focus_active or _talk_stage != 0 or _chest_open_stage != 0:
+		return false
+	if _pending_cmd != U4Commands.Id.NONE:
+		return false
+	if _combat_active:
+		if _mouse_hand_cmd != U4Commands.Id.OPEN and _mouse_hand_cmd != U4Commands.Id.GET_CHEST:
+			return false
+		if _combat_resolving or _combat_auto_acting or _combat_aiming:
+			return false
+	return true
+
+
+func _mouse_do_hand() -> void:
+	_mouse_block_walk_until_release = true
+	var cmd: int = _mouse_hand_cmd
+	if cmd == U4Commands.Id.OPEN or cmd == U4Commands.Id.GET_CHEST:
+		_pending_cmd = cmd
+		_pending_cmd_name = U4Commands.label(cmd, str(GameState.language))
+		_finish_directed_command(_mouse_hand_dir)
+		return
+	_handle_command(cmd)
+
+
+func _city_tile_under_mouse() -> Vector2i:
+	if _map == null or not _is_in_city():
+		return Vector2i(-1, -1)
+	var map_ctl: Control = _map
+	var local: Vector2 = map_ctl.get_local_mouse_position()
+	var view_tile: Vector2i = _map.view_tile_at_local(local)
+	if view_tile.x < 0:
+		return Vector2i(-1, -1)
+	var center: Vector2i = Vector2i(_map.view_w / 2, _map.view_h / 2)
+	return _tile_pos + (view_tile - center)
+
+
+func _mouse_talk_click_allowed() -> bool:
+	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
+		return false
+	if _journal_focus_active or _talk_stage != 0:
+		return false
+	if _combat_active or _pending_cmd != U4Commands.Id.NONE:
+		return false
+	return true
 
 
 func _is_cancel_event(event: InputEvent) -> bool:
 	return _GameInput.is_cancel(event)
+
+
+func _is_right_click(event: InputEvent) -> bool:
+	if not (event is InputEventMouseButton):
+		return false
+	var mb := event as InputEventMouseButton
+	return mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT
 
 
 func _is_command_menu_pad_event(event: InputEvent) -> bool:
@@ -3848,6 +4313,37 @@ func _talk_blocks_cancel_bye() -> bool:
 	## Wait-any-key between an NPC line and the next spoken line (not Y/N).
 	## Only A continues; B and Esc must not farewell.
 	return _talk_stage == 2
+
+
+func _talk_is_wait_any_key() -> bool:
+	return _talk_stage == 2 or _talk_stage == TALK_STAGE_FAREWELL
+
+
+func _talk_try_advance_wait(event: InputEvent) -> bool:
+	## Keyboard already advances via `_handle_talk_input`. Mouse must be
+	## caught in `_input` because the map Control swallows the click.
+	if not _talk_is_wait_any_key():
+		return false
+	if not event.is_pressed() or event.is_echo():
+		return false
+	var mouse_ok := (
+		event is InputEventMouseButton
+		and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
+	)
+	var joy_ok := (
+		event is InputEventJoypadButton
+		and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button()
+	)
+	if not (mouse_ok or joy_ok):
+		return false
+	if mouse_ok:
+		## Same press must not walk the moment Bye closes.
+		_mouse_block_walk_until_release = true
+	if _talk_stage == TALK_STAGE_FAREWELL:
+		_finish_talk_farewell()
+	else:
+		_talk_ask_question()
+	return true
 
 
 func _clear_pending_dir(allow_move: bool = true) -> void:
@@ -7757,6 +8253,15 @@ func _input(event: InputEvent) -> void:
 	if _GameInput.should_block_event(event):
 		_mark_input_handled()
 		return
+	## Wait-any-key lives here: MapPane eats clicks so `_unhandled_input` never sees them.
+	if _talk_try_advance_wait(event):
+		_mark_input_handled()
+		return
+	## Ztats panel (STOP) swallows RMB; close here like Esc.
+	if _ztats_stage != 0 and _is_right_click(event):
+		_close_ztats(_ztats_stage == 1)
+		_mark_input_handled()
+		return
 	## L2 opens journal browse (left pane only if sides are closed).
 	## R2 mirrors Tab — open/close the side panels.
 	## Axis events repeat while held, so fire once after crossing the
@@ -7873,6 +8378,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _GameInput.should_block_event(event):
 		_mark_input_handled()
 		return
+	if _ztats_stage != 0 and _is_right_click(event):
+		_close_ztats(_ztats_stage == 1)
+		_mark_input_handled()
+		return
 	## Ztats / Ready / Wear / Mix / Camp / Chest Open / Telescope / Save / Load / Esc menu / Options / New Order.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
 		_mark_input_handled()
@@ -7932,28 +8441,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_mark_input_handled()
 		return
 	if _talk_stage != 0:
-		if (
-			_talk_stage == 2
-			or _talk_stage == TALK_STAGE_FAREWELL
-		) and (
-				(
-					event is InputEventMouseButton
-					and event.pressed
-					and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT
-				)
-				or (
-					event is InputEventJoypadButton
-					and event.pressed
-					and not event.is_echo()
-					and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button()
-				)
-			):
-			## Mouse left click or the gamepad confirm button (A) advances
-			## the "Press any key" pause to its follow-up question / farewell dismiss.
-			if _talk_stage == TALK_STAGE_FAREWELL:
-				_finish_talk_farewell()
-			else:
-				_talk_ask_question()
+		if _talk_try_advance_wait(event):
 			_mark_input_handled()
 			return
 		if _binary_prompt_active() and _enter_prompt_stage != 1:
@@ -9708,12 +10196,34 @@ func _options_panel_is_open() -> bool:
 	return _options_panel != null and _options_panel.is_open()
 
 
+func _talk_selection_menu_active() -> bool:
+	## Any dialogue list the player picks from (keywords, Y/N, vendor answers,
+	## stock/sell catalogs). Wait-any-key and free typing stay off this list.
+	if _talk_stage == 0:
+		return false
+	if _talk_keyword_menu_active:
+		return true
+	if _talk_overlay_choice_active():
+		return true
+	if _talk_stage == 3 or _talk_stage == 13 or _talk_stage == TALK_STAGE_COUNT:
+		return true
+	if not _shop_item_menu_items.is_empty():
+		return true
+	if (
+		_talk_stage == 10
+		and _shop != null
+		and int(_shop.mode) == _VendorShop.Mode.CHOICE
+	):
+		return true
+	return false
+
+
 func _menu_cursor_should_be_sword() -> bool:
 	## True while any list/choice menu is the active screen — sword shows
 	## everywhere on it (esc menu, ztats/ready/wear/mix/cast/use, journal
 	## browse, save/load, options, command palette, talk keyword picker,
-	## party target/order pick, debug city warp). Free map exploration and
-	## simple wait-for-key prompts stay on the ankh.
+	## vendor/NPC choice rows, party target/order pick, debug city warp).
+	## Free map exploration and wait-for-key prompts stay on the ankh.
 	return (
 		_esc_menu_is_open()
 		or _options_panel_is_open()
@@ -9727,7 +10237,7 @@ func _menu_cursor_should_be_sword() -> bool:
 		or _command_menu_open
 		or _journal_focus_active
 		or _order_stage != 0
-		or _talk_keyword_menu_active
+		or _talk_selection_menu_active()
 		or _city_warp_open
 		or (_party_target_picker != null and _party_target_picker.active)
 	)
@@ -10845,6 +11355,9 @@ func _handle_ztats_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			return true
+	if _is_right_click(event):
+		_close_ztats(_ztats_stage == 1)
+		return true
 	## Viewing sheet: Esc / Enter close; Z returns to pick list.
 	if _ztats_stage == 2:
 		if _is_cancel_event(event):
@@ -10980,6 +11493,8 @@ func _nudge_ztats_cursor(delta: int) -> void:
 func _sync_ztats_selection() -> void:
 	if _roster:
 		_roster.set_order_selection(_ztats_cursor, -1)
+	if _compact_roster:
+		_compact_roster.set_order_selection(_ztats_cursor, -1)
 
 
 func _accept_ztats_slot(slot: int) -> void:
@@ -11096,6 +11611,7 @@ func _close_ztats(show_none: bool) -> void:
 	_layout_prompt_row()
 	if show_none and was == 1:
 		_push_message(Locale.t("cmd_none"), false)
+	_layout_side_panels(false)
 	## Combat Ztats is free (view only) — does not spend the member turn.
 
 
@@ -16851,6 +17367,10 @@ func _sync_order_selection() -> void:
 func _clear_order_selection() -> void:
 	if _roster:
 		_roster.clear_order_selection()
+		_roster.set_hover_slot(-1)
+	if _compact_roster:
+		_compact_roster.clear_order_selection()
+		_compact_roster.set_hover_slot(-1)
 
 
 func _is_digit_key(event: InputEventKey) -> bool:
@@ -17658,6 +18178,44 @@ func _finish_directed_command(dir: Vector2i) -> void:
 		return
 	## xu4: directed actions consume a turn (Attack/Jimmy/Open/…).
 	await _finish_party_turn()
+
+
+func _talk_dir_for_tile(tile: Vector2i) -> Vector2i:
+	## Cardinal 1–2 step reach used by `_do_talk` (xu4 talk-over counters).
+	## Far or diagonal people return ZERO so the walk arrow stays.
+	if not _is_in_city() or _city_map == null or not _city_map.loaded:
+		return Vector2i.ZERO
+	if (
+		tile.x < 0 or tile.y < 0
+		or tile.x >= _CityMapData.WIDTH
+		or tile.y >= _CityMapData.HEIGHT
+	):
+		return Vector2i.ZERO
+	var delta: Vector2i = tile - _tile_pos
+	if delta.x != 0 and delta.y != 0:
+		return Vector2i.ZERO
+	var dist: int = absi(delta.x) + absi(delta.y)
+	if dist < 1 or dist > 2:
+		return Vector2i.ZERO
+	var dir: Vector2i = Vector2i(signi(delta.x), signi(delta.y))
+	var pi: int = int(_city_map.person_index_at(tile.x, tile.y))
+	if pi < 0 or not _talk_can_address(pi, dist):
+		return Vector2i.ZERO
+	if dist == 2:
+		var mid: Vector2i = _tile_pos + dir
+		var mid_pi: int = int(_city_map.person_index_at(mid.x, mid.y))
+		var cell_tid: int = int(_city_map.effective_tile_at(mid.x, mid.y))
+		if mid_pi >= 0:
+			cell_tid = int(_city_map.persons[mid_pi].z)
+		if not _TileRules.can_talk_over(cell_tid):
+			return Vector2i.ZERO
+	var role: int = int(_city_map.role_at(pi))
+	if _CityNpcRoles.is_shop_like(role):
+		return dir
+	var entry: Variant = _city_map.discourse_at(pi)
+	if entry != null:
+		return dir
+	return Vector2i.ZERO
 
 
 func _do_talk(dir: Vector2i) -> bool:
