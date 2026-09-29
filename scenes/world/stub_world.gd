@@ -2214,9 +2214,21 @@ func _prompt_row_text() -> String:
 	if _esc_menu_is_open():
 		return Locale.t("esc_menu_title")
 	if _order_stage == 1:
-		return Locale.t("cmd_exchange")
+		## Live name beside Exchange # (xu4 prints the name after the pick).
+		var exchange_nm := GameState.party_member_display_name(_order_cursor)
+		if _order_cursor <= 0 or exchange_nm.is_empty():
+			return Locale.t("cmd_exchange")
+		return Locale.t("cmd_exchange_done", [exchange_nm])
 	if _order_stage == 2:
-		return Locale.t("cmd_with")
+		## Same live name for with # while picking the second member.
+		var with_nm := GameState.party_member_display_name(_order_cursor)
+		if (
+			_order_cursor <= 0
+			or _order_cursor == _order_slot_a
+			or with_nm.is_empty()
+		):
+			return Locale.t("cmd_with")
+		return Locale.t("cmd_with_done", [with_nm])
 	if _combat_aiming:
 		return Locale.t("cmd_attack_aim")
 	## Talk: xu4 has no CHARSET_PROMPT on dialogue input — only the live cursor.
@@ -4090,6 +4102,7 @@ func _try_mouse_roster_pick(lmb_pressed: bool) -> bool:
 	if slot != _order_cursor:
 		_order_cursor = slot
 		_sync_order_selection()
+		_layout_prompt_row()
 	if lmb_pressed:
 		_accept_order_slot(slot)
 		_mouse_block_walk_until_release = true
@@ -17601,6 +17614,7 @@ func _nudge_order_cursor(delta: int) -> void:
 	var n := maxi(GameState.party_size(), 1)
 	_order_cursor = posmod(_order_cursor + delta, n)
 	_sync_order_selection()
+	_layout_prompt_row()
 
 
 func _sync_order_selection() -> void:
@@ -17669,9 +17683,10 @@ func _accept_order_slot(slot: int) -> void:
 		_push_message(Locale.t("cmd_must_lead", [GameState.party_member_display_name(0)]), false)
 		_clear_pending_order(false)
 		return
-	var name := GameState.party_member_display_name(slot)
+	var member_name := GameState.party_member_display_name(slot)
 	if _order_stage == 1:
-		_push_message(Locale.t("cmd_exchange_done", [name]), false)
+		## xu4 gameGetPlayer prints the name onto the open "Exchange # " line.
+		_push_message(Locale.t("cmd_exchange_done", [member_name]), false)
 		_order_slot_a = slot
 		_order_stage = 2
 		_order_cursor = slot
@@ -17687,7 +17702,7 @@ func _accept_order_slot(slot: int) -> void:
 		_sync_order_selection()
 		_layout_prompt_row()
 		return
-	_push_message(Locale.t("cmd_with_done", [name]), false)
+	_push_message(Locale.t("cmd_with_done", [member_name]), false)
 	var a := _order_slot_a
 	_order_stage = 0
 	_order_slot_a = -1

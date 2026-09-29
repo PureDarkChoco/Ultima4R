@@ -1930,12 +1930,12 @@ const _T := {
 	"cmd_exchange": {
 		"en_u4": "Exchange # ",
 		"en_us": "Exchange # ",
-		"ko": "대열 변경 # ",
+		"ko": "교환 # ",
 	},
 	"cmd_exchange_done": {
 		"en_u4": "Exchange # %s",
 		"en_us": "Exchange # %s",
-		"ko": "대열 변경 # %s",
+		"ko": "교환 # %s",
 	},
 	"cmd_with": {
 		"en_u4": "    with # ",
