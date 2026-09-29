@@ -3986,6 +3986,10 @@ func _update_mouse_walk() -> void:
 			_mouse_block_walk_until_release = true
 		_mouse_lmb_held = lmb
 		return
+	if _try_mouse_dismiss_pick_ui_on_map(lmb_pressed):
+		_mouse_walk_dir = Vector2i.ZERO
+		_mouse_lmb_held = lmb
+		return
 	if _try_mouse_roster_pick(lmb_pressed):
 		_mouse_walk_dir = Vector2i.ZERO
 		_mouse_lmb_held = lmb
@@ -4502,6 +4506,53 @@ func _is_right_click(event: InputEvent) -> bool:
 		return false
 	var mb := event as InputEventMouseButton
 	return mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT
+
+
+func _pick_ui_mouse_dismissable() -> bool:
+	## Z / Ready / Wear / Mix / Cast / Use / New Order / party Who? lists.
+	return (
+		_ztats_stage != 0
+		or _ready_stage != 0
+		or _wear_stage != 0
+		or _mix_stage != 0
+		or _cast_stage != 0
+		or _use_stage != 0
+		or _order_stage != 0
+		or (_party_target_picker != null and _party_target_picker.active)
+	)
+
+
+func _dismiss_pick_ui_like_escape() -> void:
+	## Same cancel path as Esc, without opening the Esc menu.
+	if _ztats_stage != 0:
+		_close_ztats(_ztats_stage == 1)
+		return
+	_on_escape(false)
+
+
+func _try_right_click_cancel_pick_ui(event: InputEvent) -> bool:
+	## RMB while a pick panel is open — same as Esc.
+	if not _is_right_click(event):
+		return false
+	if not _pick_ui_mouse_dismissable():
+		return false
+	_dismiss_pick_ui_like_escape()
+	return true
+
+
+func _try_mouse_dismiss_pick_ui_on_map(lmb_pressed: bool) -> bool:
+	## LMB on the play field dismisses pick UIs (Esc), leaving the side panel alone.
+	## Cast Dir?/Aim still need the map for mouse aim — only RMB cancels those.
+	if not _pick_ui_mouse_dismissable():
+		return false
+	if _cast_stage == 4 or _cast_stage == 6:
+		return false
+	if not _mouse_over_play_map():
+		return false
+	if lmb_pressed:
+		_dismiss_pick_ui_like_escape()
+		_mouse_block_walk_until_release = true
+	return true
 
 
 func _try_right_click_menu_back(event: InputEvent) -> bool:
@@ -8504,9 +8555,8 @@ func _input(event: InputEvent) -> void:
 	if _talk_try_advance_wait(event):
 		_mark_input_handled()
 		return
-	## Overlay panels (STOP) swallow RMB; treat it as Esc.
-	if _ztats_stage != 0 and _is_right_click(event):
-		_close_ztats(_ztats_stage == 1)
+	## Overlay / pick UIs: RMB backs out like Esc (MapPane may swallow clicks).
+	if _try_right_click_cancel_pick_ui(event):
 		_mark_input_handled()
 		return
 	if _journal_focus_active and _is_right_click(event):
@@ -8635,8 +8685,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _GameInput.should_block_event(event):
 		_mark_input_handled()
 		return
-	if _ztats_stage != 0 and _is_right_click(event):
-		_close_ztats(_ztats_stage == 1)
+	if _try_right_click_cancel_pick_ui(event):
 		_mark_input_handled()
 		return
 	if _try_right_click_menu_back(event):
