@@ -3965,6 +3965,14 @@ func _update_mouse_walk() -> void:
 			_mouse_block_walk_until_release = true
 		_mouse_lmb_held = lmb
 		return
+	if _try_mouse_roster_pick(lmb_pressed):
+		_mouse_walk_dir = Vector2i.ZERO
+		_mouse_lmb_held = lmb
+		return
+	if _try_mouse_item_list_pick(lmb_pressed):
+		_mouse_walk_dir = Vector2i.ZERO
+		_mouse_lmb_held = lmb
+		return
 	if page_dir != Vector2i.ZERO:
 		_mouse_walk_dir = Vector2i.ZERO
 		if lmb_pressed:
@@ -4044,9 +4052,7 @@ func _mouse_ztats_hover_allowed() -> bool:
 	return true
 
 
-func _mouse_ztats_slot_from_hover() -> int:
-	if not _mouse_ztats_hover_allowed():
-		return -1
+func _mouse_roster_slot_from_hover() -> int:
 	var pos := get_viewport().get_mouse_position()
 	if _compact_pane and _compact_pane.visible and _compact_pane.modulate.a > 0.35:
 		if _compact_roster:
@@ -4056,6 +4062,73 @@ func _mouse_ztats_slot_from_hover() -> int:
 	if _roster and _roster.visible and _right_top and _right_top.visible:
 		return _roster.slot_at_global(pos)
 	return -1
+
+
+func _mouse_ztats_slot_from_hover() -> int:
+	if not _mouse_ztats_hover_allowed():
+		return -1
+	return _mouse_roster_slot_from_hover()
+
+
+func _try_mouse_roster_pick(lmb_pressed: bool) -> bool:
+	## Cast/Ready/Wear/Order/etc. party lists: hover moves the cursor, LMB accepts.
+	if not _party_target_picker.active and _order_stage == 0:
+		return false
+	var slot := _mouse_roster_slot_from_hover()
+	if slot < 0:
+		return true
+	if _party_target_picker.active:
+		if slot != int(_party_target_picker.cursor):
+			_party_target_picker.cursor = slot
+			_sync_party_target_cursor()
+		if lmb_pressed:
+			_accept_party_target(slot)
+			_mouse_block_walk_until_release = true
+		return true
+	if slot != _order_cursor:
+		_order_cursor = slot
+		_sync_order_selection()
+	if lmb_pressed:
+		_accept_order_slot(slot)
+		_mouse_block_walk_until_release = true
+	return true
+
+
+func _try_mouse_item_list_pick(lmb_pressed: bool) -> bool:
+	## Cast / Mix / Ready / Wear / Use list rows: hover moves the cursor, LMB accepts.
+	if _ready_stage == 2 and _ready_panel != null and _ready_panel.visible:
+		_mouse_hover_list_row(_ready_panel, lmb_pressed, Callable(self, "_confirm_ready_cursor"))
+		return true
+	if _wear_stage == 2 and _wear_panel != null and _wear_panel.visible:
+		_mouse_hover_list_row(_wear_panel, lmb_pressed, Callable(self, "_confirm_wear_cursor"))
+		return true
+	if _cast_stage == 1 and _cast_panel != null and _cast_panel.visible:
+		_mouse_hover_list_row(_cast_panel, lmb_pressed, Callable(self, "_accept_cast_cursor"))
+		return true
+	if _use_stage == 1 and _use_panel != null and _use_panel.visible:
+		_mouse_hover_list_row(_use_panel, lmb_pressed, Callable(self, "_confirm_use_cursor"))
+		return true
+	if (_mix_stage == 1 or _mix_stage == 2) and _mix_panel != null and _mix_panel.visible:
+		var mix_accept := Callable(
+			self,
+			"_accept_mix_list_cursor" if _mix_stage == 1 else "_accept_mix_reagent_cursor"
+		)
+		_mouse_hover_list_row(_mix_panel, lmb_pressed, mix_accept)
+		return true
+	return false
+
+
+func _mouse_hover_list_row(panel: Control, lmb_pressed: bool, accept: Callable) -> void:
+	if panel == null or not panel.has_method("row_index_at_global"):
+		return
+	var idx: int = int(panel.call("row_index_at_global", get_viewport().get_mouse_position()))
+	if idx < 0:
+		return
+	if panel.has_method("hover_row"):
+		panel.call("hover_row", idx)
+	if lmb_pressed and accept.is_valid():
+		accept.call()
+		_mouse_block_walk_until_release = true
 
 
 func _sync_mouse_ztats_hover(slot: int) -> void:

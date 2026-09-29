@@ -275,6 +275,25 @@ func cursor_armor_id() -> int:
 	return _ids[_cursor]
 
 
+func row_index_at_global(pos: Vector2) -> int:
+	if not visible:
+		return -1
+	for i in _row_wraps.size():
+		var row := _row_wraps[i]
+		if row == null or not row.is_visible_in_tree():
+			continue
+		if row.get_global_rect().has_point(pos):
+			return i
+	return -1
+
+
+func hover_row(index: int) -> void:
+	if index < 0 or index >= _row_wraps.size() or index == _cursor:
+		return
+	_cursor = index
+	_sync_cursor()
+
+
 func nudge_cursor(step: int) -> void:
 	## Skip class-restricted rows; no wrap.
 	if _ids.is_empty() or step == 0:
