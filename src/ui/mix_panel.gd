@@ -400,6 +400,19 @@ func hover_row(index: int) -> void:
 	_refresh_stock_bar()
 
 
+func stock_reagent_at_global(pos: Vector2) -> int:
+	## Bottom 8-reagent icon bar, or -1.
+	if not visible:
+		return -1
+	for r in _stock_cells.size():
+		var cell := _stock_cells[r]
+		if cell == null or not cell.is_visible_in_tree():
+			continue
+		if cell.get_global_rect().has_point(pos):
+			return r
+	return -1
+
+
 func nudge_cursor(step: int) -> void:
 	if _row_wraps.is_empty() or step == 0:
 		return

@@ -4109,6 +4109,8 @@ func _try_mouse_item_list_pick(lmb_pressed: bool) -> bool:
 		_mouse_hover_list_row(_use_panel, lmb_pressed, Callable(self, "_confirm_use_cursor"))
 		return true
 	if (_mix_stage == 1 or _mix_stage == 2) and _mix_panel != null and _mix_panel.visible:
+		if _try_mouse_mix_stock(lmb_pressed):
+			return true
 		var mix_accept := Callable(
 			self,
 			"_accept_mix_list_cursor" if _mix_stage == 1 else "_accept_mix_reagent_cursor"
@@ -4116,6 +4118,21 @@ func _try_mouse_item_list_pick(lmb_pressed: bool) -> bool:
 		_mouse_hover_list_row(_mix_panel, lmb_pressed, mix_accept)
 		return true
 	return false
+
+
+func _try_mouse_mix_stock(lmb_pressed: bool) -> bool:
+	## Reagent pick: bottom icons toggle the same reagents as the list / A–H keys.
+	if _mix_stage != 2 or _mix_panel == null:
+		return false
+	var reag: int = int(_mix_panel.stock_reagent_at_global(get_viewport().get_mouse_position()))
+	if reag < 0:
+		return false
+	_mix_panel.hover_row(reag)
+	if lmb_pressed:
+		if not _mix_panel.toggle_reagent_by_id(reag):
+			_push_message(Locale.t("mix_reag_none"), false)
+		_mouse_block_walk_until_release = true
+	return true
 
 
 func _mouse_hover_list_row(panel: Control, lmb_pressed: bool, accept: Callable) -> void:
