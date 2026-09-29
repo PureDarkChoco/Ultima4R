@@ -4540,6 +4540,30 @@ func _try_right_click_cancel_pick_ui(event: InputEvent) -> bool:
 	return true
 
 
+func _try_right_click_cancel_pending_dir(event: InputEvent) -> bool:
+	## A/F/G/J/O/T Dir? (and ship Yell / combat aim / camp watch): RMB cancels like Esc.
+	if not _is_right_click(event):
+		return false
+	if _combat_aiming:
+		_combat_cancel_aim()
+		return true
+	if _pending_cmd != U4Commands.Id.NONE:
+		_clear_pending_dir(true)
+		## Combat Open/Get Dir? Esc path prints Cancelled; world ReadDir stays quiet.
+		if _combat_active:
+			_push_message(Locale.t("cmd_cancelled"), false)
+			_layout_prompt_row()
+		return true
+	if _ship_yell_await_dir:
+		_clear_ship_yell_await()
+		return true
+	## Hole up: Set a watch? Y/N (Who will guard? is covered by party-target pick).
+	if _camp_stage == 2:
+		_cancel_camp(true)
+		return true
+	return false
+
+
 func _try_mouse_dismiss_pick_ui_on_map(lmb_pressed: bool) -> bool:
 	## LMB on the play field dismisses pick UIs (Esc), leaving the side panel alone.
 	## Cast Dir?/Aim still need the map for mouse aim — only RMB cancels those.
@@ -8528,6 +8552,10 @@ func _on_escape(allow_menu_open: bool = true) -> void:
 		## xu4 ReadDir: Esc clears "Dir?" on the same line — no extra message.
 		_clear_pending_dir()
 		return
+	if _ship_yell_await_dir:
+		## Same quiet cancel as ReadDir (no "What?").
+		_clear_ship_yell_await()
+		return
 	if _options_panel_is_open():
 		_close_options_panel(true)
 		return
@@ -8557,6 +8585,10 @@ func _input(event: InputEvent) -> void:
 		return
 	## Overlay / pick UIs: RMB backs out like Esc (MapPane may swallow clicks).
 	if _try_right_click_cancel_pick_ui(event):
+		_mark_input_handled()
+		return
+	## Dir? / combat aim / ship Yell: RMB cancels before the A–Z palette opens.
+	if _try_right_click_cancel_pending_dir(event):
 		_mark_input_handled()
 		return
 	if _journal_focus_active and _is_right_click(event):
@@ -8686,6 +8718,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_mark_input_handled()
 		return
 	if _try_right_click_cancel_pick_ui(event):
+		_mark_input_handled()
+		return
+	if _try_right_click_cancel_pending_dir(event):
 		_mark_input_handled()
 		return
 	if _try_right_click_menu_back(event):
@@ -17350,7 +17385,10 @@ func _handle_camp_input(event: InputEvent) -> bool:
 
 
 func _handle_camp_watch_yn(event: InputEvent) -> bool:
-	## U5: Set a watch? — Y / N (A=Yes, B/Esc=cancel→None).
+	## U5: Set a watch? — Y / N (A=Yes, B/Esc/RMB=cancel→None).
+	if _is_right_click(event):
+		_cancel_camp(true)
+		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
@@ -21817,7 +21855,7 @@ func _handle_combat_pending_dir_event(event: InputEvent) -> bool:
 		if stick_dir != Vector2i.ZERO:
 			_finish_directed_command(stick_dir)
 		return true
-	if _is_cancel_event(event):
+	if _is_cancel_event(event) or _is_right_click(event):
 		_clear_pending_dir(true)
 		_push_message(Locale.t("cmd_cancelled"), false)
 		_layout_prompt_row()
@@ -21848,7 +21886,7 @@ func _handle_combat_aim_input_event(event: InputEvent) -> bool:
 	if event is InputEventJoypadMotion:
 		_GameInput.stick_clear_if_released(event)
 		return true
-	if _is_cancel_event(event):
+	if _is_cancel_event(event) or _is_right_click(event):
 		_combat_cancel_aim()
 		return true
 	if _try_combat_aim_foe_cycle(event):
