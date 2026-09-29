@@ -4231,7 +4231,7 @@ func _mouse_walk_hold_allowed() -> bool:
 	## Same moments the world poll would accept a held arrow.
 	if _moongate_busy or _cannon_busy or _search_busy or _death_busy or _shrine_busy or _dungeon_trap_busy or _turn_fx_busy:
 		return false
-	if _journal_focus_active or _talk_stage != 0:
+	if _journal_focus_active or _talk_stage != 0 or _enter_prompt_stage != 0:
 		return false
 	if _combat_aiming or _cast_stage == 4 or _cast_stage == 6:
 		return false
@@ -10491,6 +10491,8 @@ func _menu_cursor_should_be_sword() -> bool:
 		or _order_stage != 0
 		or _talk_selection_menu_active()
 		or _city_warp_open
+		or _enter_prompt_stage != 0
+		or _combat_exit_prompt
 		or (_party_target_picker != null and _party_target_picker.active)
 	)
 
@@ -14517,14 +14519,17 @@ func _clear_enter_prompt_decline_if_left() -> void:
 
 
 func _maybe_offer_enter_prompt() -> void:
-	## Gamepad only: standing on a world city/castle portal offers Yes/No enter.
+	## Gamepad / mouse walk-on: standing on a world portal offers Yes/No enter.
+	## Keyboard keeps classic E — no auto prompt.
 	if _enter_prompt_stage != 0:
 		return
 	if _is_in_city() or _is_in_dungeon() or _combat_active or _talk_stage != 0:
 		return
 	if _transport == Transport.SHIP or _transport == Transport.BALLOON:
 		return
-	if not _GameInput.is_move_from_gamepad():
+	var from_pad := _GameInput.is_move_from_gamepad()
+	var from_mouse := _mouse_walk_dir != Vector2i.ZERO
+	if not from_pad and not from_mouse:
 		return
 	_clear_enter_prompt_decline_if_left()
 	if _tile_pos == _enter_prompt_declined:
@@ -14548,6 +14553,9 @@ func _open_enter_prompt(portal: Dictionary) -> void:
 	_GameInput.reset_stick_navigation()
 	_reset_hold_state()
 	_block_dir_until_keyup = true
+	## Break mouse click-hold so walking does not resume under the Y/N prompt.
+	_mouse_walk_dir = Vector2i.ZERO
+	_mouse_block_walk_until_release = true
 	_push_message(Locale.t("cmd_enter_confirm", [_enter_confirm_place_phrase(portal)]), false)
 	_rebuild_choice_buttons(2)
 	_layout_prompt_row()
