@@ -59,7 +59,7 @@ static var _jimmy_cursor_active := false
 static var _hand_cursor_active := false
 ## Adjacent field foe: Attack (A) — same sword art as menus, hover-only.
 static var _attack_cursor_active := false
-## Right-panel party row: Ztats (Z) — search glass, even while a pick menu is open.
+## Right-panel party row: Ztats (Z) — search glass (below menu sword).
 static var _search_cursor_active := false
 ## Ztats sheet: left/right half of the character panel (page ←→).
 static var _page_dir := Vector2i.ZERO
@@ -160,6 +160,8 @@ static func set_search_cursor(active: bool) -> void:
 	if active == _search_cursor_active:
 		return
 	_search_cursor_active = active
+	if _menu_cursor_active:
+		return
 	_refresh_cursor_textures()
 
 
@@ -168,13 +170,19 @@ static func set_page_dir_cursor(dir: Vector2i) -> void:
 	if next == _page_dir:
 		return
 	_page_dir = next
+	if _menu_cursor_active:
+		return
 	_refresh_cursor_textures()
 
 
 static func _refresh_cursor_textures() -> void:
 	var path := CURSOR_ANKH_PATH
 	var hotspot := CURSOR_ANKH_HOTSPOT
-	if _search_cursor_active:
+	## Menus (incl. ⌘Q quit confirm) always show the sword over context cursors.
+	if _menu_cursor_active:
+		path = CURSOR_SWORD_PATH
+		hotspot = CURSOR_SWORD_HOTSPOT
+	elif _search_cursor_active:
 		path = CURSOR_SEARCH_PATH
 		hotspot = CURSOR_SEARCH_HOTSPOT
 	elif _page_dir.x < 0:
@@ -183,9 +191,6 @@ static func _refresh_cursor_textures() -> void:
 	elif _page_dir.x > 0:
 		path = CURSOR_ARROW_RIGHT_PATH
 		hotspot = CURSOR_ARROW_RIGHT_HOTSPOT
-	elif _menu_cursor_active:
-		path = CURSOR_SWORD_PATH
-		hotspot = CURSOR_SWORD_HOTSPOT
 	elif _talk_cursor_active:
 		path = CURSOR_BUBBLE_PATH
 		hotspot = CURSOR_BUBBLE_HOTSPOT

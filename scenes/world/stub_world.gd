@@ -4031,6 +4031,8 @@ func _mouse_over_play_map() -> bool:
 
 func _mouse_ztats_hover_allowed() -> bool:
 	## Ztats peek from the roster — explore/combat, or the Z pick list.
+	if QuitConfirm.is_open():
+		return false
 	if _talk_is_wait_any_key() or _talk_stage != 0:
 		return false
 	if _esc_menu_is_open() or _options_panel_is_open():

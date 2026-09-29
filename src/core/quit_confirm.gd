@@ -270,6 +270,7 @@ func _dismiss_ui(restore_focus: bool) -> void:
 	get_tree().paused = false
 	_root.visible = false
 	_layer.visible = false
+	UiTheme.set_menu_cursor(false)
 	if restore_focus and is_instance_valid(_prev_focus):
 		_prev_focus.grab_focus()
 	_prev_focus = null
