@@ -294,6 +294,17 @@ func hover_row(index: int) -> void:
 	_sync_cursor()
 
 
+func member_switch_dir_at_global(pos: Vector2) -> int:
+	## ◀ / ▶ next to the member name: -1 left, +1 right, else 0.
+	if not visible or not _switchable:
+		return 0
+	if _name_left != null and _name_left.visible and _name_left.get_global_rect().has_point(pos):
+		return -1
+	if _name_right != null and _name_right.visible and _name_right.get_global_rect().has_point(pos):
+		return 1
+	return 0
+
+
 func nudge_cursor(step: int) -> void:
 	## Skip class-restricted rows; no wrap.
 	if _ids.is_empty() or step == 0:

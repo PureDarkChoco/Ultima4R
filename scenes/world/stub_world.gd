@@ -4097,9 +4097,13 @@ func _try_mouse_roster_pick(lmb_pressed: bool) -> bool:
 func _try_mouse_item_list_pick(lmb_pressed: bool) -> bool:
 	## Cast / Mix / Ready / Wear / Use list rows: hover moves the cursor, LMB accepts.
 	if _ready_stage == 2 and _ready_panel != null and _ready_panel.visible:
+		if _try_mouse_equip_member_switch(_ready_panel, lmb_pressed, Callable(self, "_nudge_ready_member")):
+			return true
 		_mouse_hover_list_row(_ready_panel, lmb_pressed, Callable(self, "_confirm_ready_cursor"))
 		return true
 	if _wear_stage == 2 and _wear_panel != null and _wear_panel.visible:
+		if _try_mouse_equip_member_switch(_wear_panel, lmb_pressed, Callable(self, "_nudge_wear_member")):
+			return true
 		_mouse_hover_list_row(_wear_panel, lmb_pressed, Callable(self, "_confirm_wear_cursor"))
 		return true
 	if _cast_stage == 1 and _cast_panel != null and _cast_panel.visible:
@@ -4131,6 +4135,19 @@ func _try_mouse_mix_stock(lmb_pressed: bool) -> bool:
 	if lmb_pressed:
 		if not _mix_panel.toggle_reagent_by_id(reag):
 			_push_message(Locale.t("mix_reag_none"), false)
+		_mouse_block_walk_until_release = true
+	return true
+
+
+func _try_mouse_equip_member_switch(panel: Control, lmb_pressed: bool, nudge: Callable) -> bool:
+	## Ready / Wear ◀▶ next to the name — same as ←→ while the list is open.
+	if panel == null or not panel.has_method("member_switch_dir_at_global"):
+		return false
+	var dir: int = int(panel.call("member_switch_dir_at_global", get_viewport().get_mouse_position()))
+	if dir == 0:
+		return false
+	if lmb_pressed and nudge.is_valid():
+		nudge.call(dir)
 		_mouse_block_walk_until_release = true
 	return true
 
