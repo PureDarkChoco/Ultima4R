@@ -1165,7 +1165,15 @@ func _panel_focus_kind() -> String:
 	if _journal_focus_active and _left_pane != null and _left_pane.visible:
 		return "left"
 	if (
-		(_ztats_stage != 0 or _ready_stage != 0 or _wear_stage != 0 or _mix_stage != 0)
+		(
+			_ztats_stage != 0
+			or _ready_stage != 0
+			or _wear_stage != 0
+			or _mix_stage != 0
+			or _cast_stage != 0
+			or _use_stage != 0
+			or (_party_target_picker != null and _party_target_picker.active)
+		)
 		and _right_top != null
 		and _right_top.visible
 	):
