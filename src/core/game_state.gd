@@ -428,9 +428,9 @@ func _ready() -> void:
 	call_deferred("_boot_load_intro_assets")
 
 
-func _process(delta: float) -> void:
-	var wind_to := Vector2(balloon_drift_dir())
-	_Weather.tick_weather(self, delta, wind_to)
+func tick_weather(delta: float) -> void:
+	## Real-time cloud drift. Call from the world loop so talk/menus do not freeze it.
+	_Weather.tick_weather(self, delta, Vector2(balloon_drift_dir()))
 
 
 func _boot_load_intro_assets() -> void:

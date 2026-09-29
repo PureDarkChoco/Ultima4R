@@ -3208,6 +3208,8 @@ func _on_order_roster_closed() -> void:
 
 
 func _process(delta: float) -> void:
+	## Clouds keep drifting during talk / menus (world clock also keeps running).
+	GameState.tick_weather(delta)
 	UiTheme.set_menu_cursor(_menu_cursor_should_be_sword())
 	_update_mouse_walk()
 	_sync_panel_focus_border()

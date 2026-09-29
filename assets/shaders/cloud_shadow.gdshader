@@ -132,8 +132,11 @@ float cloud_body(vec2 world, vec4 pr, vec4 sh) {
 }
 
 float overcast_field(vec2 world) {
-	float n = noise(world * 0.11);
-	n = n * 0.62 + noise(world * 0.23 + vec2(9.1, 3.4)) * 0.38;
+	/// Keep the storm sheet moving while the party stands still (talk / menus).
+	vec2 drift = vec2(rain_wind.x, 0.55) * TIME * 0.28;
+	vec2 p = world - drift;
+	float n = noise(p * 0.11);
+	n = n * 0.62 + noise(p * 0.23 + vec2(9.1, 3.4)) * 0.38;
 	return smoothstep(0.22, 0.58, n) * overcast;
 }
 
