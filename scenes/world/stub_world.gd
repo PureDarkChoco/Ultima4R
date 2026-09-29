@@ -2553,6 +2553,9 @@ func _prompt_choice_keys() -> String:
 		return "yn"
 	if _enter_prompt_stage == 1:
 		return "yn"
+	if _camp_stage == 2:
+		## Hole up — Set a watch? (same Y/N chips as Enter).
+		return "yn"
 	if _talk_stage == TALK_STAGE_COUNT:
 		if _talk_overlay_choice_active() or _talk_count_return_to_menu:
 			return "12345678"
@@ -2650,6 +2653,9 @@ func _resolve_prompt_choice_index(index: int) -> void:
 		return
 	if _enter_prompt_stage == 1:
 		_resolve_enter_prompt(ch == "y")
+		return
+	if _camp_stage == 2:
+		_accept_camp_set_watch(ch == "y")
 		return
 	if _talk_stage == 13:
 		var lb_answer := Locale.t("cmd_yes" if ch == "y" else "cmd_no")
@@ -8925,7 +8931,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _camp_stage != 0:
 		if _handle_camp_input(event):
 			_mark_input_handled()
-		elif event.is_pressed():
+		elif event.is_pressed() or event is InputEventJoypadMotion:
 			_mark_input_handled()
 		return
 	if _inn_stage == 1:
@@ -10586,6 +10592,7 @@ func _menu_cursor_should_be_sword() -> bool:
 		or _city_warp_open
 		or _enter_prompt_stage != 0
 		or _combat_exit_prompt
+		or _camp_stage == 2
 		or (_party_target_picker != null and _party_target_picker.active)
 	)
 
@@ -14534,7 +14541,13 @@ func _do_hole_up() -> void:
 		_begin_camp_rest(-1)
 		return
 	_camp_stage = 2
+	_enter_prompt_choice = 0
+	_GameInput.reset_stick_navigation()
+	## Question goes to the log; prompt row becomes Y/N chips (same as Enter).
+	_push_message(Locale.t("cmd_camp_set_watch"), false)
+	_rebuild_choice_buttons(2)
 	_layout_prompt_row()
+	_sync_enter_prompt_style()
 
 
 func _await_map_enter_wipe(apply: Callable) -> void:
@@ -14733,6 +14746,10 @@ func _handle_enter_prompt_input(event: InputEvent) -> bool:
 		_resolve_prompt_choice_index(_enter_prompt_choice)
 		return true
 	if _is_cancel_event(event):
+		## Hole up Set a watch?: Esc/B cancel the whole camp (None), not "No".
+		if _camp_stage == 2:
+			_cancel_camp(true)
+			return true
 		## Buy/Sell / room pick: B/Esc soft-cancels shop; Y/N uses No.
 		if keys == "bs" or keys == "123":
 			if _talk_stage == 10 and _shop != null:
@@ -17374,43 +17391,14 @@ func _is_settlement_portal_tile(tid: int) -> bool:
 
 
 func _handle_camp_input(event: InputEvent) -> bool:
+	if _camp_stage == 2:
+		## Shared Y/N chips — stick / ←→ / A / Y·N / Esc·RMB.
+		return _handle_enter_prompt_input(event)
 	if not event.is_pressed() or event.is_echo():
 		return false
-	if _camp_stage == 2:
-		return _handle_camp_watch_yn(event)
 	if _camp_stage == 3:
 		return true
 	## Resting… — swallow all input except Tab (handled in _input).
-	return true
-
-
-func _handle_camp_watch_yn(event: InputEvent) -> bool:
-	## U5: Set a watch? — Y / N (A=Yes, B/Esc/RMB=cancel→None).
-	if _is_right_click(event):
-		_cancel_camp(true)
-		return true
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
-			_cancel_camp(true)
-			return true
-		if k.keycode == KEY_Y or k.physical_keycode == KEY_Y:
-			_accept_camp_set_watch(true)
-			return true
-		if k.keycode == KEY_N or k.physical_keycode == KEY_N:
-			_accept_camp_set_watch(false)
-			return true
-	if event is InputEventJoypadButton:
-		var jb := event as InputEventJoypadButton
-		if jb.button_index == _GameInput.confirm_button():
-			_accept_camp_set_watch(true)
-			return true
-		if jb.button_index == _GameInput.cancel_button():
-			_cancel_camp(true)
-			return true
-	if event.is_action_pressed("cancel") and event is InputEventJoypadButton:
-		_cancel_camp(true)
-		return true
 	return true
 
 
