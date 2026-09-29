@@ -1172,6 +1172,7 @@ func _panel_focus_kind() -> String:
 			or _mix_stage != 0
 			or _cast_stage != 0
 			or _use_stage != 0
+			or _order_stage != 0
 			or (_party_target_picker != null and _party_target_picker.active)
 		)
 		and _right_top != null
