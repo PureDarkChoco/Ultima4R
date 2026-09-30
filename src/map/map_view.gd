@@ -2059,6 +2059,16 @@ func combat_auto_step_dir(target: Vector2i) -> Vector2i:
 			if not _combat_can_walk(cur, dest, d):
 				continue
 			if cur == from:
+				## Never begin an approach by retreating from this foe. Sideways
+				## steps at equal range remain available for obstacle detours.
+				var current_range := maxi(
+					absi(from.x - target.x), absi(from.y - target.y)
+				)
+				var next_range := maxi(
+					absi(dest.x - target.x), absi(dest.y - target.y)
+				)
+				if next_range > current_range:
+					continue
 				## This turn's actual step must be empty.
 				if _combat_occupied(dest, _combat_focus, -1):
 					continue
