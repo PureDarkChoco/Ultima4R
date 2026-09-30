@@ -2029,30 +2029,70 @@ func combat_focus_can_step(dir: Vector2i) -> bool:
 
 
 func combat_auto_step_dir(target: Vector2i) -> Vector2i:
-	## One NESW step toward `target`, or ZERO if boxed in / already there.
+	## One NESW step along the shortest open route toward `target`.
+	## The foe occupies the target tile, so route to any adjacent strike tile.
 	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
 		return Vector2i.ZERO
 	var u: Dictionary = _combat_party[_combat_focus]
 	var from := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+	if not _combat_in_bounds(target) or from == target:
+		return Vector2i.ZERO
+	var visited := PackedByteArray()
+	visited.resize(CAMP_W * CAMP_H)
+	var q: Array[Vector2i] = [from]
+	var first_steps: Array[Vector2i] = [Vector2i.ZERO]
+	visited[from.y * CAMP_W + from.x] = 1
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		var first: Vector2i = first_steps[qi]
+		qi += 1
+		if cur != from and maxi(absi(cur.x - target.x), absi(cur.y - target.y)) <= 1:
+			return first
+		for d in _combat_auto_route_dirs(cur, target):
+			var dest := cur + d
+			if not _combat_in_bounds(dest):
+				continue
+			var di := dest.y * CAMP_W + dest.x
+			if visited[di] != 0:
+				continue
+			if not _combat_can_walk(cur, dest, d):
+				continue
+			if cur == from:
+				## This turn's actual step must be empty.
+				if _combat_occupied(dest, _combat_focus, -1):
+					continue
+			elif combat_foe_index_at(dest) >= 0:
+				## Party members farther along the route are mobile. Treating
+				## them as permanent walls stops units from following a column.
+				continue
+			visited[di] = 1
+			q.append(dest)
+			first_steps.append(d if cur == from else first)
+	return Vector2i.ZERO
+
+
+func _combat_auto_route_dirs(from: Vector2i, target: Vector2i) -> Array[Vector2i]:
+	## Preserve direct-looking movement among equally short BFS routes.
+	var out: Array[Vector2i] = []
 	var dx := target.x - from.x
 	var dy := target.y - from.y
 	var horiz := Vector2i(signi(dx), 0) if dx != 0 else Vector2i.ZERO
 	var vert := Vector2i(0, signi(dy)) if dy != 0 else Vector2i.ZERO
-	var ordered: Array[Vector2i] = []
 	if absi(dx) >= absi(dy):
 		if horiz != Vector2i.ZERO:
-			ordered.append(horiz)
+			out.append(horiz)
 		if vert != Vector2i.ZERO:
-			ordered.append(vert)
+			out.append(vert)
 	else:
 		if vert != Vector2i.ZERO:
-			ordered.append(vert)
+			out.append(vert)
 		if horiz != Vector2i.ZERO:
-			ordered.append(horiz)
-	for d in ordered:
-		if combat_focus_can_step(d):
-			return d
-	return Vector2i.ZERO
+			out.append(horiz)
+	for d in _DIRS_COMBAT:
+		if not out.has(d):
+			out.append(d)
+	return out
 
 
 func has_combat_foe_adjacent_to_focus() -> bool:

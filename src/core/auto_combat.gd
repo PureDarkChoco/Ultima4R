@@ -268,28 +268,27 @@ static func _rank_before(a: Array[int], b: Array[int]) -> bool:
 	return a.size() < b.size()
 
 
-static func _nearest_foe_pos(map, preferred_foe_slot: int) -> Vector2i:
+static func _move_or_pass(map, preferred_foe_slot: int) -> Dictionary:
+	## Try foes in combat priority order; an unreachable preferred foe must not
+	## make the member pass while another living foe has an open route.
+	var candidates: Array[Dictionary] = []
 	var from: Vector2i = map.get_combat_focus_pos()
-	var best := Vector2i(-1, -1)
-	var best_rank: Array[int] = []
 	for i in map.living_combat_foe_indices():
 		var foe: Dictionary = map.get_combat_foe_at(i)
 		if foe.is_empty():
 			continue
 		var pos := Vector2i(int(foe.get("x", from.x)), int(foe.get("y", from.y)))
-		var dist := _WeaponIcons.chebyshev(from, pos)
-		var rank := _foe_target_rank(foe, preferred_foe_slot, dist)
-		if best_rank.is_empty() or _rank_before(rank, best_rank):
-			best_rank = rank
-			best = pos
-	return best
-
-
-static func _move_or_pass(map, preferred_foe_slot: int) -> Dictionary:
-	var target := _nearest_foe_pos(map, preferred_foe_slot)
-	if target.x < 0:
-		return {"action": "pass"}
-	var dir: Vector2i = map.combat_auto_step_dir(target)
-	if dir == Vector2i.ZERO:
-		return {"action": "pass"}
-	return {"action": "move", "dir": dir}
+		var rank := _foe_target_rank(
+			foe, preferred_foe_slot, _WeaponIcons.chebyshev(from, pos)
+		)
+		var insert_at := candidates.size()
+		for j in candidates.size():
+			if _rank_before(rank, candidates[j].rank as Array[int]):
+				insert_at = j
+				break
+		candidates.insert(insert_at, {"pos": pos, "rank": rank})
+	for candidate in candidates:
+		var dir: Vector2i = map.combat_auto_step_dir(candidate.pos as Vector2i)
+		if dir != Vector2i.ZERO:
+			return {"action": "move", "dir": dir}
+	return {"action": "pass"}
