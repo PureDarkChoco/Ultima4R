@@ -375,8 +375,13 @@ var _camp_guard_b: Image
 var _corpse_slice: Image
 ## Shrine enter/exit walker on the .CON (camp paint path). Off-map = (-1,-1).
 var _shrine_walker := Vector2i(-1, -1)
+## Pixel offset from the walker cell so the approach can slide between tiles.
+var _shrine_walker_offset := Vector2i.ZERO
+## 0/1 walk cycle while sliding. Kneel ignores this and plays the beggar frames.
+var _shrine_walk_frame := 0
 ## xu4 enhancedSequence: kneel at the altar as the beggar (praying) tile.
 var _shrine_walker_kneel := false
+var _shrine_hgr_plates: Dictionary = {}
 const TILE_BEGGAR := 88
 ## Spirituality (moongate): side voids force grass, not moongate/world neighbours.
 var _shrine_plain_margins := false
@@ -964,7 +969,10 @@ func enter_shrine(map, plain_margins: bool = false) -> void:
 	_camp_guard_a = null
 	_camp_guard_b = null
 	_shrine_walker = Vector2i(-1, -1)
+	_shrine_walker_offset = Vector2i.ZERO
+	_shrine_walk_frame = 0
 	_shrine_walker_kneel = false
+	_shrine_hgr_plates.clear()
 	_shrine_plain_margins = plain_margins
 	## xu4 enhancedSequence annotations: static Avatar tile → grass.
 	if _camp_map != null:
@@ -978,31 +986,46 @@ func enter_shrine(map, plain_margins: bool = false) -> void:
 
 func set_shrine_walker(pos: Vector2i) -> void:
 	## Camp-local coord for entrance approach / exit. Use (-1,-1) to hide.
-	if _shrine_walker == pos:
+	set_shrine_walker_motion(pos, Vector2i.ZERO, 0, false)
+
+
+func set_shrine_walker_motion(
+	pos: Vector2i, offset: Vector2i, walk_frame: int, kneel: bool = false
+) -> void:
+	## `offset` is in source-tile pixels from `pos` (positive y draws lower).
+	if (
+		_shrine_walker == pos
+		and _shrine_walker_offset == offset
+		and _shrine_walk_frame == walk_frame
+		and _shrine_walker_kneel == kneel
+	):
 		return
 	_shrine_walker = pos
+	_shrine_walker_offset = offset
+	_shrine_walk_frame = walk_frame & 1
+	_shrine_walker_kneel = kneel
 	if _camp_map != null:
 		_rebuild()
 
 
 func set_shrine_kneel(kneel: bool) -> void:
 	## Avatar walk sprite ↔ beggar (praying) while at the altar.
-	if _shrine_walker_kneel == kneel:
-		return
-	_shrine_walker_kneel = kneel
-	if _camp_map != null:
-		_rebuild()
+	set_shrine_walker_motion(_shrine_walker, Vector2i.ZERO, 0, kneel)
 
 
 func clear_shrine_walker() -> void:
 	_shrine_walker_kneel = false
+	_shrine_walker_offset = Vector2i.ZERO
 	set_shrine_walker(Vector2i(-1, -1))
 
 
 func exit_shrine() -> void:
 	## Same teardown as camp view (shared _camp_map).
 	_shrine_walker = Vector2i(-1, -1)
+	_shrine_walker_offset = Vector2i.ZERO
+	_shrine_walk_frame = 0
 	_shrine_walker_kneel = false
+	_shrine_hgr_plates.clear()
 	_shrine_plain_margins = false
 	exit_camp()
 
@@ -1025,7 +1048,10 @@ func exit_camp() -> void:
 	_camp_guard_a = null
 	_camp_guard_b = null
 	_shrine_walker = Vector2i(-1, -1)
+	_shrine_walker_offset = Vector2i.ZERO
+	_shrine_walk_frame = 0
 	_shrine_walker_kneel = false
+	_shrine_hgr_plates.clear()
 	_shrine_plain_margins = false
 	_rebuild()
 
@@ -6373,11 +6399,7 @@ func _apple2_combat_occupant_tid(cx: int, cy: int) -> int:
 
 
 func _apple2_camp_occupant_tid(cx: int, cy: int) -> int:
-	if _shrine_walker.x == cx and _shrine_walker.y == cy:
-		if _shrine_walker_kneel:
-			return TILE_BEGGAR
-		var pair := _avatar_tile_pair()
-		return pair.y if _avatar_frame == 1 else pair.x
+	## The shrine walker is painted on top so it can slide between cells.
 	if _camp_guard_pos.x == cx and _camp_guard_pos.y == cy and _camp_guard_class >= 0:
 		return _apple2_class_walk_tid(_camp_guard_class)
 	for pos in _camp_sleepers:
@@ -6920,28 +6942,68 @@ func _paint_camp_guard(origin_x: int, origin_y: int) -> void:
 
 func _paint_shrine_walker(origin_x: int, origin_y: int) -> void:
 	## Approach / kneel / leave — leader class sprite over the shrine .CON.
-	if _U4TileBankScript.uses_hgr_ntsc():
-		return
 	if _shrine_walker.x < 0 or _shrine_walker.y < 0:
 		return
-	var sx := origin_x + _shrine_walker.x
-	var sy := origin_y + _shrine_walker.y
-	if sx < 0 or sy < 0 or sx >= view_w or sy >= view_h:
-		return
-	var dst := Vector2i(sx * TILE_SRC, sy * TILE_SRC)
-	if _shrine_walker_kneel:
-		var n := _U4TileBankScript.frame_count(TILE_BEGGAR)
-		var f := 0 if n <= 1 else posmod(_tile_anim_frame, n)
-		var kneel := _U4TileBankScript.keyed_copy(TILE_BEGGAR, f)
-		if kneel != null and not kneel.is_empty():
-			_buf.blend_rect(kneel, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
-		return
-	if _avatar_a == null or _cached_leader_class != GameState.party_leader_class():
-		_cache_avatar_icons()
-	var img := _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
+	var dst := Vector2i(
+		(origin_x + _shrine_walker.x) * TILE_SRC + _shrine_walker_offset.x,
+		(origin_y + _shrine_walker.y) * TILE_SRC + _shrine_walker_offset.y
+	)
+	var img: Image = _shrine_walker_image()
 	if img == null or img.is_empty():
 		return
-	_buf.blend_rect(img, Rect2i(0, 0, TILE_SRC, TILE_SRC), dst)
+	_blit_sprite_clipped(img, dst)
+
+
+func _shrine_walker_image() -> Image:
+	if _shrine_walker_kneel:
+		## Beggar is tiles 88 and 89, the same two-frame cycle townsfolk use.
+		var tid := _WorldCreaturesScript.resolve_paint_tile(TILE_BEGGAR, _tile_anim_frame)
+		return _shrine_plate(tid, 0)
+	if _avatar_a == null or _cached_leader_class != GameState.party_leader_class():
+		_cache_avatar_icons()
+	if _U4TileBankScript.uses_hgr_ntsc():
+		var pair := _avatar_tile_pair()
+		var tid := pair.y if _avatar_frame == 1 else pair.x
+		return _shrine_plate(tid, 0)
+	return _avatar_b if _avatar_frame == 1 and _avatar_b != null else _avatar_a
+
+
+func _shrine_plate(tid: int, frame: int) -> Image:
+	if _U4TileBankScript.uses_hgr_ntsc():
+		var key := tid
+		if _shrine_hgr_plates.has(key):
+			return _shrine_hgr_plates[key] as Image
+		var ids := PackedInt32Array()
+		ids.resize(1)
+		ids[0] = tid
+		var plate: Image = _Apple2HgrNtscScript.render_grid_scaled(ids, 1, 1, TILE_SRC, 0)
+		_shrine_hgr_plates[key] = plate
+		return plate
+	return _U4TileBankScript.keyed_copy(tid, frame)
+
+
+func _blit_sprite_clipped(img: Image, dst: Vector2i) -> void:
+	var x := dst.x
+	var y := dst.y
+	var sx := 0
+	var sy := 0
+	var w := mini(img.get_width(), TILE_SRC)
+	var h := mini(img.get_height(), TILE_SRC)
+	if x < 0:
+		sx -= x
+		w += x
+		x = 0
+	if y < 0:
+		sy -= y
+		h += y
+		y = 0
+	if x + w > _buf.get_width():
+		w = _buf.get_width() - x
+	if y + h > _buf.get_height():
+		h = _buf.get_height() - y
+	if w <= 0 or h <= 0:
+		return
+	_buf.blend_rect(img, Rect2i(sx, sy, w, h), Vector2i(x, y))
 
 
 func _step_camp_guard() -> void:
