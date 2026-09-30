@@ -6,6 +6,7 @@ extends Object
 
 const _WeaponIcons := preload("res://src/core/weapon_icons.gd")
 const _Spells := preload("res://src/core/spells.gd")
+const _WorldCreatures := preload("res://src/map/world_creatures.gd")
 
 const HEAL_HP_RATIO := 0.50
 const MAGIC_ATTACKS: Array[int] = [
@@ -21,7 +22,8 @@ static func decide(
 	map,
 	klass: int,
 	_party_slot: int,
-	loc_ctx: int
+	loc_ctx: int,
+	preferred_foe_slot: int = -1
 ) -> Dictionary:
 	if map == null or klass < 0:
 		return {"action": "pass"}
@@ -29,46 +31,50 @@ static func decide(
 		GameState.AutoCombat.WAIT:
 			return {"action": "pass"}
 		GameState.AutoCombat.ATTACK:
-			return _decide_attack(map, klass)
+			return _decide_attack(map, klass, preferred_foe_slot)
 		GameState.AutoCombat.MAGIC:
-			return _decide_magic(map, klass, loc_ctx)
+			return _decide_magic(map, klass, loc_ctx, preferred_foe_slot)
 		GameState.AutoCombat.PROTECT:
-			return _decide_protect(map, klass, loc_ctx)
+			return _decide_protect(map, klass, loc_ctx, preferred_foe_slot)
 		_:
 			return {"action": "pass"}
 
 
-static func _decide_attack(map, klass: int) -> Dictionary:
-	var hit := _best_weapon_hit(map, klass)
+static func _decide_attack(map, klass: int, preferred_foe_slot: int) -> Dictionary:
+	var hit := _best_weapon_hit(map, klass, preferred_foe_slot)
 	if not hit.is_empty():
 		return hit
-	return _move_or_pass(map)
+	return _move_or_pass(map, preferred_foe_slot)
 
 
-static func _decide_magic(map, klass: int, loc_ctx: int) -> Dictionary:
-	var shot := _best_magic_attack(map, klass, loc_ctx)
+static func _decide_magic(
+	map, klass: int, loc_ctx: int, preferred_foe_slot: int
+) -> Dictionary:
+	var shot := _best_magic_attack(map, klass, loc_ctx, preferred_foe_slot)
 	if not shot.is_empty():
 		return shot
-	var hit := _best_weapon_hit(map, klass)
+	var hit := _best_weapon_hit(map, klass, preferred_foe_slot)
 	if not hit.is_empty():
 		return hit
 	## Melee: stand and recover MP. Ranged with no clear shot: step or pass.
 	if _WeaponIcons.is_melee(GameState.weapon_of_class(klass)):
 		return {"action": "pass"}
-	return _move_or_pass(map)
+	return _move_or_pass(map, preferred_foe_slot)
 
 
-static func _decide_protect(map, klass: int, loc_ctx: int) -> Dictionary:
+static func _decide_protect(
+	map, klass: int, loc_ctx: int, preferred_foe_slot: int
+) -> Dictionary:
 	var support := _best_protect_cast(klass, loc_ctx)
 	if not support.is_empty():
 		return support
 	var wid := GameState.weapon_of_class(klass)
 	if _WeaponIcons.is_melee(wid):
 		return {"action": "pass"}
-	var hit := _best_weapon_hit(map, klass)
+	var hit := _best_weapon_hit(map, klass, preferred_foe_slot)
 	if not hit.is_empty():
 		return hit
-	return _move_or_pass(map)
+	return _move_or_pass(map, preferred_foe_slot)
 
 
 static func _can_cast(spell_id: int, klass: int, loc_ctx: int) -> bool:
@@ -77,7 +83,9 @@ static func _can_cast(spell_id: int, klass: int, loc_ctx: int) -> bool:
 	return GameState.spell_prereq_error(spell_id, klass, loc_ctx) == _Spells.CASTERR_NOERROR
 
 
-static func _best_magic_attack(map, klass: int, loc_ctx: int) -> Dictionary:
+static func _best_magic_attack(
+	map, klass: int, loc_ctx: int, preferred_foe_slot: int
+) -> Dictionary:
 	var from: Vector2i = map.get_combat_focus_pos()
 	if from.x < 0:
 		return {}
@@ -88,7 +96,7 @@ static func _best_magic_attack(map, klass: int, loc_ctx: int) -> Dictionary:
 			break
 	if spell_id < 0:
 		return {}
-	var foe := _best_magic_target(map, from)
+	var foe := _best_magic_target(map, from, preferred_foe_slot)
 	if foe.is_empty():
 		return {}
 	return {
@@ -159,14 +167,15 @@ static func _lowest_wounded_slot() -> int:
 	return best_slot
 
 
-static func _best_weapon_hit(map, klass: int) -> Dictionary:
+static func _best_weapon_hit(
+	map, klass: int, preferred_foe_slot: int
+) -> Dictionary:
 	var from: Vector2i = map.get_combat_focus_pos()
 	if from.x < 0:
 		return {}
 	var wid := GameState.weapon_of_class(klass)
 	var best := {}
-	var best_tier := 99
-	var best_dist := 1_000_000
+	var best_rank: Array[int] = []
 	for i in map.living_combat_foe_indices():
 		var foe: Dictionary = map.get_combat_foe_at(i)
 		if foe.is_empty():
@@ -174,11 +183,10 @@ static func _best_weapon_hit(map, klass: int) -> Dictionary:
 		var pos := Vector2i(int(foe.get("x", from.x)), int(foe.get("y", from.y)))
 		if not _can_land_weapon_hit(map, wid, from, pos):
 			continue
-		var tier := _weapon_hit_tier(wid)
 		var dist := _WeaponIcons.chebyshev(from, pos)
-		if tier < best_tier or (tier == best_tier and dist < best_dist):
-			best_tier = tier
-			best_dist = dist
+		var rank := _foe_target_rank(foe, preferred_foe_slot, dist)
+		if best_rank.is_empty() or _rank_before(rank, best_rank):
+			best_rank = rank
 			best = {
 				"action": "attack",
 				"from": from,
@@ -211,18 +219,11 @@ static func _can_land_magic_hit(map, from: Vector2i, to: Vector2i) -> bool:
 	return land == to
 
 
-static func _weapon_hit_tier(wid: int) -> int:
-	## Magic-ranged first, then mundane ranged, then melee.
-	if _WeaponIcons.is_unlimited_range(wid):
-		return 0
-	if not _WeaponIcons.is_melee(wid):
-		return 1
-	return 2
-
-
-static func _best_magic_target(map, from: Vector2i) -> Dictionary:
+static func _best_magic_target(
+	map, from: Vector2i, preferred_foe_slot: int
+) -> Dictionary:
 	var best := {}
-	var best_dist := 1_000_000
+	var best_rank: Array[int] = []
 	for i in map.living_combat_foe_indices():
 		var foe: Dictionary = map.get_combat_foe_at(i)
 		if foe.is_empty():
@@ -233,30 +234,59 @@ static func _best_magic_target(map, from: Vector2i) -> Dictionary:
 		if not _can_land_magic_hit(map, from, pos):
 			continue
 		var dist := _WeaponIcons.chebyshev(from, pos)
-		if dist < best_dist:
-			best_dist = dist
+		var rank := _foe_target_rank(foe, preferred_foe_slot, dist)
+		if best_rank.is_empty() or _rank_before(rank, best_rank):
+			best_rank = rank
 			best = {"pos": pos}
 	return best
 
 
-static func _nearest_foe_pos(map) -> Vector2i:
+static func _foe_target_rank(
+	foe: Dictionary, preferred_foe_slot: int, dist: int
+) -> Array[int]:
+	## Lower tuple wins: own sticky target; untouched foe; high threat; near; slot.
+	var slot := int(foe.get("slot", foe.get("priority", 99)))
+	var preferred := slot == preferred_foe_slot
+	var hp := maxi(0, int(foe.get("hp", 0)))
+	var max_hp := maxi(hp, int(foe.get("max_hp", hp)))
+	var touched := hp < max_hp
+	var attack := _WorldCreatures.base_hp_for(int(foe.get("tile", 0)))
+	var threat := attack + max_hp
+	return [
+		0 if preferred else 1,
+		0 if (preferred or not touched) else 1,
+		-threat,
+		dist,
+		slot,
+	]
+
+
+static func _rank_before(a: Array[int], b: Array[int]) -> bool:
+	for i in mini(a.size(), b.size()):
+		if a[i] != b[i]:
+			return a[i] < b[i]
+	return a.size() < b.size()
+
+
+static func _nearest_foe_pos(map, preferred_foe_slot: int) -> Vector2i:
 	var from: Vector2i = map.get_combat_focus_pos()
 	var best := Vector2i(-1, -1)
-	var best_dist := 1_000_000
+	var best_rank: Array[int] = []
 	for i in map.living_combat_foe_indices():
 		var foe: Dictionary = map.get_combat_foe_at(i)
 		if foe.is_empty():
 			continue
 		var pos := Vector2i(int(foe.get("x", from.x)), int(foe.get("y", from.y)))
 		var dist := _WeaponIcons.chebyshev(from, pos)
-		if dist < best_dist:
-			best_dist = dist
+		var rank := _foe_target_rank(foe, preferred_foe_slot, dist)
+		if best_rank.is_empty() or _rank_before(rank, best_rank):
+			best_rank = rank
 			best = pos
 	return best
 
 
-static func _move_or_pass(map) -> Dictionary:
-	var target := _nearest_foe_pos(map)
+static func _move_or_pass(map, preferred_foe_slot: int) -> Dictionary:
+	var target := _nearest_foe_pos(map, preferred_foe_slot)
 	if target.x < 0:
 		return {"action": "pass"}
 	var dir: Vector2i = map.combat_auto_step_dir(target)

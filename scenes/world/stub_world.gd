@@ -22742,8 +22742,9 @@ func _combat_on_focus_ready() -> void:
 		_combat_auto_acting = false
 		return
 	var slot := _map.get_combat_focus_party_slot()
+	var preferred_foe_slot := int(_combat_last_aim_foe.get(slot, -1))
 	var plan := _AutoCombatAI.decide(
-		mode, _map, klass, slot, _spell_location_context()
+		mode, _map, klass, slot, _spell_location_context(), preferred_foe_slot
 	)
 	_combat_auto_acting = false
 	await _combat_auto_execute(plan)
