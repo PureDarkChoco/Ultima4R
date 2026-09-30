@@ -4659,6 +4659,28 @@ func _mouse_over_journal_or_roster() -> bool:
 	return false
 
 
+func _try_left_click_dismiss_command_menu(event: InputEvent) -> bool:
+	## LMB outside the right-click palette cancels it, like Esc.
+	if not _command_menu_open or not (event is InputEventMouseButton):
+		return false
+	var mb := event as InputEventMouseButton
+	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return false
+	if _point_over_command_menu(mb.global_position):
+		return false
+	_close_command_menu()
+	_mouse_block_walk_until_release = true
+	return true
+
+
+func _point_over_command_menu(global_pos: Vector2) -> bool:
+	return (
+		_command_menu_layer != null
+		and _command_menu_layer.visible
+		and _command_menu_layer.get_global_rect().has_point(global_pos)
+	)
+
+
 func _try_right_click_command_menu(event: InputEvent) -> bool:
 	## Play-field RMB mirrors gamepad B: open/close the A–Z palette.
 	if not _is_right_click(event):
@@ -8645,6 +8667,9 @@ func _input(event: InputEvent) -> void:
 		_mark_input_handled()
 		return
 	if _try_right_click_command_menu(event):
+		_mark_input_handled()
+		return
+	if _try_left_click_dismiss_command_menu(event):
 		_mark_input_handled()
 		return
 	## L2 opens journal browse (left pane only if sides are closed).
