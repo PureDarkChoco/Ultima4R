@@ -634,6 +634,25 @@ func view_tile_at_local(local: Vector2) -> Vector2i:
 	return Vector2i(col, row)
 
 
+func combat_tile_at_local(local: Vector2) -> Vector2i:
+	## Combat-local 11×11 cell under a MapView-local pixel.
+	if not is_in_combat():
+		return Vector2i(-1, -1)
+	var view_tile := view_tile_at_local(local)
+	if view_tile.x < 0:
+		return Vector2i(-1, -1)
+	var origin := Vector2i((view_w - CAMP_W) / 2, (view_h - CAMP_H) / 2)
+	var combat_tile := view_tile - origin
+	if (
+		combat_tile.x < 0
+		or combat_tile.y < 0
+		or combat_tile.x >= CAMP_W
+		or combat_tile.y >= CAMP_H
+	):
+		return Vector2i(-1, -1)
+	return combat_tile
+
+
 func cols_for_pane(_pane: Vector2) -> int:
 	## Explore width is fixed (VIEW_W); pane stretch sets the tile aspect.
 	return VIEW_W

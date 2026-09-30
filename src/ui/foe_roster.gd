@@ -136,6 +136,15 @@ func get_ordered_foes() -> Array[Dictionary]:
 	return out
 
 
+func foe_at_global(global_pos: Vector2) -> Dictionary:
+	## Mouse hit-test even though rows ignore GUI input and let the world poll it.
+	for i in mini(_foes.size(), _rows.size()):
+		var row := _rows[i]
+		if row != null and row.visible and row.get_global_rect().has_point(global_pos):
+			return _foes[i].duplicate(true)
+	return {}
+
+
 func set_aim_highlight_slot(slot: int) -> void:
 	## Highlight the roster row for this creatureTable slot (red aim cursor).
 	if _aim_slot == slot:
