@@ -66,6 +66,8 @@ var theme_id: String = "grey_stone"
 var _wall: Image
 var _floor_plane: Image
 var _entrance: Image
+var _doorway_frame: Image
+var _doorway_open_rect := Rect2i()
 var _ladder_half: Image
 var _fountain_frames: Array[Image] = []
 var _theme_loaded := ""
@@ -119,6 +121,7 @@ func set_theme(id: String) -> void:
 	_wall = _load_png("%s/%s/wall.png" % [ASSET_ROOT, id])
 	_floor_plane = _load_png("%s/%s/floor_plane.png" % [ASSET_ROOT, id])
 	_entrance = _load_png("%s/%s/room_entrance.png" % [ASSET_ROOT, id])
+	_doorway_frame = null
 
 
 func invalidate_tile_caches() -> void:
@@ -135,6 +138,7 @@ func invalidate_tile_caches() -> void:
 	_wall = null
 	_floor_plane = null
 	_entrance = null
+	_doorway_frame = null
 	_ladder_half = null
 	_fountain_frames.clear()
 	_clear_floor_bg()
@@ -260,6 +264,73 @@ func paint(
 				Vector2i(int(object.get("cell_x", -1)), int(object.get("cell_y", -1))),
 				z
 			)
+	if _is_side_entrance(dmap, pos, z):
+		_paint_doorway_frame(buf, w, h)
+
+
+func _paint_doorway_frame(buf: Image, w: int, h: int) -> void:
+	## Standing in a doorway: the arch opening frames the corridor from one cell ahead.
+	var frame := _doorway_frame_image()
+	if frame == null:
+		return
+	var open := _doorway_open_rect
+	if open.size.x <= 0 or open.size.y <= 0:
+		return
+	var inner := _front_rect(1, w, h)
+	var sx := float(inner.size.x) / float(open.size.x)
+	var sy := float(h - inner.position.y) / float(frame.get_height() - open.position.y)
+	var x0 := int(round(float(inner.position.x) - float(open.position.x) * sx))
+	var y0 := int(round(float(inner.position.y) - float(open.position.y) * sy))
+	var x1 := x0 + int(round(float(frame.get_width()) * sx))
+	var y1 := y0 + int(round(float(frame.get_height()) * sy))
+	_blit_cached_piece(
+		buf,
+		"doorway_frame",
+		Callable(self, "_blit_scaled").bind(
+			frame, x0, y0, x1, y1, 1.0,
+			false, 0.0, 1.0, false, false, false, _scanlines_on
+		)
+	)
+
+
+func _doorway_frame_image() -> Image:
+	## Entrance art with the arch's connected dark interior keyed out.
+	if _doorway_frame != null:
+		return _doorway_frame
+	if _entrance == null:
+		return null
+	var img: Image = _entrance.duplicate()
+	img.convert(Image.FORMAT_RGBA8)
+	var iw := img.get_width()
+	var ih := img.get_height()
+	var seen := PackedByteArray()
+	seen.resize(iw * ih)
+	var stack: Array[Vector2i] = [Vector2i(iw / 2, ih - 1)]
+	var min_p := Vector2i(iw, ih)
+	var max_p := Vector2i(-1, -1)
+	while not stack.is_empty():
+		var p: Vector2i = stack.pop_back()
+		if p.x < 0 or p.y < 0 or p.x >= iw or p.y >= ih:
+			continue
+		var idx := p.y * iw + p.x
+		if seen[idx] != 0:
+			continue
+		seen[idx] = 1
+		var c := img.get_pixel(p.x, p.y)
+		if c.a > 0.08 and maxf(c.r, maxf(c.g, c.b)) > 0.095:
+			continue
+		img.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
+		min_p = Vector2i(mini(min_p.x, p.x), mini(min_p.y, p.y))
+		max_p = Vector2i(maxi(max_p.x, p.x), maxi(max_p.y, p.y))
+		stack.append(Vector2i(p.x + 1, p.y))
+		stack.append(Vector2i(p.x - 1, p.y))
+		stack.append(Vector2i(p.x, p.y + 1))
+		stack.append(Vector2i(p.x, p.y - 1))
+	if max_p.x < min_p.x:
+		return null
+	_doorway_open_rect = Rect2i(min_p, max_p - min_p + Vector2i.ONE)
+	_doorway_frame = img
+	return _doorway_frame
 
 
 func _ahead(dmap, pos: Vector2i, dir: int, depth: int) -> Vector2i:
