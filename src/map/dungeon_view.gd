@@ -14,6 +14,8 @@ const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
 const ASSET_ROOT := "res://assets/dungeon"
 const MAX_DEPTH := 4
 const PEEK_DEPTH := 5
+## Widest column still on screen at the farthest row (half-width 1 of 11.5).
+const SIDE_REACH := 6
 const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
@@ -29,8 +31,10 @@ const ORB_VIEW_SCALE := 2.0
 const MONSTER_VIEW_SCALE := 2.0
 const OBJ_FLOOR_POSITION := 0.5
 ## Increment when cached rasterization rules change during a hot reload.
-const PIECE_CACHE_REV := 35
-## Brightness at the innermost square (five cells ahead).
+const PIECE_CACHE_REV := 40
+## Ring at which fog reaches DIM_FAR: the innermost square (four cells ahead).
+const FOG_FULL_RING := 10.5
+## Darkest fog brightness, from the innermost square inward.
 const DIM_FAR := 0.05
 const TILE_CHEST := 60
 const TILE_ALTAR := 74
@@ -55,7 +59,6 @@ const LADDER_DOWN := 2
 const VIEW_OBJECT_TILE := 0
 const VIEW_OBJECT_LADDER := 1
 const VIEW_OBJECT_FLOOR_FIELD := 2
-const VIEW_OBJECT_SIDE_FIELD := 3
 
 var theme_id: String = "grey_stone"
 var _wall: Image
@@ -155,43 +158,28 @@ func paint(
 	_ensure_piece_cache_size(w, h)
 	if not _paint_floor_plane_background(buf):
 		buf.fill(Color(0, 0, 0, 1))
-	var reached_far := true
+	var center_stop := _center_block_depth(dmap, pos, z, dir)
 	var view_objects: Array[Dictionary] = []
-	for depth in range(0, MAX_DEPTH + 1):
-		var cell := _ahead(dmap, pos, dir, depth)
-		var left := _left_of(dmap, cell, dir)
-		var right := _right_of(dmap, cell, dir)
-		var front := _ahead(dmap, cell, dir, 1)
-		var dim := 1.0
-		var tok: int = dmap.token_at(cell.x, cell.y, z)
-		var geom := _depth_geom(w, h, depth)
-		var monster_tile := int(dmap.monster_tile_at(cell.x, cell.y, z))
-		if monster_tile >= 0 and not _is_blocking_wall(dmap, cell, z):
+	## Painter's order over the whole visible grid: farthest row first, and
+	## within a row outer columns first, so nearer faces cover farther ones.
+	if center_stop > MAX_DEPTH:
+		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
+	for depth in range(MAX_DEPTH, -1, -1):
+		for lateral in _lateral_order(depth, w):
+			_paint_grid_cell(buf, dmap, pos, z, dir, depth, lateral, w, h, anim_frame)
+	for depth in range(0, center_stop):
+		var ahead_cell := _ahead(dmap, pos, dir, depth)
+		var left_cell := _left_of(dmap, ahead_cell, dir)
+		var right_cell := _right_of(dmap, ahead_cell, dir)
+		var front := _ahead(dmap, ahead_cell, dir, 1)
+		var tok: int = dmap.token_at(ahead_cell.x, ahead_cell.y, z)
+		var monster_tile := int(dmap.monster_tile_at(ahead_cell.x, ahead_cell.y, z))
+		if monster_tile >= 0 and not _is_blocking_wall(dmap, ahead_cell, z):
 			view_objects.append({
 				"kind": VIEW_OBJECT_TILE,
 				"depth": depth,
 				"tile_id": monster_tile,
 			})
-		if _is_blocking_wall(dmap, cell, z):
-			_blit_cached_piece(
-				buf,
-				"front_wall:%d" % depth,
-				Callable(self, "_blit_rect").bind(
-					_tex_front(depth), _front_rect(depth, w, h), dim
-				)
-			)
-			reached_far = false
-			break
-		if tok == _DungeonMap.TOK_ROOM or tok == _DungeonMap.TOK_DOOR:
-			_blit_cached_piece(
-				buf,
-				"front_entrance:%d" % depth,
-				Callable(self, "_blit_rect").bind(
-					_tex_entrance(depth), _front_rect(depth, w, h), dim
-				)
-			)
-			reached_far = false
-			break
 		var ladder_mode := _ladder_mode(tok)
 		if ladder_mode != 0:
 			view_objects.append({
@@ -200,7 +188,7 @@ func paint(
 				"mode": ladder_mode,
 			})
 		else:
-			var tile_id := _cell_object_tile_id(dmap, cell, z, tok)
+			var tile_id := _cell_object_tile_id(dmap, ahead_cell, z, tok)
 			if tile_id >= 0:
 				view_objects.append({
 					"kind": (
@@ -215,86 +203,22 @@ func paint(
 					),
 					"depth": depth,
 					"tile_id": tile_id,
-					"cell_x": cell.x,
-					"cell_y": cell.y,
+					"cell_x": ahead_cell.x,
+					"cell_y": ahead_cell.y,
 					"view_dir": dir,
 					"left_surface": (
-						dmap.looks_like_wall(left.x, left.y, z)
-						or _is_side_entrance(dmap, left, z)
+						dmap.looks_like_wall(left_cell.x, left_cell.y, z)
+						or _is_side_entrance(dmap, left_cell, z)
 					),
 					"right_surface": (
-						dmap.looks_like_wall(right.x, right.y, z)
-						or _is_side_entrance(dmap, right, z)
+						dmap.looks_like_wall(right_cell.x, right_cell.y, z)
+						or _is_side_entrance(dmap, right_cell, z)
 					),
 					"front_surface": (
 						_is_blocking_wall(dmap, front, z)
 						or _is_side_entrance(dmap, front, z)
 					),
 				})
-		var left_field_tid := _cell_field_tile_id(dmap, left, z)
-		if left_field_tid >= 0:
-			view_objects.append({
-				"kind": VIEW_OBJECT_SIDE_FIELD,
-				"depth": depth,
-				"tile_id": left_field_tid,
-				"view_dir": dir,
-				"left": true,
-			})
-		var right_field_tid := _cell_field_tile_id(dmap, right, z)
-		if right_field_tid >= 0:
-			view_objects.append({
-				"kind": VIEW_OBJECT_SIDE_FIELD,
-				"depth": depth,
-				"tile_id": right_field_tid,
-				"view_dir": dir,
-				"left": false,
-			})
-		if dmap.looks_like_wall(left.x, left.y, z):
-			_blit_cached_piece(
-				buf,
-				"side_wall:left:%d" % depth,
-				Callable(self, "_blit_side_trap").bind(
-					_tex_side(depth), geom, true, dim
-				)
-			)
-		elif _is_side_entrance(dmap, left, z):
-			_blit_cached_piece(
-				buf,
-				"side_entrance:left:%d" % depth,
-				Callable(self, "_blit_side_trap").bind(
-					_tex_entrance(depth), geom, true, dim
-				)
-			)
-		else:
-			_blit_cached_piece(
-				buf,
-				"side_open:left:%d" % depth,
-				Callable(self, "_blit_side_open_rect").bind(geom, true, dim, depth)
-			)
-		if dmap.looks_like_wall(right.x, right.y, z):
-			_blit_cached_piece(
-				buf,
-				"side_wall:right:%d" % depth,
-				Callable(self, "_blit_side_trap").bind(
-					_tex_side(depth), geom, false, dim
-				)
-			)
-		elif _is_side_entrance(dmap, right, z):
-			_blit_cached_piece(
-				buf,
-				"side_entrance:right:%d" % depth,
-				Callable(self, "_blit_side_trap").bind(
-					_tex_entrance(depth), geom, false, dim
-				)
-			)
-		else:
-			_blit_cached_piece(
-				buf,
-				"side_open:right:%d" % depth,
-				Callable(self, "_blit_side_open_rect").bind(geom, false, dim, depth)
-			)
-	if reached_far:
-		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
 	## Geometry is complete: paint objects back-to-front so no later corridor
 	## surface can hide them and nearer objects correctly overlap farther ones.
 	for i in range(view_objects.size() - 1, -1, -1):
@@ -316,18 +240,6 @@ func paint(
 				bool(object["left_surface"]),
 				bool(object["right_surface"]),
 				bool(object["front_surface"])
-			)
-		elif int(object["kind"]) == VIEW_OBJECT_SIDE_FIELD:
-			_paint_side_field(
-				buf,
-				int(object["tile_id"]),
-				int(object["depth"]),
-				w,
-				h,
-				1.0,
-				anim_frame,
-				int(object["view_dir"]),
-				bool(object["left"])
 			)
 		else:
 			_paint_tile_object(
@@ -369,6 +281,165 @@ func _is_blocking_wall(dmap, cell: Vector2i, z: int) -> bool:
 	return tok == _DungeonMap.TOK_WALL or tok == _DungeonMap.TOK_SECRET
 
 
+func _depth_dim(depth: int) -> float:
+	## Ring distance → brightness. 0칸 = 1, innermost square = DIM_FAR.
+	var ring := FOG_FULL_RING
+	if depth <= 0:
+		ring = 0.0
+	elif depth < RING_CUMUL.size():
+		ring = float(RING_CUMUL[depth])
+	return lerpf(1.0, DIM_FAR, clampf(ring / FOG_FULL_RING, 0.0, 1.0))
+
+
+func _center_block_depth(dmap, pos: Vector2i, z: int, dir: int) -> int:
+	for depth in range(1, MAX_DEPTH + 1):
+		var cell := _ahead(dmap, pos, dir, depth)
+		if _is_blocking_wall(dmap, cell, z) or _is_side_entrance(dmap, cell, z):
+			return depth
+	return MAX_DEPTH + 1
+
+
+func _lateral_cell(dmap, pos: Vector2i, dir: int, depth: int, lateral: int) -> Vector2i:
+	var cell := _ahead(dmap, pos, dir, depth)
+	for _i in absi(lateral):
+		cell = _left_of(dmap, cell, dir) if lateral < 0 else _right_of(dmap, cell, dir)
+	return cell
+
+
+func _lateral_order(depth: int, w: int) -> Array[int]:
+	## Columns whose near face starts on screen: (2|L| - 1) * half_width < w / 2.
+	var near := _front_rect(depth, w, 1)
+	var half := maxf(float(near.size.x) * 0.5, 0.5)
+	var reach := clampi(int(ceil((float(w) * 0.5 / half + 1.0) * 0.5)), 1, SIDE_REACH)
+	var order: Array[int] = []
+	for i in range(reach, 0, -1):
+		order.append(-i)
+		order.append(i)
+	order.append(0)
+	return order
+
+
+func _is_solid_cell(dmap, cell: Vector2i, z: int) -> bool:
+	return _is_blocking_wall(dmap, cell, z) or _is_side_entrance(dmap, cell, z)
+
+
+func _grid_solid(dmap, pos: Vector2i, cell: Vector2i, z: int) -> bool:
+	## The viewer's own cell is always open, even when standing in a doorway.
+	return cell != pos and _is_solid_cell(dmap, cell, z)
+
+
+func _paint_grid_cell(
+	buf: Image,
+	dmap,
+	pos: Vector2i,
+	z: int,
+	dir: int,
+	depth: int,
+	lateral: int,
+	w: int,
+	h: int,
+	anim_frame: int
+) -> void:
+	var cell := _lateral_cell(dmap, pos, dir, depth, lateral)
+	if not _grid_solid(dmap, pos, cell, z):
+		## Center column fields paint with the other center objects.
+		if lateral != 0:
+			var field_tid := _cell_field_tile_id(dmap, cell, z)
+			if field_tid >= 0:
+				var left_cell := _lateral_cell(dmap, pos, dir, depth, lateral - 1)
+				var right_cell := _lateral_cell(dmap, pos, dir, depth, lateral + 1)
+				var front_cell := _lateral_cell(dmap, pos, dir, depth + 1, lateral)
+				_paint_floor_field(
+					buf, field_tid, depth, w, h, 1.0, anim_frame, dir,
+					_grid_solid(dmap, pos, left_cell, z),
+					_grid_solid(dmap, pos, right_cell, z),
+					_grid_solid(dmap, pos, front_cell, z),
+					lateral
+				)
+		return
+	var entrance := _is_side_entrance(dmap, cell, z)
+	var kind := "door" if entrance else "wall"
+	var tex := _tex_entrance(depth) if entrance else _tex_front(depth)
+	## Face toward the viewer, on this row's near plane.
+	if depth >= 1:
+		var before := _lateral_cell(dmap, pos, dir, depth - 1, lateral)
+		if not _grid_solid(dmap, pos, before, z):
+			var near := _front_rect(depth, w, h)
+			var rect := Rect2i(
+				near.position.x + lateral * near.size.x,
+				near.position.y,
+				near.size.x,
+				near.size.y
+			)
+			if rect.position.x < w and rect.end.x > 0:
+				_blit_cached_piece(
+					buf,
+					"face:%d:%d:%s" % [depth, lateral, kind],
+					Callable(self, "_blit_rect").bind(tex, rect, _depth_dim(depth))
+				)
+	## Face toward the center line, spanning this row's near to far plane.
+	if lateral == 0:
+		return
+	var inner := _lateral_cell(dmap, pos, dir, depth, lateral - signi(lateral))
+	if _grid_solid(dmap, pos, inner, z):
+		return
+	var left := lateral < 0
+	_blit_cached_piece(
+		buf,
+		"side:%d:%d:%s" % [depth, lateral, kind],
+		Callable(self, "_blit_side_trap").bind(
+			_tex_entrance(depth) if entrance else _tex_side(depth),
+			_lateral_geom(w, h, depth, lateral),
+			left,
+			_depth_dim(depth),
+			_depth_dim(depth + 1)
+		)
+	)
+
+
+func _cell_geom(w: int, h: int, depth: int, lateral: int) -> Dictionary:
+	## Whole cell box, shifted by whole cell widths on its near and far planes.
+	var geom := _depth_geom(w, h, depth)
+	if lateral == 0:
+		return geom
+	var near_shift := lateral * (int(geom["x1"]) - int(geom["x0"]))
+	var far_shift := lateral * (int(geom["nx1"]) - int(geom["nx0"]))
+	geom["x0"] = int(geom["x0"]) + near_shift
+	geom["x1"] = int(geom["x1"]) + near_shift
+	geom["nx0"] = int(geom["nx0"]) + far_shift
+	geom["nx1"] = int(geom["nx1"]) + far_shift
+	return geom
+
+
+func _shift_rect(rect: Rect2i, lateral: int) -> Rect2i:
+	return Rect2i(
+		rect.position.x + lateral * rect.size.x, rect.position.y, rect.size.x, rect.size.y
+	)
+
+
+func _row_dim(y: int, h: int) -> float:
+	## Floor / ceiling brightness: depth follows the row only.
+	var ring := float(mini(y, h - 1 - y)) * RING_DENOM / float(h)
+	return lerpf(1.0, DIM_FAR, clampf(ring / FOG_FULL_RING, 0.0, 1.0))
+
+
+func _lateral_geom(w: int, h: int, depth: int, lateral: int) -> Dictionary:
+	## Shift the center row's edges outward by whole cell widths on each plane.
+	var geom := _depth_geom(w, h, depth)
+	var steps := absi(lateral) - 1
+	if steps <= 0:
+		return geom
+	var near_w := int(geom["x1"]) - int(geom["x0"])
+	var far_w := int(geom["nx1"]) - int(geom["nx0"])
+	if lateral < 0:
+		geom["x0"] = int(geom["x0"]) - steps * near_w
+		geom["nx0"] = int(geom["nx0"]) - steps * far_w
+	else:
+		geom["x1"] = int(geom["x1"]) + steps * near_w
+		geom["nx1"] = int(geom["nx1"]) + steps * far_w
+	return geom
+
+
 func _paint_peek_wall(buf: Image, dmap, pos: Vector2i, z: int, dir: int, w: int, h: int) -> void:
 	## +5: only whether a wall closes the vanishing square.
 	var cell := _ahead(dmap, pos, dir, PEEK_DEPTH)
@@ -378,7 +449,7 @@ func _paint_peek_wall(buf: Image, dmap, pos: Vector2i, z: int, dir: int, w: int,
 		buf,
 		"front_wall:%d" % MAX_DEPTH,
 		Callable(self, "_blit_rect").bind(
-			_tex_front(MAX_DEPTH), _front_rect(MAX_DEPTH, w, h), 1.0
+			_tex_front(MAX_DEPTH), _front_rect(MAX_DEPTH, w, h), _depth_dim(PEEK_DEPTH)
 		)
 	)
 
@@ -543,8 +614,14 @@ func _paint_floor_plane_background(buf: Image) -> bool:
 			_floor_bg,
 			_floor_plane,
 			0, 0, w, h, 1.0,
-			false, 0.0, 1.0, false, true, false, _scanlines_on
+			false, 0.0, 1.0, false, false, false, _scanlines_on
 		)
+		## Floor and ceiling depth depends only on the row, including side branches.
+		for y in range(h):
+			var d := _row_dim(y, h)
+			for x in range(w):
+				var c := _floor_bg.get_pixel(x, y)
+				_floor_bg.set_pixel(x, y, Color(c.r * d, c.g * d, c.b * d, 1.0))
 		_floor_bg_w = w
 		_floor_bg_h = h
 		_floor_bg_pipeline = _theme_pipeline
@@ -553,43 +630,14 @@ func _paint_floor_plane_background(buf: Image) -> bool:
 	return true
 
 
-func _open_side_src_span(geom: Dictionary, dest_x0: int, dest_x1: int) -> float:
-	## Visible alcove width / one cell at the far plane (same scale as that front wall).
-	var far_w := int(geom["nx1"]) - int(geom["nx0"])
-	var dest_w := dest_x1 - dest_x0
-	if far_w <= 0 or dest_w <= 0:
-		return 1.0
-	return float(dest_w) / float(far_w)
-
-
-func _blit_side_open_rect(buf: Image, geom: Dictionary, left: bool, dim: float, depth: int) -> void:
-	## Open alcove: only the facing wall remains; floor/ceiling come from floor_plane.
-	var x0 := int(geom["x0"] if left else geom["nx1"])
-	var x1 := int(geom["nx0"] if left else geom["x1"])
-	var y0 := int(geom["ny0"])
-	var y1 := int(geom["ny1"])
-	if x1 <= x0 or y1 <= y0:
-		return
-	var span := _open_side_src_span(geom, x0, x1)
-	var u0 := (1.0 - span) if left else 0.0
-	var u1 := 1.0 if left else span
-	var bw := buf.get_width()
-	var bh := buf.get_height()
-	var fog := _lut_at(int(geom["nx0"]), y0, bw, bh)
-	if depth == MAX_DEPTH - 1:
-		## The red-box end panels sit behind the last rendered side openings.
-		## Match the back quarter of the innermost ceiling: darkest, but still legible.
-		var near_fog := _lut_at(int(geom["x0"]), int(geom["y0"]), bw, bh)
-		fog = lerpf(near_fog, DIM_FAR, 0.75)
-	_blit_scaled(
-		buf,
-		_tex_front(mini(depth + 1, MAX_DEPTH)),
-		x0, y0, x1, y1,
-		dim * fog, false, u0, u1, true, false, false, _scanlines_on
-	)
-
-
-func _blit_side_trap(buf: Image, src: Image, geom: Dictionary, left: bool, dim: float) -> void:
+func _blit_side_trap(
+	buf: Image,
+	src: Image,
+	geom: Dictionary,
+	left: bool,
+	dim_near: float,
+	dim_far: float
+) -> void:
 	## Trapezoid silhouette; bricks stay upright (column-wise), only top/bottom edges slope.
 	if src == null:
 		return
@@ -610,9 +658,7 @@ func _blit_side_trap(buf: Image, src: Image, geom: Dictionary, left: bool, dim: 
 	var x_span := float(x_far - x_near)
 	if absf(x_span) < 0.5:
 		return
-	for x in range(x_a, x_b):
-		if x < 0 or x >= bw:
-			continue
+	for x in range(maxi(x_a, 0), mini(x_b, bw)):
 		var from_near := clampf(float(x - x_near) / x_span, 0.0, 1.0)
 		var y0 := int(lerpf(float(y0n), float(y0f), from_near))
 		var y1 := int(lerpf(float(y1n), float(y1f), from_near))
@@ -625,7 +671,7 @@ func _blit_side_trap(buf: Image, src: Image, geom: Dictionary, left: bool, dim: 
 				continue
 			var sy := clampi(int(float(y - y0) / float(y1 - y0) * float(sh - 1)), 0, sh - 1)
 			var c := src.get_pixel(sx, sy)
-			var d := dim * _dim_lut[y * bw + x]
+			var d := lerpf(dim_near, dim_far, from_near)
 			buf.set_pixel(x, y, _scanline_rgb(c.r * d, c.g * d, c.b * d, y))
 
 
@@ -650,16 +696,14 @@ func _lut_at(x: int, y: int, w: int, h: int) -> float:
 
 
 func _blit_rect(buf: Image, src: Image, r: Rect2i, dim: float, flip_h: bool = false) -> void:
-	## Facing wall: flat brightness from the rect's outer edge, no inner gradient.
+	## Facing wall: one brightness for the whole face, from its cell distance.
 	if src == null or r.size.x <= 0 or r.size.y <= 0:
 		return
-	var bw := buf.get_width()
-	var bh := buf.get_height()
 	_blit_scaled(
 		buf, src,
 		r.position.x, r.position.y,
 		r.position.x + r.size.x, r.position.y + r.size.y,
-		dim * _lut_at(r.position.x, r.position.y, bw, bh),
+		dim,
 		flip_h, 0.0, 1.0, false, false, false, _scanlines_on
 	)
 
@@ -935,23 +979,29 @@ func _paint_floor_field(
 	view_dir: int,
 	left_surface: bool,
 	right_surface: bool,
-	front_surface: bool
+	front_surface: bool,
+	lateral: int = 0
 ) -> void:
 	var img: Image = _U4TileBank.image(tid)
 	if img == null:
 		return
-	var geom := _depth_geom(field_w, field_h, depth)
+	var geom := _cell_geom(field_w, field_h, depth, lateral)
 	var sw := img.get_width()
 	var sh := img.get_height()
 	if sw <= 0 or sh <= 0:
 		return
 	var scroll := posmod(anim_frame * 2, sh)
 	var walls_only := tid == TILE_FIELD_ENERGY
+	## Off-center cells only show the wall on the far side from the center line.
+	var show_left := lateral <= 0
+	var show_right := lateral >= 0
 	if walls_only or front_surface:
 		## Energy always has a far wall. Other fields project onto a blocking
 		## wall / entrance at this corridor cell's far boundary.
 		_paint_field_front_mask(
-			buf, img, _front_rect(depth + 1, field_w, field_h), dim, scroll
+			buf, img,
+			_shift_rect(_front_rect(depth + 1, field_w, field_h), lateral),
+			dim * _depth_dim(depth + 1), scroll
 		)
 	if not walls_only:
 		_paint_field_hband_mask(
@@ -960,9 +1010,9 @@ func _paint_floor_field(
 			float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
 			dim, scroll, view_dir
 		)
-	if walls_only or left_surface:
+	if show_left and (walls_only or left_surface):
 		_paint_field_side_mask(buf, img, geom, true, dim, scroll)
-	if walls_only or right_surface:
+	if show_right and (walls_only or right_surface):
 		_paint_field_side_mask(buf, img, geom, false, dim, scroll)
 	if not walls_only:
 		_paint_field_hband_mask(
@@ -971,73 +1021,12 @@ func _paint_floor_field(
 			float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
 			dim, scroll, view_dir
 		)
-	if walls_only:
+	if walls_only and (depth >= 1 or lateral == 0):
 		_paint_field_front_mask(
-			buf, img, _front_rect(depth, field_w, field_h), dim, scroll
+			buf, img,
+			_shift_rect(_front_rect(depth, field_w, field_h), lateral),
+			dim * _depth_dim(depth), scroll
 		)
-
-
-func _paint_side_field(
-	buf: Image,
-	tid: int,
-	depth: int,
-	field_w: int,
-	field_h: int,
-	dim: float,
-	anim_frame: int,
-	view_dir: int,
-	left: bool
-) -> void:
-	var img: Image = _U4TileBank.image(tid)
-	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
-		return
-	var geom := _depth_geom(field_w, field_h, depth)
-	var far_w := float(int(geom["nx1"]) - int(geom["nx0"]))
-	if far_w < 0.5:
-		return
-	var x_near_inner := float(geom["x0"] if left else geom["x1"])
-	var x_far_inner := float(geom["nx0"] if left else geom["nx1"])
-	var x_near_outer := x_near_inner + (-far_w if left else far_w)
-	var x_far_outer := x_far_inner + (-far_w if left else far_w)
-	var clip_x0 := int(geom["x0"] if left else geom["nx1"])
-	var clip_x1 := int(geom["nx0"] if left else geom["x1"])
-	var side_view_dir := posmod(
-		view_dir + (_DungeonMap.DIR_W if left else _DungeonMap.DIR_E),
-		4
-	)
-	var scroll := posmod(anim_frame * 2, img.get_height())
-	_paint_field_hband_mask(
-		buf, img,
-		mini(x_near_outer, x_near_inner),
-		maxf(x_near_outer, x_near_inner),
-		int(geom["y0"]),
-		mini(x_far_outer, x_far_inner),
-		maxf(x_far_outer, x_far_inner),
-		int(geom["ny0"]),
-		dim, scroll, side_view_dir, clip_x0, clip_x1
-	)
-	_paint_field_hband_mask(
-		buf, img,
-		mini(x_near_outer, x_near_inner),
-		maxf(x_near_outer, x_near_inner),
-		int(geom["y1"]),
-		mini(x_far_outer, x_far_inner),
-		maxf(x_far_outer, x_far_inner),
-		int(geom["ny1"]),
-		dim, scroll, side_view_dir, clip_x0, clip_x1
-	)
-	_paint_field_front_mask(
-		buf,
-		img,
-		Rect2i(
-			clip_x0,
-			int(geom["ny0"]),
-			maxi(clip_x1 - clip_x0, 1),
-			maxi(int(geom["ny1"]) - int(geom["ny0"]), 1)
-		),
-		dim,
-		scroll
-	)
 
 
 func _paint_field_hband_mask(
@@ -1090,7 +1079,7 @@ func _paint_field_hband_mask(
 			## Original field tiles use black as their transparent backing.
 			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
 				continue
-			var light := dim * _dim_lut[y * field_w + x]
+			var light := dim * _row_dim(y, field_h)
 			buf.set_pixel(
 				x, y,
 				Color(color.r * light, color.g * light, color.b * light, color.a)
@@ -1133,14 +1122,16 @@ func _paint_field_side_mask(
 	var sh := img.get_height()
 	var field_w := buf.get_width()
 	var field_h := buf.get_height()
-	for x in range(x_a, x_b):
-		if x < 0 or x >= field_w:
-			continue
+	var depth := int(geom["depth"])
+	var dim_near := _depth_dim(depth)
+	var dim_far := _depth_dim(depth + 1)
+	for x in range(maxi(x_a, 0), mini(x_b, field_w)):
 		var from_near := clampf(float(x - x_near) / x_span, 0.0, 1.0)
 		var y0 := int(round(lerpf(float(y0n), float(y0f), from_near)))
 		var y1 := int(round(lerpf(float(y1n), float(y1f), from_near)))
 		if y1 <= y0:
 			continue
+		var wall_light := dim * lerpf(dim_near, dim_far, from_near)
 		## Both walls keep the same screen-left → screen-right orientation.
 		var u := (float(x - x_a) + 0.5) / float(x_b - x_a)
 		var sx := clampi(int(floor(u * float(sw))), 0, sw - 1)
@@ -1154,10 +1145,9 @@ func _paint_field_side_mask(
 			var color := img.get_pixel(sx, sy)
 			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
 				continue
-			var light := dim * _dim_lut[y * field_w + x]
 			buf.set_pixel(
 				x, y,
-				Color(color.r * light, color.g * light, color.b * light, color.a)
+				Color(color.r * wall_light, color.g * wall_light, color.b * wall_light, color.a)
 			)
 
 
@@ -1188,10 +1178,9 @@ func _paint_field_front_mask(
 			var color := img.get_pixel(sx, sy)
 			if color.a <= 0.01 or maxf(color.r, maxf(color.g, color.b)) <= 0.08:
 				continue
-			var light := dim * _dim_lut[y * field_w + x]
 			buf.set_pixel(
 				x, y,
-				Color(color.r * light, color.g * light, color.b * light, color.a)
+				Color(color.r * dim, color.g * dim, color.b * dim, color.a)
 			)
 
 
