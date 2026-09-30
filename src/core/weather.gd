@@ -31,14 +31,14 @@ const FADE_MAX := [8.5, 11.0]
 const WANT_HOLD_MIN := 18.0
 const WANT_HOLD_MAX := 40.0
 const ALPHA := [0.52, 0.56]
-## First storm after start/load: 1–10 minutes. Later dry spells: 5–10.
-const FIRST_DRY_MIN := 60.0
-const FIRST_DRY_MAX := 600.0
-const DRY_MIN := 300.0
-const DRY_MAX := 600.0
-## Storm length 2–5 minutes.
-const RAIN_MIN := 120.0
-const RAIN_MAX := 300.0
+## Dry spells, including the first after start/load: 15–25 minutes.
+const FIRST_DRY_MIN := 900.0
+const FIRST_DRY_MAX := 1500.0
+const DRY_MIN := 900.0
+const DRY_MAX := 1500.0
+## Storm length 3–6 minutes.
+const RAIN_MIN := 180.0
+const RAIN_MAX := 360.0
 ## Fade in/out stays in seconds so a long hold does not delay the first drops.
 const RAIN_OVER_IN := 21.0
 const RAIN_OVER_OUT := 21.0
