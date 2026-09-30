@@ -39,6 +39,8 @@ const DRY_MAX := 1500.0
 ## Storm length 3–6 minutes.
 const RAIN_MIN := 180.0
 const RAIN_MAX := 360.0
+## A moongate hop samples the destination: half the time it is already raining.
+const REGION_RAIN_CHANCE := 0.5
 ## Fade in/out stays in seconds so a long hold does not delay the first drops.
 const RAIN_OVER_IN := 21.0
 const RAIN_OVER_OUT := 21.0
@@ -377,6 +379,27 @@ static func _area_for(size: int) -> float:
 
 static func _clamp_area(size: int, area: float) -> float:
 	return clampf(area, float(AREA_MIN[size]), float(AREA_MAX[size]))
+
+
+static func reroll_on_region_travel(gs: Node) -> void:
+	## Destination weather is independent of the origin. Matching rolls keep the
+	## current storm or dry spell instead of restarting its fade.
+	var raining := randf() < REGION_RAIN_CHANCE
+	if raining == bool(gs.rain_active):
+		return
+	if raining:
+		gs.rain_active = true
+		gs.rain_started_once = true
+		gs.rain_dur = lerpf(RAIN_MIN, RAIN_MAX, randf())
+		var heavy_lo := RAIN_HEAVY_IN1
+		var heavy_hi := maxf(heavy_lo, float(gs.rain_dur) - RAIN_HEAVY_OUT0)
+		gs.rain_age = lerpf(heavy_lo, heavy_hi, randf())
+	else:
+		gs.rain_active = false
+		gs.rain_started_once = true
+		gs.rain_age = 0.0
+		gs.rain_dry_left = lerpf(DRY_MIN, DRY_MAX, randf())
+	_apply_rain_look(gs)
 
 
 static func _reset_rain(gs: Node, soon: bool) -> void:

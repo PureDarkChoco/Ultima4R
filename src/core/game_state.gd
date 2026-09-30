@@ -433,6 +433,11 @@ func tick_weather(delta: float) -> void:
 	_Weather.tick_weather(self, delta, Vector2(balloon_drift_dir()))
 
 
+func reroll_rain_for_region_travel() -> void:
+	## Moongate and Gate spell arrivals sample whether this region is raining.
+	_Weather.reroll_on_region_travel(self)
+
+
 func _boot_load_intro_assets() -> void:
 	intro_overlay.load_overlays()
 	if u4_data_ok:

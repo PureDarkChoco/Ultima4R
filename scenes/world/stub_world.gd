@@ -13548,6 +13548,7 @@ func _apply_cast_gate(phase: int) -> void:
 		_sync_creatures_to_map()
 		_sync_moongate(true)
 		_maybe_offer_enter_prompt()
+		GameState.reroll_rain_for_region_travel()
 	_moongate_busy = false
 
 
@@ -24930,11 +24931,15 @@ func _moongate_travel_async(dest: Vector2i) -> void:
 	if journal_changed:
 		_refresh_journal_panel()
 	## xu4 checkMoongates — both moons full + Spirituality rune → shrine.
-	if (
+	## Same-gate hops and the shrine entrance keep the weather they arrived with.
+	var enter_shrine := (
 		GameState.trammel_phase == 4
 		and GameState.felucca_phase == 4
 		and _Shrine.can_enter_with_rune(Virtues.Id.SPIRITUALITY)
-	):
+	)
+	if dest != origin and not enter_shrine:
+		GameState.reroll_rain_for_region_travel()
+	if enter_shrine:
 		_moongate_busy = false
 		_try_enter_shrine(_ShrinePortals.spirituality_portal())
 		return
