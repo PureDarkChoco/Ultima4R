@@ -4252,6 +4252,7 @@ func _rebuild_dungeon() -> void:
 		or _dungeon_field.get_height() != field_h
 	):
 		_dungeon_field = Image.create(field_w, field_h, false, Image.FORMAT_RGBA8)
+	_dungeon_view.magic_light = GameState.dungeon_light_is_magic
 	_dungeon_view.paint(
 		_dungeon_field,
 		_dungeon_map,

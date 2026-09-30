@@ -34,8 +34,10 @@ const OBJ_FLOOR_POSITION := 0.5
 const PIECE_CACHE_REV := 40
 ## Ring at which fog reaches DIM_FAR: the innermost square (four cells ahead).
 const FOG_FULL_RING := 10.5
-## Darkest fog brightness, from the innermost square inward.
+## Darkest fog brightness, from the innermost square inward (torch).
 const DIM_FAR := 0.05
+## Light spell reaches a little farther than a torch.
+const DIM_FAR_MAGIC := 0.10
 const TILE_CHEST := 60
 const TILE_ALTAR := 74
 const TILE_ORB := 78
@@ -82,7 +84,11 @@ var _floor_bg_w := 0
 var _floor_bg_h := 0
 var _floor_bg_pipeline := -1
 var _floor_bg_inner := -1
+var _floor_bg_far := -1.0
+var _dim_lut_far := -1.0
 var _scanlines_on := false
+## Set by the caller each paint: Light spell instead of a torch.
+var magic_light := false
 
 
 func set_theme(id: String) -> void:
@@ -288,7 +294,11 @@ func _depth_dim(depth: int) -> float:
 		ring = 0.0
 	elif depth < RING_CUMUL.size():
 		ring = float(RING_CUMUL[depth])
-	return lerpf(1.0, DIM_FAR, clampf(ring / FOG_FULL_RING, 0.0, 1.0))
+	return lerpf(1.0, _dim_far(), clampf(ring / FOG_FULL_RING, 0.0, 1.0))
+
+
+func _dim_far() -> float:
+	return DIM_FAR_MAGIC if magic_light else DIM_FAR
 
 
 func _center_block_depth(dmap, pos: Vector2i, z: int, dir: int) -> int:
@@ -420,7 +430,7 @@ func _shift_rect(rect: Rect2i, lateral: int) -> Rect2i:
 func _row_dim(y: int, h: int) -> float:
 	## Floor / ceiling brightness: depth follows the row only.
 	var ring := float(mini(y, h - 1 - y)) * RING_DENOM / float(h)
-	return lerpf(1.0, DIM_FAR, clampf(ring / FOG_FULL_RING, 0.0, 1.0))
+	return lerpf(1.0, _dim_far(), clampf(ring / FOG_FULL_RING, 0.0, 1.0))
 
 
 func _lateral_geom(w: int, h: int, depth: int, lateral: int) -> Dictionary:
@@ -522,12 +532,14 @@ func _ensure_dim_lut(w: int, h: int) -> void:
 		_dim_lut_w == w
 		and _dim_lut_h == h
 		and _dim_lut_inner == inner
+		and _dim_lut_far == _dim_far()
 		and _dim_lut.size() == w * h
 	):
 		return
 	_dim_lut_w = w
 	_dim_lut_h = h
 	_dim_lut_inner = inner
+	_dim_lut_far = _dim_far()
 	_dim_lut.resize(w * h)
 	var inv := 1.0 / float(maxi(inner, 1))
 	for y in range(h):
@@ -536,7 +548,7 @@ func _ensure_dim_lut(w: int, h: int) -> void:
 		for x in range(w):
 			var dx := mini(x, w - 1 - x)
 			var t := clampf(float(mini(dx, dy)) * inv, 0.0, 1.0)
-			_dim_lut[row + x] = lerpf(1.0, DIM_FAR, t)
+			_dim_lut[row + x] = lerpf(1.0, _dim_lut_far, t)
 
 
 func _ensure_piece_cache_size(w: int, h: int) -> void:
@@ -549,7 +561,9 @@ func _ensure_piece_cache_size(w: int, h: int) -> void:
 
 
 func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
-	var cache_key := "%d:%s:%d:%s" % [PIECE_CACHE_REV, theme_id, _theme_pipeline, key]
+	var cache_key := "%d:%s:%d:%d:%s" % [
+		PIECE_CACHE_REV, theme_id, _theme_pipeline, int(magic_light), key
+	]
 	if not _piece_cache.has(cache_key):
 		var canvas := Image.create(
 			_piece_cache_w, _piece_cache_h, false, Image.FORMAT_RGBA8
@@ -593,6 +607,7 @@ func _clear_floor_bg() -> void:
 	_floor_bg_h = 0
 	_floor_bg_pipeline = -1
 	_floor_bg_inner = -1
+	_floor_bg_far = -1.0
 
 
 func _paint_floor_plane_background(buf: Image) -> bool:
@@ -606,6 +621,7 @@ func _paint_floor_plane_background(buf: Image) -> bool:
 		or _floor_bg_h != h
 		or _floor_bg_pipeline != _theme_pipeline
 		or _floor_bg_inner != _dim_lut_inner
+		or _floor_bg_far != _dim_far()
 	):
 		if _floor_plane == null:
 			return false
@@ -626,6 +642,7 @@ func _paint_floor_plane_background(buf: Image) -> bool:
 		_floor_bg_h = h
 		_floor_bg_pipeline = _theme_pipeline
 		_floor_bg_inner = _dim_lut_inner
+		_floor_bg_far = _dim_far()
 	buf.blit_rect(_floor_bg, Rect2i(0, 0, w, h), Vector2i.ZERO)
 	return true
 
