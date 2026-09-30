@@ -3963,8 +3963,8 @@ func _update_mouse_walk() -> void:
 		_sync_mouse_ztats_hover(-1)
 	else:
 		_sync_mouse_ztats_hover(_mouse_ztats_slot)
-	if _cast_stage == 6 and _combat_aiming:
-		_mouse_update_cast_aim(lmb_pressed)
+	if _combat_aiming:
+		_mouse_update_combat_aim(lmb_pressed)
 		_mouse_walk_dir = Vector2i.ZERO
 		_mouse_lmb_held = lmb
 		return
@@ -4112,8 +4112,8 @@ func _mouse_ztats_slot_from_hover() -> int:
 	return _mouse_roster_slot_from_hover()
 
 
-func _mouse_update_cast_aim(lmb_pressed: bool) -> void:
-	## PARAM_AIM spells: hover/click either the foe roster or its battlefield tile.
+func _mouse_update_combat_aim(lmb_pressed: bool) -> void:
+	## Attack and single-foe spells: hover/click the roster row or its map tile.
 	var target := Vector2i(-1, -1)
 	if _foe_roster != null and _foe_roster.visible:
 		var foe: Dictionary = _foe_roster.foe_at_global(get_viewport().get_mouse_position())
@@ -4124,7 +4124,7 @@ func _mouse_update_cast_aim(lmb_pressed: bool) -> void:
 		var tile: Vector2i = _map.combat_tile_at_local(map_ctl.get_local_mouse_position())
 		if tile.x >= 0 and _map.combat_foe_index_at(tile) >= 0:
 			target = tile
-	if target.x < 0:
+	if target.x < 0 or not _combat_aim_foe_reachable(target):
 		UiTheme.set_attack_cursor(false)
 		return
 	if target != _combat_aim_pos:
@@ -4132,9 +4132,12 @@ func _mouse_update_cast_aim(lmb_pressed: bool) -> void:
 		_map.set_combat_aim_cursor(target)
 		_sync_combat_aim_foe_roster()
 	UiTheme.set_attack_cursor(true)
-	if lmb_pressed and not _turn_fx_busy:
+	if lmb_pressed and not _turn_fx_busy and not _combat_resolving:
 		_mouse_block_walk_until_release = true
-		_finish_cast_aim_spell()
+		if _cast_stage == 6:
+			_finish_cast_aim_spell()
+		else:
+			_combat_confirm_aim()
 
 
 func _try_mouse_roster_pick(lmb_pressed: bool) -> bool:
