@@ -290,6 +290,7 @@ func _is_keyboard_card_confirm(event: InputEvent) -> bool:
 	return (
 		key.keycode == KEY_ENTER or key.physical_keycode == KEY_ENTER
 		or key.keycode == KEY_KP_ENTER or key.physical_keycode == KEY_KP_ENTER
+		or key.keycode == KEY_SPACE or key.physical_keycode == KEY_SPACE
 	)
 
 
@@ -324,6 +325,7 @@ func _is_advance_input(event: InputEvent) -> bool:
 		return (
 			code == KEY_ENTER or phys == KEY_ENTER
 			or code == KEY_KP_ENTER or phys == KEY_KP_ENTER
+			or code == KEY_SPACE or phys == KEY_SPACE
 		)
 	return false
 
