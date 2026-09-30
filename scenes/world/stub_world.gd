@@ -3963,7 +3963,8 @@ func _update_mouse_walk() -> void:
 		_sync_mouse_ztats_hover(-1)
 	else:
 		_sync_mouse_ztats_hover(_mouse_ztats_slot)
-	if over_map and not sword and not wait_key:
+	## Cast Dir? (Blink and the other NESW spells) uses the same X-split as Open.
+	if over_map and not sword and not wait_key and _cast_stage != 4:
 		talk_dir = _mouse_talk_dir_from_hover()
 		if talk_dir == Vector2i.ZERO:
 			jimmy_dir = _mouse_jimmy_dir_from_hover()
@@ -3977,6 +3978,9 @@ func _update_mouse_walk() -> void:
 			attack_dir = _mouse_attack_dir_from_hover()
 	## Bye / wait-any-key: ankh until the click lands; arrows only after.
 	var show_dir: Vector2i = hover if (over_map and not sword and not wait_key) else Vector2i.ZERO
+	## Winds picks the side the wind comes from; the arrow shows where it blows.
+	if show_dir != Vector2i.ZERO and _cast_stage == 4 and _cast_spell_id == Spells.WINDS:
+		show_dir = -show_dir
 	UiTheme.set_play_dir_cursor(show_dir)
 	UiTheme.set_talk_cursor(talk_dir != Vector2i.ZERO)
 	UiTheme.set_jimmy_cursor(jimmy_dir != Vector2i.ZERO)
@@ -4252,7 +4256,10 @@ func _mouse_walk_hold_allowed() -> bool:
 		return false
 	if _journal_focus_active or _talk_stage != 0 or _enter_prompt_stage != 0:
 		return false
-	if _combat_aiming or _cast_stage == 4 or _cast_stage == 6:
+	## Blink / Dispel / Winds / Energy: LMB on the map is the Dir? answer.
+	if _cast_stage == 4:
+		return true
+	if _combat_aiming or _cast_stage == 6:
 		return false
 	if _combat_active:
 		return _combat_victory_aftermath and not _combat_exit_prompt and not _victory_turn_pending
@@ -10582,7 +10589,7 @@ func _menu_cursor_should_be_sword() -> bool:
 		or _ready_stage != 0
 		or _wear_stage != 0
 		or _mix_stage != 0
-		or _cast_stage != 0
+		or (_cast_stage != 0 and _cast_stage != 4)
 		or _use_stage != 0
 		or _save_stage != 0
 		or _command_menu_open
