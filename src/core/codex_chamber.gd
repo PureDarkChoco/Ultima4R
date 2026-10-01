@@ -113,19 +113,6 @@ static func _principle_name(kind: int, lang: String) -> String:
 			return ""
 
 
-static func infinity_choice_unlocked(gs: Node) -> bool:
-	## Infinity chip only after the axiom word (or every virtue + principle) is known.
-	if gs == null:
-		return false
-	if gs.talk_has_heard_word("infinity") or gs.talk_has_heard_word("무한"):
-		return true
-	if gs.journal_has_id("cove.circe.axiom-parts") or gs.journal_has_id("cove.circe.axiom"):
-		return true
-	var virtues: int = _Journal.known_virtue_mask(gs)
-	var principles: int = _Journal.known_principle_mask(gs)
-	return virtues == 255 and (principles & 7) == 7
-
-
 static func choice_items(gs: Node, stage: int) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var lang := "ko" if str(gs.lang_short()) == "ko" else "en"
@@ -147,7 +134,5 @@ static func choice_items(gs: Node, stage: int) -> Array[Dictionary]:
 			var name := _principle_name(kind, lang)
 			out.append({"label": name, "input": name})
 		return out
-	if stage == 12 and infinity_choice_unlocked(gs):
-		var inf := "무한" if lang == "ko" else "Infinity"
-		out.append({"label": inf, "input": inf})
+	## Stage 12 (Infinity) is typed. Alt, mouse, and gamepad never offer a chip.
 	return out
