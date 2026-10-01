@@ -4592,12 +4592,22 @@ func _try_right_click_cancel_pick_ui(event: InputEvent) -> bool:
 	return true
 
 
-func _try_right_click_cancel_shop_number(event: InputEvent) -> bool:
-	## Vendor "how many?" — RMB backs out like Esc.
+func _try_right_click_cancel_shop(event: InputEvent) -> bool:
+	## Vendor talk — RMB follows the same Esc path as the keyboard.
 	if not _is_right_click(event):
 		return false
-	if _talk_stage != 10 or _shop == null or int(_shop.mode) != _VendorShop.Mode.NUMBER:
+	if _talk_stage == TALK_STAGE_FAREWELL and _shop != null:
+		_finish_talk_farewell()
+		return true
+	if _talk_stage != 10 or _shop == null:
 		return false
+	if _binary_prompt_active() and _enter_prompt_stage != 1:
+		var cancel := InputEventKey.new()
+		cancel.pressed = true
+		cancel.keycode = KEY_ESCAPE
+		cancel.physical_keycode = KEY_ESCAPE
+		if _handle_enter_prompt_input(cancel):
+			return true
 	_shop.on_escape()
 	_flush_shop_output()
 	return true
@@ -8676,7 +8686,7 @@ func _input(event: InputEvent) -> void:
 	if _try_right_click_cancel_pending_dir(event):
 		_mark_input_handled()
 		return
-	if _try_right_click_cancel_shop_number(event):
+	if _try_right_click_cancel_shop(event):
 		_mark_input_handled()
 		return
 	if _journal_focus_active and _is_right_click(event):
