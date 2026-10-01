@@ -10784,7 +10784,8 @@ func _menu_cursor_should_be_sword() -> bool:
 	## True while any list/choice menu is the active screen — sword shows
 	## everywhere on it (esc menu, ztats/ready/wear/mix/cast/use, journal
 	## browse, save/load, options, command palette, talk keyword picker,
-	## vendor/NPC choice rows, party target/order pick, debug city warp).
+	## altar and Codex keyword lists, vendor/NPC choice rows, party
+	## target/order pick, debug city warp).
 	## Free map exploration and wait-for-key prompts stay on the ankh.
 	return (
 		_esc_menu_is_open()
@@ -10797,6 +10798,8 @@ func _menu_cursor_should_be_sword() -> bool:
 		or _use_stage != 0
 		or _save_stage != 0
 		or _command_menu_open
+		or _abyss_altar_choice_active
+		or _codex_choice_active
 		or _journal_focus_active
 		or _order_stage != 0
 		or _talk_selection_menu_active()
