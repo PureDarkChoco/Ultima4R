@@ -413,9 +413,7 @@ func on_escape() -> void:
 			return
 		_:
 			pass
-	## Soft farewell without shop-specific long adieu when aborting mid-flow.
-	_say(_L("Bye."))
-	_finish(false)
+	_role_adieu()
 
 
 func submit_choice(raw: String) -> void:
@@ -619,6 +617,34 @@ func _gp_bb(amount: int) -> String:
 func _qty_bb(amount: int) -> String:
 	## Yellow count (ration packs / food units) in vendor dialogue.
 	return "[color=#f0c93a]%d[/color]" % amount
+
+
+func _role_adieu() -> void:
+	## Leaving the counter uses that shop's own goodbye, not a shared "Bye."
+	match _role:
+		_Roles.Role.VENDOR_WEAPONS:
+			_w_adieu()
+		_Roles.Role.VENDOR_ARMOR:
+			_a_adieu()
+		_Roles.Role.VENDOR_FOOD:
+			_f_adieu()
+		_Roles.Role.VENDOR_TAVERN:
+			_t_adieu()
+		_Roles.Role.VENDOR_REAGENTS:
+			_r_adieu()
+		_Roles.Role.VENDOR_HEALER:
+			_h_adieu()
+		_Roles.Role.VENDOR_GUILD:
+			_g_adieu()
+		_Roles.Role.VENDOR_INN:
+			_say(_L("Then you have come to the wrong place!\nGood day."))
+			_finish()
+		_Roles.Role.VENDOR_STABLE:
+			_say(_L("A shame, thou looks like thou could use a good horse!"))
+			_finish()
+		_:
+			_say(_L("Bye."))
+			_finish()
 
 
 func _finish(push_done: bool = true) -> void:

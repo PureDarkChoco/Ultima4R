@@ -9427,12 +9427,17 @@ func _close_talk_overlay() -> void:
 	_sync_panel_focus_border()
 
 
+func _talk_shop_face_active() -> bool:
+	## Farewell keeps the vendor face up until the closing line is dismissed.
+	return _shop != null and (_talk_stage == 10 or _talk_stage == TALK_STAGE_FAREWELL)
+
+
 func _talk_npc_portrait() -> Texture2D:
 	if _talk_is_lb:
 		return _TalkPortraits.npc_texture("lcb", "Lord British")
 	if _talk_is_hawkwind:
 		return _TalkPortraits.npc_texture("lcb", "Hawkwind")
-	if _talk_stage == 10 and _shop != null:
+	if _talk_shop_face_active():
 		var owner := str(_shop.owner_name()).strip_edges()
 		var slot := -1
 		if _city_map != null and _talk_person_i >= 0 and _talk_person_i < _city_map.person_file_slot.size():
@@ -9483,7 +9488,7 @@ func _talk_overlay_caption() -> String:
 		return Locale.t("talk_name_lord_british")
 	if _talk_is_hawkwind:
 		return Locale.t("talk_name_hawkwind")
-	if _talk_stage == 10 and _shop != null:
+	if _talk_shop_face_active():
 		var owner := str(_shop.owner_name()).strip_edges()
 		if not owner.is_empty():
 			return _VendorLocale.person_name(owner)
