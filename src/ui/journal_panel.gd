@@ -97,6 +97,8 @@ var _built_sig := ""
 var _list_needs_fit := true
 var _first_show_prepared := false
 var _first_show_preparing := false
+## Codex Word of Passage onward: stay on the collection page.
+var _page_locked := false
 
 
 class StatusIcon extends Control:
@@ -374,9 +376,20 @@ func end_browse() -> void:
 	_apply_selection_visuals()
 
 
+func show_page(page: int) -> void:
+	_set_page(page)
+
+
+func set_page_lock(locked: bool) -> void:
+	## While locked, the collection page stays up.
+	_page_locked = locked
+	if locked:
+		_set_page(1)
+
+
 func turn_page(dir_x: int) -> bool:
 	## Left / right flips between the notes page and the collection page.
-	if dir_x == 0:
+	if _page_locked or dir_x == 0:
 		return false
 	var next := clampi(_current_page() + (1 if dir_x > 0 else -1), 0, PAGE_COUNT - 1)
 	if next == _current_page():
@@ -1639,7 +1652,7 @@ func _current_page() -> int:
 
 func _set_page(page: int) -> void:
 	var gs = _game_state()
-	var next := clampi(page, 0, PAGE_COUNT - 1)
+	var next := 1 if _page_locked else clampi(page, 0, PAGE_COUNT - 1)
 	if gs != null:
 		gs.journal_page = next
 		if next == 1:

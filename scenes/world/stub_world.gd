@@ -292,6 +292,9 @@ var _abyss_altar_show_choices := false
 var _use_pick_pointer := false
 var _abyss_altar_choice_cursor := 0
 var _abyss_altar_choice_items: Array[Dictionary] = []
+## Altar talk and world shrines show the codex page, then return to page 1 if that was open.
+var _journal_altar_page_held := false
+var _journal_altar_restore_page := -1
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
 var _camp_stage := 0
 var _camp_rest_left := 0.0
@@ -15216,6 +15219,7 @@ func _shrine_enter_async() -> void:
 	await _open_sides_for_shrine()
 	if not _shrine_session or _shrine_ejecting:
 		return
+	_journal_hold_for_altar()
 	_shrine_approach_async()
 
 
@@ -15531,6 +15535,7 @@ func _shrine_eject_async() -> void:
 		_map.set_center(_tile_pos, false)
 		_map.set_transport_tile(_transport_tile if _transport != Transport.FOOT else -1)
 	_sync_moongate(true)
+	_journal_release_altar_page()
 	await _restore_sides_after_shrine()
 	_shrine_session = false
 	_sync_music()
@@ -16870,6 +16875,7 @@ func _begin_abyss_altar_use(stone_flag: int, show_choices: bool) -> void:
 	_abyss_altar_buffer = ""
 	_abyss_altar_stone_flag = stone_flag
 	_abyss_altar_show_choices = show_choices
+	_journal_hold_for_altar()
 	_push_message(_abyss_altar_virtue_question(), false)
 	_layout_prompt_row()
 	if show_choices:
@@ -17180,6 +17186,7 @@ func _complete_abyss_altar_stone(flag: int) -> void:
 		_push_message(Locale.t("cmd_use_abyss_stone_wrong"), false)
 		_end_abyss_altar_use()
 		_abyss_altar_show_choices = false
+		_journal_release_altar_page()
 		_finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_abyss_stone"), false)
@@ -17196,12 +17203,14 @@ func _complete_abyss_altar_stone(flag: int) -> void:
 			_refresh_journal_panel()
 		_end_abyss_altar_use()
 		_abyss_altar_show_choices = false
+		_journal_release_altar_page()
 		_finish_use_command()
 		return
 	_end_abyss_altar_use()
 	if not _DungeonPortals.has_three_keys():
 		_push_message(Locale.t("cmd_abyss_need_keys"), false)
 		_abyss_altar_show_choices = false
+		_journal_release_altar_page()
 		_finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_abyss_keys"), false)
@@ -17212,12 +17221,14 @@ func _fail_abyss_altar_use() -> void:
 	_push_message(Locale.t("cmd_use_no_effect"), false)
 	_end_abyss_altar_use()
 	_abyss_altar_show_choices = false
+	_journal_release_altar_page()
 	_finish_use_command()
 
 
 func _cancel_abyss_altar_use() -> void:
 	_end_abyss_altar_use()
 	_abyss_altar_show_choices = false
+	_journal_release_altar_page()
 	_push_message(Locale.t("cmd_none"), false)
 	_finish_use_command()
 
@@ -17275,9 +17286,7 @@ func _begin_codex() -> void:
 	_codex_passage_force_english()
 	_reset_talk_hangul()
 	_ensure_codex_overlay()
-	if not _sides_open:
-		_sides_open = true
-		_layout_side_panels(false)
+	_journal_lock_codex_page()
 	_show_codex_stage()
 
 
@@ -17405,6 +17414,7 @@ func _codex_passage_restore_input_mode() -> void:
 
 
 func _end_codex_session() -> void:
+	_journal_unlock_codex_page()
 	_codex_passage_restore_input_mode()
 	_codex_stage = 0
 	_codex_buffer = ""
@@ -24611,6 +24621,47 @@ func _sync_left_panel_mode() -> void:
 			_refresh_journal_panel()
 			if _is_in_dungeon():
 				_update_dungeon_minimap()
+
+
+func _journal_reveal_page(page: int) -> void:
+	if not _sides_open:
+		_sides_open = true
+		_layout_side_panels(false)
+	if _journal_panel != null and _journal_panel.has_method("show_page"):
+		_journal_panel.show_page(page)
+
+
+func _journal_hold_for_altar() -> void:
+	if not _journal_altar_page_held:
+		_journal_altar_page_held = true
+		_journal_altar_restore_page = int(GameState.journal_page)
+	_journal_reveal_page(1)
+
+
+func _journal_release_altar_page() -> void:
+	if not _journal_altar_page_held:
+		return
+	_journal_altar_page_held = false
+	var restore := _journal_altar_restore_page
+	_journal_altar_restore_page = -1
+	if restore == 0 or restore == 1:
+		_journal_reveal_page(restore)
+
+
+func _journal_lock_codex_page() -> void:
+	## Word of Passage through the end of the Codex: keep page 2.
+	_journal_altar_page_held = false
+	_journal_altar_restore_page = -1
+	if not _sides_open:
+		_sides_open = true
+		_layout_side_panels(false)
+	if _journal_panel != null and _journal_panel.has_method("set_page_lock"):
+		_journal_panel.set_page_lock(true)
+
+
+func _journal_unlock_codex_page() -> void:
+	if _journal_panel != null and _journal_panel.has_method("set_page_lock"):
+		_journal_panel.set_page_lock(false)
 
 
 func _refresh_journal_panel() -> void:
