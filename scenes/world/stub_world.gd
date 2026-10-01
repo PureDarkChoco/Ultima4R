@@ -8734,6 +8734,9 @@ func _input(event: InputEvent) -> void:
 	if _talk_try_advance_wait(event):
 		_mark_input_handled()
 		return
+	if _codex_try_advance_ending(event):
+		_mark_input_handled()
+		return
 	## Overlay / pick UIs: RMB backs out like Esc (MapPane may swallow clicks).
 	if _try_right_click_cancel_pick_ui(event):
 		_mark_input_handled()
@@ -17764,6 +17767,21 @@ func _await_codex_key() -> void:
 	while _codex_end_waiting and _codex_endgame:
 		await get_tree().process_frame
 	_codex_end_waiting = false
+
+
+func _codex_try_advance_ending(event: InputEvent) -> bool:
+	## Keyboard already advances via `_handle_codex_input`. The map swallows clicks.
+	if not _codex_endgame or not _codex_end_waiting:
+		return false
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if not (event is InputEventMouseButton):
+		return false
+	if (event as InputEventMouseButton).button_index != MOUSE_BUTTON_LEFT:
+		return false
+	_mouse_block_walk_until_release = true
+	_codex_end_waiting = false
+	return true
 
 
 func _is_castle_city() -> bool:
