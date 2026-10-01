@@ -391,19 +391,25 @@ func begin(role: int, locale: String, person_slot: int = -1) -> void:
 func on_escape() -> void:
 	if finished:
 		return
-	## Catalog / letter pick: back to Buy or Sell (do not end talk).
+	## Catalog / letter pick: back to Buy or Sell. Quantity: back to that list.
 	match _phase:
 		"w_inv", "w_sell_key":
 			_w_prompt_buy_sell()
 			return
-		"w_howmany", "w_sell_howmany":
-			_w_prompt_buy_sell()
+		"w_howmany":
+			_w_show_inv()
+			return
+		"w_sell_howmany":
+			_w_you_sell()
 			return
 		"a_inv", "a_sell_key":
 			_a_prompt_buy_sell()
 			return
-		"a_howmany", "a_sell_howmany":
-			_a_prompt_buy_sell()
+		"a_howmany":
+			_a_show_inv()
+			return
+		"a_sell_howmany":
+			_a_you_sell()
 			return
 		"f_howmany":
 			_f_prompt_interest()
