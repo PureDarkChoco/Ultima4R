@@ -4,6 +4,7 @@ extends Control
 ## Town-talk chrome on the map: NPC face + lines, avatar + keyword chips.
 
 signal keyword_clicked(index: int)
+signal keyword_hovered(index: int)
 signal catalog_hovered(index: int)
 signal catalog_clicked(index: int)
 signal number_nudge(delta: int)
@@ -718,6 +719,7 @@ func _make_chip(index: int, caption: String, selected: bool) -> Button:
 	chip.mouse_filter = Control.MOUSE_FILTER_STOP
 	chip.flat = true
 	chip.pressed.connect(_on_chip_pressed.bind(index))
+	chip.mouse_entered.connect(func() -> void: keyword_hovered.emit(index))
 	_style_chip(chip, selected)
 	return chip
 

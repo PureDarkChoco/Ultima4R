@@ -9361,6 +9361,7 @@ func _ensure_talk_overlay() -> void:
 	if _map != null:
 		_map_pane.move_child(_talk_overlay, _map.get_index() + 1)
 	_talk_overlay.keyword_clicked.connect(_on_talk_overlay_keyword_clicked)
+	_talk_overlay.keyword_hovered.connect(_on_talk_overlay_keyword_hovered)
 	_talk_overlay.catalog_hovered.connect(_on_talk_overlay_catalog_hovered)
 	_talk_overlay.catalog_clicked.connect(_on_talk_overlay_catalog_clicked)
 	_talk_overlay.number_nudge.connect(_shop_number_adjust)
@@ -9676,6 +9677,15 @@ func _restore_talk_ime_edit_to_prompt() -> void:
 		parent.remove_child(_talk_edit)
 	_msg_prompt_row.add_child(_talk_edit)
 	_talk_edit.visible = false
+
+
+func _on_talk_overlay_keyword_hovered(index: int) -> void:
+	## Choice chips (Buy/Sell, food/ale, Y/N): hover moves the keyboard cursor.
+	if not _talk_overlay_choice_active():
+		return
+	if index == _enter_prompt_choice:
+		return
+	_set_enter_prompt_choice(index)
 
 
 func _on_talk_overlay_keyword_clicked(index: int) -> void:
