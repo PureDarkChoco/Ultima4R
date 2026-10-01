@@ -514,8 +514,10 @@ var _shop_item_menu_cursor := 0
 var _shop_item_menu_items: Array[Dictionary] = []
 var _shop_item_menu_line_indices: Array[int] = []
 var _shop_item_line_by_key: Dictionary = {}
-## True after a mouse click on Buy/Sell, so the quantity field shows click steppers.
+## True after a mouse click that opened a shop quantity / tip / pay field.
 var _shop_qty_from_mouse_bs := false
+## Tavern rumor chip click — the following text submit still counts as mouse entry.
+var _shop_qty_mouse_topic := false
 ## Talk expands message strip + character roster (not left inventory unless Tab already open).
 ## Shop peeks: weapon/armor/reagent Ztats lists replace the roster while trading.
 var _talk_msg_open := false
@@ -2684,10 +2686,8 @@ func _resolve_prompt_choice_index(index: int, from_mouse: bool = false) -> void:
 		return
 	_talk_buffer = ""
 	_reset_talk_hangul()
-	if ch == "b" or ch == "s":
-		_shop_qty_from_mouse_bs = from_mouse
-	else:
-		_shop_qty_from_mouse_bs = false
+	## Mouse entry to a later "how many?" / tip / pay field. Keyboard clears it.
+	_shop_qty_from_mouse_bs = from_mouse
 	_push_talk_player_input(_prompt_choice_label(ch))
 	_shop.submit_choice(ch)
 	_flush_shop_output()
@@ -9689,6 +9689,9 @@ func _on_talk_overlay_keyword_clicked(index: int) -> void:
 	_talk_keyword_menu_cursor = index
 	_sync_talk_keyword_menu_scroll()
 	_refresh_talk_overlay_cursor()
+	if _talk_stage == 10 and _shop != null and bool(_shop.is_tavern_topic_prompt()):
+		_shop_qty_from_mouse_bs = true
+		_shop_qty_mouse_topic = true
 	_choose_talk_keyword_menu_item()
 
 
@@ -9717,6 +9720,7 @@ func _on_talk_overlay_catalog_clicked(index: int) -> void:
 	_shop_item_menu_cursor = clampi(index, 0, _shop_item_menu_items.size() - 1)
 	if _talk_overlay != null:
 		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
+	_shop_qty_from_mouse_bs = true
 	_choose_shop_item_menu_item()
 
 
@@ -18946,6 +18950,7 @@ func _hold_shop_farewell() -> void:
 	_talk_buffer = ""
 	_reset_talk_hangul()
 	_shop_qty_from_mouse_bs = false
+	_shop_qty_mouse_topic = false
 	_shop_item_menu_items.clear()
 	_shop_item_menu_line_indices.clear()
 	_shop_item_line_by_key.clear()
@@ -19207,6 +19212,7 @@ func _on_shop_pick_clicked(index: int) -> void:
 	if _ztats_panel == null or not _ztats_panel.has_shop_pick():
 		return
 	_ztats_panel.shop_pick_set_index(index)
+	_shop_qty_from_mouse_bs = true
 	_choose_shop_sell_pick()
 
 
@@ -19399,6 +19405,7 @@ func _handle_shop_number_input(event: InputEvent) -> bool:
 
 func _end_shop() -> void:
 	_shop_qty_from_mouse_bs = false
+	_shop_qty_mouse_topic = false
 	if _shop == null and _talk_stage != 10:
 		return
 	if _party_target_kind == PartyTargetKind.HEALER:
@@ -20254,6 +20261,10 @@ func _talk_input_shop(k: InputEventKey) -> bool:
 			_layout_prompt_row()
 			if not s2.is_empty():
 				_push_talk_player_input(s2)
+			if _shop_qty_mouse_topic:
+				_shop_qty_mouse_topic = false
+			else:
+				_shop_qty_from_mouse_bs = false
 			_shop.submit_text(match_text)
 			_flush_shop_output()
 			return true
