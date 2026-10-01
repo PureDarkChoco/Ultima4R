@@ -38,6 +38,8 @@ var _dialogue_tail: RichTextLabel
 var _avatar_frame: Panel
 var _avatar_face: TextureRect
 var _key_col: VBoxContainer
+var _party_fit: HBoxContainer
+var _party_fit_sig := ""
 var _lead_label: Label
 var _default_row: HBoxContainer
 var _extra_flow: HFlowContainer
@@ -79,6 +81,7 @@ func open() -> void:
 	clear_catalog()
 	set_keywords([], 0, {})
 	set_input_visible(false)
+	set_party_fit([])
 	move_to_front()
 
 
@@ -89,6 +92,7 @@ func close() -> void:
 	clear_dialogue()
 	clear_catalog()
 	set_keywords([], 0, {})
+	set_party_fit([])
 
 
 func set_icon_renderer(lookup: Callable, side: int) -> void:
@@ -348,6 +352,101 @@ func set_number_pad(on: bool) -> void:
 	_number_pad.visible = on and _input_slot != null and _input_slot.visible
 
 
+func set_party_fit(slots: Array) -> void:
+	## Party class tiles beside the avatar's top edge, with E / ▲ / ▼ / o / x under each.
+	if _party_fit == null:
+		return
+	var sig := _party_fit_signature(slots)
+	if sig == _party_fit_sig:
+		_apply_party_fit_metrics()
+		return
+	_party_fit_sig = sig
+	for child in _party_fit.get_children():
+		_party_fit.remove_child(child)
+		child.free()
+	if slots.is_empty():
+		_party_fit.visible = false
+		return
+	for raw in slots:
+		var spec: Dictionary = raw
+		var col := VBoxContainer.new()
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		col.add_theme_constant_override("separation", 0)
+		var face := TextureRect.new()
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		face.texture = spec.get("texture", null) as Texture2D
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		face.modulate = Color.WHITE
+		col.add_child(face)
+		var mark := Label.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.text = str(spec.get("mark", ""))
+		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_style_overlay_text(mark, spec.get("color", TEXT))
+		UiTheme.apply_font(mark, true)
+		col.add_child(mark)
+		_party_fit.add_child(col)
+	_party_fit.visible = true
+	_apply_party_fit_metrics()
+
+
+func _party_fit_signature(slots: Array) -> String:
+	if slots.is_empty():
+		return "-"
+	var parts: PackedStringArray = PackedStringArray()
+	for raw in slots:
+		var spec: Dictionary = raw
+		var tex: Texture2D = spec.get("texture", null) as Texture2D
+		var color: Color = spec.get("color", TEXT)
+		parts.append("%s|%s|%s" % [
+			str(spec.get("mark", "")),
+			color.to_html(false),
+			str(tex.get_rid().get_id()) if tex != null else "0",
+		])
+	return "|".join(parts)
+
+
+func _apply_party_fit_metrics() -> void:
+	if _party_fit == null or not _party_fit.visible:
+		return
+	var count := _party_fit.get_child_count()
+	if count <= 0:
+		return
+	var box := _party_fit_slot_size(count)
+	var font_px := clampi(int(box.y * 0.85), 10, FONT_SIZE)
+	for col in _party_fit.get_children():
+		if col.get_child_count() < 2:
+			continue
+		var face := col.get_child(0) as TextureRect
+		var mark := col.get_child(1) as Label
+		if face != null:
+			face.custom_minimum_size = box
+		if mark != null:
+			mark.custom_minimum_size = Vector2(box.x, float(font_px + 2))
+			mark.add_theme_font_size_override("font_size", font_px)
+
+
+func _party_fit_slot_size(count: int) -> Vector2:
+	var aspect := 14.0 / 16.0
+	var sample := _party_fit.get_child(0).get_child(0) as TextureRect
+	if sample != null and sample.texture != null:
+		var tex_size := sample.texture.get_size()
+		if tex_size.y > 0.5:
+			aspect = tex_size.x / tex_size.y
+	var avail := 240.0
+	if _root != null and _root.size.x > 8.0:
+		avail = maxf(_root.size.x - _frame_size().x - 12.0, 48.0)
+	var sep := float(_party_fit.get_theme_constant("separation"))
+	var slot_w := (avail - sep * float(maxi(count - 1, 0))) / float(count)
+	var max_h := 42.0
+	var use_w := clampf(slot_w, 12.0, max_h * aspect)
+	return Vector2(use_w, use_w / aspect)
+
+
 func set_input_text(text: String) -> void:
 	if _input_label == null:
 		return
@@ -466,6 +565,14 @@ func _build() -> void:
 	_key_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_key_col.add_theme_constant_override("separation", 0)
 	_avatar_row.add_child(_key_col)
+	_party_fit = HBoxContainer.new()
+	_party_fit.visible = false
+	_party_fit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_party_fit.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_party_fit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_party_fit.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_party_fit.add_theme_constant_override("separation", 6)
+	_key_col.add_child(_party_fit)
 	_lead_label = Label.new()
 	_lead_label.visible = false
 	_lead_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -848,6 +955,7 @@ func _layout_root() -> void:
 		_dialogue.scroll_active = text_h + 8.0 > max_npc + 1.0
 	_size_face(_npc_face, _npc_face.texture)
 	_size_face(_avatar_face, _avatar_face.texture)
+	_apply_party_fit_metrics()
 	_style_overlay_text(_dialogue)
 	if _input_edit != null and is_instance_valid(_input_edit):
 		_style_input_edit(_input_edit)

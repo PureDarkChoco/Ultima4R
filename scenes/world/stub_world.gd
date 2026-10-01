@@ -9557,6 +9557,7 @@ func _refresh_talk_overlay() -> void:
 		_talk_overlay.set_player_lead("")
 		_talk_overlay.set_keywords([], 0, {})
 	_sync_talk_overlay_input()
+	_sync_shop_party_fit()
 
 
 func _refresh_talk_overlay_cursor() -> void:
@@ -9708,6 +9709,7 @@ func _on_talk_overlay_catalog_hovered(index: int) -> void:
 	_shop_item_menu_cursor = index
 	if _talk_overlay != null:
 		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
+	_sync_shop_party_fit()
 
 
 func _on_talk_overlay_catalog_clicked(index: int) -> void:
@@ -9721,6 +9723,7 @@ func _on_talk_overlay_catalog_clicked(index: int) -> void:
 	if _talk_overlay != null:
 		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
 	_shop_qty_from_mouse_bs = true
+	_sync_shop_party_fit()
 	_choose_shop_item_menu_item()
 
 
@@ -10821,6 +10824,7 @@ func _on_tileset_changed(_tileset_id: String) -> void:
 		_save_panel.reload_class_tiles()
 	if _peer_overlay != null and _peer_overlay.has_method("invalidate_tileset"):
 		_peer_overlay.invalidate_tileset()
+	_sync_shop_party_fit()
 	_fit_explore_map()
 	if _is_in_dungeon():
 		_update_dungeon_minimap()
@@ -18992,6 +18996,75 @@ func _sync_healer_target_picker() -> void:
 		_stop_party_target_pick(false)
 
 
+func _sync_shop_party_fit() -> void:
+	## Weapon/armor buy: class tiles + E/O/X along the avatar's top edge.
+	if _talk_overlay == null or not _talk_overlay.is_open():
+		return
+	if _talk_stage != 10 or _shop == null or not _shop.has_method("buy_gear_focus"):
+		_talk_overlay.set_party_fit([])
+		return
+	var key := ""
+	if (
+		not _shop_item_menu_items.is_empty()
+		and _shop_item_menu_cursor >= 0
+		and _shop_item_menu_cursor < _shop_item_menu_items.size()
+	):
+		key = str(_shop_item_menu_items[_shop_item_menu_cursor].get("key", ""))
+	var gear: Dictionary = _shop.buy_gear_focus(key)
+	if gear.is_empty():
+		_talk_overlay.set_party_fit([])
+		return
+	_talk_overlay.set_party_fit(_shop_party_fit_slots(gear))
+
+
+func _shop_party_fit_slots(gear: Dictionary) -> Array:
+	var kind := str(gear.get("kind", ""))
+	var gear_id := int(gear.get("id", 0))
+	var blue := Color("4aa3d4")
+	var green := Color("3dcc5a")
+	var red := Color("e24b4b")
+	var plain := TalkOverlay.TEXT
+	var slots: Array = []
+	for i in GameState.party_size():
+		var mid := GameState.party_member_at(i)
+		if mid < 0:
+			continue
+		var wearing := false
+		var can := false
+		var offer := 0
+		var worn := 0
+		if kind == "weapon":
+			wearing = GameState.weapon_of_class(mid) == gear_id
+			can = WeaponIcons.can_ready(gear_id, mid)
+			offer = WeaponIcons.damage_of(gear_id)
+			worn = WeaponIcons.damage_of(GameState.weapon_of_class(mid))
+		elif kind == "armor":
+			wearing = GameState.armor_of_class(mid) == gear_id
+			can = ArmorIcons.can_wear(gear_id, mid)
+			offer = ArmorIcons.defense_of(gear_id)
+			worn = ArmorIcons.defense_of(GameState.armor_of_class(mid))
+		var mark := "x"
+		var color: Color = red
+		if wearing:
+			mark = "E"
+			color = blue
+		elif can and offer > worn:
+			mark = "▲"
+			color = green
+		elif can and offer < worn:
+			mark = "▼"
+			color = red
+		elif can:
+			mark = "o"
+			color = plain
+		slots.append({
+			"texture": PartyRoster._ztats_class_tile(mid),
+			"mark": mark,
+			"color": color,
+		})
+	return slots
+
+
 func _sync_shop_item_menu() -> void:
 	if _command_menu_layer != null and not _command_menu_open and not _talk_keyword_menu_active:
 		_command_menu_layer.visible = false
@@ -19014,6 +19087,7 @@ func _sync_shop_item_menu() -> void:
 		_shop_item_menu_line_indices.clear()
 		if _talk_overlay_owns_script() and _talk_overlay != null:
 			_talk_overlay.clear_catalog()
+			_sync_shop_party_fit()
 			## Leaving a catalog: drop leftover stock keyword chips if any.
 			if (
 				_talk_keyword_menu_active
@@ -19056,6 +19130,7 @@ func _sync_talk_overlay_catalog() -> void:
 		return
 	if _shop_item_menu_items.is_empty():
 		_talk_overlay.clear_catalog()
+		_sync_shop_party_fit()
 		return
 	var rows: Array = []
 	for raw in _shop_item_menu_items:
@@ -19077,6 +19152,7 @@ func _sync_talk_overlay_catalog() -> void:
 		_msg_gear_icon_side(_msg_font_size())
 	)
 	_talk_overlay.set_catalog(rows, _shop_item_menu_cursor)
+	_sync_shop_party_fit()
 
 
 func _sync_shop_catalog_keyword_menu(entries: Array[Dictionary]) -> void:
@@ -19146,6 +19222,7 @@ func _move_shop_item_menu_cursor(step: int) -> void:
 	)
 	if _talk_overlay_owns_script() and _talk_overlay != null:
 		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
+		_sync_shop_party_fit()
 	else:
 		_refresh_message_view()
 

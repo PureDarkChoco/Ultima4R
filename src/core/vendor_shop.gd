@@ -312,6 +312,32 @@ func shop_name() -> String:
 	return _shop
 
 
+func buy_gear_focus(catalog_key: String) -> Dictionary:
+	## Weapon/armor being browsed or confirmed for purchase. Empty if not a buy pick.
+	var key := catalog_key.strip_edges().to_lower()
+	match _phase:
+		"w_inv":
+			var wrow := _stock_row(key)
+			if wrow.is_empty():
+				return {}
+			return {"kind": "weapon", "id": int(wrow[1])}
+		"a_inv":
+			var arow := _stock_row(key)
+			if arow.is_empty():
+				return {}
+			return {"kind": "armor", "id": int(arow[1])}
+		"w_howmany", "w_take":
+			if _item_id <= 0:
+				return {}
+			return {"kind": "weapon", "id": _item_id}
+		"a_howmany", "a_take":
+			if _item_id <= 0:
+				return {}
+			return {"kind": "armor", "id": _item_id}
+		_:
+			return {}
+
+
 func item_list_entries() -> Array[Dictionary]:
 	## Buy catalogs that may be navigated with ↑↓ and accepted with Enter / A.
 	var entries: Array[Dictionary] = []
