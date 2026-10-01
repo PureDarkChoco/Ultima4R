@@ -227,6 +227,8 @@ var journal_known_cities: int = 0
 var journal_known_city_moons: int = 0
 ## Bitmasks (1 << 0 truth, 1 love, 2 courage) learned from talk.
 var journal_known_principles: int = 0
+## Bitmasks (1 << 0 VER, 1 AMO, 2 COR) heard from the principle castles.
+var journal_known_passage: int = 0
 ## Descended into Hythloth from Castle Britannia's secret entrance (lcb_1).
 var journal_hythloth_castle: bool = false
 ## Saw the balloon at Hythloth's world entrance.
@@ -548,6 +550,7 @@ func reset_party() -> void:
 	journal_known_cities = 0
 	journal_known_city_moons = 0
 	journal_known_principles = 0
+	journal_known_passage = 0
 	journal_hythloth_castle = false
 	journal_seen_hythloth_balloon = false
 	talk_known_keywords.clear()
@@ -1097,6 +1100,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	journal_known_cities = 0
 	journal_known_city_moons = 0
 	journal_known_principles = 0
+	journal_known_passage = 0
 	journal_hythloth_castle = false
 	journal_seen_hythloth_balloon = false
 	reagent_shop_prices.clear()
@@ -3396,6 +3400,7 @@ func to_save_dict() -> Dictionary:
 		"journal_known_cities": journal_known_cities,
 		"journal_known_city_moons": journal_known_city_moons,
 		"journal_known_principles": journal_known_principles,
+		"journal_known_passage": journal_known_passage,
 		"journal_hythloth_castle": journal_hythloth_castle,
 		"journal_seen_hythloth_balloon": journal_seen_hythloth_balloon,
 		"talk_known_keywords": talk_known_keywords.duplicate(true),
@@ -3513,6 +3518,7 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	journal_known_cities = int(d.get("journal_known_cities", 0))
 	journal_known_city_moons = int(d.get("journal_known_city_moons", 0))
 	journal_known_principles = int(d.get("journal_known_principles", 0))
+	journal_known_passage = int(d.get("journal_known_passage", 0))
 	journal_hythloth_castle = d.get("journal_hythloth_castle", false) == true
 	journal_seen_hythloth_balloon = d.get("journal_seen_hythloth_balloon", false) == true
 	_Journal.sync_known(self)

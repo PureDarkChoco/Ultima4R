@@ -1099,6 +1099,11 @@ const _T := {
 		"en_us": "Mantras",
 		"ko": "만트라",
 	},
+	"journal_codex_passage": {
+		"en_u4": "Word of Passage",
+		"en_us": "Word of Passage",
+		"ko": "통과의 말",
+	},
 	"journal_codex_runes": {
 		"en_u4": "Runes",
 		"en_us": "Runes",

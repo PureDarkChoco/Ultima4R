@@ -720,7 +720,7 @@ func set_dungeon_minimap(img: Image, dungeon_id: String, z: int) -> void:
 		_dungeon_map_tex.set_image(img)
 	_dungeon_map_rect.texture = _dungeon_map_tex
 	_dungeon_map_caption.text = _dungeon_map_caption_text()
-	_dungeon_map_box.visible = true
+	_dungeon_map_box.visible = _current_page() == 0
 	_fit_dungeon_map()
 
 
@@ -1271,6 +1271,9 @@ func _rebuild_codex() -> void:
 		_codex_add_section("journal_codex_dungeons", _codex_dungeon_row(dungeons))
 	if mantras != 0:
 		_codex_add_section("journal_codex_mantras", _codex_mantra_row(mantras))
+	var passage := _codex_passage_mask(gs)
+	if passage != 0:
+		_codex_add_section("journal_codex_passage", _codex_passage_row(passage))
 	if stones != 0:
 		_codex_add_section("journal_codex_stones", _codex_stone_row(gs, stones))
 	if runes != 0:
@@ -1389,6 +1392,21 @@ func _codex_city_block(gs: Node, show_mask: int) -> Control:
 	wrap.add_child(moons)
 	wrap.add_child(names)
 	return wrap
+
+
+func _codex_passage_mask(gs: Node) -> int:
+	return _Journal.known_passage_mask(gs)
+
+
+func _codex_passage_row(mask: int) -> HBoxContainer:
+	var row := _codex_slot_row()
+	const SYLLABLES := ["VER", "AMO", "COR"]
+	for i in SYLLABLES.size():
+		if (mask & (1 << i)) == 0:
+			row.add_child(_codex_empty_cell())
+		else:
+			row.add_child(_codex_text_cell(str(SYLLABLES[i])))
+	return row
 
 
 func _codex_principle_row(mask: int) -> HBoxContainer:
@@ -1565,7 +1583,7 @@ func _content_sig(
 		if gs.has_method("player_display_name"):
 			parts.append(str(gs.player_display_name()))
 		parts.append(
-			"%s:%s:%s:%s:%s:%s:%s:%s:%s" % [
+			"%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % [
 				str(gs.get("journal_known_cities")),
 				str(gs.get("journal_known_city_moons")),
 				str(gs.get("runes")),
@@ -1575,6 +1593,7 @@ func _content_sig(
 				str(_Journal.known_stone_mask(gs)),
 				str(_Journal.known_principle_mask(gs)),
 				str(int(gs.get("items")) if gs.get("items") != null else 0),
+				str(_codex_passage_mask(gs)),
 			]
 		)
 	var coll_keys: Array = collapsed.keys()
@@ -1636,6 +1655,11 @@ func _apply_page() -> void:
 		_page1.visible = page == 0
 	if _page2 != null:
 		_page2.visible = page == 1
+	if _dungeon_map_box != null:
+		var has_map := _dungeon_map_rect != null and _dungeon_map_rect.texture != null
+		_dungeon_map_box.visible = page == 0 and has_map
+		if _dungeon_map_box.visible:
+			_fit_dungeon_map()
 	_refresh_page_mark()
 
 

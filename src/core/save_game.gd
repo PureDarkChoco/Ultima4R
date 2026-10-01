@@ -7,7 +7,8 @@ extends RefCounted
 
 ## Bump when the save schema or journal cleanup rules change.
 ## 1 = first JSON slots. 2 = locate chart + journal catalog prune on load.
-const VERSION := 2
+## 3 = codex word-of-passage syllables backfilled from journal rows on load.
+const VERSION := 3
 const SLOT_COUNT := 4
 const DIR := "user://saves"
 const PREFS_PATH := "user://saves/prefs.json"

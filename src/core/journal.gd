@@ -717,6 +717,8 @@ static func migrate_loaded(gs: Node, from_version: int = 0) -> bool:
 		return false
 	var _from := maxi(0, from_version)
 	var changed := mark_goals_for_inventory(gs)
+	if _from < 3 and _migrate_passage_codex(gs):
+		changed = true
 	if _prune_unknown_catalog_rows(gs):
 		changed = true
 	if _prune_stale_journal_ui(gs):
@@ -1538,11 +1540,38 @@ static func known_stone_mask(gs: Node) -> int:
 	return int(gs.stones) | int(gs.journal_known_stones)
 
 
+static func _migrate_passage_codex(gs: Node) -> bool:
+	## Older slots already store the castle syllables as journal rows.
+	if gs == null:
+		return false
+	var any := false
+	if has_entry_id(gs, "lycaeum.frasier.word-ver"):
+		mark_known_passage(gs, "ver")
+		any = true
+	if has_entry_id(gs, "empath.robert.word-amo"):
+		mark_known_passage(gs, "amo")
+		any = true
+	if has_entry_id(gs, "serpent.sentri.word-cor"):
+		mark_known_passage(gs, "cor")
+		any = true
+	if not any:
+		return false
+	mark_codex_unseen(gs)
+	return true
+
+
 static func known_principle_mask(gs: Node) -> int:
 	sync_known(gs)
 	if gs == null:
 		return 0
 	return int(gs.journal_known_principles)
+
+
+static func known_passage_mask(gs: Node) -> int:
+	sync_known(gs)
+	if gs == null:
+		return 0
+	return int(gs.journal_known_passage)
 
 
 static func capture_know(gs: Node, raw: Variant) -> bool:
@@ -1703,6 +1732,8 @@ static func _apply_know_token(gs: Node, raw: String) -> bool:
 		)
 	if k.begins_with("principle:"):
 		return mark_known_principle(gs, k.substr(10))
+	if k.begins_with("passage:"):
+		return mark_known_passage(gs, k.substr(8))
 	return false
 
 
@@ -1723,6 +1754,26 @@ static func mark_known_principle(gs: Node, token: String) -> bool:
 	if (int(gs.journal_known_principles) & bit) != 0:
 		return false
 	gs.journal_known_principles = int(gs.journal_known_principles) | bit
+	return true
+
+
+static func mark_known_passage(gs: Node, token: String) -> bool:
+	## VER / AMO / COR — same column order as Truth / Love / Courage.
+	if gs == null:
+		return false
+	var bit := 0
+	match token.strip_edges().to_lower():
+		"ver", "0":
+			bit = 1
+		"amo", "1":
+			bit = 2
+		"cor", "2":
+			bit = 4
+		_:
+			return false
+	if (int(gs.journal_known_passage) & bit) != 0:
+		return false
+	gs.journal_known_passage = int(gs.journal_known_passage) | bit
 	return true
 
 
