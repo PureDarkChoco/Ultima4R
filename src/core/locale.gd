@@ -3183,6 +3183,11 @@ const _T := {
 		"en_us": "If all eight virtues of the Avatar combine into and are derived from the three principles of Truth, Love and Courage, then what is the one thing which encompasses and is the whole of all undeniable Truth, unending Love, and unyielding Courage?",
 		"ko": "아바타의 여덟 미덕이 진리·사랑·용기 세 원리에서 나와 하나로 합쳐진다면, 부정할 수 없는 진리와 끝없는 사랑과 꺾이지 않는 용기 전체를 아우르는 그 하나는?",
 	},
+	"cmd_codex_q_passage": {
+		"en_u4": "What is the Word of Passage?",
+		"en_us": "What is the word of passage?",
+		"ko": "통과의 말은 무엇인가?",
+	},
 	"cmd_codex_wrong": {
 		"en_u4": "Passage is not granted.",
 		"en_us": "Passage is not granted.",

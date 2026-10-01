@@ -114,7 +114,7 @@ static func _principle_name(kind: int, lang: String) -> String:
 
 
 static func infinity_choice_unlocked(gs: Node) -> bool:
-	## Show Infinity only after the axiom word (or every virtue + principle) is known.
+	## Infinity chip only after the axiom word (or every virtue + principle) is known.
 	if gs == null:
 		return false
 	if gs.talk_has_heard_word("infinity") or gs.talk_has_heard_word("무한"):

@@ -287,7 +287,9 @@ var _abyss_altar_buffer := ""
 ## -1 means generic keyboard "stone(s)"; otherwise a preselected stone flag.
 var _abyss_altar_stone_flag := -1
 var _abyss_altar_choice_active := false
+## Use-stone dialogue: keyword lists stay closed until a mouse or gamepad pick.
 var _abyss_altar_show_choices := false
+var _use_pick_pointer := false
 var _abyss_altar_choice_cursor := 0
 var _abyss_altar_choice_items: Array[Dictionary] = []
 ## Hole up & Camp: 0 = idle, 1 = resting, 2 = set watch? Y/N, 3 = pick guard.
@@ -391,6 +393,10 @@ var _codex_choice_cursor := 0
 var _codex_choice_items: Array[Dictionary] = []
 var _codex_endgame := false
 var _codex_end_waiting := false
+## First Codex gate: assemble VERAMOCOR. Chips append; typing then Enter submits.
+var _codex_passage := false
+var _codex_passage_manual := false
+var _codex_passage_stack: Array[String] = []
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
 var _enter_prompt_stage := 0
 var _enter_prompt_choice := 0 ## selected button index in the dialogue choice row
@@ -1788,6 +1794,18 @@ func _rebuild_command_menu_rows() -> void:
 
 
 func _on_command_menu_row_hover(index: int) -> void:
+	if _codex_choice_active:
+		if index < 0 or index >= _codex_choice_items.size() or index == _codex_choice_cursor:
+			return
+		_codex_choice_cursor = index
+		_layout_command_menu_layer()
+		return
+	if _abyss_altar_choice_active:
+		if index < 0 or index >= _abyss_altar_choice_items.size() or index == _abyss_altar_choice_cursor:
+			return
+		_abyss_altar_choice_cursor = index
+		_layout_command_menu_layer()
+		return
 	if not _command_menu_open or index < 0 or index >= _command_menu_items.size():
 		return
 	if _command_menu_cursor == index:
@@ -1807,7 +1825,23 @@ func _on_command_menu_row_gui(index: int, event: InputEvent) -> void:
 			_close_command_menu()
 			accept_event()
 		return
-	if mb.button_index != MOUSE_BUTTON_LEFT or not _command_menu_open:
+	if mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if _codex_choice_active:
+		if index < 0 or index >= _codex_choice_items.size():
+			return
+		_codex_choice_cursor = index
+		_choose_codex_choice(true)
+		accept_event()
+		return
+	if _abyss_altar_choice_active:
+		if index < 0 or index >= _abyss_altar_choice_items.size():
+			return
+		_abyss_altar_choice_cursor = index
+		_choose_abyss_altar_choice(true)
+		accept_event()
+		return
+	if not _command_menu_open:
 		return
 	if index < 0 or index >= _command_menu_items.size():
 		return
@@ -2187,10 +2221,15 @@ func _prompt_row_text() -> String:
 	if _cast_stage == 7:
 		return Locale.t("cast_phase")
 	if _use_stage == 1:
-		return Locale.t("cmd_use_which") + (
-			" " + _use_buffer if not _use_buffer.is_empty() else ""
-		)
+		var typed := ""
+		if _use_native_hangul_active():
+			typed = " " + _talk_input_mode_marker() + _use_buffer + _talk_hangul_preedit
+		elif not _use_buffer.is_empty():
+			typed = " " + _use_buffer
+		return Locale.t("cmd_use_which") + typed
 	if _abyss_altar_stage > 0:
+		if _abyss_altar_native_hangul_active():
+			return _talk_input_mode_marker() + _abyss_altar_buffer + _talk_hangul_preedit
 		return _abyss_altar_buffer
 	if _ztats_stage == 1:
 		return Locale.t("cmd_ztats_for")
@@ -4187,7 +4226,7 @@ func _try_mouse_item_list_pick(lmb_pressed: bool) -> bool:
 		_mouse_hover_list_row(_cast_panel, lmb_pressed, Callable(self, "_accept_cast_cursor"))
 		return true
 	if _use_stage == 1 and _use_panel != null and _use_panel.visible:
-		_mouse_hover_list_row(_use_panel, lmb_pressed, Callable(self, "_confirm_use_cursor"))
+		_mouse_hover_list_row(_use_panel, lmb_pressed, Callable(self, "_confirm_use_from_pointer"))
 		return true
 	if (_mix_stage == 1 or _mix_stage == 2) and _mix_panel != null and _mix_panel.visible:
 		if _try_mouse_mix_stock(lmb_pressed):
@@ -14341,6 +14380,8 @@ func _do_use() -> void:
 	## Gamepad Use on an Abyss altar skips typing "stone" and asks the virtue.
 	var from_pad := _use_gamepad_requested
 	_use_gamepad_requested = false
+	_use_pick_pointer = false
+	_abyss_altar_show_choices = false
 	_clear_pending_order()
 	_close_ztats(false)
 	_close_ready(false)
@@ -14388,6 +14429,8 @@ func _handle_use_input(event: InputEvent) -> bool:
 		if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 			_on_escape()
 			return true
+		if _use_native_hangul_active() and _handle_use_native_hangul(k):
+			return true
 		if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
 			if not _use_buffer.is_empty():
 				_use_buffer = _use_buffer.substr(0, _use_buffer.length() - 1)
@@ -14401,12 +14444,13 @@ func _handle_use_input(event: InputEvent) -> bool:
 		return true
 	if event is InputEventKey and _is_order_confirm_key(event as InputEventKey):
 		if _use_buffer.strip_edges().is_empty():
+			_use_pick_pointer = false
 			_confirm_use_cursor()
 		else:
 			_confirm_typed_use()
 		return true
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
-		_confirm_use_cursor()
+		_confirm_use_from_pointer()
 		return true
 	if event is InputEventKey and _is_direction_key(event as InputEventKey):
 		return true
@@ -14418,6 +14462,77 @@ func _handle_use_input(event: InputEvent) -> bool:
 			_layout_prompt_row()
 		return true
 	return true
+
+
+func _use_native_hangul_active() -> bool:
+	if _use_stage != 1 or str(GameState.language) != "ko":
+		return false
+	_ensure_talk_hangul()
+	return _talk_hangul != null
+
+
+func _handle_use_native_hangul(k: InputEventKey) -> bool:
+	if not k.pressed or _talk_hangul == null:
+		return false
+	if _is_talk_input_mode_toggle(k):
+		if HangulInputSettings.is_korean_mode():
+			_use_append_hangul(str(_talk_hangul.call("flush")))
+			_talk_hangul_preedit = ""
+		else:
+			_talk_hangul.call("reset")
+		HangulInputSettings.toggle_input_mode()
+		_layout_prompt_row()
+		return true
+	if _is_order_confirm_key(k):
+		_use_append_hangul(str(_talk_hangul.call("flush")))
+		_talk_hangul_preedit = ""
+		if _use_buffer.strip_edges().is_empty():
+			_use_pick_pointer = false
+			_confirm_use_cursor()
+		else:
+			_confirm_typed_use()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		var erased: Dictionary = _talk_hangul.call("backspace") as Dictionary
+		if bool(erased.get("consumed", false)):
+			_talk_hangul_preedit = str(erased.get("preedit", ""))
+			_layout_prompt_row()
+			return true
+		_talk_hangul_preedit = ""
+		if not _use_buffer.is_empty():
+			_use_buffer = _use_buffer.substr(0, _use_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return true
+	var ascii := _talk_physical_ascii(k)
+	if ascii < 0:
+		return false
+	if _use_buffer.length() >= 24 and _talk_hangul_preedit.is_empty():
+		return true
+	if not HangulInputSettings.is_korean_mode():
+		_use_append_hangul(String.chr(ascii))
+		_layout_prompt_row()
+		return true
+	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
+	_use_append_hangul(str(result.get("commit", "")))
+	_talk_hangul_preedit = str(result.get("preedit", ""))
+	if not bool(result.get("consumed", false)):
+		_use_append_hangul(String.chr(ascii))
+	_layout_prompt_row()
+	return true
+
+
+func _use_append_hangul(text: String) -> void:
+	if text.is_empty() or _use_buffer.length() >= 24:
+		return
+	var room := 24 - _use_buffer.length()
+	_use_buffer += text.substr(0, room)
+
+
+func _confirm_use_from_pointer() -> void:
+	_use_pick_pointer = true
+	_confirm_use_cursor()
 
 
 func _confirm_use_cursor() -> void:
@@ -14439,7 +14554,7 @@ func _confirm_use_kind(kind: int) -> void:
 
 func _confirm_typed_use() -> void:
 	var typed := _use_buffer.strip_edges().to_lower()
-	if typed in ["stone", "stones"]:
+	if typed in ["stone", "stones", "돌"]:
 		_close_use(false)
 		_push_message(Locale.t("cmd_use_stones_generic"), false)
 		_begin_abyss_altar_use(-1, false)
@@ -14672,6 +14787,7 @@ func _close_use(show_none: bool) -> void:
 		return
 	_use_stage = 0
 	_use_buffer = ""
+	_reset_talk_hangul()
 	if _use_panel:
 		_use_panel.close_panel()
 	if _roster:
@@ -16657,7 +16773,9 @@ func _use_virtue_stone(kind: int) -> void:
 		await _finish_use_command()
 		return
 	if _dungeon_id == _DungeonPortals.ID_ABYSS:
-		_begin_abyss_altar_use(flag, true)
+		var pointer := _use_pick_pointer
+		_use_pick_pointer = false
+		_begin_abyss_altar_use(flag, pointer)
 		return
 	if _dungeon_room_index != _DungeonPortals.ALTAR_ROOM_INDEX and not _dungeon_in_altar_room_cell():
 		_push_message(Locale.t("cmd_use_no_place"), false)
@@ -16777,8 +16895,12 @@ func _abyss_altar_choice_list() -> Array[Dictionary]:
 	return out
 
 
-func _open_abyss_altar_choice_menu() -> void:
+func _open_abyss_altar_choice_menu(from_pointer: bool = false) -> void:
 	if _abyss_altar_stage == 0:
+		return
+	if from_pointer:
+		_abyss_altar_show_choices = true
+	if not _abyss_altar_show_choices:
 		return
 	_abyss_altar_choice_items = _abyss_altar_choice_list()
 	if _abyss_altar_choice_items.is_empty():
@@ -16786,6 +16908,7 @@ func _open_abyss_altar_choice_menu() -> void:
 	_abyss_altar_choice_active = true
 	_abyss_altar_choice_cursor = 0
 	_abyss_altar_buffer = ""
+	_reset_talk_hangul()
 	_reset_hold_state()
 	_rebuild_command_menu_rows()
 	_show_command_menu_layer(true)
@@ -16812,7 +16935,7 @@ func _toggle_abyss_altar_choice_menu() -> void:
 	if _abyss_altar_choice_active:
 		_close_abyss_altar_choice_menu()
 	else:
-		_open_abyss_altar_choice_menu()
+		_open_abyss_altar_choice_menu(true)
 	_layout_prompt_row()
 
 
@@ -16827,7 +16950,9 @@ func _nudge_abyss_altar_choice(step: int) -> void:
 	_layout_prompt_row()
 
 
-func _choose_abyss_altar_choice() -> void:
+func _choose_abyss_altar_choice(from_pointer: bool = false) -> void:
+	if from_pointer:
+		_abyss_altar_show_choices = true
 	if (
 		not _abyss_altar_choice_active
 		or _abyss_altar_choice_cursor < 0
@@ -16844,10 +16969,19 @@ func _handle_abyss_altar_input(event: InputEvent) -> bool:
 		if not _abyss_altar_choice_active:
 			var motion_dir := _GameInput.dir_from_event(event)
 			if motion_dir.y != 0:
-				_open_abyss_altar_choice_menu()
+				_open_abyss_altar_choice_menu(true)
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
+	if event is InputEventMouseButton:
+		var altar_mb := event as InputEventMouseButton
+		if (
+			altar_mb.pressed
+			and altar_mb.button_index == MOUSE_BUTTON_LEFT
+			and not _abyss_altar_choice_active
+		):
+			_open_abyss_altar_choice_menu(true)
+		return true
 	if event is InputEventJoypadButton:
 		var button := event as InputEventJoypadButton
 		if button.button_index == _GameInput.cancel_button() or button.is_action_pressed("cancel"):
@@ -16855,9 +16989,9 @@ func _handle_abyss_altar_input(event: InputEvent) -> bool:
 			return true
 		if button.button_index == _GameInput.confirm_button() or button.is_action_pressed("confirm"):
 			if not _abyss_altar_choice_active:
-				_open_abyss_altar_choice_menu()
+				_open_abyss_altar_choice_menu(true)
 			else:
-				_choose_abyss_altar_choice()
+				_choose_abyss_altar_choice(true)
 			return true
 		return true
 	if not (event is InputEventKey):
@@ -16866,9 +17000,9 @@ func _handle_abyss_altar_input(event: InputEvent) -> bool:
 	if k.keycode == KEY_ESCAPE or k.physical_keycode == KEY_ESCAPE:
 		_cancel_abyss_altar_use()
 		return true
+	if _abyss_altar_native_hangul_active() and _handle_abyss_altar_native_hangul(k):
+		return true
 	if _is_direction_key(k):
-		if not _abyss_altar_choice_active:
-			_open_abyss_altar_choice_menu()
 		return true
 	if _is_order_confirm_key(k):
 		if _abyss_altar_buffer.strip_edges().is_empty() and _abyss_altar_choice_active:
@@ -16890,6 +17024,73 @@ func _handle_abyss_altar_input(event: InputEvent) -> bool:
 	return true
 
 
+func _abyss_altar_native_hangul_active() -> bool:
+	if _abyss_altar_stage <= 0 or str(GameState.language) != "ko":
+		return false
+	_ensure_talk_hangul()
+	return _talk_hangul != null
+
+
+func _handle_abyss_altar_native_hangul(k: InputEventKey) -> bool:
+	if not k.pressed or _talk_hangul == null:
+		return false
+	if _is_talk_input_mode_toggle(k):
+		if HangulInputSettings.is_korean_mode():
+			var flushed := str(_talk_hangul.call("flush"))
+			if not flushed.is_empty() and _abyss_altar_buffer.length() < 24:
+				var room := 24 - _abyss_altar_buffer.length()
+				_abyss_altar_buffer += flushed.substr(0, room)
+			_talk_hangul_preedit = ""
+		else:
+			_talk_hangul.call("reset")
+		HangulInputSettings.toggle_input_mode()
+		_layout_prompt_row()
+		return true
+	if _is_order_confirm_key(k):
+		var flushed := str(_talk_hangul.call("flush"))
+		if not flushed.is_empty() and _abyss_altar_buffer.length() < 24:
+			var room := 24 - _abyss_altar_buffer.length()
+			_abyss_altar_buffer += flushed.substr(0, room)
+		_talk_hangul_preedit = ""
+		if _abyss_altar_buffer.strip_edges().is_empty() and _abyss_altar_choice_active:
+			_choose_abyss_altar_choice()
+		else:
+			_submit_abyss_altar_answer()
+		return true
+	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		var erased: Dictionary = _talk_hangul.call("backspace") as Dictionary
+		if bool(erased.get("consumed", false)):
+			_talk_hangul_preedit = str(erased.get("preedit", ""))
+			_layout_prompt_row()
+			return true
+		_talk_hangul_preedit = ""
+		if not _abyss_altar_buffer.is_empty():
+			_abyss_altar_buffer = _abyss_altar_buffer.substr(0, _abyss_altar_buffer.length() - 1)
+			_layout_prompt_row()
+		return true
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return true
+	var ascii := _talk_physical_ascii(k)
+	if ascii < 0:
+		return false
+	if _abyss_altar_buffer.length() >= 24 and _talk_hangul_preedit.is_empty():
+		return true
+	if not HangulInputSettings.is_korean_mode():
+		_abyss_altar_buffer += String.chr(ascii)
+		_layout_prompt_row()
+		return true
+	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
+	var commit := str(result.get("commit", ""))
+	if not commit.is_empty() and _abyss_altar_buffer.length() < 24:
+		var room := 24 - _abyss_altar_buffer.length()
+		_abyss_altar_buffer += commit.substr(0, room)
+	_talk_hangul_preedit = str(result.get("preedit", ""))
+	if not bool(result.get("consumed", false)) and _abyss_altar_buffer.length() < 24:
+		_abyss_altar_buffer += String.chr(ascii)
+	_layout_prompt_row()
+	return true
+
+
 func _submit_abyss_altar_answer() -> void:
 	var typed := _abyss_altar_buffer.strip_edges()
 	_abyss_altar_buffer = ""
@@ -16904,6 +17105,7 @@ func _submit_abyss_altar_answer() -> void:
 			return
 		_abyss_altar_stage = 2
 		_close_abyss_altar_choice_menu()
+		_reset_talk_hangul()
 		_push_message(Locale.t("cmd_use_abyss_stone_prompt"), false)
 		_layout_prompt_row()
 		## Gamepad Use skipped "stone" and still needs a color pick from owned stones.
@@ -16952,6 +17154,7 @@ func _complete_abyss_altar_stone(flag: int) -> void:
 	if flag != need:
 		_push_message(Locale.t("cmd_use_abyss_stone_wrong"), false)
 		_end_abyss_altar_use()
+		_abyss_altar_show_choices = false
 		_finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_abyss_stone"), false)
@@ -16967,11 +17170,13 @@ func _complete_abyss_altar_stone(flag: int) -> void:
 		):
 			_refresh_journal_panel()
 		_end_abyss_altar_use()
+		_abyss_altar_show_choices = false
 		_finish_use_command()
 		return
 	_end_abyss_altar_use()
 	if not _DungeonPortals.has_three_keys():
 		_push_message(Locale.t("cmd_abyss_need_keys"), false)
+		_abyss_altar_show_choices = false
 		_finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_abyss_keys"), false)
@@ -16981,11 +17186,13 @@ func _complete_abyss_altar_stone(flag: int) -> void:
 func _fail_abyss_altar_use() -> void:
 	_push_message(Locale.t("cmd_use_no_effect"), false)
 	_end_abyss_altar_use()
+	_abyss_altar_show_choices = false
 	_finish_use_command()
 
 
 func _cancel_abyss_altar_use() -> void:
 	_end_abyss_altar_use()
+	_abyss_altar_show_choices = false
 	_push_message(Locale.t("cmd_none"), false)
 	_finish_use_command()
 
@@ -16994,7 +17201,7 @@ func _end_abyss_altar_use() -> void:
 	_abyss_altar_stage = 0
 	_abyss_altar_buffer = ""
 	_abyss_altar_stone_flag = -1
-	_abyss_altar_show_choices = false
+	_reset_talk_hangul()
 	_close_abyss_altar_choice_menu()
 	_layout_prompt_row()
 
@@ -17026,6 +17233,7 @@ func _use_principle_key() -> void:
 		await _finish_use_command()
 		return
 	_push_message(Locale.t("cmd_use_abyss_keys"), false)
+	_abyss_altar_show_choices = false
 	await _finish_use_command()
 	_begin_codex()
 
@@ -17035,6 +17243,9 @@ func _begin_codex() -> void:
 	if _use_panel:
 		_use_panel.close_panel()
 	_codex_stage = 1
+	_codex_passage = true
+	_codex_passage_manual = false
+	_codex_passage_stack.clear()
 	_codex_buffer = ""
 	_reset_talk_hangul()
 	_ensure_codex_overlay()
@@ -17054,7 +17265,11 @@ func _show_codex_stage() -> void:
 		_layout_codex_overlay()
 		call_deferred("_layout_codex_overlay")
 	_push_message(Locale.t("cmd_codex_voice"), false)
-	var qkey := _CodexChamber.question_key(_codex_stage)
+	var qkey := (
+		"cmd_codex_q_passage"
+		if _codex_passage
+		else _CodexChamber.question_key(_codex_stage)
+	)
 	if not qkey.is_empty():
 		_push_message(Locale.t(qkey), false)
 	_layout_prompt_row()
@@ -17068,10 +17283,17 @@ func _codex_native_hangul_active() -> bool:
 	return _talk_hangul != null
 
 
-func _open_codex_choice_menu() -> void:
+func _open_codex_choice_menu(from_pointer: bool = false) -> void:
 	if _codex_stage <= 0 or _codex_endgame:
 		return
-	_codex_choice_items = _CodexChamber.choice_items(GameState, _codex_stage)
+	if from_pointer:
+		_abyss_altar_show_choices = true
+	if not _abyss_altar_show_choices:
+		return
+	if _codex_passage:
+		_codex_choice_items = _codex_passage_items()
+	else:
+		_codex_choice_items = _CodexChamber.choice_items(GameState, _codex_stage)
 	if _codex_choice_items.is_empty():
 		_codex_choice_active = false
 		_layout_prompt_row()
@@ -17104,15 +17326,16 @@ func _toggle_codex_choice_menu() -> void:
 	if _codex_choice_active:
 		_close_codex_choice_menu()
 	else:
-		_open_codex_choice_menu()
+		_open_codex_choice_menu(true)
 	_layout_prompt_row()
 
 
 func _nudge_codex_choice(step: int) -> void:
 	if not _codex_choice_active or _codex_choice_items.is_empty() or step == 0:
 		return
-	_codex_buffer = ""
-	_reset_talk_hangul()
+	if not _codex_passage:
+		_codex_buffer = ""
+		_reset_talk_hangul()
 	_codex_choice_cursor = posmod(
 		_codex_choice_cursor + step, _codex_choice_items.size()
 	)
@@ -17120,7 +17343,9 @@ func _nudge_codex_choice(step: int) -> void:
 	_layout_prompt_row()
 
 
-func _choose_codex_choice() -> void:
+func _choose_codex_choice(from_pointer: bool = false) -> void:
+	if from_pointer:
+		_abyss_altar_show_choices = true
 	if (
 		not _codex_choice_active
 		or _codex_choice_cursor < 0
@@ -17128,6 +17353,9 @@ func _choose_codex_choice() -> void:
 	):
 		return
 	var item: Dictionary = _codex_choice_items[_codex_choice_cursor]
+	if _codex_passage:
+		_codex_passage_take(str(item.get("input", "")))
+		return
 	_codex_buffer = str(item.get("input", ""))
 	_reset_talk_hangul()
 	_submit_codex_answer()
@@ -17138,6 +17366,10 @@ func _end_codex_session() -> void:
 	_codex_buffer = ""
 	_codex_endgame = false
 	_codex_end_waiting = false
+	_codex_passage = false
+	_codex_passage_manual = false
+	_codex_passage_stack.clear()
+	_abyss_altar_show_choices = false
 	_reset_talk_hangul()
 	_close_codex_choice_menu()
 	if _codex_overlay != null:
@@ -17155,13 +17387,22 @@ func _handle_codex_input(event: InputEvent) -> bool:
 			_codex_end_waiting = false
 		return true
 	if event is InputEventJoypadMotion:
-		if not _codex_choice_active:
+		if not _codex_choice_active and not _codex_endgame:
 			var motion_dir := _GameInput.dir_from_event(event)
 			if motion_dir.y != 0:
-				_open_codex_choice_menu()
+				_open_codex_choice_menu(true)
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
+	if event is InputEventMouseButton:
+		var codex_mb := event as InputEventMouseButton
+		if (
+			codex_mb.pressed
+			and codex_mb.button_index == MOUSE_BUTTON_LEFT
+			and not _codex_choice_active
+		):
+			_open_codex_choice_menu(true)
+		return true
 	if event is InputEventJoypadButton:
 		var button := event as InputEventJoypadButton
 		if button.button_index == _GameInput.cancel_button() or button.is_action_pressed("cancel"):
@@ -17169,9 +17410,11 @@ func _handle_codex_input(event: InputEvent) -> bool:
 			return true
 		if button.button_index == _GameInput.confirm_button() or button.is_action_pressed("confirm"):
 			if not _codex_choice_active:
-				_open_codex_choice_menu()
+				_open_codex_choice_menu(true)
+			elif _codex_passage:
+				_codex_confirm_or_append()
 			else:
-				_choose_codex_choice()
+				_choose_codex_choice(true)
 			return true
 		return true
 	if not (event is InputEventKey):
@@ -17181,24 +17424,27 @@ func _handle_codex_input(event: InputEvent) -> bool:
 		_codex_fail()
 		return true
 	if _is_direction_key(k):
-		if not _codex_choice_active:
-			_open_codex_choice_menu()
 		return true
 	if _codex_native_hangul_active() and _handle_codex_native_hangul(k):
 		return true
 	if _is_order_confirm_key(k):
-		if _codex_buffer.strip_edges().is_empty() and _codex_choice_active:
+		if _codex_passage:
+			_codex_confirm_or_append()
+		elif _codex_buffer.strip_edges().is_empty() and _codex_choice_active:
 			_choose_codex_choice()
 		else:
 			_submit_codex_answer()
 		return true
 	if k.keycode == KEY_BACKSPACE or k.physical_keycode == KEY_BACKSPACE:
+		if _codex_passage_backspace():
+			return true
 		if not _codex_buffer.is_empty():
 			_codex_buffer = _codex_buffer.substr(0, _codex_buffer.length() - 1)
 			_layout_prompt_row()
 		return true
 	var ch := _shrine_char_from_key(k)
 	if not ch.is_empty() and _codex_buffer.length() < 24:
+		_codex_passage_mark_typed()
 		_codex_buffer += ch
 		_layout_prompt_row()
 	return true
@@ -17221,9 +17467,12 @@ func _handle_codex_native_hangul(k: InputEventKey) -> bool:
 	if _is_order_confirm_key(k):
 		var flushed := str(_talk_hangul.call("flush"))
 		if not flushed.is_empty():
+			_codex_passage_mark_typed()
 			_codex_buffer += flushed
 		_talk_hangul_preedit = ""
-		if _codex_buffer.strip_edges().is_empty() and _codex_choice_active:
+		if _codex_passage:
+			_codex_confirm_or_append()
+		elif _codex_buffer.strip_edges().is_empty() and _codex_choice_active:
 			_choose_codex_choice()
 		else:
 			_submit_codex_answer()
@@ -17235,6 +17484,8 @@ func _handle_codex_native_hangul(k: InputEventKey) -> bool:
 			_layout_prompt_row()
 			return true
 		_talk_hangul_preedit = ""
+		if _codex_passage_backspace():
+			return true
 		if not _codex_buffer.is_empty():
 			_codex_buffer = _codex_buffer.substr(0, _codex_buffer.length() - 1)
 			_layout_prompt_row()
@@ -17247,14 +17498,111 @@ func _handle_codex_native_hangul(k: InputEventKey) -> bool:
 	if _codex_buffer.length() >= 24 and _talk_hangul_preedit.is_empty():
 		return true
 	if not HangulInputSettings.is_korean_mode():
+		_codex_passage_mark_typed()
 		_codex_buffer += String.chr(ascii)
 		_layout_prompt_row()
 		return true
 	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
-	_codex_buffer += str(result.get("commit", ""))
+	var commit := str(result.get("commit", ""))
+	if not commit.is_empty():
+		_codex_passage_mark_typed()
+		_codex_buffer += commit
 	_talk_hangul_preedit = str(result.get("preedit", ""))
 	if not bool(result.get("consumed", false)):
+		_codex_passage_mark_typed()
 		_codex_buffer += String.chr(ascii)
+	_layout_prompt_row()
+	return true
+
+
+func _codex_passage_items() -> Array[Dictionary]:
+	## Syllables learned from the three principle castles, still unpicked.
+	var known := [
+		{"id": "lycaeum.frasier.word-ver", "syl": "VER"},
+		{"id": "empath.robert.word-amo", "syl": "AMO"},
+		{"id": "serpent.sentri.word-cor", "syl": "COR"},
+	]
+	var out: Array[Dictionary] = []
+	for row in known:
+		var syl := str(row.get("syl", ""))
+		if _codex_passage_stack.has(syl):
+			continue
+		if not GameState.journal_has_id(str(row.get("id", ""))):
+			continue
+		out.append({"label": syl, "input": syl})
+	return out
+
+
+func _codex_passage_built() -> String:
+	var built := ""
+	for part in _codex_passage_stack:
+		built += part
+	return built
+
+
+func _codex_passage_mark_typed() -> void:
+	if _codex_passage:
+		_codex_passage_manual = true
+
+
+func _codex_passage_answer_ok(typed: String) -> bool:
+	var got := typed.strip_edges().to_lower().replace(" ", "")
+	return got == "veramocor"
+
+
+func _codex_confirm_or_append() -> void:
+	## Chips keep waiting. Enter submits once none remain, or after free typing.
+	if (
+		_codex_passage
+		and not _codex_passage_manual
+		and _codex_choice_active
+		and not _codex_passage_items().is_empty()
+	):
+		_choose_codex_choice()
+		return
+	_submit_codex_answer()
+
+
+func _codex_passage_take(syllable: String) -> void:
+	var syl := syllable.strip_edges()
+	if syl.is_empty():
+		return
+	if _codex_choice_cursor >= 0 and _codex_choice_cursor < _codex_choice_items.size():
+		_codex_choice_items.remove_at(_codex_choice_cursor)
+	if _codex_passage_manual:
+		_codex_buffer += syl
+	else:
+		_codex_passage_stack.append(syl)
+		_codex_buffer = _codex_passage_built()
+	_reset_talk_hangul()
+	if _codex_choice_items.is_empty():
+		_close_codex_choice_menu()
+	else:
+		if _codex_choice_cursor >= _codex_choice_items.size():
+			_codex_choice_cursor = _codex_choice_items.size() - 1
+		_rebuild_command_menu_rows()
+		_show_command_menu_layer(false)
+		_layout_command_menu_layer()
+	_layout_prompt_row()
+
+
+func _codex_passage_backspace() -> bool:
+	if not _codex_passage:
+		return false
+	if _codex_passage_manual:
+		if _codex_buffer.is_empty():
+			_codex_passage_manual = false
+			return false
+		_codex_buffer = _codex_buffer.substr(0, _codex_buffer.length() - 1)
+		if _codex_buffer == _codex_passage_built():
+			_codex_passage_manual = false
+		_layout_prompt_row()
+		return true
+	if _codex_passage_stack.is_empty():
+		return false
+	_codex_passage_stack.pop_back()
+	_codex_buffer = _codex_passage_built()
+	_open_codex_choice_menu()
 	_layout_prompt_row()
 	return true
 
@@ -17265,6 +17613,16 @@ func _submit_codex_answer() -> void:
 	_reset_talk_hangul()
 	if not typed.is_empty():
 		_push_message(typed, false)
+	if _codex_passage:
+		if not _codex_passage_answer_ok(typed):
+			_codex_fail()
+			return
+		_codex_passage = false
+		_codex_passage_manual = false
+		_codex_passage_stack.clear()
+		_codex_stage = 1
+		_show_codex_stage()
+		return
 	if not _CodexChamber.answer_ok(_codex_stage, typed):
 		_codex_fail()
 		return
