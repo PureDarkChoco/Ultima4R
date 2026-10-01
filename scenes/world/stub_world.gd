@@ -18900,7 +18900,11 @@ func _flush_shop_output() -> void:
 	for item_key in item_line_offsets:
 		_shop_item_line_by_key[item_key] = flush_start + int(item_line_offsets[item_key])
 	if bool(_shop.finished):
-		_end_shop()
+		## NPC Bye: keep the closing line up until a click or key.
+		if flushed_line_count > 0:
+			_hold_shop_farewell()
+		else:
+			_end_shop()
 		return
 	_talk_buffer = ""
 	_sync_shop_item_menu()
@@ -18919,6 +18923,36 @@ func _flush_shop_output() -> void:
 	_refresh_party()
 	_sync_shop_character_inv()
 	_sync_healer_target_picker()
+
+
+func _hold_shop_farewell() -> void:
+	## Shop session stays alive so horse / inn / room apply after the key.
+	_talk_stage = TALK_STAGE_FAREWELL
+	_talk_buffer = ""
+	_reset_talk_hangul()
+	_shop_qty_from_mouse_bs = false
+	_shop_item_menu_items.clear()
+	_shop_item_menu_line_indices.clear()
+	_shop_item_line_by_key.clear()
+	_shop_item_menu_cursor = 0
+	_end_talk_keyword_menu()
+	if _party_target_kind == PartyTargetKind.HEALER:
+		_stop_party_target_pick(false)
+	_clear_shop_character_inv()
+	if _talk_overlay != null and _talk_overlay.is_open():
+		_talk_overlay.set_player_lead("")
+		_talk_overlay.set_keywords([], 0, {})
+		_talk_overlay.clear_catalog()
+		_talk_overlay.set_input_visible(false)
+		_talk_overlay.set_number_pad(false)
+		_talk_overlay.set_mode_marker("")
+		_restore_talk_ime_edit_to_prompt()
+	_layout_prompt_row()
+	_refresh_talk_overlay()
+	_refresh_journal_panel()
+	_refresh_inventory_bars()
+	_refresh_party()
+	_sync_music()
 
 
 func _sync_healer_target_picker() -> void:
@@ -21258,6 +21292,9 @@ func _end_talk(_aborted: bool) -> void:
 
 func _finish_talk_farewell() -> void:
 	if _talk_stage != TALK_STAGE_FAREWELL:
+		return
+	if _shop != null:
+		_end_shop()
 		return
 	var farewell := _talk_farewell_line
 	_talk_farewell_line = ""
