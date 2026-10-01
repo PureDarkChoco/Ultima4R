@@ -397,6 +397,9 @@ var _codex_end_waiting := false
 var _codex_passage := false
 var _codex_passage_manual := false
 var _codex_passage_stack: Array[String] = []
+## Word of Passage forces Latin; restore the prior 한/영 mode when it ends.
+var _codex_passage_mode_held := false
+var _codex_passage_restore_korean := false
 ## Gamepad walk-on enter prompt: 0 = idle, 1 = Yes/No on message strip.
 var _enter_prompt_stage := 0
 var _enter_prompt_choice := 0 ## selected button index in the dialogue choice row
@@ -2861,7 +2864,18 @@ func _sync_talk_ime_edit() -> void:
 func _on_talk_ime_text_changed(text: String) -> void:
 	if _talk_edit_syncing or not _talk_ime_stage_active():
 		return
-	_talk_buffer = text
+	var shown := _upper_dialogue_latin(text)
+	if (
+		shown != text
+		and _talk_edit != null
+		and DisplayServer.ime_get_text().is_empty()
+	):
+		_talk_edit_syncing = true
+		var caret := _talk_edit.caret_column
+		_talk_edit.text = shown
+		_talk_edit.caret_column = mini(caret, shown.length())
+		_talk_edit_syncing = false
+	_talk_buffer = shown
 	## LineEdit draws text, preedit underline and caret itself. Do not relayout
 	## or rewrite it during composition; that can restart the platform IME.
 
@@ -2869,7 +2883,7 @@ func _on_talk_ime_text_changed(text: String) -> void:
 func _on_talk_ime_text_submitted(text: String) -> void:
 	if not _talk_ime_stage_active():
 		return
-	_talk_buffer = text
+	_talk_buffer = _upper_dialogue_latin(text)
 	## Reuse the existing stage handlers so history and dialogue behavior remain
 	## exactly the same; the focused LineEdit has already consumed the real Enter.
 	var enter := InputEventKey.new()
@@ -14527,7 +14541,7 @@ func _use_append_hangul(text: String) -> void:
 	if text.is_empty() or _use_buffer.length() >= 24:
 		return
 	var room := 24 - _use_buffer.length()
-	_use_buffer += text.substr(0, room)
+	_use_buffer += _upper_dialogue_latin(text.substr(0, room))
 
 
 func _confirm_use_from_pointer() -> void:
@@ -15386,13 +15400,24 @@ func _handle_shrine_vision_key(event: InputEvent) -> bool:
 	return true
 
 
+func _upper_dialogue_latin(text: String) -> String:
+	## In-game dialogue types English in capitals. Hangul and digits stay as entered.
+	var out := ""
+	for i in text.length():
+		var code := text.unicode_at(i)
+		if code >= 97 and code <= 122:
+			out += String.chr(code - 32)
+		else:
+			out += text.substr(i, 1)
+	return out
+
+
 func _shrine_char_from_key(k: InputEventKey) -> String:
 	if k.unicode >= 32 and k.unicode < 127:
-		return String.chr(k.unicode)
+		return _upper_dialogue_latin(String.chr(k.unicode))
 	for code in [k.keycode, k.physical_keycode]:
 		if code >= KEY_A and code <= KEY_Z:
-			var base := int(code - KEY_A)
-			return String.chr(65 + base) if k.shift_pressed else String.chr(97 + base)
+			return String.chr(65 + int(code - KEY_A))
 	return ""
 
 
@@ -17076,7 +17101,7 @@ func _handle_abyss_altar_native_hangul(k: InputEventKey) -> bool:
 	if _abyss_altar_buffer.length() >= 24 and _talk_hangul_preedit.is_empty():
 		return true
 	if not HangulInputSettings.is_korean_mode():
-		_abyss_altar_buffer += String.chr(ascii)
+		_abyss_altar_buffer += _upper_dialogue_latin(String.chr(ascii))
 		_layout_prompt_row()
 		return true
 	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
@@ -17247,6 +17272,7 @@ func _begin_codex() -> void:
 	_codex_passage_manual = false
 	_codex_passage_stack.clear()
 	_codex_buffer = ""
+	_codex_passage_force_english()
 	_reset_talk_hangul()
 	_ensure_codex_overlay()
 	if not _sides_open:
@@ -17361,7 +17387,25 @@ func _choose_codex_choice(from_pointer: bool = false) -> void:
 	_submit_codex_answer()
 
 
+func _codex_passage_force_english() -> void:
+	if _codex_passage_mode_held or str(GameState.language) != "ko":
+		return
+	_codex_passage_mode_held = true
+	_codex_passage_restore_korean = HangulInputSettings.is_korean_mode()
+	HangulInputSettings.set_korean_mode(false)
+
+
+func _codex_passage_restore_input_mode() -> void:
+	if not _codex_passage_mode_held:
+		return
+	_codex_passage_mode_held = false
+	if _codex_passage_restore_korean:
+		HangulInputSettings.set_korean_mode(true)
+	_codex_passage_restore_korean = false
+
+
 func _end_codex_session() -> void:
+	_codex_passage_restore_input_mode()
 	_codex_stage = 0
 	_codex_buffer = ""
 	_codex_endgame = false
@@ -17499,7 +17543,7 @@ func _handle_codex_native_hangul(k: InputEventKey) -> bool:
 		return true
 	if not HangulInputSettings.is_korean_mode():
 		_codex_passage_mark_typed()
-		_codex_buffer += String.chr(ascii)
+		_codex_buffer += _upper_dialogue_latin(String.chr(ascii))
 		_layout_prompt_row()
 		return true
 	var result: Dictionary = _talk_hangul.call("process_key", ascii) as Dictionary
@@ -17620,6 +17664,7 @@ func _submit_codex_answer() -> void:
 		_codex_passage = false
 		_codex_passage_manual = false
 		_codex_passage_stack.clear()
+		_codex_passage_restore_input_mode()
 		_codex_stage = 1
 		_show_codex_stage()
 		return
@@ -20415,7 +20460,7 @@ func _talk_append_native_commit(text: String) -> void:
 	var room := _talk_ime_max_length() - _talk_buffer.length()
 	if room <= 0:
 		return
-	_talk_buffer += text.substr(0, room)
+	_talk_buffer += _upper_dialogue_latin(text.substr(0, room))
 
 
 func _talk_physical_ascii(k: InputEventKey) -> int:
@@ -20890,7 +20935,7 @@ func _is_talk_submit(k: InputEventKey) -> bool:
 
 func _talk_append_char(ch: String) -> void:
 	## Non-IME fallback for shop letters and numeric fields only.
-	_talk_buffer += ch
+	_talk_buffer += _upper_dialogue_latin(ch)
 
 
 func _talk_buffer_backspace() -> void:
@@ -20936,7 +20981,7 @@ func _key_printable_char(k: InputEventKey) -> String:
 		return ""
 	var u := k.unicode
 	if u >= 32 and u < 127:
-		return String.chr(u)
+		return _upper_dialogue_latin(String.chr(u))
 	## Hangul syllables when the OS delivers them on the key event.
 	if (
 		(u >= 0x1100 and u <= 0x11FF)
@@ -20950,9 +20995,7 @@ func _key_printable_char(k: InputEventKey) -> String:
 	var code := k.keycode if k.keycode != KEY_NONE else k.physical_keycode
 	if code >= KEY_A and code <= KEY_Z:
 		var base := code - KEY_A
-		var ch := String.chr(97 + base) ## always lower for match
-		if k.shift_pressed:
-			ch = ch.to_upper()
+		var ch := String.chr(65 + base)
 		return ch
 	if code >= KEY_0 and code <= KEY_9:
 		return String.chr(48 + (code - KEY_0))
