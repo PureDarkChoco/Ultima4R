@@ -4,7 +4,10 @@ extends Control
 ## Town-talk chrome on the map: NPC face + lines, avatar + keyword chips.
 
 signal keyword_clicked(index: int)
+signal catalog_hovered(index: int)
 signal catalog_clicked(index: int)
+signal number_nudge(delta: int)
+signal number_confirm()
 
 const BORDER := Color(0.28, 0.55, 0.98, 1)
 const BORDER_W := 3
@@ -39,6 +42,7 @@ var _lead_label: Label
 var _default_row: HBoxContainer
 var _extra_flow: HFlowContainer
 var _input_slot: Control
+var _number_pad: HBoxContainer
 var _input_label: Label
 var _input_edit: LineEdit
 var _prompt_row: HBoxContainer
@@ -325,6 +329,8 @@ func set_input_visible(on: bool) -> void:
 	_input_slot.visible = on
 	if _mode_label != null:
 		_mode_label.visible = on and not _mode_label.text.is_empty()
+	if not on and _number_pad != null:
+		_number_pad.visible = false
 	if on and _input_edit != null and is_instance_valid(_input_edit):
 		_input_edit.visible = true
 		_style_input_edit(_input_edit)
@@ -333,6 +339,13 @@ func set_input_visible(on: bool) -> void:
 	elif _input_label != null:
 		_input_label.visible = on
 	_size_input_slot()
+
+
+func set_number_pad(on: bool) -> void:
+	## Buy/Sell mouse path: ↑↓ ±1, ←→ ±10, ↵ submits.
+	if _number_pad == null:
+		return
+	_number_pad.visible = on and _input_slot != null and _input_slot.visible
 
 
 func set_input_text(text: String) -> void:
@@ -493,6 +506,31 @@ func _build() -> void:
 	_style_overlay_text(_input_label)
 	_input_slot.add_child(_input_label)
 	_prompt_row.add_child(_input_slot)
+	_number_pad = HBoxContainer.new()
+	_number_pad.visible = false
+	_number_pad.mouse_filter = Control.MOUSE_FILTER_STOP
+	_number_pad.add_theme_constant_override("separation", 2)
+	_number_pad.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_number_pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_number_pad.size_flags_vertical = Control.SIZE_SHRINK_END
+	for spec in [
+		{"glyph": "↑", "delta": 1},
+		{"glyph": "↓", "delta": -1},
+		{"glyph": "←", "delta": -10},
+		{"glyph": "→", "delta": 10},
+	]:
+		var step := _make_number_pad_button(str(spec["glyph"]))
+		var delta := int(spec["delta"])
+		step.pressed.connect(func() -> void: number_nudge.emit(delta))
+		_number_pad.add_child(step)
+	var gap := Control.new()
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gap.custom_minimum_size = Vector2(6, 0)
+	_number_pad.add_child(gap)
+	var confirm := _make_number_pad_button("↵")
+	confirm.pressed.connect(func() -> void: number_confirm.emit())
+	_number_pad.add_child(confirm)
+	_key_col.add_child(_number_pad)
 	_spin_cursor = TextureRect.new()
 	_spin_cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spin_cursor.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -552,6 +590,20 @@ func _make_flow() -> HFlowContainer:
 	return flow
 
 
+func _make_number_pad_button(glyph: String) -> Button:
+	var btn := Button.new()
+	btn.text = glyph
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.flat = true
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var side := float(FONT_SIZE) + 8.0
+	btn.custom_minimum_size = Vector2(side, side)
+	_style_chip(btn, false)
+	btn.custom_minimum_size = Vector2(side, side)
+	return btn
+
+
 func _make_chip(index: int, caption: String, selected: bool) -> Button:
 	var chip := Button.new()
 	chip.text = caption
@@ -567,6 +619,7 @@ func _make_catalog_row(index: int, caption: String, icon: Texture2D, selected: b
 	var row := PanelContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_entered.connect(func() -> void: catalog_hovered.emit(index))
 	row.gui_input.connect(_on_catalog_gui_input.bind(index))
 	## One RichTextLabel so letter / icon / name share the same inline line box
 	## (separate TextureRect + SHRINK_CENTER RTLs looked top-heavy vs the glyph).

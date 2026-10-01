@@ -514,6 +514,8 @@ var _shop_item_menu_cursor := 0
 var _shop_item_menu_items: Array[Dictionary] = []
 var _shop_item_menu_line_indices: Array[int] = []
 var _shop_item_line_by_key: Dictionary = {}
+## True after a mouse click on Buy/Sell, so the quantity field shows click steppers.
+var _shop_qty_from_mouse_bs := false
 ## Talk expands message strip + character roster (not left inventory unless Tab already open).
 ## Shop peeks: weapon/armor/reagent Ztats lists replace the roster while trading.
 var _talk_msg_open := false
@@ -1454,7 +1456,7 @@ func _ensure_enter_prompt_buttons() -> void:
 		_count_choice_row.choice_requested.connect(
 			func(index: int) -> void:
 				_set_enter_prompt_choice(index)
-				_resolve_prompt_choice_index(index)
+				_resolve_prompt_choice_index(index, true)
 		)
 		_msg_prompt_row.add_child(_count_choice_row)
 
@@ -1480,7 +1482,7 @@ func _rebuild_choice_buttons(count: int) -> void:
 		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		btn.custom_minimum_size = Vector2(48, 0)
 		var pick := i
-		btn.pressed.connect(func() -> void: _resolve_prompt_choice_index(pick))
+		btn.pressed.connect(func() -> void: _resolve_prompt_choice_index(pick, true))
 		btn.focus_entered.connect(func() -> void: _set_enter_prompt_choice(pick))
 		_enter_btn_row.add_child(btn)
 		_choice_btns.append(btn)
@@ -2632,7 +2634,7 @@ func _prompt_choice_label(key: String) -> String:
 			return key.to_upper()
 
 
-func _resolve_prompt_choice_index(index: int) -> void:
+func _resolve_prompt_choice_index(index: int, from_mouse: bool = false) -> void:
 	var keys := _prompt_choice_keys()
 	if keys.is_empty():
 		return
@@ -2682,6 +2684,10 @@ func _resolve_prompt_choice_index(index: int) -> void:
 		return
 	_talk_buffer = ""
 	_reset_talk_hangul()
+	if ch == "b" or ch == "s":
+		_shop_qty_from_mouse_bs = from_mouse
+	else:
+		_shop_qty_from_mouse_bs = false
 	_push_talk_player_input(_prompt_choice_label(ch))
 	_shop.submit_choice(ch)
 	_flush_shop_output()
@@ -4583,6 +4589,17 @@ func _try_right_click_cancel_pick_ui(event: InputEvent) -> bool:
 	if not _pick_ui_mouse_dismissable():
 		return false
 	_dismiss_pick_ui_like_escape()
+	return true
+
+
+func _try_right_click_cancel_shop_number(event: InputEvent) -> bool:
+	## Vendor "how many?" — RMB backs out like Esc.
+	if not _is_right_click(event):
+		return false
+	if _talk_stage != 10 or _shop == null or int(_shop.mode) != _VendorShop.Mode.NUMBER:
+		return false
+	_shop.on_escape()
+	_flush_shop_output()
 	return true
 
 
@@ -8659,6 +8676,9 @@ func _input(event: InputEvent) -> void:
 	if _try_right_click_cancel_pending_dir(event):
 		_mark_input_handled()
 		return
+	if _try_right_click_cancel_shop_number(event):
+		_mark_input_handled()
+		return
 	if _journal_focus_active and _is_right_click(event):
 		_close_journal_focus()
 		_mark_input_handled()
@@ -9331,7 +9351,10 @@ func _ensure_talk_overlay() -> void:
 	if _map != null:
 		_map_pane.move_child(_talk_overlay, _map.get_index() + 1)
 	_talk_overlay.keyword_clicked.connect(_on_talk_overlay_keyword_clicked)
+	_talk_overlay.catalog_hovered.connect(_on_talk_overlay_catalog_hovered)
 	_talk_overlay.catalog_clicked.connect(_on_talk_overlay_catalog_clicked)
+	_talk_overlay.number_nudge.connect(_shop_number_adjust)
+	_talk_overlay.number_confirm.connect(_submit_shop_number)
 	_talk_overlay.set_icon_renderer(_msg_gear_texture_from_mark, _msg_gear_icon_side(_msg_font_size()))
 
 
@@ -9596,7 +9619,15 @@ func _sync_talk_overlay_input() -> void:
 	else:
 		_talk_overlay.set_mode_marker("")
 		_restore_talk_ime_edit_to_prompt()
+		_talk_overlay.set_number_pad(false)
 		return
+	var show_pad := (
+		_shop_qty_from_mouse_bs
+		and _talk_stage == 10
+		and _shop != null
+		and int(_shop.mode) == _VendorShop.Mode.NUMBER
+	)
+	_talk_overlay.set_number_pad(show_pad)
 	if _talk_ime_stage_active():
 		_ensure_msg_terminal()
 		if _talk_edit != null:
@@ -9634,7 +9665,7 @@ func _restore_talk_ime_edit_to_prompt() -> void:
 func _on_talk_overlay_keyword_clicked(index: int) -> void:
 	if _talk_overlay_choice_active():
 		_set_enter_prompt_choice(index)
-		_resolve_prompt_choice_index(index)
+		_resolve_prompt_choice_index(index, true)
 		return
 	if not _talk_keyword_menu_can_select():
 		return
@@ -9644,6 +9675,21 @@ func _on_talk_overlay_keyword_clicked(index: int) -> void:
 	_sync_talk_keyword_menu_scroll()
 	_refresh_talk_overlay_cursor()
 	_choose_talk_keyword_menu_item()
+
+
+func _on_talk_overlay_catalog_hovered(index: int) -> void:
+	if (
+		_talk_stage != 10
+		or _shop == null
+		or _shop_item_menu_items.is_empty()
+		or index < 0
+		or index >= _shop_item_menu_items.size()
+		or index == _shop_item_menu_cursor
+	):
+		return
+	_shop_item_menu_cursor = index
+	if _talk_overlay != null:
+		_talk_overlay.set_catalog_cursor(_shop_item_menu_cursor)
 
 
 func _on_talk_overlay_catalog_clicked(index: int) -> void:
@@ -10634,6 +10680,15 @@ func _talk_selection_menu_active() -> bool:
 	return false
 
 
+func _shop_qty_mouse_pad_active() -> bool:
+	return (
+		_shop_qty_from_mouse_bs
+		and _talk_stage == 10
+		and _shop != null
+		and int(_shop.mode) == _VendorShop.Mode.NUMBER
+	)
+
+
 func _menu_cursor_should_be_sword() -> bool:
 	## True while any list/choice menu is the active screen — sword shows
 	## everywhere on it (esc menu, ztats/ready/wear/mix/cast/use, journal
@@ -10659,6 +10714,7 @@ func _menu_cursor_should_be_sword() -> bool:
 		or _combat_exit_prompt
 		or _camp_stage == 2
 		or (_party_target_picker != null and _party_target_picker.active)
+		or _shop_qty_mouse_pad_active()
 	)
 
 
@@ -11731,6 +11787,8 @@ func _ensure_ztats_panel() -> void:
 	_ztats_panel.name = "ZtatsPanel"
 	_ztats_panel.visible = false
 	_ztats_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ztats_panel.shop_pick_hovered.connect(_on_shop_pick_hovered)
+	_ztats_panel.shop_pick_clicked.connect(_on_shop_pick_clicked)
 	host.add_child(_ztats_panel)
 
 
@@ -19090,6 +19148,19 @@ func _handle_shop_item_menu_input(event: InputEvent) -> bool:
 	return false
 
 
+func _on_shop_pick_hovered(index: int) -> void:
+	if _ztats_panel == null or not _ztats_panel.has_shop_pick():
+		return
+	_ztats_panel.shop_pick_set_index(index)
+
+
+func _on_shop_pick_clicked(index: int) -> void:
+	if _ztats_panel == null or not _ztats_panel.has_shop_pick():
+		return
+	_ztats_panel.shop_pick_set_index(index)
+	_choose_shop_sell_pick()
+
+
 func _choose_shop_sell_pick() -> bool:
 	## Accept the highlighted weapon/armor inventory letter during sell pick.
 	if (
@@ -19145,7 +19216,7 @@ func _handle_shop_sell_pick_input(event: InputEvent) -> bool:
 
 
 func _shop_number_adjust(delta: int) -> void:
-	if _shop == null or delta == 0:
+	if _shop == null or delta == 0 or int(_shop.mode) != _VendorShop.Mode.NUMBER:
 		return
 	var current := int(_talk_buffer) if _talk_buffer.is_valid_int() else 0
 	var max_value := 1
@@ -19278,6 +19349,7 @@ func _handle_shop_number_input(event: InputEvent) -> bool:
 
 
 func _end_shop() -> void:
+	_shop_qty_from_mouse_bs = false
 	if _shop == null and _talk_stage != 10:
 		return
 	if _party_target_kind == PartyTargetKind.HEALER:

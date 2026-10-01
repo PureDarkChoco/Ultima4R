@@ -1,6 +1,9 @@
 class_name ZtatsPanel
 extends Control
 
+signal shop_pick_hovered(index: int)
+signal shop_pick_clicked(index: int)
+
 ## Ztats sheet inside the character panel.
 ## Four zones with equal flex gaps; sized to fit RightTop without clipping bars.
 
@@ -264,6 +267,14 @@ func open_inventory(page: int, restore_scroll: bool = true, shop_pick: bool = fa
 
 func has_shop_pick() -> bool:
 	return _shop_pick and not _pick_ids.is_empty()
+
+
+func shop_pick_set_index(index: int) -> void:
+	if not has_shop_pick():
+		return
+	_pick_cursor = clampi(index, 0, _pick_ids.size() - 1)
+	_pick_retain_id = int(_pick_ids[_pick_cursor])
+	_sync_shop_pick_hilite()
 
 
 func shop_pick_nudge(delta: int) -> void:
@@ -1754,8 +1765,31 @@ func _ensure_shop_pick_visible() -> void:
 func _register_shop_pick_row(wrap: Control, item_id: int) -> void:
 	if not _shop_pick or wrap == null:
 		return
+	var index := _pick_ids.size()
 	_pick_ids.append(item_id)
 	_pick_row_wraps.append(wrap)
+	wrap.mouse_filter = Control.MOUSE_FILTER_STOP
+	for child in wrap.get_children():
+		if child is Control:
+			_shop_pick_ignore_mouse(child as Control)
+	wrap.mouse_entered.connect(func() -> void: shop_pick_hovered.emit(index))
+	wrap.gui_input.connect(func(event: InputEvent) -> void: _on_shop_pick_gui(event, index))
+
+
+func _shop_pick_ignore_mouse(node: Control) -> void:
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		if child is Control:
+			_shop_pick_ignore_mouse(child as Control)
+
+
+func _on_shop_pick_gui(event: InputEvent, index: int) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	var mb := event as InputEventMouseButton
+	if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		shop_pick_clicked.emit(index)
+		accept_event()
 
 
 func _fill_gear_page() -> void:
