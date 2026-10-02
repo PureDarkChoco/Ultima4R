@@ -107,16 +107,17 @@ const JOURNAL_TOWNS: Array[String] = [
 	"moonglow", "britain", "jhelom", "yew",
 	"minoc", "trinsic", "skara", "magincia",
 ]
-## Always English 3-letter caps (Korean names overflow the 8-column row).
+## Codex row: 4-letter English caps so Hangul and full names fit the 8 columns.
+## Yew is already the whole name.
 const TOWN_ABBREV := {
-	"moonglow": "MOO",
-	"britain": "BRI",
-	"jhelom": "JHE",
+	"moonglow": "MOON",
+	"britain": "BRIT",
+	"jhelom": "JHEL",
 	"yew": "YEW",
-	"minoc": "MIN",
-	"trinsic": "TRI",
-	"skara": "SKA",
-	"magincia": "MAG",
+	"minoc": "MINO",
+	"trinsic": "TRIN",
+	"skara": "SKAR",
+	"magincia": "MAGI",
 }
 const JOURNAL_VILLAGES: Array[String] = ["paws", "den", "vesper", "cove"]
 
