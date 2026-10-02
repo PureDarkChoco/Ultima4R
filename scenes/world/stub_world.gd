@@ -9571,6 +9571,7 @@ func _talk_npc_portrait() -> Texture2D:
 		var slot := -1
 		if _city_map != null and _talk_person_i >= 0 and _talk_person_i < _city_map.person_file_slot.size():
 			slot = int(_city_map.person_file_slot[_talk_person_i])
+		## Stable owner is Hale (hale_portrait).
 		if not owner.is_empty():
 			return _TalkPortraits.npc_texture(_talk_city_id(), owner, -1, "", slot)
 		return null

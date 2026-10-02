@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cdcd1qftittim"
-path="res://.godot/imported/stablemaster_portrait.png-22ce4b705e0c08ee683dca1cdd74097d.ctex"
+uid="uid://da4kkwwacapf1"
+path="res://.godot/imported/hale_portrait.png-5aed96d2b12aaf1fe37deff130f41b1c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/npcs/paws/stablemaster_portrait.png"
-dest_files=["res://.godot/imported/stablemaster_portrait.png-22ce4b705e0c08ee683dca1cdd74097d.ctex"]
+source_file="res://assets/portraits/npcs/paws/hale_portrait.png"
+dest_files=["res://.godot/imported/hale_portrait.png-5aed96d2b12aaf1fe37deff130f41b1c.ctex"]
 
 [params]
 

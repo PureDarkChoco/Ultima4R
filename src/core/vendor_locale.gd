@@ -140,6 +140,7 @@ const PERSON_NAMES := {
 	"Tymus": "타이머스",
 	"Long John Leary": "롱 존 리어리",
 	"One Eyed Willey": "외눈박이 윌리",
+	"Hale": "헤일",
 }
 
 const HEAL_DESC := {

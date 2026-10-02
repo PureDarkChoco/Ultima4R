@@ -308,6 +308,10 @@ func owner_name() -> String:
 	return _owner
 
 
+func role() -> int:
+	return _role
+
+
 func shop_name() -> String:
 	return _shop
 
@@ -1911,6 +1915,7 @@ func _g_adieu() -> void:
 # ── Stable ───────────────────────────────────────────────────────────
 
 func _start_stable() -> void:
+	_owner = "Hale"
 	_price = GameState.party_size() * 100
 	_say(_L("Welcome friend!\nCan I interest thee in\nhorses?"))
 	_want_choice("yn", "s_need")
