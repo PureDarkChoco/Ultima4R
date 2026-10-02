@@ -27,7 +27,8 @@ const TOPIC_SLUGS := {
 	"yew/just": "guard_15",
 }
 
-## city/.ULT person slot → portrait when several vendors share one spoken name.
+## city / 1-based .ULT column → portrait when several vendors share one name.
+## Keys match city_npc_roles (xu4 maps.b). Callers pass 0-based person_file_slot.
 const VENDOR_SLOT_SLUGS := {
 	## Britain: two Winstons — weapons vs armour.
 	"britain/29": "winston",
@@ -135,8 +136,9 @@ static func npc_path(
 	_ensure_city(city_id)
 	var city := city_id.strip_edges().to_lower()
 	## Numbered vendor faces (Winston×2, Triplet×3, Greg/Rob, …) win over name match.
+	## person_slot is the 0-based .ULT column; the table is 1-based.
 	if person_slot >= 0:
-		var slot_key := "%s/%d" % [city, person_slot]
+		var slot_key := "%s/%d" % [city, person_slot + 1]
 		if VENDOR_SLOT_SLUGS.has(slot_key):
 			var slot_path := _city_file(city, str(VENDOR_SLOT_SLUGS[slot_key]))
 			if not slot_path.is_empty():
