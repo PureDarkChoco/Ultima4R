@@ -325,6 +325,7 @@ static func try_capture(gs: Node, place: String, npc: String, topic: String) -> 
 		matches.append(d)
 	if matches.is_empty():
 		return false
+	var unseen_before := str(gs.journal_unseen_id).strip_edges()
 	var any := false
 	for cat_v in matches:
 		if _append_catalog_capture(gs, cat_v as Dictionary, place, npc):
@@ -334,7 +335,7 @@ static func try_capture(gs: Node, place: String, npc: String, topic: String) -> 
 	if _apply_pending_journal_completions(gs):
 		any = true
 	if any:
-		_prefer_unseen_in_place(gs, p)
+		_prefer_unseen_in_place(gs, p, unseen_before)
 	return any
 
 
@@ -472,15 +473,23 @@ static func _note_new_entry(gs: Node, id: String, place: String) -> void:
 	gs.journal_collapsed = cur
 
 
-static func _prefer_unseen_in_place(gs: Node, place: String) -> void:
-	## Dual-town inserts (source tip + destination ask) must ping the town
-	## where the player just heard it, not the seeded destination section.
+static func _prefer_unseen_in_place(gs: Node, place: String, unseen_before: String) -> void:
+	## Dual-town inserts can note the destination last. Flash the town just
+	## heard only when this capture actually added a travel-log row elsewhere.
+	## Codex-only facts (Mitre's journal → white stone) must not re-flash an
+	## older line in the same town, such as the Spirituality mantra.
 	if gs == null:
 		return
-	var id := latest_id_for_place(gs, place)
-	if id.is_empty():
+	var unseen := str(gs.journal_unseen_id).strip_edges()
+	if unseen.is_empty() or unseen == unseen_before.strip_edges():
 		return
-	_note_new_entry(gs, id, place)
+	var want := place.strip_edges().to_lower()
+	if want.is_empty() or place_for_entry_id(gs, unseen) == want:
+		return
+	var id := latest_id_for_place(gs, want)
+	if id.is_empty() or id == unseen:
+		return
+	_note_new_entry(gs, id, want)
 
 
 static func _catalog_speakers(cat: Dictionary, place: String, npc: String) -> Array:
