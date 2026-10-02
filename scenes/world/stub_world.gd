@@ -4037,14 +4037,25 @@ func _update_mouse_walk() -> void:
 			jimmy_dir = _mouse_jimmy_dir_from_hover()
 		if talk_dir == Vector2i.ZERO and jimmy_dir == Vector2i.ZERO:
 			_mouse_resolve_hand_action()
-		if (
-			talk_dir == Vector2i.ZERO
-			and jimmy_dir == Vector2i.ZERO
-			and _mouse_hand_cmd == U4Commands.Id.NONE
-		):
-			attack_dir = _mouse_attack_dir_from_hover()
+	if (
+		talk_dir == Vector2i.ZERO
+		and jimmy_dir == Vector2i.ZERO
+		and _mouse_hand_cmd == U4Commands.Id.NONE
+	):
+		attack_dir = _mouse_attack_dir_from_hover()
+	## Combat turn: a foe this weapon can hit takes the sword; click strikes now.
+	var combat_strike := _mouse_combat_foe_strike_tile()
 	## Bye / wait-any-key: ankh until the click lands; arrows only after.
-	var show_dir: Vector2i = hover if (over_map and not sword and not wait_key) else Vector2i.ZERO
+	var show_dir: Vector2i = (
+		hover
+		if (
+			over_map
+			and not sword
+			and not wait_key
+			and combat_strike.x < 0
+		)
+		else Vector2i.ZERO
+	)
 	## Winds picks the side the wind comes from; the arrow shows where it blows.
 	if show_dir != Vector2i.ZERO and _cast_stage == 4 and _cast_spell_id == Spells.WINDS:
 		show_dir = -show_dir
@@ -4052,7 +4063,7 @@ func _update_mouse_walk() -> void:
 	UiTheme.set_talk_cursor(talk_dir != Vector2i.ZERO)
 	UiTheme.set_jimmy_cursor(jimmy_dir != Vector2i.ZERO)
 	UiTheme.set_hand_cursor(_mouse_hand_cmd != U4Commands.Id.NONE)
-	UiTheme.set_attack_cursor(attack_dir != Vector2i.ZERO)
+	UiTheme.set_attack_cursor(attack_dir != Vector2i.ZERO or combat_strike.x >= 0)
 	UiTheme.set_search_cursor(_mouse_ztats_slot >= 0)
 	var page_dir: Vector2i = _mouse_ztats_page_dir()
 	UiTheme.set_page_dir_cursor(page_dir)
@@ -4061,6 +4072,12 @@ func _update_mouse_walk() -> void:
 		if lmb_pressed:
 			_mouse_do_ztats(_mouse_ztats_slot)
 			_mouse_block_walk_until_release = true
+		_mouse_lmb_held = lmb
+		return
+	if combat_strike.x >= 0:
+		_mouse_walk_dir = Vector2i.ZERO
+		if lmb_pressed:
+			_mouse_combat_strike(combat_strike)
 		_mouse_lmb_held = lmb
 		return
 	if _try_mouse_dismiss_pick_ui_on_map(lmb_pressed):
@@ -4172,6 +4189,63 @@ func _mouse_ztats_slot_from_hover() -> int:
 	if not _mouse_ztats_hover_allowed():
 		return -1
 	return _mouse_roster_slot_from_hover()
+
+
+func _mouse_combat_direct_attack_allowed() -> bool:
+	## Free combat turn — same window as a keyboard Attack, before aim starts.
+	if not _combat_active or _combat_aiming or _combat_resolving or _combat_auto_acting:
+		return false
+	if _combat_victory_aftermath or _turn_fx_busy or _menu_cursor_should_be_sword():
+		return false
+	if _map == null or not _map.is_in_combat():
+		return false
+	if _party_target_picker != null and _party_target_picker.active:
+		return false
+	var fk := _map.get_combat_focus_klass()
+	return fk >= 0 and not GameState.is_member_disabled(fk)
+
+
+func _mouse_combat_foe_strike_tile() -> Vector2i:
+	## Foe under the pointer this weapon can strike. Map tile or the foe list.
+	if not _mouse_combat_direct_attack_allowed():
+		return Vector2i(-1, -1)
+	var target := Vector2i(-1, -1)
+	if _foe_roster != null and _foe_roster.visible:
+		var foe: Dictionary = _foe_roster.foe_at_global(get_viewport().get_mouse_position())
+		if not foe.is_empty():
+			target = Vector2i(int(foe.get("x", -1)), int(foe.get("y", -1)))
+	if target.x < 0 and _mouse_over_play_map():
+		var map_ctl := _map as Control
+		var tile: Vector2i = _map.combat_tile_at_local(map_ctl.get_local_mouse_position())
+		if tile.x >= 0 and _map.combat_foe_index_at(tile) >= 0:
+			target = tile
+	if target.x < 0:
+		return Vector2i(-1, -1)
+	var from := _map.get_combat_focus_pos()
+	var wid := GameState.weapon_of_class(_map.get_combat_focus_klass())
+	if from.x < 0 or not _map.combat_can_strike(wid, from, target):
+		return Vector2i(-1, -1)
+	return target
+
+
+func _mouse_combat_strike(target: Vector2i) -> void:
+	## One click spends the turn on that foe — no separate aim confirm.
+	if _map == null or not _mouse_combat_direct_attack_allowed():
+		return
+	var from := _map.get_combat_focus_pos()
+	var klass := _map.get_combat_focus_klass()
+	var wid := GameState.weapon_of_class(klass)
+	if from.x < 0 or not _map.combat_can_strike(wid, from, target):
+		return
+	_mouse_combat_step_done = true
+	_mouse_block_walk_until_release = true
+	_mouse_walk_dir = Vector2i.ZERO
+	var party_slot := _map.get_combat_focus_party_slot()
+	var pname := GameState.party_member_display_name(party_slot) if party_slot >= 0 else ""
+	if pname.is_empty():
+		pname = U4Commands.label(U4Commands.Id.ATTACK, GameState.lang_short())
+	_push_message(Locale.t("cmd_attack_with", [pname, Locale.weapon_name(wid)]), false)
+	_combat_resolve_attack(klass, wid, from, target)
 
 
 func _mouse_update_combat_aim(lmb_pressed: bool) -> void:
