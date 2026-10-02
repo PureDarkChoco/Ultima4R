@@ -530,6 +530,8 @@ var _shop_item_line_by_key: Dictionary = {}
 var _shop_qty_from_mouse_bs := false
 ## Tavern rumor chip click — the following text submit still counts as mouse entry.
 var _shop_qty_mouse_topic := false
+## Beggar Give opened by clicking the keyword — show the same amount pad.
+var _give_qty_from_mouse := false
 ## Talk expands message strip + character roster (not left inventory unless Tab already open).
 ## Shop peeks: weapon/armor/reagent Ztats lists replace the roster while trading.
 var _talk_msg_open := false
@@ -9436,8 +9438,8 @@ func _ensure_talk_overlay() -> void:
 	_talk_overlay.keyword_hovered.connect(_on_talk_overlay_keyword_hovered)
 	_talk_overlay.catalog_hovered.connect(_on_talk_overlay_catalog_hovered)
 	_talk_overlay.catalog_clicked.connect(_on_talk_overlay_catalog_clicked)
-	_talk_overlay.number_nudge.connect(_shop_number_adjust)
-	_talk_overlay.number_confirm.connect(_submit_shop_number)
+	_talk_overlay.number_nudge.connect(_on_talk_number_nudge)
+	_talk_overlay.number_confirm.connect(_on_talk_number_confirm)
 	_talk_overlay.set_icon_renderer(_msg_gear_texture_from_mark, _msg_gear_icon_side(_msg_font_size()))
 
 
@@ -9711,10 +9713,13 @@ func _sync_talk_overlay_input() -> void:
 		_talk_overlay.set_number_pad(false)
 		return
 	var show_pad := (
-		_shop_qty_from_mouse_bs
-		and _talk_stage == 10
-		and _shop != null
-		and int(_shop.mode) == _VendorShop.Mode.NUMBER
+		(
+			_shop_qty_from_mouse_bs
+			and _talk_stage == 10
+			and _shop != null
+			and int(_shop.mode) == _VendorShop.Mode.NUMBER
+		)
+		or (_give_qty_from_mouse and _talk_stage == 4)
 	)
 	_talk_overlay.set_number_pad(show_pad)
 	if _talk_ime_stage_active():
@@ -9781,6 +9786,8 @@ func _on_talk_overlay_keyword_clicked(index: int) -> void:
 	_talk_keyword_menu_cursor = index
 	_sync_talk_keyword_menu_scroll()
 	_refresh_talk_overlay_cursor()
+	var clicked_key := str(_talk_keyword_menu_items[index].get("key", ""))
+	_give_qty_from_mouse = clicked_key == "give"
 	if _talk_stage == 10 and _shop != null and bool(_shop.is_tavern_topic_prompt()):
 		_shop_qty_from_mouse_bs = true
 		_shop_qty_mouse_topic = true
@@ -19839,6 +19846,20 @@ func _handle_shop_sell_pick_input(event: InputEvent) -> bool:
 	return false
 
 
+func _on_talk_number_nudge(delta: int) -> void:
+	if _talk_stage == 4:
+		_talk_give_number_adjust(delta)
+		return
+	_shop_number_adjust(delta)
+
+
+func _on_talk_number_confirm() -> void:
+	if _talk_stage == 4:
+		_submit_talk_give_number()
+		return
+	_submit_shop_number()
+
+
 func _shop_number_adjust(delta: int) -> void:
 	if _shop == null or delta == 0 or int(_shop.mode) != _VendorShop.Mode.NUMBER:
 		return
@@ -21170,6 +21191,7 @@ func _talk_prefix(input: String, key: String, n: int) -> bool:
 
 
 func _talk_prompt_interest() -> void:
+	_give_qty_from_mouse = false
 	_talk_stage = 1
 	_talk_buffer = ""
 	_reset_talk_hangul()
@@ -21836,6 +21858,7 @@ func _talk_do_join() -> void:
 func _end_talk(_aborted: bool) -> void:
 	## Single exit for talk: always print Bye so the player sees the end.
 	## Esc / empty Enter / bye / Y-N cancel / join / turn-away all land here.
+	_give_qty_from_mouse = false
 	if _talk_stage == 10:
 		if _shop != null:
 			_shop.on_escape()
