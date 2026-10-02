@@ -4669,6 +4669,16 @@ func _try_right_click_cancel_shop(event: InputEvent) -> bool:
 	return true
 
 
+func _try_right_click_cancel_talk(event: InputEvent) -> bool:
+	## Town NPC talk — RMB ends the conversation the way vendor Esc does.
+	if not _is_right_click(event):
+		return false
+	if _talk_stage == 0 or _talk_stage == 10 or _shop != null:
+		return false
+	_end_talk(true)
+	return true
+
+
 func _try_right_click_cancel_pending_dir(event: InputEvent) -> bool:
 	## A/F/G/J/O/T Dir? (and ship Yell / combat aim / camp watch): RMB cancels like Esc.
 	if not _is_right_click(event):
@@ -8746,6 +8756,9 @@ func _input(event: InputEvent) -> void:
 		_mark_input_handled()
 		return
 	if _try_right_click_cancel_shop(event):
+		_mark_input_handled()
+		return
+	if _try_right_click_cancel_talk(event):
 		_mark_input_handled()
 		return
 	if _journal_focus_active and _is_right_click(event):
