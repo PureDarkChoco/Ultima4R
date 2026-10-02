@@ -9739,12 +9739,21 @@ func _restore_talk_ime_edit_to_prompt() -> void:
 
 
 func _on_talk_overlay_keyword_hovered(index: int) -> void:
-	## Choice chips (Buy/Sell, food/ale, Y/N): hover moves the keyboard cursor.
-	if not _talk_overlay_choice_active():
+	## Hover locks the same cursor keyboard and gamepad use.
+	if _talk_overlay_choice_active():
+		if index == _enter_prompt_choice:
+			return
+		_set_enter_prompt_choice(index)
 		return
-	if index == _enter_prompt_choice:
+	if not _talk_keyword_menu_can_select():
 		return
-	_set_enter_prompt_choice(index)
+	if index < 0 or index >= _talk_keyword_menu_items.size():
+		return
+	if index == _talk_keyword_menu_cursor:
+		return
+	_talk_keyword_menu_cursor = index
+	_sync_talk_keyword_menu_scroll()
+	_refresh_talk_overlay_cursor()
 
 
 func _on_talk_overlay_keyword_clicked(index: int) -> void:
