@@ -10720,7 +10720,7 @@ func _ensure_save_panel() -> void:
 
 
 func _on_save_slot_activated(slot_index: int) -> void:
-	if _save_stage == 2:
+	if _save_stage == 1 or _save_stage == 2:
 		_confirm_slot_pick(slot_index)
 
 
@@ -11136,11 +11136,34 @@ func _confirm_slot_pick(slot_index: int) -> void:
 		_confirm_save_slot(slot_index)
 
 
+func _save_needs_overwrite_confirm(slot_n: int) -> bool:
+	## New game onto a used slot, or a loaded game onto a different used slot.
+	## One confirmed overwrite this run skips later prompts.
+	if GameState.session_save_overwrite_ok:
+		return false
+	if slot_n == GameState.session_loaded_slot:
+		return false
+	return _SaveGame.slot_exists(slot_n)
+
+
 func _confirm_save_slot(slot_index: int) -> void:
 	## slot_index is 0-based; files are slot_1..4.
 	if slot_index < 0 or slot_index >= _SaveGame.SLOT_COUNT:
 		return
 	var slot_n := slot_index + 1
+	if _save_needs_overwrite_confirm(slot_n):
+		QuitConfirm.prompt_overwrite_save(func() -> void:
+			_write_save_slot(slot_index)
+		)
+		return
+	_write_save_slot(slot_index)
+
+
+func _write_save_slot(slot_index: int) -> void:
+	if slot_index < 0 or slot_index >= _SaveGame.SLOT_COUNT:
+		return
+	var slot_n := slot_index + 1
+	var replacing := _SaveGame.slot_exists(slot_n) and slot_n != GameState.session_loaded_slot
 	var data := _SaveGame.build_save(
 		GameState.to_save_dict(),
 		_world_save_dict(),
@@ -11160,6 +11183,8 @@ func _confirm_save_slot(slot_index: int) -> void:
 		return
 	GameState.session_did_save = true
 	GameState.session_loaded_slot = slot_n
+	if replacing:
+		GameState.session_save_overwrite_ok = true
 	var from_esc := _slot_from_esc
 	_close_save(false)
 	_push_message(Locale.t("cmd_saved"), false)
@@ -11189,6 +11214,7 @@ func _confirm_load_slot(slot_index: int) -> void:
 	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
 	GameState.session_loaded_slot = slot_n
 	GameState.session_did_save = false
+	GameState.session_save_overwrite_ok = false
 	GameState.is_new_game = false
 	_SaveGame.set_last_loaded_slot(slot_n)
 	_close_save(false)

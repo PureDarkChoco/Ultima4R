@@ -829,6 +829,11 @@ const _T := {
 		"en_us": "Delete this saved game?\nDeleted games cannot be recovered.",
 		"ko": "저장된 게임을 삭제하겠습니까?\n삭제한 게임은 복구할 수 없습니다.",
 	},
+	"save_overwrite_confirm": {
+		"en_u4": "The record in this slot shall be erased.\nOverwrite it?",
+		"en_us": "The existing save in this slot will be deleted.\nOverwrite it?",
+		"ko": "이 슬롯의 기존 기록이 삭제됩니다.\n정말 덮어쓰겠습니까?",
+	},
 	"load_deleted": {
 		"en_u4": "Save deleted.",
 		"en_us": "Save deleted.",

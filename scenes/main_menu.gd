@@ -953,6 +953,7 @@ func _confirm_load(slot_index: int) -> void:
 	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
 	GameState.session_loaded_slot = slot_n
 	GameState.session_did_save = false
+	GameState.session_save_overwrite_ok = false
 	GameState.is_new_game = false
 	_SaveGame.set_last_loaded_slot(slot_n)
 	_close_load()

@@ -9,6 +9,7 @@ enum Kind {
 	QUIT = 0,
 	RETURN_MENU = 1,
 	DELETE_SAVE = 2,
+	OVERWRITE_SAVE = 3,
 }
 
 var _layer: CanvasLayer
@@ -42,7 +43,7 @@ func is_open() -> bool:
 func prompt(kind: int = Kind.QUIT) -> void:
 	## Show (or retarget) confirmation. Safe while already open.
 	_kind = kind
-	if kind != Kind.DELETE_SAVE:
+	if kind != Kind.DELETE_SAVE and kind != Kind.OVERWRITE_SAVE:
 		_on_yes = Callable()
 	if _open:
 		GameInput.reset_stick_navigation()
@@ -68,6 +69,12 @@ func prompt_delete_save(on_yes: Callable) -> void:
 	## Load-list Del/Backspace: Yes runs `on_yes` after the dialog closes.
 	_on_yes = on_yes
 	prompt(Kind.DELETE_SAVE)
+
+
+func prompt_overwrite_save(on_yes: Callable) -> void:
+	## Occupied slot: Yes writes over the existing record.
+	_on_yes = on_yes
+	prompt(Kind.OVERWRITE_SAVE)
 
 
 func _build() -> void:
@@ -147,6 +154,8 @@ func _refresh_text() -> void:
 			_title.text = Locale.t("return_menu_confirm")
 		Kind.DELETE_SAVE:
 			_title.text = Locale.t("load_delete_confirm")
+		Kind.OVERWRITE_SAVE:
+			_title.text = Locale.t("save_overwrite_confirm")
 		_:
 			_title.text = Locale.t("quit_confirm")
 	_btn_yes.text = _yes_no_label(true)
@@ -252,7 +261,7 @@ func _accept() -> void:
 	match kind:
 		Kind.RETURN_MENU:
 			SceneRouter.to_menu()
-		Kind.DELETE_SAVE:
+		Kind.DELETE_SAVE, Kind.OVERWRITE_SAVE:
 			if on_yes.is_valid():
 				on_yes.call()
 		_:

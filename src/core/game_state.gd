@@ -396,6 +396,8 @@ var apple2_dsk_needs_macos_permission: bool = false
 ## Session save/load cursor hints (not written into slot JSON).
 var session_loaded_slot: int = 0 ## 1..4 if Journey loaded a slot this run
 var session_did_save: bool = false
+## After one confirmed overwrite this run, later saves skip the prompt.
+var session_save_overwrite_ok: bool = false
 ## Applied once by stub_world after Journey load.
 var pending_world_save: Dictionary = {}
 var intro_data := TitleExeData.new()
@@ -500,6 +502,7 @@ func reset_party() -> void:
 	is_new_game = false
 	session_loaded_slot = 0
 	session_did_save = false
+	session_save_overwrite_ok = false
 	pending_world_save.clear()
 	moon_phase = 0
 	trammel_phase = 0
@@ -1054,6 +1057,7 @@ func apply_virtue_result(klass: int, selected_virtues: Array[int]) -> void:
 	is_new_game = true
 	session_loaded_slot = 0
 	session_did_save = false
+	session_save_overwrite_ok = false
 	pending_world_save.clear()
 	## Inventory / party supplies (finishInitiateGame).
 	_reset_inventory_empty()
