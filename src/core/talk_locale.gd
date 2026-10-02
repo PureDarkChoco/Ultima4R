@@ -242,7 +242,8 @@ static func match_topic_alias(
 		if al.is_empty():
 			continue
 		if word_has_hangul(str(a)) or word_has_hangul(al):
-			if h == al:
+			## Exact, or a longer name on the same word ("맨드레이크 뿌리").
+			if h == al or h.begins_with(al + " "):
 				return true
 			continue
 		if h.length() >= al.length() and h.substr(0, al.length()) == al:

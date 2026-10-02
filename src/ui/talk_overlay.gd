@@ -43,6 +43,7 @@ var _party_fit: HBoxContainer
 var _party_fit_sig := ""
 var _lead_label: Label
 var _default_row: HBoxContainer
+var _reagent_row: HBoxContainer
 var _extra_flow: HFlowContainer
 var _input_slot: Control
 var _number_pad: HBoxContainer
@@ -198,19 +199,31 @@ func set_keywords(items: Array, cursor: int, default_keys: Dictionary) -> void:
 	_chips.clear()
 	for child in _default_row.get_children():
 		child.queue_free()
+	for child in _reagent_row.get_children():
+		child.queue_free()
 	for child in _extra_flow.get_children():
 		child.queue_free()
+	var reagent_list := _is_reagent_keyword_list(items)
 	for i in items.size():
 		var item: Dictionary = items[i]
 		var key := str(item.get("key", ""))
 		var label := str(item.get("label", key))
 		var chip := _make_chip(i, label, i == cursor)
 		_chips.append(chip)
-		if default_keys.has(key) or default_keys.has(key.to_lower()):
+		if reagent_list:
+			if i < 4:
+				_default_row.add_child(chip)
+			else:
+				_reagent_row.add_child(chip)
+		elif default_keys.has(key) or default_keys.has(key.to_lower()):
 			_default_row.add_child(chip)
 		else:
 			_extra_flow.add_child(chip)
-	_extra_flow.visible = _extra_flow.get_child_count() > 0
+	## queue_free leaves the old reagent chips until end of frame, so child
+	## count would keep this row open as a blank line between the keywords.
+	_reagent_row.visible = reagent_list
+	_reagent_row.custom_minimum_size.y = _line_pitch if reagent_list else 0.0
+	_extra_flow.visible = not reagent_list and _extra_flow.get_child_count() > 0
 
 
 func set_player_lead(text: String) -> void:
@@ -251,6 +264,15 @@ func keyword_rows() -> Array:
 					first.append(idx)
 	if not first.is_empty():
 		rows.append(first)
+	var reagent: Array = []
+	if _reagent_row != null and _reagent_row.visible:
+		for child in _reagent_row.get_children():
+			if child is Button:
+				var idx := _chips.find(child)
+				if idx >= 0:
+					reagent.append(idx)
+	if not reagent.is_empty():
+		rows.append(reagent)
 	var flow_chips: Array[Control] = []
 	if _extra_flow != null and _extra_flow.visible:
 		for child in _extra_flow.get_children():
@@ -583,8 +605,11 @@ func _build() -> void:
 	_style_overlay_text(_lead_label)
 	_key_col.add_child(_lead_label)
 	_default_row = _make_key_row()
+	_reagent_row = _make_key_row()
+	_reagent_row.visible = false
 	_extra_flow = _make_flow()
 	_key_col.add_child(_default_row)
+	_key_col.add_child(_reagent_row)
 	_key_col.add_child(_extra_flow)
 	var key_spacer := Control.new()
 	key_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -676,6 +701,18 @@ func _make_face() -> TextureRect:
 	face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	face.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	return face
+
+
+func _is_reagent_keyword_list(items: Array) -> bool:
+	## Swindrik / Presto: the eight reagents, four to a line.
+	if items.size() != 8:
+		return false
+	for item in items:
+		if typeof(item) != TYPE_DICTIONARY:
+			return false
+		if not str((item as Dictionary).get("key", "")).begins_with("reag_"):
+			return false
+	return true
 
 
 func _make_key_row() -> HBoxContainer:
@@ -1061,6 +1098,10 @@ func _apply_face_line_metrics(frame_h: float) -> void:
 		_lead_label.custom_minimum_size.y = _line_pitch
 	if _default_row != null:
 		_default_row.custom_minimum_size.y = _line_pitch
+	if _reagent_row != null:
+		_reagent_row.custom_minimum_size.y = (
+			_line_pitch if _reagent_row.visible else 0.0
+		)
 	if _extra_flow != null:
 		_extra_flow.add_theme_constant_override("v_separation", 0)
 	if _prompt_row != null:
