@@ -6977,14 +6977,6 @@ func _talk_keyword_menu_intro_default_key() -> String:
 		)
 	elif (
 		_talk_city_id() == "paws"
-		and str(entry.name).strip_edges().to_lower() == "barren"
-		and GameState.journal_has_id("skara.ambule.barren-mantra")
-	):
-		default_key = _talk_keyword_stable_key(
-			"만트라" if GameState.lang_short() == "ko" else "mantra"
-		)
-	elif (
-		_talk_city_id() == "paws"
 		and str(entry.name).strip_edges().to_lower()
 		in ["sir simon", "lady tessa"]
 		and GameState.journal_has_id("minoc.zircon.mystic-arms")
@@ -7731,8 +7723,8 @@ func _restore_talk_known_keywords() -> void:
 
 
 func _maybe_offer_paws_chain_keyword() -> void:
-	## Paws: Barren rune + Ambule's mantra tip (same name as Skara's child);
-	## Simon/Tessa mystic; Zair word. Barren also exists in Skara — scope by city.
+	## Paws: Barren rune; Simon/Tessa mystic; Zair word.
+	## Skara's child Barren shares the name — his mantra keyword stays in Skara.
 	if not _talk_keyword_menu_active or _talk_entry == null:
 		return
 	if _talk_city_id() != "paws":
@@ -7746,16 +7738,6 @@ func _maybe_offer_paws_chain_keyword() -> void:
 				rune_key,
 				"룬" if korean else "Rune",
 				"룬" if korean else "rune"
-			)
-		## Same name as Skara's child — Ambule's mantra tip still appears here.
-		if GameState.journal_has_id("skara.ambule.barren-mantra"):
-			var mantra_key := _talk_keyword_stable_key(
-				"만트라" if korean else "mantra"
-			)
-			_offer_talk_keyword_item(
-				mantra_key,
-				"만트라" if korean else "Mantra",
-				"만트라" if korean else "mantra"
 			)
 	elif (
 		(
