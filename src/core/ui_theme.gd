@@ -170,27 +170,27 @@ static func set_page_dir_cursor(dir: Vector2i) -> void:
 	if next == _page_dir:
 		return
 	_page_dir = next
-	if _menu_cursor_active:
-		return
+	## Sheet ←→ stays visible while Z keeps the sword on the rest of the screen.
 	_refresh_cursor_textures()
 
 
 static func _refresh_cursor_textures() -> void:
 	var path := CURSOR_ANKH_PATH
 	var hotspot := CURSOR_ANKH_HOTSPOT
-	## Menus (incl. ⌘Q quit confirm) always show the sword over context cursors.
-	if _menu_cursor_active:
-		path = CURSOR_SWORD_PATH
-		hotspot = CURSOR_SWORD_HOTSPOT
-	elif _search_cursor_active:
-		path = CURSOR_SEARCH_PATH
-		hotspot = CURSOR_SEARCH_HOTSPOT
-	elif _page_dir.x < 0:
+	## Character-sheet paging wins over the menu sword. Other menus still
+	## show the sword over context cursors (incl. ⌘Q quit confirm).
+	if _page_dir.x < 0:
 		path = CURSOR_ARROW_LEFT_PATH
 		hotspot = CURSOR_ARROW_LEFT_HOTSPOT
 	elif _page_dir.x > 0:
 		path = CURSOR_ARROW_RIGHT_PATH
 		hotspot = CURSOR_ARROW_RIGHT_HOTSPOT
+	elif _menu_cursor_active:
+		path = CURSOR_SWORD_PATH
+		hotspot = CURSOR_SWORD_HOTSPOT
+	elif _search_cursor_active:
+		path = CURSOR_SEARCH_PATH
+		hotspot = CURSOR_SEARCH_HOTSPOT
 	elif _talk_cursor_active:
 		path = CURSOR_BUBBLE_PATH
 		hotspot = CURSOR_BUBBLE_HOTSPOT
