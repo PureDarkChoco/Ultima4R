@@ -2684,10 +2684,10 @@
         "den.pub.skull-jude",
         "den.ragnar.skull-warning"
       ],
-      "en": "Ask about the skull at the pub.",
-      "ko": "주점에서 해골에 대해 묻기",
-      "en_u4": "Ask at the pub of the skull.",
-      "en_us": "Ask about the skull at the pub.",
+      "en": "Ask about the skull at the pub in {den}.",
+      "ko": "{den} 주점에서 해골에 대해 묻기",
+      "en_u4": "Ask at the pub in {den} of the skull.",
+      "en_us": "Ask about the skull at the pub in {den}.",
       "speaker_en": "Sebastian",
       "speaker_ko": "세바스찬"
     },

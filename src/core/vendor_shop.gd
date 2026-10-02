@@ -1233,7 +1233,10 @@ func _init_tavern_locale(person_slot: int = -1) -> bool:
 	return true
 
 
-func _topics_from(skip_pairs: int) -> Array:
+func _topics_from(index: int) -> Array:
+	## One rumor per pub. Asking another town's keyword hits the "can't help" line.
+	## Britain black stone, Jhelom sextant, Trinsic white stone, Paws mandrake,
+	## Buccaneers-Den skull, Vesper nightshade.
 	var all_t := [
 		{"name": "black stone", "need": 20, "rumor": "Ah, the Black Stone. Yes I've heard of it. But, the only one who knows where it lies is the wizard Merlin."},
 		{"name": "sextant", "need": 30, "rumor": "For navigation a Sextant is vital... Ask for item \"D\" in the Guild shops!"},
@@ -1242,10 +1245,9 @@ func _topics_from(skip_pairs: int) -> Array:
 		{"name": "skull", "need": 99, "rumor": "If thou must know of that evilest of all things... find the beggar Jude. He is very very poor!"},
 		{"name": "nightshade", "need": 25, "rumor": "Of Nightshade I know but this... Seek out Virgil or thou shalt miss! Try in Trinsic!"},
 	]
-	var out: Array = []
-	for i in range(skip_pairs, all_t.size()):
-		out.append(all_t[i])
-	return out
+	if index < 0 or index >= all_t.size():
+		return []
+	return [all_t[index]]
 
 
 func _t_whatll() -> void:

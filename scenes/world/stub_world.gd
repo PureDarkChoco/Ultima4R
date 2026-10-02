@@ -6226,16 +6226,10 @@ func _tavern_topic_unlocked(en_name: String) -> bool:
 				or GameState.journal_has_id("vesper.arron.ask-nightshade")
 			)
 		"skull":
-			match locale:
-				"Britain", "Jhelom", "Trinsic", "Paws":
-					return GameState.journal_has_id("britain.sebastian.den-skull")
-				"Buccaneers-Den":
-					return (
-						GameState.journal_has_id("britain.sebastian.den-skull")
-						or GameState.journal_has_id("den.ragnar.ask-skull")
-					)
-				_:
-					return false
+			return locale == "Buccaneers-Den" and (
+				GameState.journal_has_id("britain.sebastian.den-skull")
+				or GameState.journal_has_id("den.ragnar.ask-skull")
+			)
 		_:
 			return false
 
