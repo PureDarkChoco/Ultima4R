@@ -760,7 +760,7 @@ func _on_w_bs(c0: String) -> void:
 
 
 func _w_show_inv() -> void:
-	## One catalog line per item: "E) Mace / 100G / (eq / inv)".
+	## One catalog line per item: "E) Mace / 100G / damage / owned".
 	_say(_L("We Have:"))
 	var data: Dictionary = WEAPON_STOCKS[_locale]
 	for row in data["stock"]:
@@ -774,11 +774,12 @@ func _format_weapon_stock_line(row: Array) -> String:
 	var id := int(row[1])
 	var price := int(row[2])
 	var name := Locale.weapon_name(id)
-	var eq_n := GameState.equipped_weapon_count(id)
-	var inv_n := GameState.pack_weapon_qty(id)
+	var owned := GameState.equipped_weapon_count(id) + GameState.pack_weapon_qty(id)
 	var can_eq := GameState.party_can_equip_new_weapon(id)
 	var icon := TalkTlk.mark_weapon_icon(id)
-	return _format_gear_stock_line(k, icon, name, price, eq_n, inv_n, can_eq)
+	return _format_gear_stock_line(
+		k, icon, name, price, WeaponIcons.damage_of(id), owned, can_eq
+	)
 
 
 func _format_armor_stock_line(row: Array) -> String:
@@ -786,11 +787,12 @@ func _format_armor_stock_line(row: Array) -> String:
 	var id := int(row[1])
 	var price := int(row[2])
 	var name := Locale.armor_name(id)
-	var eq_n := GameState.equipped_armor_count(id)
-	var inv_n := GameState.pack_armor_qty(id)
+	var owned := GameState.equipped_armor_count(id) + GameState.pack_armor_qty(id)
 	var can_eq := GameState.party_can_equip_new_armor(id)
 	var icon := TalkTlk.mark_armor_icon(id)
-	return _format_gear_stock_line(k, icon, name, price, eq_n, inv_n, can_eq)
+	return _format_gear_stock_line(
+		k, icon, name, price, ArmorIcons.defense_of(id), owned, can_eq
+	)
 
 
 func _format_gear_stock_line(
@@ -798,18 +800,18 @@ func _format_gear_stock_line(
 	icon_mark: String,
 	item_name: String,
 	price: int,
-	equipped: int,
-	inventory: int,
+	stat: int,
+	owned: int,
 	can_equip: bool
 ) -> String:
-	## "E) [icon]Mace / 100G / (eq / inv)". Red index / red price when applicable.
+	## "E) [icon]Mace / 100G / 15 / 2" — damage or defense, then total owned.
 	var key := letter
 	if not can_equip:
 		key = "[color=#e74c3c]%s[/color]" % letter
 	var price_s := "[color=#f0c93a]%dG[/color]" % price
 	if GameState.gold < price:
 		price_s = "[color=#e74c3c]%dG[/color]" % price
-	return "%s) %s%s / %s / (%d / %d)" % [key, icon_mark, item_name, price_s, equipped, inventory]
+	return "%s) %s%s / %s / %d / %d" % [key, icon_mark, item_name, price_s, stat, owned]
 
 
 func _on_w_inv(c0: String) -> void:
@@ -968,7 +970,7 @@ func _on_a_bs(c0: String) -> void:
 
 
 func _a_show_inv() -> void:
-	## One catalog line per item: "C) Leather / 200G / (eq / inv)".
+	## One catalog line per item: "C) Leather / 200G / defense / owned".
 	_say(_L("We've got:"))
 	var data: Dictionary = ARMOR_STOCKS[_locale]
 	for row in data["stock"]:
