@@ -23888,7 +23888,9 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 	## blocked / slowed). Successful walks already applied on the step.
 	var skip_underfoot := _combat_underfoot_applied
 	_combat_underfoot_applied = false
+	var underfoot_processed := false
 	if not after_flee and not skip_underfoot:
+		underfoot_processed = true
 		if _apply_combat_field_under_focus():
 			after_flee = true
 	## Delay only after a real (able) action or flee — not for sleeper auto-pass.
@@ -23934,7 +23936,9 @@ func _combat_finish_member_turn(after_flee: bool = false) -> void:
 				await _end_combat_lost()
 				return
 			_map.set_combat_focus(0)
-	if not await _combat_skip_to_able_focus():
+	if not await _combat_skip_to_able_focus(
+		underfoot_processed and not was_able and not after_flee
+	):
 		_combat_resolving = false
 		return
 	_combat_resolving = false
@@ -23955,7 +23959,7 @@ func _combat_try_quickness_extra_turn(after_flee: bool) -> bool:
 	return true
 
 
-func _combat_skip_to_able_focus() -> bool:
+func _combat_skip_to_able_focus(current_field_already_applied: bool = false) -> bool:
 	## xu4 finishTurn skip loop: wake 1/8 on sleepers, instant-skip disabled;
 	## when the whole party is asleep, run foe phase and retry until someone acts.
 	## true = focus is ready for input; false = combat ended or no party left.
@@ -23975,6 +23979,41 @@ func _combat_skip_to_able_focus() -> bool:
 		var klass := _map.get_combat_focus_klass()
 		if klass < 0:
 			return false
+		if GameState.is_member_disabled(klass):
+			if current_field_already_applied:
+				current_field_already_applied = false
+			else:
+				var underfoot_effect := _TileRules.effect_of(
+					_map.combat_tile_at(_map.get_combat_focus_pos())
+				)
+				var field_killed := _apply_combat_field_under_focus()
+				if (
+					underfoot_effect == _TileRules.Effect.FIRE
+					or underfoot_effect == _TileRules.Effect.LAVA
+				):
+					## A sleeper's skipped turn still shows the same readable
+					## impact pause as an able member's completed turn.
+					await get_tree().create_timer(COMBAT_TURN_GAP).timeout
+					if not _combat_active or _map == null or not _map.is_in_combat():
+						return false
+				if field_killed:
+					## A killed focus is removed in place. Continue with the unit
+					## now at this index, or wrap if it was the last member.
+					if _map.get_combat_focus() < _map.combat_party_count():
+						continue
+					_combat_apply_round_end_turn()
+					await get_tree().create_timer(0.05).timeout
+					await _combat_run_foe_phase()
+					if not _combat_active or _map == null or not _map.is_in_combat():
+						return false
+					if _map.is_combat_won():
+						await _begin_combat_victory_aftermath()
+						return false
+					if _map.is_combat_lost():
+						await _end_combat_lost()
+						return false
+					_map.set_combat_focus(0)
+					continue
 		if GameState.status_of_class(klass) == PartyRoster.Status.SLEEPING:
 			## Camp ambush: block wake until the first foe phase has run.
 			if (

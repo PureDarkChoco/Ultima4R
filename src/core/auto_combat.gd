@@ -32,6 +32,11 @@ static func decide(
 	var escape := _escape_harmful_field(map)
 	if not escape.is_empty():
 		return escape
+	var yield_escape := _yield_field_escape_space(
+		map, mode == GameState.AutoCombat.WAIT
+	)
+	if not yield_escape.is_empty():
+		return yield_escape
 	match mode:
 		GameState.AutoCombat.WAIT:
 			return {"action": "pass"}
@@ -58,26 +63,20 @@ static func _focus_is_on_harmful_field(map) -> bool:
 
 
 static func _escape_harmful_field(map) -> Dictionary:
-	## A party member standing on fire/lava/poison/sleep should leave before
-	## attacking or casting. If every legal step is hazardous, act normally and
-	## let finishTurn apply the field underfoot.
-	var from: Vector2i = map.get_combat_focus_pos()
-	if from.x < 0:
-		return {}
-	if _TileRules.effect_of(map.combat_tile_at(from)) == _TileRules.Effect.NONE:
-		return {}
-	for raw_dir in [
-		Vector2i.UP,
-		Vector2i.RIGHT,
-		Vector2i.DOWN,
-		Vector2i.LEFT,
-	]:
-		var dir: Vector2i = raw_dir
-		if not map.combat_focus_can_step(dir):
-			continue
-		var dest: Vector2i = from + dir
-		if _TileRules.effect_of(map.combat_tile_at(dest)) == _TileRules.Effect.NONE:
-			return {"action": "move", "dir": dir}
+	## Keep following the shortest poison-free route to ordinary ground, even
+	## when reaching it requires several turns through fire or sleep fields.
+	var dir: Vector2i = map.combat_auto_escape_field_dir()
+	if dir != Vector2i.ZERO:
+		return {"action": "move", "dir": dir}
+	return {}
+
+
+static func _yield_field_escape_space(map, always_yield: bool = false) -> Dictionary:
+	## A member already on safe ground steps aside when occupying another party
+	## member's only reachable exit from a cluster of harmful fields.
+	var dir: Vector2i = map.combat_auto_yield_field_escape_dir(always_yield)
+	if dir != Vector2i.ZERO:
+		return {"action": "move", "dir": dir}
 	return {}
 
 

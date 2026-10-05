@@ -426,6 +426,8 @@ const _DIRS_COMBAT: Array[Vector2i] = [
 ]
 ## Last unit removed by fleeing off the .CON edge (for karma).
 var _combat_last_fled: Dictionary = {}
+## Party slots that already made one proactive Wait-mode step to clear a field exit.
+var _combat_wait_yielded: Dictionary = {}
 ## U5-style attack aim cursor (combat-local tile), or (−1,−1) when off.
 var _combat_aim_pos := Vector2i(-1, -1)
 var _combat_aim_cursor: Image
@@ -1077,6 +1079,7 @@ func enter_combat(map, party_units: Array, foe_units: Array) -> void:
 	_combat_focus = 0 if not _combat_party.is_empty() else -1
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
+	_combat_wait_yielded.clear()
 	_combat_aim_pos = Vector2i(-1, -1)
 	_combat_range_shade = false
 	_combat_tile_flashes.clear()
@@ -1201,6 +1204,7 @@ func exit_combat() -> void:
 	_combat_focus = -1
 	_combat_foe_focus = -1
 	_combat_last_fled = {}
+	_combat_wait_yielded.clear()
 	_combat_aim_pos = Vector2i(-1, -1)
 	_combat_range_shade = false
 	_combat_tile_flashes.clear()
@@ -2054,6 +2058,215 @@ func combat_focus_can_step(dir: Vector2i) -> bool:
 	return true
 
 
+func combat_auto_escape_field_dir() -> Vector2i:
+	## Find the first step on the shortest route from a harmful field to normal
+	## ground. Fire / sleep / lava may be crossed over multiple turns, but poison
+	## is never chosen as an escape step. Energy fields remain unwalkable.
+	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return Vector2i.ZERO
+	var u: Dictionary = _combat_party[_combat_focus]
+	var from := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
+	if _TileRulesCamp.effect_of(combat_tile_at(from)) == _TileRulesCamp.Effect.NONE:
+		return Vector2i.ZERO
+	var visited := PackedByteArray()
+	visited.resize(CAMP_W * CAMP_H)
+	var q: Array[Vector2i] = [from]
+	var first_steps: Array[Vector2i] = [Vector2i.ZERO]
+	visited[from.y * CAMP_W + from.x] = 1
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		var first: Vector2i = first_steps[qi]
+		qi += 1
+		for d in _DIRS_COMBAT:
+			var dest := cur + d
+			if not _combat_in_bounds(dest):
+				continue
+			var di := dest.y * CAMP_W + dest.x
+			if visited[di] != 0 or not _combat_can_walk(cur, dest, d):
+				continue
+			var effect := _TileRulesCamp.effect_of(combat_tile_at(dest))
+			if (
+				effect == _TileRulesCamp.Effect.POISON
+				or effect == _TileRulesCamp.Effect.POISONFIELD
+			):
+				continue
+			if cur == from:
+				## The step taken this turn must be open. Slowed terrain is still
+				## attempted; if it stalls movement, the next turn retries.
+				if _combat_occupied(dest, _combat_focus, -1):
+					continue
+				if _combat_auto_step_blocks_field_escape(dest):
+					continue
+			elif combat_foe_index_at(dest) >= 0:
+				continue
+			var next_first := d if cur == from else first
+			if effect == _TileRulesCamp.Effect.NONE:
+				if not _combat_occupied(dest, _combat_focus, -1):
+					return next_first
+			visited[di] = 1
+			q.append(dest)
+			first_steps.append(next_first)
+	return Vector2i.ZERO
+
+
+func combat_auto_yield_field_escape_dir(always_yield: bool = false) -> Vector2i:
+	## If this member is occupying the only reachable normal tile for another
+	## member trapped among fields, vacate it before taking an offensive action.
+	## Waiting members yield any reachable exit because they have no attack goal.
+	if _combat_map == null or _combat_focus < 0 or _combat_focus >= _combat_party.size():
+		return Vector2i.ZERO
+	var focus_pos := get_combat_focus_pos()
+	if _TileRulesCamp.effect_of(combat_tile_at(focus_pos)) != _TileRulesCamp.Effect.NONE:
+		return Vector2i.ZERO
+	var focus_unit: Dictionary = _combat_party[_combat_focus]
+	var yield_key := int(
+		focus_unit.get("party_slot", focus_unit.get("klass", _combat_focus))
+	)
+	var proactive_yield := always_yield and not _combat_wait_yielded.has(yield_key)
+	var trapped_positions: Array[Vector2i] = []
+	for party_i in _combat_party.size():
+		if party_i == _combat_focus:
+			continue
+		var member: Dictionary = _combat_party[party_i]
+		var member_pos := Vector2i(
+			int(member.get("x", -1)),
+			int(member.get("y", -1))
+		)
+		if (
+			not _combat_in_bounds(member_pos)
+			or _TileRulesCamp.effect_of(combat_tile_at(member_pos))
+			== _TileRulesCamp.Effect.NONE
+		):
+			continue
+		## Active modes only surrender a uniquely needed tile. Wait mode is more
+		## cooperative and clears any reachable exit it currently occupies.
+		if not proactive_yield and _combat_party_has_field_escape_goal(party_i):
+			continue
+		if _combat_party_can_escape_to(party_i, focus_pos):
+			trapped_positions.append(member_pos)
+	if trapped_positions.is_empty():
+		return Vector2i.ZERO
+	var best_dir := Vector2i.ZERO
+	var best_clearance := -1
+	for d in _DIRS_COMBAT:
+		var dest := focus_pos + d
+		if not _combat_in_bounds(dest) or not _combat_can_walk(focus_pos, dest, d):
+			continue
+		if _combat_occupied(dest, _combat_focus, -1):
+			continue
+		if _TileRulesCamp.effect_of(combat_tile_at(dest)) != _TileRulesCamp.Effect.NONE:
+			continue
+		if _combat_auto_step_blocks_field_escape(dest):
+			continue
+		## Prefer the open normal tile farthest from members needing this space.
+		var clearance := 0
+		for trapped_pos in trapped_positions:
+			clearance += absi(dest.x - trapped_pos.x) + absi(dest.y - trapped_pos.y)
+		if clearance > best_clearance:
+			best_clearance = clearance
+			best_dir = d
+	if best_dir != Vector2i.ZERO and proactive_yield:
+		_combat_wait_yielded[yield_key] = true
+	return best_dir
+
+
+func _combat_party_has_field_escape_goal(party_i: int) -> bool:
+	return _combat_party_field_escape_search(party_i, Vector2i(-1, -1))
+
+
+func _combat_party_can_escape_to(party_i: int, goal: Vector2i) -> bool:
+	return _combat_party_field_escape_search(party_i, goal)
+
+
+func _combat_party_field_escape_search(
+	party_i: int,
+	occupied_goal: Vector2i,
+	simulated_focus_pos: Vector2i = Vector2i(-1, -1)
+) -> bool:
+	if party_i < 0 or party_i >= _combat_party.size():
+		return false
+	var member: Dictionary = _combat_party[party_i]
+	var from := Vector2i(int(member.get("x", -1)), int(member.get("y", -1)))
+	if not _combat_in_bounds(from):
+		return false
+	var visited := PackedByteArray()
+	visited.resize(CAMP_W * CAMP_H)
+	var q: Array[Vector2i] = [from]
+	visited[from.y * CAMP_W + from.x] = 1
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		qi += 1
+		for d in _DIRS_COMBAT:
+			var dest := cur + d
+			if not _combat_in_bounds(dest):
+				continue
+			var di := dest.y * CAMP_W + dest.x
+			if visited[di] != 0 or not _combat_can_walk(cur, dest, d):
+				continue
+			var effect := _TileRulesCamp.effect_of(combat_tile_at(dest))
+			if (
+				effect == _TileRulesCamp.Effect.POISON
+				or effect == _TileRulesCamp.Effect.POISONFIELD
+			):
+				continue
+			if dest == occupied_goal:
+				return true
+			if _combat_field_escape_cell_occupied(dest, party_i, simulated_focus_pos):
+				continue
+			if effect == _TileRulesCamp.Effect.NONE:
+				return true
+			visited[di] = 1
+			q.append(dest)
+	return false
+
+
+func _combat_field_escape_cell_occupied(
+	pos: Vector2i, moving_party_i: int, simulated_focus_pos: Vector2i
+) -> bool:
+	if simulated_focus_pos.x < 0:
+		return _combat_occupied(pos, moving_party_i, -1)
+	if pos == simulated_focus_pos or combat_foe_index_at(pos) >= 0:
+		return true
+	for party_i in _combat_party.size():
+		if party_i == moving_party_i or party_i == _combat_focus:
+			continue
+		var member: Dictionary = _combat_party[party_i]
+		if (
+			int(member.get("x", -1)) == pos.x
+			and int(member.get("y", -1)) == pos.y
+		):
+			return true
+	return false
+
+
+func _combat_auto_step_blocks_field_escape(dest: Vector2i) -> bool:
+	## Reject an auto-move that turns another member's available field exit into
+	## a blocked route. The focused member's old tile is treated as vacated.
+	for party_i in _combat_party.size():
+		if party_i == _combat_focus:
+			continue
+		var member: Dictionary = _combat_party[party_i]
+		var member_pos := Vector2i(
+			int(member.get("x", -1)),
+			int(member.get("y", -1))
+		)
+		if (
+			not _combat_in_bounds(member_pos)
+			or _TileRulesCamp.effect_of(combat_tile_at(member_pos))
+			== _TileRulesCamp.Effect.NONE
+		):
+			continue
+		if not _combat_party_has_field_escape_goal(party_i):
+			continue
+		if not _combat_party_field_escape_search(
+			party_i, Vector2i(-1, -1), dest
+		):
+			return true
+	return false
+
+
 func combat_auto_step_dir(target: Vector2i) -> Vector2i:
 	## One NESW step along the shortest open route toward `target`.
 	## The foe occupies the target tile, so route to any adjacent strike tile.
@@ -2063,6 +2276,9 @@ func combat_auto_step_dir(target: Vector2i) -> Vector2i:
 	var from := Vector2i(int(u.get("x", 0)), int(u.get("y", 0)))
 	if not _combat_in_bounds(target) or from == target:
 		return Vector2i.ZERO
+	var harmful_first_step_unavoidable := (
+		_combat_auto_harmful_first_step_unavoidable(from)
+	)
 	var visited := PackedByteArray()
 	visited.resize(CAMP_W * CAMP_H)
 	var q: Array[Vector2i] = [from]
@@ -2084,7 +2300,20 @@ func combat_auto_step_dir(target: Vector2i) -> Vector2i:
 				continue
 			if not _combat_can_walk(cur, dest, d):
 				continue
+			var dest_effect := _TileRulesCamp.effect_of(combat_tile_at(dest))
+			## Auto-approach never enters poison. Fire / sleep / lava are only a
+			## valid first step when no adjacent walkable normal tile exists.
+			if (
+				dest_effect == _TileRulesCamp.Effect.POISON
+				or dest_effect == _TileRulesCamp.Effect.POISONFIELD
+			):
+				continue
 			if cur == from:
+				if (
+					dest_effect != _TileRulesCamp.Effect.NONE
+					and not harmful_first_step_unavoidable
+				):
+					continue
 				## Never begin an approach by retreating from this foe. Sideways
 				## steps at equal range remain available for obstacle detours.
 				var current_range := maxi(
@@ -2098,6 +2327,8 @@ func combat_auto_step_dir(target: Vector2i) -> Vector2i:
 				## This turn's actual step must be empty.
 				if _combat_occupied(dest, _combat_focus, -1):
 					continue
+				if _combat_auto_step_blocks_field_escape(dest):
+					continue
 			elif combat_foe_index_at(dest) >= 0:
 				## Party members farther along the route are mobile. Treating
 				## them as permanent walls stops units from following a column.
@@ -2106,6 +2337,18 @@ func combat_auto_step_dir(target: Vector2i) -> Vector2i:
 			q.append(dest)
 			first_steps.append(d if cur == from else first)
 	return Vector2i.ZERO
+
+
+func _combat_auto_harmful_first_step_unavoidable(from: Vector2i) -> bool:
+	## Occupied normal ground still counts as a safe alternative: in that case
+	## the member waits instead of jumping into a field to get around an ally.
+	for d in _DIRS_COMBAT:
+		var dest := from + d
+		if not _combat_in_bounds(dest) or not _combat_can_walk(from, dest, d):
+			continue
+		if _TileRulesCamp.effect_of(combat_tile_at(dest)) == _TileRulesCamp.Effect.NONE:
+			return false
+	return true
 
 
 func _combat_auto_route_dirs(from: Vector2i, target: Vector2i) -> Array[Vector2i]:
