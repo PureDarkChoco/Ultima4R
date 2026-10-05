@@ -61,6 +61,10 @@ var _placeholder := ""
 var _face_box := FALLBACK_FACE
 var _icon_lookup: Callable = Callable()
 var _icon_side := 18
+## Raw BBCode paragraphs so we can re-wrap at spaces when the strip width changes.
+var _dialogue_src: PackedStringArray = PackedStringArray()
+var _dialogue_tail_src: PackedStringArray = PackedStringArray()
+var _painted_wrap_w := -1.0
 
 
 func _ready() -> void:
@@ -128,6 +132,9 @@ func set_portraits(npc: Texture2D, avatar: Texture2D) -> void:
 
 
 func clear_dialogue() -> void:
+	_dialogue_src = PackedStringArray()
+	_dialogue_tail_src = PackedStringArray()
+	_painted_wrap_w = -1.0
 	if _dialogue != null:
 		_dialogue.clear()
 	if _dialogue_tail != null:
@@ -145,14 +152,13 @@ func append_dialogue_tail(bbcode: String) -> void:
 
 
 func append_dialogue_to(tail: bool, bbcode: String) -> void:
-	var row: RichTextLabel = _dialogue_tail if tail else _dialogue
-	if row == null or bbcode.strip_edges().is_empty():
+	if bbcode.strip_edges().is_empty():
 		return
-	if not row.get_parsed_text().is_empty():
-		row.append_text("\n")
-	_append_marked_text(row, bbcode)
 	if tail:
-		row.visible = true
+		_dialogue_tail_src.append(bbcode)
+	else:
+		_dialogue_src.append(bbcode)
+	_painted_wrap_w = -1.0
 	_layout_root()
 
 
@@ -542,7 +548,8 @@ func _build() -> void:
 	_dialogue.bbcode_enabled = true
 	_dialogue.fit_content = true
 	_dialogue.scroll_active = false
-	_dialogue.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	## Soft-wrap ourselves at spaces — Godot WORD_SMART breaks Hangul per syllable.
+	_dialogue.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_dialogue.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_dialogue.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -560,7 +567,7 @@ func _build() -> void:
 	_dialogue_tail.bbcode_enabled = true
 	_dialogue_tail.fit_content = true
 	_dialogue_tail.scroll_active = false
-	_dialogue_tail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dialogue_tail.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_dialogue_tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dialogue_tail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_dialogue_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -865,6 +872,79 @@ func _on_catalog_gui_input(event: InputEvent, index: int) -> void:
 			catalog_clicked.emit(index)
 
 
+func _paint_dialogue_wrapped(wrap_w: float) -> void:
+	if is_equal_approx(wrap_w, _painted_wrap_w):
+		return
+	_painted_wrap_w = wrap_w
+	_paint_dialogue_row(_dialogue, _dialogue_src, wrap_w)
+	_paint_dialogue_row(_dialogue_tail, _dialogue_tail_src, wrap_w)
+	if _dialogue_tail != null:
+		_dialogue_tail.visible = not _dialogue_tail_src.is_empty()
+
+
+func _paint_dialogue_row(row: RichTextLabel, parts: PackedStringArray, wrap_w: float) -> void:
+	if row == null:
+		return
+	row.clear()
+	var first := true
+	for part in parts:
+		for line in _wrap_dialogue_at_spaces(part, wrap_w):
+			if not first:
+				row.append_text("\n")
+			first = false
+			_append_marked_text(row, line)
+
+
+func _wrap_dialogue_at_spaces(text: String, max_w: float) -> PackedStringArray:
+	## Hard `\n` stay as rows; soft-wrap each paragraph at the last space that fits.
+	var out: PackedStringArray = PackedStringArray()
+	if text.is_empty():
+		return out
+	var normalized := text.replace("\r\n", "\n").replace("\r", "\n")
+	for para in normalized.split("\n"):
+		if para.is_empty():
+			continue
+		out.append_array(_wrap_dialogue_paragraph(para, max_w))
+	return out
+
+
+func _wrap_dialogue_paragraph(text: String, max_w: float) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	var line_w := maxf(max_w - 4.0, 24.0)
+	if _dialogue_text_width(text) <= line_w:
+		out.append(text)
+		return out
+	var words := text.split(" ", false)
+	if words.is_empty():
+		out.append(text)
+		return out
+	var line := ""
+	for word in words:
+		var trial := word if line.is_empty() else "%s %s" % [line, word]
+		if line.is_empty() or _dialogue_text_width(trial) <= line_w:
+			line = trial
+			continue
+		out.append(line)
+		line = word
+	if not line.is_empty():
+		out.append(line)
+	return out
+
+
+func _dialogue_text_width(text: String) -> float:
+	var plain := TalkTlk.strip_bbcode(text)
+	var glyph_w := 0.0
+	var icon_n := TalkTlk.count_icon_marks(text)
+	if icon_n > 0:
+		glyph_w += float(icon_n) * (float(_icon_side) + 2.0)
+	var font := UiTheme.font()
+	if font == null:
+		return glyph_w + float(plain.length()) * float(FONT_SIZE) * 0.6
+	return glyph_w + font.get_string_size(
+		plain, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE
+	).x
+
+
 func _append_marked_text(row: RichTextLabel, body: String) -> void:
 	## Stream BBCode + optional TalkTlk gear icon marks (\\u0002…\\u0003).
 	if row == null or body.is_empty():
@@ -983,9 +1063,14 @@ func _layout_root() -> void:
 	_avatar_row.custom_minimum_size = Vector2(0, frame.y)
 	var reserve := frame.y + 20.0
 	var max_npc := maxf(col_h - reserve, frame.y)
+	var wrap_w := maxf(col_w - frame.x - 12.0, 40.0)
+	if _dialogue != null:
+		_dialogue.size.x = wrap_w
+	if _dialogue_tail != null:
+		_dialogue_tail.size.x = wrap_w
+	_paint_dialogue_wrapped(wrap_w)
 	var text_h := 0.0
 	if _dialogue != null:
-		_dialogue.size.x = maxf(col_w - frame.x - 12.0, 40.0)
 		text_h = float(_dialogue.get_content_height())
 	var npc_h := clampf(maxf(frame.y, text_h + 8.0), frame.y, max_npc)
 	_npc_row.custom_minimum_size = Vector2(0, npc_h)

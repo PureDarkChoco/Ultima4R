@@ -25593,7 +25593,7 @@ func _wrap_msg_text(text: String) -> PackedStringArray:
 
 
 func _wrap_msg_paragraph(text: String) -> PackedStringArray:
-	## Soft-wrap one paragraph to the message pane width (prefer spaces).
+	## Soft-wrap one paragraph to the message pane width at spaces only.
 	var out: PackedStringArray = PackedStringArray()
 	var max_w := _msg_line_max_width()
 	var font := UiTheme.font()
@@ -25601,28 +25601,20 @@ func _wrap_msg_paragraph(text: String) -> PackedStringArray:
 	if _msg_text_width(text, font, font_sz) <= max_w:
 		out.append(text)
 		return out
-	var remaining := text
-	while not remaining.is_empty():
-		if _msg_text_width(remaining, font, font_sz) <= max_w:
-			out.append(remaining)
-			break
-		var fit := 0
-		for i in remaining.length():
-			if _msg_text_width(remaining.substr(0, i + 1), font, font_sz) > max_w:
-				break
-			fit = i + 1
-		if fit <= 0:
-			fit = 1
-		var chunk := remaining.substr(0, fit)
-		## Prefer last space so English wraps on words (xu4 screenMessage).
-		var sp := chunk.rfind(" ")
-		if sp > 0:
-			chunk = remaining.substr(0, sp)
-			remaining = remaining.substr(sp + 1)
-		else:
-			remaining = remaining.substr(fit)
-		if not chunk.is_empty():
-			out.append(chunk)
+	var words := text.split(" ", false)
+	if words.is_empty():
+		out.append(text)
+		return out
+	var line := ""
+	for word in words:
+		var trial := word if line.is_empty() else "%s %s" % [line, word]
+		if line.is_empty() or _msg_text_width(trial, font, font_sz) <= max_w:
+			line = trial
+			continue
+		out.append(line)
+		line = word
+	if not line.is_empty():
+		out.append(line)
 	return out
 
 
