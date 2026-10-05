@@ -2322,6 +2322,10 @@ const CHEST_LOOT_KEY := "key"
 const CHEST_LOOT_GEM := "gem"
 const CHEST_LOOT_SILK := "silk"
 const CHEST_LOOT_REAGENT := "reagent"
+
+## One fight's XP (no gold / items / karma). Cleared when combat ends.
+var _combat_reward_active := false
+var _combat_reward_xp: Dictionary = {} ## klass -> gained XP
 ## Staff..Halberd (exclude Hands, Magic*, Mystic).
 const _CHEST_NORMAL_WEAPONS: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ## Cloth..Plate (exclude Magic*, Mystic).
@@ -2640,7 +2644,31 @@ func award_xp_class(klass: int, amount: int) -> void:
 		return
 	if klass < 0 or klass >= member_xp.size():
 		return
-	member_xp[klass] = mini(9999, int(member_xp[klass]) + amount)
+	var before := int(member_xp[klass])
+	member_xp[klass] = mini(9999, before + amount)
+	_record_combat_reward_xp(klass, int(member_xp[klass]) - before)
+
+
+func begin_combat_reward_session() -> void:
+	_combat_reward_active = true
+	_combat_reward_xp.clear()
+
+
+func end_combat_reward_session() -> void:
+	_combat_reward_active = false
+	_combat_reward_xp.clear()
+
+
+func combat_reward_snapshot() -> Dictionary:
+	return {
+		"xp": _combat_reward_xp.duplicate(),
+	}
+
+
+func _record_combat_reward_xp(klass: int, gained: int) -> void:
+	if not _combat_reward_active or gained <= 0:
+		return
+	_combat_reward_xp[klass] = int(_combat_reward_xp.get(klass, 0)) + gained
 
 
 func award_combat_kill_xp(killer_klass: int, dmg_by_klass: Dictionary, total_xp: int) -> void:

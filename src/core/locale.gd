@@ -421,6 +421,11 @@ const _T := {
 		"en_us": "Victory!",
 		"ko": "승리!",
 	},
+	"cmd_combat_summary_xp": {
+		"en_u4": "%s: +%d Experience",
+		"en_us": "%s: +%d experience",
+		"ko": "%s 경험치 +%d",
+	},
 	## Victory aftermath: Esc exits the whole party at once (not edge-flee).
 	"cmd_escape": {
 		"en_u4": "Escape",

@@ -18894,6 +18894,7 @@ func _death_revive() -> void:
 	_combat_resolving = false
 	_combat_victory_aftermath = false
 	_victory_solo_party_slot = -1
+	GameState.end_combat_reward_session()
 	_combat_foe = {}
 	if _map != null and _map.is_camping():
 		_map.exit_camp()
@@ -22134,6 +22135,7 @@ func _begin_combat(
 		return
 	## Lock input; open panels while the map wipes explore → combat (0.8s tile diagonals).
 	_combat_active = true
+	GameState.begin_combat_reward_session()
 	_sync_music()
 	if GameState.journal_mark_goal("combat:first"):
 		_refresh_journal_panel()
@@ -22258,6 +22260,33 @@ func _combat_clear_aim_state() -> void:
 	_sync_combat_aim_foe_roster()
 
 
+func _push_combat_reward_summary() -> void:
+	## Victory recap: XP gained only. No gold, items, or virtue.
+	var xp: Dictionary = GameState.combat_reward_snapshot().get("xp", {})
+	var seen: Dictionary = {}
+	for mid in GameState.party_order:
+		var klass := int(mid)
+		var gained := int(xp.get(klass, 0))
+		if gained <= 0:
+			continue
+		seen[klass] = true
+		_push_message(Locale.t("cmd_combat_summary_xp", [
+			GameState.party_class_display_name(klass),
+			gained,
+		]), false)
+	for k in xp.keys():
+		var klass := int(k)
+		if seen.has(klass):
+			continue
+		var gained := int(xp[k])
+		if gained <= 0:
+			continue
+		_push_message(Locale.t("cmd_combat_summary_xp", [
+			GameState.party_class_display_name(klass),
+			gained,
+		]), false)
+
+
 func _begin_combat_victory_aftermath() -> void:
 	## Enemies wiped — show Victory! + karma/loot once, stay on the .CON map.
 	## Leave later via ESC (party_slot order) or walking everyone off the edge.
@@ -22288,6 +22317,7 @@ func _begin_combat_victory_aftermath() -> void:
 	var foe_facing := int(_combat_foe.get("facing", 0))
 	## Loot / karma at the Victory! moment (not when stepping off the arena).
 	_push_message(Locale.t("cmd_victory"), false)
+	_push_combat_reward_summary()
 	if _WorldCreaturesScript.is_pirate_ship(engaged_tid):
 		_place_captured_pirate_ship(foe_pos, foe_facing)
 	if _WorldCreaturesScript.is_evil(engaged_tid):
@@ -22328,6 +22358,7 @@ func _finish_combat_victory_exit() -> void:
 	_victory_solo_party_slot = -1
 	_victory_turn_pending = false
 	_combat_wake_on_victory = false
+	GameState.end_combat_reward_session()
 	if _map != null:
 		_map.exit_combat()
 	_combat_foe = {}
@@ -24318,6 +24349,7 @@ func _end_combat_lost() -> void:
 	## Not a victory exit path.
 	_combat_victory_aftermath = false
 	_victory_solo_party_slot = -1
+	GameState.end_combat_reward_session()
 	_combat_clear_aim_state()
 	_combat_resolving = true
 	var engaged_tid := int(_combat_foe.get("tile", 0))
