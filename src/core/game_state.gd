@@ -40,6 +40,8 @@ const U4_DATA_WIN_GOG_PAID: Array[String] = [
 const U4_DATA_GOG_WIN := U4_DATA_WIN_GOG_PAID[3]
 
 var u4_data_path: String = U4_DATA_RES
+## Directory listing cache: root → { lowercase filename: on-disk filename }.
+var _u4_dir_names: Dictionary = {}
 
 var _language: String = "en_us"
 var language: String:
@@ -3744,8 +3746,8 @@ func _apply_bool_array(dest: Array, src: Variant, min_size: int) -> void:
 
 
 func _load_intro_from_u4() -> void:
-	var title_path := u4_data_path.path_join("TITLE.EXE")
-	if not intro_data.load_from_path(title_path):
+	var title_path := resolve_u4_file("TITLE.EXE")
+	if title_path.is_empty() or not intro_data.load_from_path(title_path):
 		push_warning("GameState: TITLE.EXE intro strings not loaded from %s" % title_path)
 
 
@@ -3826,6 +3828,7 @@ func try_set_u4_data_path(path: String) -> bool:
 	u4_data_path = resolved
 	u4_data_ok = true
 	u4_data_needs_macos_permission = false
+	_u4_dir_names.clear()
 	_persist_u4_data_path()
 	_load_intro_from_u4()
 	return true
@@ -3861,19 +3864,89 @@ func resolve_u4_data_dir(path: String) -> String:
 
 func is_valid_u4_data_dir(path: String) -> bool:
 	## Existence + readable size only — do not slurp WORLD.MAP into memory.
-	if path.is_empty():
+	var world_path := u4_file_in_dir(path, "WORLD.MAP")
+	if world_path.is_empty():
 		return false
-	var world_path := path.path_join("WORLD.MAP")
-	if not FileAccess.file_exists(world_path):
-		world_path = path.path_join("world.map")
-		if not FileAccess.file_exists(world_path):
-			return false
 	var f := FileAccess.open(world_path, FileAccess.READ)
 	if f == null:
 		return false
 	var sz := f.get_length()
 	f.close()
 	return sz > 0
+
+
+func resolve_u4_file(fname: String) -> String:
+	## Case-insensitive lookup. Linux keeps DOS names such as SHRINE.CON distinct
+	## from shrine.con; macOS and Windows usually hide that difference.
+	var name := fname.get_file()
+	if name.is_empty():
+		return ""
+	var seen: Dictionary = {}
+	for root in _u4_data_roots():
+		if seen.has(root):
+			continue
+		seen[root] = true
+		var found := u4_file_in_dir(root, name)
+		if not found.is_empty():
+			return found
+	return ""
+
+
+func u4_file_in_dir(dir_path: String, fname: String) -> String:
+	var root := dir_path.strip_edges().rstrip("/")
+	var name := fname.get_file()
+	if root.is_empty() or name.is_empty():
+		return ""
+	var exact := root.path_join(name)
+	if FileAccess.file_exists(exact):
+		return exact
+	var upper_name := name.to_upper()
+	if upper_name != name:
+		var upper := root.path_join(upper_name)
+		if FileAccess.file_exists(upper):
+			return upper
+	var lower_name := name.to_lower()
+	if lower_name != name and lower_name != upper_name:
+		var lower := root.path_join(lower_name)
+		if FileAccess.file_exists(lower):
+			return lower
+	var index: Dictionary = _u4_dir_names.get(root, {})
+	if index.is_empty():
+		index = _index_u4_dir(root)
+		_u4_dir_names[root] = index
+	var actual := str(index.get(lower_name, ""))
+	if actual.is_empty():
+		return ""
+	var found := root.path_join(actual)
+	return found if FileAccess.file_exists(found) else ""
+
+
+func _u4_data_roots() -> Array[String]:
+	var roots: Array[String] = []
+	if not u4_data_path.is_empty():
+		roots.append(u4_data_path)
+	roots.append(U4_DATA_RES)
+	roots.append(U4_DATA_ABS)
+	for path in _macos_gog_u4_dirs():
+		roots.append(path)
+	for path in _windows_gog_u4_dirs():
+		roots.append(path)
+	return roots
+
+
+func _index_u4_dir(root: String) -> Dictionary:
+	var out := {}
+	var dir := DirAccess.open(root)
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and not fname.begins_with("."):
+			out[fname.to_lower()] = fname
+		fname = dir.get_next()
+	dir.list_dir_end()
+	return out
 
 
 func _load_u4_data_path_pref() -> String:

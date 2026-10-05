@@ -1063,15 +1063,13 @@ func _ship_facing_dir() -> Vector2i:
 
 
 func _resolve_world_map_path() -> String:
-	var candidates: Array[String] = [GameState.u4_data_path.path_join("WORLD.MAP")]
-	for gog in GameState._macos_gog_u4_dirs():
-		candidates.append(gog.path_join("WORLD.MAP"))
-	for path in candidates:
-		if FileAccess.file_exists(path):
-			var bytes := FileAccess.get_file_as_bytes(path)
-			if bytes.size() == WorldMapData.WIDTH * WorldMapData.HEIGHT:
-				return path
-	return candidates[0]
+	var path := GameState.resolve_u4_file("WORLD.MAP")
+	if path.is_empty():
+		return GameState.u4_data_path.path_join("WORLD.MAP")
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() == WorldMapData.WIDTH * WorldMapData.HEIGHT:
+		return path
+	return path
 
 
 func _fit_explore_map() -> void:

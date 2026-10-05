@@ -981,18 +981,9 @@ static func _manhattan(a: Vector3i, b: Vector2i) -> int:
 
 
 static func resolve_u4_file(fname: String) -> String:
-	## Prefer GameState path; try exact + upper/lower case names.
-	var base := fname.get_file()
-	var names: Array[String] = [base, base.to_upper(), base.to_lower()]
-	var candidates: Array[String] = []
-	for n in names:
-		if not GameState.u4_data_path.is_empty():
-			candidates.append(GameState.u4_data_path.path_join(n))
-		candidates.append(GameState.U4_DATA_RES.path_join(n))
-		candidates.append(GameState.U4_DATA_ABS.path_join(n))
-	for p in candidates:
-		if FileAccess.file_exists(p):
-			var bytes := FileAccess.get_file_as_bytes(p)
-			if bytes.size() >= FILE_MIN:
-				return p
-	return ""
+	## Prefer GameState path. Match any filename case, including mixed DOS names.
+	var path := GameState.resolve_u4_file(fname)
+	if path.is_empty():
+		return ""
+	var bytes := FileAccess.get_file_as_bytes(path)
+	return path if bytes.size() >= FILE_MIN else ""

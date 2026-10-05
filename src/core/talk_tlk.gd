@@ -376,25 +376,13 @@ static func _ult_to_tlk(ult_file: String) -> String:
 
 
 static func _resolve_data_file(fname: String) -> String:
-	var base := fname.get_file()
-	var names: Array[String] = [base, base.to_upper(), base.to_lower()]
-	var roots: Array[String] = []
-	## Avoid binding autoload at parse/load time for tools; prefer GameState path when live.
-	if Engine.get_main_loop() != null:
-		var gs = Engine.get_main_loop().root.get_node_or_null("/root/GameState")
-		if gs != null and not str(gs.u4_data_path).is_empty():
-			roots.append(str(gs.u4_data_path))
-	roots.append("res://data/u4")
-	for gog in GameState._macos_gog_u4_dirs():
-		roots.append(gog)
-	var candidates: Array[String] = []
-	for r in roots:
-		for n in names:
-			candidates.append(r.path_join(n))
-	for p in candidates:
-		if FileAccess.file_exists(p):
-			return p
-	return ""
+	## Avoid binding autoload at parse/load time for tools.
+	if Engine.get_main_loop() == null:
+		return ""
+	var gs = Engine.get_main_loop().root.get_node_or_null("/root/GameState")
+	if gs == null or not gs.has_method("resolve_u4_file"):
+		return ""
+	return str(gs.resolve_u4_file(fname))
 
 
 static func load_file(path: String) -> Array:

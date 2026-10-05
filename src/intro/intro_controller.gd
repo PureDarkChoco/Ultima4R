@@ -146,10 +146,10 @@ func setup(view: TextureRect) -> bool:
 
 	var data_dir := str(GameState.u4_data_path)
 	if data_dir.is_empty():
-		data_dir = ProjectSettings.globalize_path("res://data/u4")
-	var title_exe := data_dir.path_join("TITLE.EXE")
-	var title_ega := data_dir.path_join("TITLE.EGA")
-	var animate_ega := data_dir.path_join("ANIMATE.EGA")
+		data_dir = "res://data/u4"
+	var title_exe := GameState.u4_file_in_dir(data_dir, "TITLE.EXE")
+	var title_ega := GameState.u4_file_in_dir(data_dir, "TITLE.EGA")
+	var animate_ega := GameState.u4_file_in_dir(data_dir, "ANIMATE.EGA")
 
 	_bin = _IntroBinData.new()
 	if not _bin.load_from_path(title_exe):
