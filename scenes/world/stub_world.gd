@@ -9261,9 +9261,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_do_show_karma()
 			_mark_input_handled()
 			return
-		## Ctrl/⌘+P: debug city / dungeon warp.
+		## Ctrl/⌘+P: former debug portal list. Swallow the chord so it cannot warp.
 		if _is_mod_chord_key(event) and _is_city_warp_key(event):
-			_open_city_warp()
 			_mark_input_handled()
 			return
 		## Waiting for a direction (A/G/J/O/T or ship Yell) — same line as "Attack: Dir?".
