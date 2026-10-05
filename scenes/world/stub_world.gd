@@ -22135,6 +22135,7 @@ func _begin_combat(
 		return
 	## Lock input; open panels while the map wipes explore → combat (0.8s tile diagonals).
 	_combat_active = true
+	_combat_underfoot_applied = false
 	GameState.begin_combat_reward_session()
 	_sync_music()
 	if GameState.journal_mark_goal("combat:first"):
@@ -23265,46 +23266,11 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 			leave_at = _map.combat_projectile_end(from, target, wid)
 		_map.combat_leave_field(leave_at, MapView.TILE_FIELD_FIRE)
 
-	if not _combat_active or _map == null or not _map.is_in_combat():
-		_combat_resolving = false
-		return
-	if _map.is_combat_won():
-		await _begin_combat_victory_aftermath()
-		_combat_resolving = false
-		return
-	## Finish turn without the usual entry guard (we already set resolving).
-	await get_tree().create_timer(COMBAT_TURN_GAP).timeout
-	if not _combat_active or _map == null or not _map.is_in_combat():
-		_combat_resolving = false
-		return
-	if _map.is_combat_lost():
-		await _end_combat_lost()
-		return
-	var still_party := _map.advance_combat_focus()
-	if still_party:
-		_sync_combat_focus_roster()
-		_refresh_party()
-		_combat_resolving = false
-		await _combat_on_focus_ready()
-		return
-	_combat_apply_round_end_turn()
-	await _combat_run_foe_phase()
-	if not _combat_active or _map == null or not _map.is_in_combat():
-		_combat_resolving = false
-		return
-	if _map.is_combat_lost():
-		await _end_combat_lost()
-		return
-	if _map.is_combat_won():
-		await _begin_combat_victory_aftermath()
-		_combat_resolving = false
-		return
-	_map.set_combat_focus(0)
-	_refresh_foe_roster()
-	_sync_combat_focus_roster()
-	_refresh_party()
+	## Attacks used to advance focus through a private turn path, skipping the
+	## field under the attacker. Rejoin the common finishTurn path so standing
+	## on fire/lava/poison/sleep applies after the attack.
 	_combat_resolving = false
-	await _combat_on_focus_ready()
+	await _combat_finish_member_turn()
 
 
 func _combat_resolve_melee_attack(
@@ -23832,6 +23798,8 @@ func _apply_combat_field_to_party(pos: Vector2i, party_slot: int, party_i: int) 
 	match effect:
 		_TileRules.Effect.FIRE, _TileRules.Effect.LAVA:
 			AudioSfx.play_fire_field()
+			## Field damage uses the same visible impact tile as a weapon hit.
+			_map.flash_combat_tile(pos, MapView.TILE_HIT_FLASH, COMBAT_HIT_FLASH_SEC)
 		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
 			AudioSfx.play_poison_effect()
 			_push_message(Locale.t("cmd_poisoned"), false)

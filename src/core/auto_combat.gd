@@ -6,6 +6,7 @@ extends Object
 
 const _WeaponIcons := preload("res://src/core/weapon_icons.gd")
 const _Spells := preload("res://src/core/spells.gd")
+const _TileRules := preload("res://src/map/tile_rules.gd")
 const _WorldCreatures := preload("res://src/map/world_creatures.gd")
 
 const HEAL_HP_RATIO := 0.50
@@ -27,28 +28,76 @@ static func decide(
 ) -> Dictionary:
 	if map == null or klass < 0:
 		return {"action": "pass"}
+	var on_harmful_field := _focus_is_on_harmful_field(map)
+	var escape := _escape_harmful_field(map)
+	if not escape.is_empty():
+		return escape
 	match mode:
 		GameState.AutoCombat.WAIT:
 			return {"action": "pass"}
 		GameState.AutoCombat.ATTACK:
-			return _decide_attack(map, klass, preferred_foe_slot)
+			return _decide_attack(map, klass, preferred_foe_slot, not on_harmful_field)
 		GameState.AutoCombat.MAGIC:
-			return _decide_magic(map, klass, loc_ctx, preferred_foe_slot)
+			return _decide_magic(
+				map, klass, loc_ctx, preferred_foe_slot, not on_harmful_field
+			)
 		GameState.AutoCombat.PROTECT:
-			return _decide_protect(map, klass, loc_ctx, preferred_foe_slot)
+			return _decide_protect(
+				map, klass, loc_ctx, preferred_foe_slot, not on_harmful_field
+			)
 		_:
 			return {"action": "pass"}
 
 
-static func _decide_attack(map, klass: int, preferred_foe_slot: int) -> Dictionary:
+static func _focus_is_on_harmful_field(map) -> bool:
+	var pos: Vector2i = map.get_combat_focus_pos()
+	return (
+		pos.x >= 0
+		and _TileRules.effect_of(map.combat_tile_at(pos)) != _TileRules.Effect.NONE
+	)
+
+
+static func _escape_harmful_field(map) -> Dictionary:
+	## A party member standing on fire/lava/poison/sleep should leave before
+	## attacking or casting. If every legal step is hazardous, act normally and
+	## let finishTurn apply the field underfoot.
+	var from: Vector2i = map.get_combat_focus_pos()
+	if from.x < 0:
+		return {}
+	if _TileRules.effect_of(map.combat_tile_at(from)) == _TileRules.Effect.NONE:
+		return {}
+	for raw_dir in [
+		Vector2i.UP,
+		Vector2i.RIGHT,
+		Vector2i.DOWN,
+		Vector2i.LEFT,
+	]:
+		var dir: Vector2i = raw_dir
+		if not map.combat_focus_can_step(dir):
+			continue
+		var dest: Vector2i = from + dir
+		if _TileRules.effect_of(map.combat_tile_at(dest)) == _TileRules.Effect.NONE:
+			return {"action": "move", "dir": dir}
+	return {}
+
+
+static func _decide_attack(
+	map, klass: int, preferred_foe_slot: int, allow_approach: bool = true
+) -> Dictionary:
 	var hit := _best_weapon_hit(map, klass, preferred_foe_slot)
 	if not hit.is_empty():
 		return hit
+	if not allow_approach:
+		return {"action": "pass"}
 	return _move_or_pass(map, preferred_foe_slot)
 
 
 static func _decide_magic(
-	map, klass: int, loc_ctx: int, preferred_foe_slot: int
+	map,
+	klass: int,
+	loc_ctx: int,
+	preferred_foe_slot: int,
+	allow_approach: bool = true
 ) -> Dictionary:
 	var shot := _best_magic_attack(map, klass, loc_ctx, preferred_foe_slot)
 	if not shot.is_empty():
@@ -59,11 +108,17 @@ static func _decide_magic(
 	## Melee: stand and recover MP. Ranged with no clear shot: step or pass.
 	if _WeaponIcons.is_melee(GameState.weapon_of_class(klass)):
 		return {"action": "pass"}
+	if not allow_approach:
+		return {"action": "pass"}
 	return _move_or_pass(map, preferred_foe_slot)
 
 
 static func _decide_protect(
-	map, klass: int, loc_ctx: int, preferred_foe_slot: int
+	map,
+	klass: int,
+	loc_ctx: int,
+	preferred_foe_slot: int,
+	allow_approach: bool = true
 ) -> Dictionary:
 	var support := _best_protect_cast(klass, loc_ctx)
 	if not support.is_empty():
@@ -74,6 +129,8 @@ static func _decide_protect(
 	var hit := _best_weapon_hit(map, klass, preferred_foe_slot)
 	if not hit.is_empty():
 		return hit
+	if not allow_approach:
+		return {"action": "pass"}
 	return _move_or_pass(map, preferred_foe_slot)
 
 

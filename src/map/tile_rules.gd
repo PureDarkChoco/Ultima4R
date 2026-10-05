@@ -248,7 +248,8 @@ static func is_opaque(tile_id: int) -> bool:
 
 
 static func is_secret_door(tile_id: int) -> bool:
-	## xu4 secret_door — attackable solid (can be opened / destroyed later).
+	## Concealed passage: visually opaque / projectile-blocking, but walkable.
+	## Dungeon-room triggers may replace related cells after a member steps.
 	return clampi(tile_id, 0, 255) == 73
 
 
