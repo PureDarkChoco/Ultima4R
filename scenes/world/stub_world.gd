@@ -5775,10 +5775,27 @@ func _talk_keyword_menu_has_key(key: String) -> bool:
 	return false
 
 
+func _prefer_hangul_menu_word(key: String, word: String) -> String:
+	## First visit used to keep the TLK stem (COMP) because it sits ahead of 연민
+	## in the keyword list. Later visits already prefer Hangul. Do that here too.
+	var raw := word.strip_edges()
+	if GameState.lang_short() != "ko" or _TalkLocale.word_has_hangul(raw):
+		return raw
+	var shown := _talk_label_for_stored_key(key)
+	if _TalkLocale.word_has_hangul(shown):
+		return shown
+	return raw
+
+
 func _insert_talk_keyword_menu_item(
 	key: String, label: String, input: String
 ) -> void:
 	## Insert before Health (same slot as discovered / journal-directed topics).
+	var surface := input if not input.is_empty() else label
+	surface = _prefer_hangul_menu_word(key, surface)
+	if _TalkLocale.word_has_hangul(surface):
+		label = surface
+		input = surface
 	var health_index := _talk_keyword_menu_health_index()
 	_talk_keyword_menu_items.insert(health_index, {
 		"key": key,
@@ -5825,19 +5842,27 @@ func _talk_word_is_compassion(word: String) -> bool:
 
 
 func _maybe_offer_iolo_compassion_keyword() -> void:
-	## Heard 연민 / compassion from anyone else — offer it white on Iolo's list.
+	## Heard 연민 / compassion from anyone else — offer it on Iolo's list.
+	## The TLK stem COMP is earlier in the keyword list than 연민, so the row
+	## must use the same hangul label as a later visit (restore path).
 	if not _talk_keyword_menu_active or not _talk_npc_is_iolo():
 		return
-	var korean := GameState.lang_short() == "ko"
+	var heard_key := ""
 	for raw in _talk_keywords:
 		var word := str(raw).strip_edges()
 		if word.is_empty() or not _talk_word_is_compassion(word):
 			continue
 		if not _talk_has_heard_interest(word):
 			continue
-		var label := word if korean else word.capitalize()
-		_offer_talk_keyword_item(_talk_keyword_stable_key(word), label, word)
+		heard_key = _talk_keyword_stable_key(word)
+		break
+	if heard_key.is_empty():
 		return
+	var shown := _talk_label_for_stored_key(heard_key)
+	if shown.is_empty():
+		shown = heard_key
+	var label := shown if GameState.lang_short() == "ko" else shown.capitalize()
+	_offer_talk_keyword_item(heard_key, label, shown)
 
 
 func _talk_word_is_passage_word(word: String) -> bool:
