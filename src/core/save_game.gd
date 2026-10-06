@@ -220,6 +220,15 @@ static func slot_version(data: Dictionary) -> int:
 	return maxi(0, int(data.get("version", 0)))
 
 
+static func _unused_backup_path(abs_path: String) -> String:
+	var candidate := abs_path + ".bak"
+	var suffix := 1
+	while FileAccess.file_exists(candidate):
+		candidate = "%s.bak.%d" % [abs_path, suffix]
+		suffix += 1
+	return candidate
+
+
 static func write_slot(slot: int, data: Dictionary) -> bool:
 	ensure_dir()
 	var path := slot_path(slot)
@@ -239,12 +248,36 @@ static func write_slot(slot: int, data: Dictionary) -> bool:
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
 	## Atomic replace so a crash mid-write cannot leave a truncated slot.
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(abs_path)
 	var err := DirAccess.rename_absolute(tmp_path, abs_path)
 	if err != OK:
-		push_warning("SaveGame: cannot finalize %s (err %d)" % [path, err])
-		return false
+		## Some platforms do not allow rename over an existing destination.
+		## Preserve the old slot until the new file is safely in place.
+		if not FileAccess.file_exists(path):
+			push_warning("SaveGame: cannot finalize %s (err %d)" % [path, err])
+			return false
+		var backup_path := _unused_backup_path(abs_path)
+		var backup_err := DirAccess.rename_absolute(abs_path, backup_path)
+		if backup_err != OK:
+			push_warning(
+				"SaveGame: cannot preserve old %s (err %d)" % [path, backup_err]
+			)
+			return false
+		err = DirAccess.rename_absolute(tmp_path, abs_path)
+		if err != OK:
+			var restore_err := DirAccess.rename_absolute(backup_path, abs_path)
+			if restore_err != OK:
+				push_warning(
+					"SaveGame: cannot restore %s; backup remains at %s (err %d)"
+					% [path, backup_path, restore_err]
+				)
+			else:
+				push_warning("SaveGame: cannot finalize %s (err %d)" % [path, err])
+			return false
+		var cleanup_err := DirAccess.remove_absolute(backup_path)
+		if cleanup_err != OK:
+			push_warning(
+				"SaveGame: cannot remove backup %s (err %d)" % [backup_path, cleanup_err]
+			)
 	set_last_saved_slot(slot)
 	return true
 
