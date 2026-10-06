@@ -11298,16 +11298,13 @@ func _confirm_load_slot(slot_index: int) -> void:
 		_push_message(Locale.t("load_empty"), false)
 		return
 	var data := _SaveGame.read_slot(slot_n)
-	if data.is_empty():
-		_push_message(Locale.t("load_empty"), false)
+	if not _SaveGame.is_loadable(data):
+		_push_message(Locale.t("load_corrupt"), false)
 		return
-	var game: Variant = data.get("game", {})
-	var world: Variant = data.get("world", {})
-	if typeof(game) != TYPE_DICTIONARY:
-		_push_message(Locale.t("load_empty"), false)
-		return
+	var game: Dictionary = data["game"]
+	var world: Dictionary = data["world"]
 	GameState.apply_save_dict(game as Dictionary, _SaveGame.slot_version(data))
-	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
+	GameState.pending_world_save = world
 	GameState.session_loaded_slot = slot_n
 	GameState.session_did_save = false
 	GameState.session_save_overwrite_ok = false

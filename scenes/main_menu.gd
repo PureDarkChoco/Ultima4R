@@ -943,14 +943,15 @@ func _confirm_load(slot_index: int) -> void:
 			_save_panel.refresh()
 		return
 	var data := _SaveGame.read_slot(slot_n)
-	if data.is_empty():
+	if not _SaveGame.is_loadable(data):
+		_close_load()
+		_tagline.text = Locale.t("load_corrupt")
+		_btn_journey.grab_focus()
 		return
-	var game: Variant = data.get("game", {})
-	var world: Variant = data.get("world", {})
-	if typeof(game) != TYPE_DICTIONARY:
-		return
+	var game: Dictionary = data["game"]
+	var world: Dictionary = data["world"]
 	GameState.apply_save_dict(game as Dictionary, _SaveGame.slot_version(data))
-	GameState.pending_world_save = world if typeof(world) == TYPE_DICTIONARY else {}
+	GameState.pending_world_save = world
 	GameState.session_loaded_slot = slot_n
 	GameState.session_did_save = false
 	GameState.session_save_overwrite_ok = false

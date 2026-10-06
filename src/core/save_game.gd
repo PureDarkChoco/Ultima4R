@@ -220,6 +220,27 @@ static func slot_version(data: Dictionary) -> int:
 	return maxi(0, int(data.get("version", 0)))
 
 
+static func is_loadable(data: Dictionary) -> bool:
+	## Reject partial/corrupt slots before either game or world state is mutated.
+	if data.is_empty():
+		return false
+	var game: Variant = data.get("game")
+	var world: Variant = data.get("world")
+	if typeof(game) != TYPE_DICTIONARY or (game as Dictionary).is_empty():
+		return false
+	if typeof(world) != TYPE_DICTIONARY or (world as Dictionary).is_empty():
+		return false
+	var world_dict := world as Dictionary
+	if not world_dict.has("x") or not world_dict.has("y"):
+		return false
+	var x_type := typeof(world_dict["x"])
+	var y_type := typeof(world_dict["y"])
+	return (
+		(x_type == TYPE_INT or x_type == TYPE_FLOAT)
+		and (y_type == TYPE_INT or y_type == TYPE_FLOAT)
+	)
+
+
 static func _unused_backup_path(abs_path: String) -> String:
 	var candidate := abs_path + ".bak"
 	var suffix := 1

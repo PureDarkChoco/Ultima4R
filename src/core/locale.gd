@@ -824,6 +824,11 @@ const _T := {
 		"en_us": "That slot is empty.",
 		"ko": "빈 슬롯이다!",
 	},
+	"load_corrupt": {
+		"en_u4": "This record is corrupted and cannot be restored.",
+		"en_us": "This save file is corrupted and cannot be loaded.",
+		"ko": "저장 파일이 손상되어 불러올 수 없다.",
+	},
 	"load_none": {
 		"en_u4": "No saved games.",
 		"en_us": "No saved games.",
