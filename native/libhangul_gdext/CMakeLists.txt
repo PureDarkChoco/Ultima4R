@@ -31,6 +31,18 @@ set(ENABLE_UNIT_TEST OFF CACHE BOOL "" FORCE)
 set(ENABLE_TOOLS OFF CACHE BOOL "" FORCE)
 set(ENABLE_EXTERNAL_KEYBOARDS OFF CACHE BOOL "" FORCE)
 
+# Godot loads *.debug.* with template_debug and *.release.* with template_release.
+# godot-cpp otherwise keeps its template_debug default even for Release builds.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(HANGUL_GODOT_TARGET "template_debug")
+else()
+	set(HANGUL_GODOT_TARGET "template_release")
+endif()
+set(GODOTCPP_TARGET "${HANGUL_GODOT_TARGET}" CACHE STRING
+	"Godot target paired with this extension binary" FORCE)
+set(GODOTCPP_API_VERSION "4.7" CACHE STRING
+	"Godot API version paired with compatibility_minimum" FORCE)
+
 FetchContent_MakeAvailable(godot_cpp libhangul)
 
 # libhangul 0.2.0 assumes a top-level build and otherwise points at the parent

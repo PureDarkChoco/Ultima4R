@@ -27,13 +27,13 @@ jobs:
       - name: Configure and build debug
         shell: bash
         run: |
-          cmake -S native/libhangul_gdext -B native/libhangul_gdext/build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake -S native/libhangul_gdext -B native/libhangul_gdext/build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DGODOTCPP_TARGET=template_debug -DGODOTCPP_API_VERSION=4.7
           cmake --build native/libhangul_gdext/build-debug --target ultima4r_hangul_input
 
       - name: Configure and build release
         shell: bash
         run: |
-          cmake -S native/libhangul_gdext -B native/libhangul_gdext/build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S native/libhangul_gdext -B native/libhangul_gdext/build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DGODOTCPP_TARGET=template_release -DGODOTCPP_API_VERSION=4.7
           cmake --build native/libhangul_gdext/build-release --target ultima4r_hangul_input
 
       - uses: actions/upload-artifact@v4
