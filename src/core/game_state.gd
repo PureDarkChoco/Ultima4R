@@ -3487,6 +3487,10 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	## Restore from SaveGame JSON `game` object.
 	if d.is_empty():
 		return
+	## Timed effects are intentionally not saved and must never leak from the
+	## session or slot that was active before this load.
+	clear_aura()
+	_wind_spell_left = 0.0
 	## Wrapper `version` for older slots that never stored save_version inside game.
 	var _from_save_version := int(d.get("save_version", file_version))
 	## Legacy single-name saves: `player_name` is English; Korean left empty.
