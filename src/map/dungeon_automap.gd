@@ -142,7 +142,10 @@ static func visible_cells(
 	for depth in range(0, MAX_DEPTH + 1):
 		var cell := _ahead(dmap, pos, dir, depth)
 		_mark_cell(seen, out, cell)
-		if _blocks_view(dmap, cell, z):
+		## The first-person renderer always treats the viewer's own cell as
+		## open. This matters while standing inside a revealed secret passage:
+		## its token remains TOK_SECRET, but the corridor ahead is visible.
+		if depth > 0 and _blocks_view(dmap, cell, z):
 			reached_far = false
 			break
 		_mark_cell(seen, out, _side(dmap, cell, dir, 3))
