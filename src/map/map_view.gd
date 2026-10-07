@@ -3940,6 +3940,16 @@ func _process(delta: float) -> void:
 		_spell_flash_left = maxf(0.0, _spell_flash_left - delta)
 		queue_redraw()
 
+	## The first-person dungeon ignores avatar / water / horse / moongate frames
+	## and only moves when something animated is in view.
+	if _is_first_person_dungeon():
+		frame_changed = false
+		water_changed = false
+		horse_changed = false
+		moongate_changed = false
+		if tile_anim_changed and not _dungeon_view_needs_repaint():
+			tile_anim_changed = false
+
 	if _scroll_frames_left > 0:
 		# Same frame as set_center — keep first pose on screen for one full frame.
 		if _scroll_skip_process:
@@ -3972,6 +3982,30 @@ func _process(delta: float) -> void:
 		or not _combat_proj.is_empty()
 	):
 		_rebuild()
+
+
+func _is_first_person_dungeon() -> bool:
+	return (
+		is_in_dungeon()
+		and _combat_map == null
+		and _camp_map == null
+		and _dungeon_view != null
+		and tiles_ready
+	)
+
+
+func _dungeon_view_needs_repaint() -> bool:
+	if not _dungeon_rock_fx.is_empty():
+		return true
+	_dungeon_view.magic_light = GameState.dungeon_light_is_magic
+	return _dungeon_view.needs_repaint(
+		_dungeon_map,
+		Vector2i(int(center.x), int(center.y)),
+		_dungeon_z,
+		_dungeon_dir,
+		_dungeon_lit,
+		_tile_anim_frame
+	)
 
 
 func _roll_frame_cd() -> void:

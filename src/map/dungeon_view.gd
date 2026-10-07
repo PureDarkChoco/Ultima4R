@@ -16,6 +16,14 @@ const MAX_DEPTH := 4
 const PEEK_DEPTH := 5
 ## Widest column still on screen at the farthest row (half-width 1 of 11.5).
 const SIDE_REACH := 6
+## View grid: one extra column per side and the peek row so every drawn cell's
+## inner/outer and far neighbours resolve from the grid.
+const GRID_LAT := SIDE_REACH + 1
+const GRID_COLS := GRID_LAT * 2 + 1
+const GRID_ROWS := PEEK_DEPTH + 1
+## Monster / fountain / field frames are cached per animation step; drop them
+## past this count so long sessions cannot grow memory without bound.
+const ANIM_PIECE_CACHE_MAX := 256
 const RING_CUMUL: Array[float] = [0.0, 3.0, 6.0, 8.5, 10.5, 12.5]
 const RING_DENOM := 23.0
 const OBJ_NSCALE: Array[int] = [12, 8, 5, 3, 1]
@@ -77,6 +85,7 @@ var _dim_lut_w := 0
 var _dim_lut_h := 0
 var _dim_lut_inner := -1
 var _piece_cache: Dictionary = {}
+var _anim_piece_cache: Dictionary = {}
 var _piece_cache_w := 0
 var _piece_cache_h := 0
 var _keyed_monster_cache: Dictionary = {}
@@ -89,6 +98,14 @@ var _floor_bg_inner := -1
 var _floor_bg_far := -1.0
 var _dim_lut_far := -1.0
 var _scanlines_on := false
+## Cells ahead indexed by _view_index(depth, lateral); rebuilt every paint.
+var _view_cells: Array[Vector2i] = []
+var _view_solid := PackedByteArray()
+var _view_seen := PackedByteArray()
+## What the last paint() depended on; empty forces the next repaint.
+var _last_signature: Array = []
+var _last_animated := false
+var _last_anim_frame := 0
 ## Set by the caller each paint: Light spell instead of a torch.
 var magic_light := false
 
@@ -104,6 +121,8 @@ func set_theme(id: String) -> void:
 		_load_png("%s/fountain_0.png" % ASSET_ROOT),
 		_load_png("%s/fountain_1.png" % ASSET_ROOT),
 	]
+	_anim_piece_cache.clear()
+	_last_signature = []
 	if (
 		id == _theme_loaded
 		and pipeline == _theme_pipeline
@@ -130,6 +149,8 @@ func invalidate_tile_caches() -> void:
 	_keyed_monster_cache.clear()
 	_keyed_stone_cache.clear()
 	_piece_cache.clear()
+	_anim_piece_cache.clear()
+	_last_signature = []
 	_piece_cache_w = 0
 	_piece_cache_h = 0
 	_theme_loaded = ""
@@ -153,6 +174,9 @@ func paint(
 	lit: bool,
 	anim_frame: int = 0
 ) -> void:
+	_last_signature = []
+	_last_animated = false
+	_last_anim_frame = anim_frame
 	if buf == null or dmap == null or not dmap.loaded:
 		return
 	var w := buf.get_width()
@@ -161,27 +185,33 @@ func paint(
 		return
 	if not lit:
 		buf.fill(Color(0, 0, 0, 1))
+		_last_signature = _scan_view(dmap, pos, z, dir, lit)
 		return
 	if _wall == null:
 		set_theme(theme_id)
 	_ensure_dim_lut(w, h)
 	_ensure_piece_cache_size(w, h)
+	_last_signature = _scan_view(dmap, pos, z, dir, lit)
+	_mark_visible_cells(w, h)
 	if not _paint_floor_plane_background(buf):
 		buf.fill(Color(0, 0, 0, 1))
-	var center_stop := _center_block_depth(dmap, pos, z, dir)
+	var center_stop := _center_block_depth()
 	var view_objects: Array[Dictionary] = []
-	## Painter's order over the whole visible grid: farthest row first, and
-	## within a row outer columns first, so nearer faces cover farther ones.
+	## Painter's order over the visible grid: farthest row first, and within a
+	## row outer columns first, so nearer faces cover farther ones. Cells no
+	## screen column can see are skipped entirely.
 	if center_stop > MAX_DEPTH:
-		_paint_peek_wall(buf, dmap, pos, z, dir, w, h)
+		_paint_peek_wall(buf, dmap, z, w, h)
+	var lateral_order := _lateral_order()
 	for depth in range(MAX_DEPTH, -1, -1):
-		for lateral in _lateral_order(depth, w):
-			_paint_grid_cell(buf, dmap, pos, z, dir, depth, lateral, w, h, anim_frame)
+		for lateral in lateral_order:
+			if _view_seen[_view_index(depth, lateral)] != 0:
+				_paint_grid_cell(buf, dmap, z, dir, depth, lateral, w, h, anim_frame)
 	for depth in range(0, center_stop):
-		var ahead_cell := _ahead(dmap, pos, dir, depth)
-		var left_cell := _left_of(dmap, ahead_cell, dir)
-		var right_cell := _right_of(dmap, ahead_cell, dir)
-		var front := _ahead(dmap, ahead_cell, dir, 1)
+		var ahead_cell := _view_cell(depth, 0)
+		var left_cell := _view_cell(depth, -1)
+		var right_cell := _view_cell(depth, 1)
+		var front := _view_cell(depth + 1, 0)
 		var tok: int = dmap.token_at(ahead_cell.x, ahead_cell.y, z)
 		var monster_tile := int(dmap.monster_tile_at(ahead_cell.x, ahead_cell.y, z))
 		if monster_tile >= 0 and not _is_blocking_wall(dmap, ahead_cell, z):
@@ -244,7 +274,6 @@ func paint(
 				int(object["depth"]),
 				w,
 				h,
-				1.0,
 				anim_frame,
 				int(object["view_dir"]),
 				bool(object["left_surface"]),
@@ -258,7 +287,6 @@ func paint(
 				int(object["depth"]),
 				w,
 				h,
-				1.0,
 				anim_frame,
 				str(dmap.dungeon_id),
 				Vector2i(int(object.get("cell_x", -1)), int(object.get("cell_y", -1))),
@@ -266,6 +294,124 @@ func paint(
 			)
 	if _is_side_entrance(dmap, pos, z):
 		_paint_doorway_frame(buf, w, h)
+
+
+func needs_repaint(dmap, pos: Vector2i, z: int, dir: int, lit: bool, anim_frame: int) -> bool:
+	## False when paint() would reproduce the last image exactly, so timer
+	## ticks with nothing animated in view can skip the whole repaint.
+	if _last_signature.is_empty():
+		return true
+	if _last_animated and anim_frame != _last_anim_frame:
+		return true
+	if dmap == null or not dmap.loaded:
+		return true
+	return _scan_view(dmap, pos, z, dir, lit) != _last_signature
+
+
+func _scan_view(dmap, pos: Vector2i, z: int, dir: int, lit: bool) -> Array:
+	## Fills the view grid and returns everything that decides what paint() draws.
+	var sig: Array = [
+		pos, z, dir, lit, magic_light, theme_id, _theme_pipeline,
+		str(dmap.dungeon_id), GameState.stones,
+	]
+	if not lit:
+		return sig
+	_view_cells.resize(GRID_COLS * GRID_ROWS)
+	_view_solid.resize(GRID_COLS * GRID_ROWS)
+	var cells := PackedInt32Array()
+	var row_start := pos
+	for depth in GRID_ROWS:
+		if depth > 0:
+			row_start = dmap.neighbor(row_start.x, row_start.y, dir)
+		var left := row_start
+		var right := row_start
+		_scan_view_cell(dmap, pos, z, _view_index(depth, 0), row_start, cells)
+		for i in range(1, GRID_LAT + 1):
+			left = _left_of(dmap, left, dir)
+			right = _right_of(dmap, right, dir)
+			_scan_view_cell(dmap, pos, z, _view_index(depth, -i), left, cells)
+			_scan_view_cell(dmap, pos, z, _view_index(depth, i), right, cells)
+	sig.append(cells)
+	return sig
+
+
+func _scan_view_cell(
+	dmap, pos: Vector2i, z: int, index: int, cell: Vector2i, cells: PackedInt32Array
+) -> void:
+	_view_cells[index] = cell
+	_view_solid[index] = 1 if _grid_solid(dmap, pos, cell, z) else 0
+	cells.append(int(dmap.raw_at(cell.x, cell.y, z)))
+	cells.append(int(dmap.annotation_at(cell.x, cell.y, z)))
+	cells.append(int(dmap.monster_tile_at(cell.x, cell.y, z)))
+	cells.append(int(dmap.is_consumed(cell.x, cell.y, z)))
+
+
+func _view_index(depth: int, lateral: int) -> int:
+	return depth * GRID_COLS + lateral + GRID_LAT
+
+
+func _view_cell(depth: int, lateral: int) -> Vector2i:
+	return _view_cells[_view_index(depth, lateral)]
+
+
+func _view_is_solid(depth: int, lateral: int) -> bool:
+	return _view_solid[_view_index(depth, lateral)] != 0
+
+
+func _mark_visible_cells(w: int, h: int) -> void:
+	## Follow each screen column's line of sight row by row, the way the painted
+	## faces occlude it: a column ends at the first solid cell it meets. Columns
+	## that cross the same cells are traced together as one span.
+	_view_seen.resize(GRID_COLS * GRID_ROWS)
+	_view_seen.fill(0)
+	var spans: Array[Vector2i] = [Vector2i(0, w)]
+	for depth in range(0, MAX_DEPTH + 1):
+		var near := _front_rect(depth, w, h)
+		var far := _front_rect(depth + 1, w, h)
+		var vanish_x := near.position.x + near.size.x / 2
+		var next: Array[Vector2i] = []
+		for span in spans:
+			var x := span.x
+			while x < span.y:
+				var from_l := _column_cell(x, near)
+				var end_x := mini(span.y, near.position.x + (from_l + 1) * near.size.x)
+				var to_l: int
+				if depth >= MAX_DEPTH:
+					## The last row closes at the vanishing point: sight runs outward.
+					if x < vanish_x:
+						to_l = -GRID_LAT
+						end_x = mini(end_x, vanish_x)
+					else:
+						to_l = GRID_LAT
+				else:
+					to_l = _column_cell(x, far)
+					end_x = mini(end_x, far.position.x + (to_l + 1) * far.size.x)
+				if _trace_row(depth, from_l, to_l):
+					next.append(Vector2i(x, end_x))
+				x = end_x
+		spans = next
+		if spans.is_empty():
+			return
+
+
+func _column_cell(x: int, plane: Rect2i) -> int:
+	return floori(float(x - plane.position.x) / float(plane.size.x))
+
+
+func _trace_row(depth: int, from_l: int, to_l: int) -> bool:
+	## Marks the cells a span crosses in this row; false once a solid cell or
+	## the edge of the drawn grid stops it.
+	var step := 1 if to_l >= from_l else -1
+	var lateral := from_l
+	while absi(lateral) <= SIDE_REACH:
+		var i := _view_index(depth, lateral)
+		_view_seen[i] = 1
+		if _view_solid[i] != 0:
+			return false
+		if lateral == to_l:
+			return true
+		lateral += step
+	return false
 
 
 func _paint_doorway_frame(buf: Image, w: int, h: int) -> void:
@@ -333,13 +479,6 @@ func _doorway_frame_image() -> Image:
 	return _doorway_frame
 
 
-func _ahead(dmap, pos: Vector2i, dir: int, depth: int) -> Vector2i:
-	var p := pos
-	for _i in depth:
-		p = dmap.neighbor(p.x, p.y, dir)
-	return p
-
-
 func _left_of(dmap, pos: Vector2i, dir: int) -> Vector2i:
 	return dmap.neighbor(pos.x, pos.y, posmod(dir + 3, 4))
 
@@ -372,28 +511,19 @@ func _dim_far() -> float:
 	return DIM_FAR_MAGIC if magic_light else DIM_FAR
 
 
-func _center_block_depth(dmap, pos: Vector2i, z: int, dir: int) -> int:
+func _center_block_depth() -> int:
 	for depth in range(1, MAX_DEPTH + 1):
-		var cell := _ahead(dmap, pos, dir, depth)
-		if _is_blocking_wall(dmap, cell, z) or _is_side_entrance(dmap, cell, z):
+		if _view_is_solid(depth, 0):
 			return depth
 	return MAX_DEPTH + 1
 
 
-func _lateral_cell(dmap, pos: Vector2i, dir: int, depth: int, lateral: int) -> Vector2i:
-	var cell := _ahead(dmap, pos, dir, depth)
-	for _i in absi(lateral):
-		cell = _left_of(dmap, cell, dir) if lateral < 0 else _right_of(dmap, cell, dir)
-	return cell
-
-
-func _lateral_order(depth: int, w: int) -> Array[int]:
-	## Columns whose near face starts on screen: (2|L| - 1) * half_width < w / 2.
-	var near := _front_rect(depth, w, 1)
-	var half := maxf(float(near.size.x) * 0.5, 0.5)
-	var reach := clampi(int(ceil((float(w) * 0.5 / half + 1.0) * 0.5)), 1, SIDE_REACH)
+func _lateral_order() -> Array[int]:
+	## Outer columns first. Which of them actually paint is decided by
+	## _mark_visible_cells: a side face can reach the screen even when its
+	## cell's near face is far off to the side.
 	var order: Array[int] = []
-	for i in range(reach, 0, -1):
+	for i in range(SIDE_REACH, 0, -1):
 		order.append(-i)
 		order.append(i)
 	order.append(0)
@@ -412,7 +542,6 @@ func _grid_solid(dmap, pos: Vector2i, cell: Vector2i, z: int) -> bool:
 func _paint_grid_cell(
 	buf: Image,
 	dmap,
-	pos: Vector2i,
 	z: int,
 	dir: int,
 	depth: int,
@@ -421,20 +550,17 @@ func _paint_grid_cell(
 	h: int,
 	anim_frame: int
 ) -> void:
-	var cell := _lateral_cell(dmap, pos, dir, depth, lateral)
-	if not _grid_solid(dmap, pos, cell, z):
+	var cell := _view_cell(depth, lateral)
+	if not _view_is_solid(depth, lateral):
 		## Center column fields paint with the other center objects.
 		if lateral != 0:
 			var field_tid := _cell_field_tile_id(dmap, cell, z)
 			if field_tid >= 0:
-				var left_cell := _lateral_cell(dmap, pos, dir, depth, lateral - 1)
-				var right_cell := _lateral_cell(dmap, pos, dir, depth, lateral + 1)
-				var front_cell := _lateral_cell(dmap, pos, dir, depth + 1, lateral)
 				_paint_floor_field(
-					buf, field_tid, depth, w, h, 1.0, anim_frame, dir,
-					_grid_solid(dmap, pos, left_cell, z),
-					_grid_solid(dmap, pos, right_cell, z),
-					_grid_solid(dmap, pos, front_cell, z),
+					buf, field_tid, depth, w, h, anim_frame, dir,
+					_view_is_solid(depth, lateral - 1),
+					_view_is_solid(depth, lateral + 1),
+					_view_is_solid(depth + 1, lateral),
 					lateral
 				)
 		return
@@ -443,8 +569,7 @@ func _paint_grid_cell(
 	var tex := _tex_entrance(depth) if entrance else _tex_front(depth)
 	## Face toward the viewer, on this row's near plane.
 	if depth >= 1:
-		var before := _lateral_cell(dmap, pos, dir, depth - 1, lateral)
-		if not _grid_solid(dmap, pos, before, z):
+		if not _view_is_solid(depth - 1, lateral):
 			var near := _front_rect(depth, w, h)
 			var rect := Rect2i(
 				near.position.x + lateral * near.size.x,
@@ -461,8 +586,7 @@ func _paint_grid_cell(
 	## Face toward the center line, spanning this row's near to far plane.
 	if lateral == 0:
 		return
-	var inner := _lateral_cell(dmap, pos, dir, depth, lateral - signi(lateral))
-	if _grid_solid(dmap, pos, inner, z):
+	if _view_is_solid(depth, lateral - signi(lateral)):
 		return
 	var left := lateral < 0
 	_blit_cached_piece(
@@ -521,9 +645,9 @@ func _lateral_geom(w: int, h: int, depth: int, lateral: int) -> Dictionary:
 	return geom
 
 
-func _paint_peek_wall(buf: Image, dmap, pos: Vector2i, z: int, dir: int, w: int, h: int) -> void:
+func _paint_peek_wall(buf: Image, dmap, z: int, w: int, h: int) -> void:
 	## +5: only whether a wall closes the vanishing square.
-	var cell := _ahead(dmap, pos, dir, PEEK_DEPTH)
+	var cell := _view_cell(PEEK_DEPTH, 0)
 	if not _is_blocking_wall(dmap, cell, z):
 		return
 	_blit_cached_piece(
@@ -628,14 +752,23 @@ func _ensure_piece_cache_size(w: int, h: int) -> void:
 	_piece_cache_w = w
 	_piece_cache_h = h
 	_piece_cache.clear()
+	_anim_piece_cache.clear()
 	_clear_floor_bg()
 
 
-func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
+func _blit_cached_piece(
+	buf: Image,
+	key: String,
+	painter: Callable,
+	animated: bool = false
+) -> void:
+	var cache := _anim_piece_cache if animated else _piece_cache
 	var cache_key := "%d:%s:%d:%d:%s" % [
 		PIECE_CACHE_REV, theme_id, _theme_pipeline, int(magic_light), key
 	]
-	if not _piece_cache.has(cache_key):
+	if not cache.has(cache_key):
+		if animated and cache.size() >= ANIM_PIECE_CACHE_MAX:
+			cache.clear()
 		var canvas := Image.create(
 			_piece_cache_w, _piece_cache_h, false, Image.FORMAT_RGBA8
 		)
@@ -643,13 +776,13 @@ func _blit_cached_piece(buf: Image, key: String, painter: Callable) -> void:
 		painter.call(canvas)
 		var used := canvas.get_used_rect()
 		if used.size.x <= 0 or used.size.y <= 0:
-			_piece_cache[cache_key] = {}
+			cache[cache_key] = {}
 		else:
-			_piece_cache[cache_key] = {
+			cache[cache_key] = {
 				"image": canvas.get_region(used),
 				"position": used.position,
 			}
-	var piece: Dictionary = _piece_cache[cache_key]
+	var piece: Dictionary = cache[cache_key]
 	if piece.is_empty():
 		return
 	var image: Image = piece["image"]
@@ -1062,7 +1195,6 @@ func _paint_floor_field(
 	depth: int,
 	field_w: int,
 	field_h: int,
-	dim: float,
 	anim_frame: int,
 	view_dir: int,
 	left_surface: bool,
@@ -1071,14 +1203,40 @@ func _paint_floor_field(
 	lateral: int = 0
 ) -> void:
 	var img: Image = _U4TileBank.image(tid)
-	if img == null:
+	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
 		return
+	_last_animated = true
+	var scroll := posmod(anim_frame * 2, img.get_height())
+	view_dir = posmod(view_dir, 4)
+	_blit_cached_piece(
+		buf,
+		"field:%d:%d:%d:%d:%d%d%d:%d" % [
+			tid, depth, lateral, view_dir,
+			int(left_surface), int(right_surface), int(front_surface), scroll,
+		],
+		Callable(self, "_rasterize_floor_field").bind(
+			img, tid, depth, field_w, field_h, scroll, view_dir,
+			left_surface, right_surface, front_surface, lateral
+		),
+		true
+	)
+
+
+func _rasterize_floor_field(
+	buf: Image,
+	img: Image,
+	tid: int,
+	depth: int,
+	field_w: int,
+	field_h: int,
+	scroll: int,
+	view_dir: int,
+	left_surface: bool,
+	right_surface: bool,
+	front_surface: bool,
+	lateral: int
+) -> void:
 	var geom := _cell_geom(field_w, field_h, depth, lateral)
-	var sw := img.get_width()
-	var sh := img.get_height()
-	if sw <= 0 or sh <= 0:
-		return
-	var scroll := posmod(anim_frame * 2, sh)
 	var walls_only := tid == TILE_FIELD_ENERGY
 	## Off-center cells only show the wall on the far side from the center line.
 	var show_left := lateral <= 0
@@ -1089,31 +1247,31 @@ func _paint_floor_field(
 		_paint_field_front_mask(
 			buf, img,
 			_shift_rect(_front_rect(depth + 1, field_w, field_h), lateral),
-			dim * _depth_dim(depth + 1), scroll
+			_depth_dim(depth + 1), scroll
 		)
 	if not walls_only:
 		_paint_field_hband_mask(
 			buf, img,
 			float(geom["x0"]), float(geom["x1"]), int(geom["y0"]),
 			float(geom["nx0"]), float(geom["nx1"]), int(geom["ny0"]),
-			dim, scroll, view_dir
+			1.0, scroll, view_dir
 		)
 	if show_left and (walls_only or left_surface):
-		_paint_field_side_mask(buf, img, geom, true, dim, scroll)
+		_paint_field_side_mask(buf, img, geom, true, 1.0, scroll)
 	if show_right and (walls_only or right_surface):
-		_paint_field_side_mask(buf, img, geom, false, dim, scroll)
+		_paint_field_side_mask(buf, img, geom, false, 1.0, scroll)
 	if not walls_only:
 		_paint_field_hband_mask(
 			buf, img,
 			float(geom["x0"]), float(geom["x1"]), int(geom["y1"]),
 			float(geom["nx0"]), float(geom["nx1"]), int(geom["ny1"]),
-			dim, scroll, view_dir
+			1.0, scroll, view_dir
 		)
 	if walls_only and (depth >= 1 or lateral == 0):
 		_paint_field_front_mask(
 			buf, img,
 			_shift_rect(_front_rect(depth, field_w, field_h), lateral),
-			dim * _depth_dim(depth), scroll
+			_depth_dim(depth), scroll
 		)
 
 
@@ -1397,7 +1555,6 @@ func _paint_tile_object(
 	depth: int,
 	field_w: int,
 	field_h: int,
-	dim: float,
 	anim_frame: int,
 	dungeon_id: String = "",
 	cell: Vector2i = Vector2i(-1, -1),
@@ -1407,12 +1564,16 @@ func _paint_tile_object(
 		return
 	var is_monster := tid >= TILE_MONSTER_FIRST and tid <= TILE_MONSTER_LAST
 	var paint_tid := tid
+	var piece_key := "tile:%d:%d" % [tid, depth]
 	if is_monster:
 		## Same consecutive-tile cycle as wilderness / combat (rat 144–147, …).
 		paint_tid = _WorldCreatures.resolve_paint_tile(tid, anim_frame)
+		piece_key = "monster:%d:%d" % [paint_tid, depth]
 	var img: Image
 	if tid == TILE_FOUNTAIN and not _fountain_frames.is_empty():
-		img = _fountain_frames[posmod(anim_frame, _fountain_frames.size())]
+		var frame := posmod(anim_frame, _fountain_frames.size())
+		img = _fountain_frames[frame]
+		piece_key = "fountain:%d:%d" % [frame, depth]
 	elif tid == TILE_ORB or tid == TILE_ALTAR or is_monster:
 		## Orb / altar / monster PNGs keep an opaque black plate; key it out.
 		## Apple II Color orb needs the NTSC right-fringe (34px), not the 32px cut.
@@ -1463,18 +1624,25 @@ func _paint_tile_object(
 		field_h - 1
 	)
 	var obj_y0 := obj_y1 - span
-	var object_light := dim * _lut_at(
+	var object_light := _lut_at(
 		fr.position.x, fr.position.y, buf.get_width(), buf.get_height()
 	)
+	var animated := is_monster or tid == TILE_FOUNTAIN
+	if animated:
+		_last_animated = true
 	## Tile icons already carry transparent alpha; _blit_scaled skips those pixels.
-	_blit_scaled(
-		buf, img,
-		mid_x - span / 2, obj_y0, mid_x + span / 2, obj_y1,
-		object_light, false, 0.0, 1.0, false, false
+	_blit_cached_piece(
+		buf,
+		piece_key,
+		Callable(self, "_blit_scaled").bind(
+			img, mid_x - span / 2, obj_y0, mid_x + span / 2, obj_y1,
+			object_light, false, 0.0, 1.0, false, false
+		),
+		animated
 	)
 	if tid == TILE_ALTAR:
 		_paint_unclaimed_altar_stone(
-			buf, dungeon_id, cell, z, mid_x, obj_y0, span, object_light
+			buf, dungeon_id, cell, z, depth, mid_x, obj_y0, span, object_light
 		)
 
 
@@ -1483,6 +1651,7 @@ func _paint_unclaimed_altar_stone(
 	dungeon_id: String,
 	cell: Vector2i,
 	z: int,
+	depth: int,
 	altar_mid_x: int,
 	altar_y0: int,
 	altar_span: int,
@@ -1511,11 +1680,15 @@ func _paint_unclaimed_altar_stone(
 		buf.get_height()
 	)
 	var stone_y0 := stone_y1 - stone_span
-	_blit_scaled(
-		buf, stone,
-		altar_mid_x - stone_span / 2, stone_y0,
-		altar_mid_x + stone_span / 2, stone_y1,
-		light, false, 0.0, 1.0, false, false
+	_blit_cached_piece(
+		buf,
+		"stone:%d:%d" % [bit, depth],
+		Callable(self, "_blit_scaled").bind(
+			stone,
+			altar_mid_x - stone_span / 2, stone_y0,
+			altar_mid_x + stone_span / 2, stone_y1,
+			light, false, 0.0, 1.0, false, false
+		)
 	)
 
 
