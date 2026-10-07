@@ -5,6 +5,7 @@ extends Control
 ## English defaults to Avatar; Korean defaults to 아바타.
 
 signal cancelled ## Embedded mode: return to Journey menu (not a scene change).
+signal completed ## DOS import mode: edited identity is ready to be saved.
 
 const _HangulComposerInput := preload("res://src/core/hangul_composer_input.gd")
 const _GameInput := preload("res://src/core/game_input.gd")
@@ -32,6 +33,11 @@ const DEFAULT_NAME_KO := "아바타"
 var _sex_group := ButtonGroup.new()
 var _editing: LineEdit = null
 var _embedded := false
+var _import_mode := false
+var _name_caret: TextureRect
+var _name_cursor_frames: Array[Texture2D] = []
+var _name_cursor_frame := 0
+var _name_cursor_time := 0.0
 ## Set true before add_child when hosting in MainMenu (avoids one-frame full-screen flash).
 var prepare_embedded := false
 ## libhangul path matching talk/shop text entry.
@@ -43,6 +49,7 @@ func _ready() -> void:
 		_embedded = true
 	_hangul.max_length = 16
 	set_process_input(true)
+	set_process(false)
 	UiTheme.apply_root(self)
 	## Name/sex picker is a choice form — sword regardless of pointer position.
 	UiTheme.set_menu_cursor(true)
@@ -99,7 +106,8 @@ func _apply_compact_chrome() -> void:
 	UiTheme.style_label(_name_en_prompt, prompt_sz, UiTheme.MUTED)
 	UiTheme.style_label(_name_ko_prompt, prompt_sz, UiTheme.MUTED)
 	UiTheme.style_label(_sex_prompt, prompt_sz, UiTheme.MUTED)
-	UiTheme.style_label(_class_line, 15, UiTheme.ACCENT)
+	if _class_line:
+		_class_line.visible = false
 	UiTheme.style_label(_hint, 13, UiTheme.MUTED)
 	if _hint:
 		_hint.visible = false
@@ -134,6 +142,15 @@ func _match_action_button_sizes() -> void:
 		btn.custom_minimum_size = sz
 
 
+func _apply_mode_font_sizes() -> void:
+	var field_size := 18 if _embedded else 19
+	for field in [_name_en, _name_ko]:
+		field.add_theme_font_size_override("font_size", field_size)
+	var button_size := 18
+	for btn in [_male, _female, _back, _continue]:
+		btn.add_theme_font_size_override("font_size", button_size)
+
+
 func _wire_name_field(field: LineEdit, placeholder: String) -> void:
 	_style_name_field(field)
 	field.focus_mode = Control.FOCUS_ALL
@@ -162,8 +179,130 @@ func is_embedded() -> bool:
 	return _embedded and visible
 
 
-func _use_native_hangul() -> bool:
-	return str(GameState.language) == "ko" and _HangulComposerInput.is_available() and _hangul.ensure()
+func _korean_name_uses_composer() -> bool:
+	return _HangulComposerInput.is_available() and _hangul.ensure()
+
+
+func _set_window_ime(active: bool) -> void:
+	var window := get_window()
+	if window != null:
+		window.set_ime_active(active)
+
+
+const _ResImage := preload("res://src/core/res_image.gd")
+const _NAME_CURSOR_CHARSET := "res://assets/tiles/u4graphics/charset.png"
+const _NAME_CURSOR_GLYPH := 16
+const _NAME_CURSOR_CHAR0 := 28
+const _NAME_CURSOR_FRAMES := 4
+const _NAME_CURSOR_SEC := 0.34
+
+
+func _process(delta: float) -> void:
+	if _editing == null:
+		_hide_name_caret()
+		return
+	_name_cursor_time += delta
+	if _name_cursor_time >= _NAME_CURSOR_SEC:
+		_name_cursor_time = 0.0
+		if not _name_cursor_frames.is_empty():
+			_name_cursor_frame = (
+				_name_cursor_frame - 1 + _name_cursor_frames.size()
+			) % _name_cursor_frames.size()
+			_name_caret.texture = _name_cursor_frames[_name_cursor_frame]
+	_sync_name_caret()
+
+
+func _show_name_caret(field: LineEdit) -> void:
+	if field == null:
+		return
+	_ensure_name_cursor_frames()
+	if _name_caret == null or not is_instance_valid(_name_caret):
+		_name_caret = TextureRect.new()
+		_name_caret.name = "NameCaret"
+		_name_caret.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_name_caret.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_name_caret.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_name_caret.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if not _name_cursor_frames.is_empty():
+		_name_caret.texture = _name_cursor_frames[_name_cursor_frame]
+	if _name_caret.get_parent() != field:
+		if _name_caret.get_parent() != null:
+			_name_caret.get_parent().remove_child(_name_caret)
+		field.add_child(_name_caret)
+	_name_cursor_time = 0.0
+	set_process(true)
+	_sync_name_caret()
+
+
+func _hide_name_caret() -> void:
+	set_process(false)
+	if _name_caret != null and is_instance_valid(_name_caret):
+		_name_caret.visible = false
+
+
+func _ensure_name_cursor_frames() -> void:
+	if not _name_cursor_frames.is_empty():
+		return
+	var img := _ResImage.load_rgba8(_NAME_CURSOR_CHARSET)
+	if img == null or img.is_empty():
+		return
+	for frame in _NAME_CURSOR_FRAMES:
+		var tex := _name_cursor_glyph(img, _NAME_CURSOR_CHAR0 + frame)
+		if tex != null:
+			_name_cursor_frames.append(tex)
+
+
+func _name_cursor_glyph(sheet: Image, char_index: int) -> Texture2D:
+	var cy := char_index * _NAME_CURSOR_GLYPH
+	if cy + _NAME_CURSOR_GLYPH > sheet.get_height():
+		return null
+	var glyph := Image.create(_NAME_CURSOR_GLYPH, _NAME_CURSOR_GLYPH, false, Image.FORMAT_RGBA8)
+	glyph.blit_rect(
+		sheet, Rect2i(0, cy, _NAME_CURSOR_GLYPH, _NAME_CURSOR_GLYPH), Vector2i.ZERO
+	)
+	for y in _NAME_CURSOR_GLYPH:
+		for x in _NAME_CURSOR_GLYPH:
+			var c := glyph.get_pixel(x, y)
+			if c.r < 0.02 and c.g < 0.02 and c.b < 0.02:
+				glyph.set_pixel(x, y, Color(0, 0, 0, 0))
+			else:
+				glyph.set_pixel(x, y, Color(
+					minf(c.r * 1.45 + 0.12, 1.0),
+					minf(c.g * 1.45 + 0.12, 1.0),
+					minf(c.b * 1.45 + 0.06, 1.0),
+					c.a
+				))
+	return ImageTexture.create_from_image(glyph)
+
+
+func _sync_name_caret() -> void:
+	if _name_caret == null or _editing == null or not is_instance_valid(_editing):
+		_hide_name_caret()
+		return
+	var field := _editing
+	var font := field.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var font_size := field.get_theme_font_size("font_size")
+	var text_size := font.get_string_size(field.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var line_h := font.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).y
+	var box := field.get_theme_stylebox("read_only")
+	var left := box.content_margin_left if box else 0.0
+	var right := box.content_margin_right if box else 0.0
+	var top := box.content_margin_top if box else 0.0
+	var bottom := box.content_margin_bottom if box else 0.0
+	var inner_w := maxf(field.size.x - left - right, 0.0)
+	var inner_h := maxf(field.size.y - top - bottom, 0.0)
+	var x := left + text_size.x
+	if field.alignment == HORIZONTAL_ALIGNMENT_CENTER:
+		x = left + maxf(inner_w - text_size.x, 0.0) * 0.5 + text_size.x
+	elif field.alignment == HORIZONTAL_ALIGNMENT_RIGHT:
+		x = left + maxf(inner_w - text_size.x, 0.0) + text_size.x
+	var side := line_h if inner_h <= 0.0 else minf(line_h, inner_h)
+	var y := top + maxf(inner_h - side, 0.0) * 0.5
+	_name_caret.position = Vector2(round(x), round(y))
+	_name_caret.size = Vector2(round(side), round(side))
+	_name_caret.visible = true
 
 
 func _apply_hangul_to_field() -> void:
@@ -172,16 +311,15 @@ func _apply_hangul_to_field() -> void:
 	_editing.text = _hangul.display_text()
 	_editing.caret_column = _editing.text.length()
 	_apply_name_text_colors(_editing)
+	_sync_name_caret()
 
 
 func _refresh_name_prompts() -> void:
 	var mode := ""
-	if _editing != null and _use_native_hangul():
+	if _editing == _name_ko and _korean_name_uses_composer():
 		mode = "[한] " if HangulInputSettings.is_korean_mode() else "[A] "
 	if _name_en_prompt:
-		_name_en_prompt.text = (
-			mode + Locale.t("name_prompt_en") if _editing == _name_en else Locale.t("name_prompt_en")
-		)
+		_name_en_prompt.text = Locale.t("name_prompt_en")
 	if _name_ko_prompt:
 		_name_ko_prompt.text = (
 			mode + Locale.t("name_prompt_ko") if _editing == _name_ko else Locale.t("name_prompt_ko")
@@ -190,6 +328,27 @@ func _refresh_name_prompts() -> void:
 
 func begin_embedded(frame_rect: Rect2) -> void:
 	## Mount into main-menu map frame (no full-screen chrome / scene change).
+	_import_mode = false
+	_embedded = true
+	visible = true
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	if _bg:
+		_bg.visible = false
+	if _hint:
+		_hint.visible = false
+	if _panel:
+		_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	_apply_compact_chrome()
+	set_embed_rect(frame_rect)
+	_load_names_into_fields()
+	_set_sex(GameState.player_sex if GameState.player_sex in ["male", "female"] else "male")
+	_refresh()
+	call_deferred("_focus_name")
+
+
+func begin_import_embedded(frame_rect: Rect2) -> void:
+	## DOS import keeps class/stats fixed; only names and sex remain editable.
+	_import_mode = true
 	_embedded = true
 	visible = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -231,6 +390,7 @@ func set_embed_rect(frame_rect: Rect2) -> void:
 func close_embedded() -> void:
 	visible = false
 	_embedded = false
+	_import_mode = false
 	if _editing != null:
 		_end_name_edit(_editing)
 	_hangul.reset_composer()
@@ -351,9 +511,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			## so move_* cannot cascade through multiple form rows.
 			get_viewport().set_input_as_handled()
 			return
+	## English names stay on a Latin keyboard. The OS input method stays off.
+	if _editing == _name_en and event is InputEventKey:
+		_handle_english_name_key(event as InputEventKey)
+		get_viewport().set_input_as_handled()
+		return
 	## Match world dialogue exactly: a read-only display field leaves physical
 	## key events for this stage, where libhangul handles 한/영 and composition.
-	if _editing != null and _use_native_hangul() and event is InputEventKey:
+	if _editing == _name_ko and _korean_name_uses_composer() and event is InputEventKey:
 		var res: Dictionary = _hangul.handle_key(event as InputEventKey)
 		if bool(res.get("handled", false)):
 			_apply_hangul_to_field()
@@ -382,7 +547,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var name_field := _focused_name_field()
 	if name_field != null and _editing != name_field:
-		if event.is_action_pressed("ui_accept") or event.is_action_pressed("confirm"):
+		if (
+			_GameInput.is_select(event)
+			or event.is_action_pressed("ui_accept")
+			or event.is_action_pressed("confirm")
+		):
 			_begin_name_edit(name_field)
 			get_viewport().set_input_as_handled()
 			return
@@ -458,8 +627,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _editing != null and _editing.has_focus():
 		return
 
-	if event.is_action_pressed("confirm") and get_viewport().gui_get_focus_owner() == null:
-		_on_continue()
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm"):
+		var focus := get_viewport().gui_get_focus_owner()
+		if focus == _continue or focus == null:
+			_on_continue()
+		elif focus == _back:
+			_on_back()
+		elif focus == _male:
+			_set_sex("male")
+		elif focus == _female:
+			_set_sex("female")
 		get_viewport().set_input_as_handled()
 
 
@@ -514,34 +691,93 @@ func _begin_name_edit(field: LineEdit) -> void:
 	if _editing != null and _editing != field:
 		_end_name_edit(_editing)
 	_editing = field
-	if _use_native_hangul():
+	if field == _name_en:
+		_set_window_ime(false)
+		field.editable = false
+		field.virtual_keyboard_enabled = false
+		_apply_name_text_colors(field)
+		field.caret_column = field.text.length()
+	elif _korean_name_uses_composer():
 		## Talk-style: LineEdit displays buffer/preedit but does not invoke OS IME.
-		## Its read-only style is explicitly identical to the normal underline.
+		## Opening this field always starts in Korean mode.
+		HangulInputSettings.set_korean_mode(true)
+		_set_window_ime(false)
 		_hangul.max_length = maxi(field.max_length, 1)
 		_hangul.begin(field.text)
 		field.editable = false
 		field.virtual_keyboard_enabled = false
 		_apply_hangul_to_field()
 	else:
+		_set_window_ime(true)
 		field.editable = true
 		field.virtual_keyboard_enabled = true
 		_apply_name_text_colors(field)
 		field.caret_column = field.text.length()
 	field.grab_focus()
 	_refresh_name_prompts()
+	_show_name_caret(field)
 
 
 func _end_name_edit(field: LineEdit) -> void:
 	if field == null or _editing != field:
 		return
-	if _use_native_hangul():
+	if field == _name_ko and _korean_name_uses_composer():
 		_hangul.flush_preedit()
 		field.text = _hangul.buffer
 		_hangul.reset_composer()
+	_set_window_ime(false)
 	_editing = null
 	field.editable = false
+	field.virtual_keyboard_enabled = false
+	_hide_name_caret()
 	_apply_name_text_colors(field)
 	_refresh_name_prompts()
+
+
+func _handle_english_name_key(k: InputEventKey) -> void:
+	if not k.pressed or k.echo or _name_en == null:
+		return
+	var code := k.keycode
+	var physical := k.physical_keycode
+	if code == KEY_ESCAPE or physical == KEY_ESCAPE:
+		var was := _editing
+		_end_name_edit(was)
+		if was:
+			was.grab_focus()
+		return
+	if code in [KEY_ENTER, KEY_KP_ENTER] or physical in [KEY_ENTER, KEY_KP_ENTER]:
+		var field := _editing
+		_end_name_edit(field)
+		_after_name_submitted(field)
+		return
+	if code == KEY_BACKSPACE or physical == KEY_BACKSPACE:
+		if not _name_en.text.is_empty():
+			_name_en.text = _name_en.text.substr(0, _name_en.text.length() - 1)
+			_name_en.caret_column = _name_en.text.length()
+			_sync_name_caret()
+		return
+	if k.ctrl_pressed or k.alt_pressed or k.meta_pressed:
+		return
+	var ch := _english_name_char(k)
+	if ch.is_empty() or _name_en.text.length() >= _name_en.max_length:
+		return
+	_name_en.text += ch
+	_name_en.caret_column = _name_en.text.length()
+	_sync_name_caret()
+
+
+func _english_name_char(k: InputEventKey) -> String:
+	var ascii := _HangulComposerInput.physical_ascii(k)
+	if ascii < 0:
+		return ""
+	var latin := (
+		(ascii >= 65 and ascii <= 90)
+		or (ascii >= 97 and ascii <= 122)
+		or ascii == 32
+		or ascii == 39
+		or ascii == 45
+	)
+	return String.chr(ascii) if latin else ""
 
 
 func _on_name_submitted(field: LineEdit) -> void:
@@ -575,19 +811,16 @@ func refresh_labels() -> void:
 func _refresh() -> void:
 	_refresh_name_prompts()
 	_sex_prompt.text = Locale.t("sex_prompt")
-	## Class is unknown until after virtue questions — hide here.
-	if GameState.player_class >= 0:
-		_class_line.visible = true
-		var klass := Virtues.class_name_of(GameState.player_class, GameState.lang_short())
-		_class_line.text = Locale.t("you_are", [klass])
-	else:
+	## Class is chosen later, and a DOS import keeps it off this form too.
+	if _class_line:
 		_class_line.visible = false
 		_class_line.text = ""
-	_continue.text = Locale.t("continue")
+	_continue.text = Locale.t("dos_import_complete" if _import_mode else "continue")
 	_back.text = Locale.t("back")
 	if _hint:
 		_hint.visible = false
 	_apply_sex_visuals()
+	_apply_mode_font_sizes()
 	_sync_sex_focus_neighbors()
 
 
@@ -597,6 +830,29 @@ func _apply_sex_visuals() -> void:
 	_female.text = "♀  %s" % Locale.t("sex_female")
 	UiTheme.style_choice_button(_male, male_on)
 	UiTheme.style_choice_button(_female, not male_on)
+	_apply_mode_font_sizes()
+	_lock_sex_button_metrics(_male)
+	_lock_sex_button_metrics(_female)
+
+
+func _lock_sex_button_metrics(btn: Button) -> void:
+	## Selection and focus use a thicker border than the idle style.
+	## Keep every state on the same box so clicking does not resize the button.
+	if btn == null:
+		return
+	var margin_x := 16
+	var margin_y := 10
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var raw := btn.get_theme_stylebox(state)
+		if not (raw is StyleBoxFlat):
+			continue
+		var flat := (raw as StyleBoxFlat).duplicate() as StyleBoxFlat
+		flat.set_border_width_all(2)
+		flat.content_margin_left = margin_x
+		flat.content_margin_right = margin_x
+		flat.content_margin_top = margin_y
+		flat.content_margin_bottom = margin_y
+		btn.add_theme_stylebox_override(state, flat)
 
 
 func _on_back() -> void:
@@ -619,4 +875,7 @@ func _on_continue() -> void:
 		ko = DEFAULT_NAME_KO
 	GameState.player_name = en
 	GameState.player_name_ko = ko
-	SceneRouter.to_story()
+	if _import_mode:
+		completed.emit()
+	else:
+		SceneRouter.to_story()

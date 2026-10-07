@@ -613,7 +613,9 @@ func _on_row_gui(index: int, event: InputEvent) -> void:
 	if mb.button_index != MOUSE_BUTTON_LEFT or not mb.pressed:
 		return
 	set_cursor(index)
-	if mb.double_click:
+	## Saving is a deliberate one-step choice (occupied slots still confirm);
+	## loading keeps double-click to avoid opening a slot while merely selecting it.
+	if _mode == Mode.SAVE or mb.double_click:
 		slot_activated.emit(index)
 	accept_event()
 

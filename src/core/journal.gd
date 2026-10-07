@@ -121,6 +121,29 @@ static func seed_new_game(gs: Node) -> void:
 		)
 
 
+static func seed_dos_import(gs: Node, current_dungeon_id: String = "") -> void:
+	## PARTY.SAV contains inventory and virtue state, but no conversation history.
+	## Restore only facts proven by those fields; never invent heard clues or visits.
+	if gs == null:
+		return
+	seed_new_game(gs)
+	var rune_mask := int(gs.runes)
+	var stone_mask := int(gs.stones)
+	for i in 8:
+		var bit := 1 << i
+		if (rune_mask & bit) != 0:
+			mark_known_rune(gs, i)
+		if (stone_mask & bit) != 0:
+			mark_known_stone(gs, bit)
+		## In Ultima IV, karma 0 means partial Avatarhood after shrine elevation.
+		if i < gs.karma.size() and int(gs.karma[i]) == 0:
+			mark_known_mantra(gs, i)
+	if not current_dungeon_id.strip_edges().is_empty():
+		mark_known_dungeon(gs, current_dungeon_id)
+	ensure_progress_goals(gs, false)
+	_apply_pending_journal_completions(gs)
+
+
 static func ensure_progress_goals(gs: Node, note_new: bool = false) -> bool:
 	## Companions / runes / stones appear after the first recruit or find.
 	if gs == null:

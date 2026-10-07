@@ -155,6 +155,41 @@ const _T := {
 		"en_us": "Initiate New Game",
 		"ko": "새 게임 시작",
 	},
+	"menu_transport": {
+		"en_u4": "Transfer DOS Save",
+		"en_us": "Transfer DOS Save",
+		"ko": "DOS Save 가져오기",
+	},
+	"dos_import_none": {
+		"en_u4": "No PARTY.SAV was found in the Ultima IV data path.",
+		"en_us": "No PARTY.SAV was found in the Ultima IV data folder.",
+		"ko": "Ultima IV 데이터 폴더에 PARTY.SAV가 없다.",
+	},
+	"dos_import_invalid": {
+		"en_u4": "That DOS save is corrupted and cannot be transferred.",
+		"en_us": "That DOS save is invalid or corrupted and cannot be imported.",
+		"ko": "DOS 저장 파일이 올바르지 않거나 손상되어 가져올 수 없다.",
+	},
+	"dos_import_summary": {
+		"en_u4": "A record hath been found.\n\nName: %s\nCalling: %s\nLevel: %s   Gold: %s\nMoves: %s\n\nTransfer this DOS save?",
+		"en_us": "A DOS save was found.\n\nName: %s\nClass: %s\nLevel: %s   Gold: %s\nTurns: %s\n\nImport this saved game?",
+		"ko": "DOS 저장 파일을 찾았습니다.\n\n이름: %s\n직업: %s\n레벨: %s   골드: %s\n플레이 턴: %s\n\n이 저장 파일을 가져오겠습니까?",
+	},
+	"dos_import_complete": {
+		"en_u4": "Complete Transport",
+		"en_us": "Complete Import",
+		"ko": "가져오기 완료",
+	},
+	"dos_import_saved": {
+		"en_u4": "The DOS save hath been transferred.",
+		"en_us": "The DOS save was imported.",
+		"ko": "DOS 저장 파일을 가져왔다.",
+	},
+	"dos_import_save_failed": {
+		"en_u4": "The transported record could not be written.",
+		"en_us": "The imported save could not be written.",
+		"ko": "가져온 저장 파일을 저장하지 못했다.",
+	},
 	"menu_language": {
 		"en_u4": "Language",
 		"en_us": "Language",

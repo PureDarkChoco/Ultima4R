@@ -10,6 +10,8 @@ const _OptionsPanel := preload("res://src/ui/options_panel.gd")
 const _LicensesPanel := preload("res://src/ui/licenses_panel.gd")
 const _GameInput := preload("res://src/core/game_input.gd")
 const _MenuHoldRepeat := preload("res://src/core/menu_hold_repeat.gd")
+const _DosSaveImport := preload("res://src/core/dos_save_import.gd")
+const _Journal := preload("res://src/core/journal.gd")
 const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
 const COLS := 40.0
@@ -21,6 +23,7 @@ const APP_DISPLAY_VERSION := "1.0.0"
 @onready var _btn_return: Button = %ReturnView
 @onready var _btn_journey: Button = %Journey
 @onready var _btn_new: Button = %NewGame
+@onready var _btn_transport: Button = %Transport
 @onready var _btn_options: Button = %Language
 @onready var _btn_licenses: Button = %Licenses
 @onready var _btn_quit: Button = %Quit
@@ -38,6 +41,9 @@ var _load_open := false
 var _create_open := false
 var _options_open := false
 var _licenses_open := false
+var _import_editing := false
+var _import_save_open := false
+var _import_payload: Dictionary = {}
 ## Korean menu: show R)/J)/… prefixes only after keyboard use (hide on gamepad).
 var _menu_hotkeys_visible := false
 var _menu_hold_repeat = _MenuHoldRepeat.new()
@@ -54,7 +60,10 @@ func _ready() -> void:
 	_copyright.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	UiTheme.style_label(_hint, 13, UiTheme.MUTED)
 
-	for b in [_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit]:
+	for b in [
+		_btn_return, _btn_journey, _btn_new, _btn_transport,
+		_btn_options, _btn_licenses, _btn_quit,
+	]:
 		_style_menu_line(b)
 		b.focus_mode = Control.FOCUS_ALL
 	_wire_menu_focus_neighbors()
@@ -62,6 +71,7 @@ func _ready() -> void:
 	_btn_return.pressed.connect(_on_return_view)
 	_btn_journey.pressed.connect(_on_journey)
 	_btn_new.pressed.connect(_on_new)
+	_btn_transport.pressed.connect(_on_transport)
 	_btn_options.pressed.connect(_on_options)
 	_btn_licenses.pressed.connect(_on_licenses)
 	_btn_quit.pressed.connect(func() -> void: get_tree().quit())
@@ -122,6 +132,8 @@ func _apply_pending_focus() -> void:
 	match SceneRouter.take_menu_focus():
 		"new":
 			_btn_new.grab_focus()
+		"transport":
+			_btn_transport.grab_focus()
 		"return":
 			_btn_return.grab_focus()
 		"language", "options":
@@ -153,7 +165,8 @@ func _style_menu_line(btn: Button) -> void:
 func _wire_menu_focus_neighbors() -> void:
 	## Explicit vertical chain so D-pad / stick always walk the Journey list.
 	var chain: Array[Button] = [
-		_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit
+		_btn_return, _btn_journey, _btn_new, _btn_transport,
+		_btn_options, _btn_licenses, _btn_quit,
 	]
 	for i in range(chain.size()):
 		var cur := chain[i]
@@ -199,9 +212,10 @@ func _layout_u4() -> void:
 	var wide := size.x * 0.7
 	_place(_tagline, 2.0, 14.0, wide, line_h)
 	_place(_options_head, 15.0, 16.0, wide, line_h)
-	_place(_btn_return, 11.0, 17.0, wide, line_h)
-	_place(_btn_journey, 11.0, 18.0, wide, line_h)
-	_place(_btn_new, 11.0, 19.0, wide, line_h)
+	_place(_btn_return, 11.0, 16.0, wide, line_h)
+	_place(_btn_journey, 11.0, 17.0, wide, line_h)
+	_place(_btn_new, 11.0, 18.0, wide, line_h)
+	_place(_btn_transport, 11.0, 19.0, wide, line_h)
 	_place(_btn_options, 11.0, 20.0, wide, line_h)
 	_place(_btn_licenses, 11.0, 21.0, wide, line_h)
 	_place(_btn_quit, 11.0, 22.0, wide, line_h)
@@ -286,6 +300,7 @@ func _layout_menu_in_frame() -> void:
 		_btn_return,
 		_btn_journey,
 		_btn_new,
+		_btn_transport,
 		_btn_options,
 		_btn_licenses,
 		_btn_quit,
@@ -454,7 +469,10 @@ func _activate_focused_menu_button() -> bool:
 	if not btn.visible or btn.disabled:
 		return false
 	## Only our Journey-frame lines — ignore stray focus elsewhere.
-	if btn not in [_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit]:
+	if btn not in [
+		_btn_return, _btn_journey, _btn_new, _btn_transport,
+		_btn_options, _btn_licenses, _btn_quit,
+	]:
 		return false
 	btn.pressed.emit()
 	return true
@@ -462,7 +480,8 @@ func _activate_focused_menu_button() -> bool:
 
 func _move_main_menu_focus(step: int) -> void:
 	var chain: Array[Button] = [
-		_btn_return, _btn_journey, _btn_new, _btn_options, _btn_licenses, _btn_quit
+		_btn_return, _btn_journey, _btn_new, _btn_transport,
+		_btn_options, _btn_licenses, _btn_quit,
 	]
 	var current := get_viewport().gui_get_focus_owner()
 	var index := chain.find(current)
@@ -501,6 +520,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			accept_event()
 		elif code == KEY_I or phys == KEY_I:
 			_on_new()
+			accept_event()
+		elif code == KEY_T or phys == KEY_T:
+			_on_transport()
 			accept_event()
 		elif code == KEY_O or phys == KEY_O:
 			_on_options()
@@ -569,6 +591,7 @@ func _refresh_menu_button_labels() -> void:
 	_btn_return.text = _menu_line("R", "menu_return")
 	_btn_journey.text = _menu_line("J", "menu_journey")
 	_btn_new.text = _menu_line("I", "menu_new")
+	_btn_transport.text = _menu_line("T", "menu_transport")
 	_btn_options.text = _menu_line("O", "esc_options_title")
 	_btn_licenses.text = _menu_line("A", "menu_licenses")
 	_btn_quit.text = _menu_line("Q", "menu_quit")
@@ -583,7 +606,7 @@ func _refresh_text() -> void:
 		Locale.t("menu_version", [APP_DISPLAY_VERSION]),
 		Locale.t("menu_fan_notice"),
 	]
-	_hint.text = Locale.t("input_hint_menu") + " · R/J/I/O/A · ⌘F"
+	_hint.text = Locale.t("input_hint_menu") + " · R/J/I/T/O/A · ⌘F"
 	if _save_panel and _save_panel.is_open():
 		_save_panel.refresh()
 	if _options_panel and _options_panel.is_open():
@@ -655,6 +678,50 @@ func _on_new() -> void:
 	_open_name_form()
 
 
+func _on_transport() -> void:
+	if _load_open or _create_open or _options_open or _licenses_open or QuitConfirm.is_open():
+		return
+	var result := _DosSaveImport.import_from_data_dir(GameState.u4_data_path)
+	if not bool(result.get("ok", false)):
+		var error := str(result.get("error", "invalid"))
+		_tagline.text = Locale.t(
+			"dos_import_none" if error == "missing" else "dos_import_invalid"
+		)
+		_btn_transport.grab_focus()
+		return
+	_import_payload = result
+	var s: Dictionary = result.get("summary", {})
+	var klass_name := Virtues.class_name_of(int(s.get("class", 0)), GameState.lang_short())
+	var question := Locale.t("dos_import_summary", [
+		str(s.get("name", "Avatar")),
+		klass_name,
+		str(s.get("level", 1)),
+		str(s.get("gold", 0)),
+		str(s.get("moves", 0)),
+	])
+	QuitConfirm.prompt_custom(question, _begin_dos_import, _cancel_dos_import)
+
+
+func _begin_dos_import() -> void:
+	if _import_payload.is_empty():
+		return
+	var game_v: Variant = _import_payload.get("game", {})
+	var world_v: Variant = _import_payload.get("world", {})
+	if typeof(game_v) != TYPE_DICTIONARY or typeof(world_v) != TYPE_DICTIONARY:
+		_cancel_dos_import()
+		_tagline.text = Locale.t("dos_import_invalid")
+		return
+	GameState.reset_party()
+	GameState.apply_save_dict(game_v as Dictionary, _SaveGame.VERSION)
+	var dungeon_id := ""
+	if bool((world_v as Dictionary).get("in_dungeon", false)):
+		dungeon_id = str((world_v as Dictionary).get("dungeon_id", ""))
+	_Journal.seed_dos_import(GameState, dungeon_id)
+	GameState.pending_world_save = (world_v as Dictionary).duplicate(true)
+	_import_editing = true
+	_open_name_form(true)
+
+
 func _on_options() -> void:
 	if _load_open or _create_open or _licenses_open:
 		return
@@ -721,11 +788,13 @@ func _ensure_save_panel() -> void:
 
 
 func _on_save_slot_activated(slot_index: int) -> void:
-	if _load_open:
+	if _import_save_open:
+		_save_import_slot(slot_index)
+	elif _load_open:
 		_confirm_load(slot_index)
 
 
-func _open_name_form() -> void:
+func _open_name_form(import_mode: bool = false) -> void:
 	_create_open = true
 	_text_block.visible = false
 	_hint.visible = false
@@ -738,6 +807,8 @@ func _open_name_form() -> void:
 		_name_form.set("prepare_embedded", true)
 		if _name_form.has_signal("cancelled"):
 			_name_form.cancelled.connect(_close_name_form)
+		if _name_form.has_signal("completed"):
+			_name_form.completed.connect(_on_import_name_completed)
 		add_child(_name_form)
 	var panel_rect := _frame_content_rect()
 	if panel_rect.size.x < 40.0:
@@ -745,15 +816,23 @@ func _open_name_form() -> void:
 		_create_open = false
 		SceneRouter.to_new_game()
 		return
-	if _name_form.has_method("begin_embedded"):
+	if import_mode and _name_form.has_method("begin_import_embedded"):
+		_name_form.begin_import_embedded(panel_rect)
+	elif _name_form.has_method("begin_embedded"):
 		_name_form.begin_embedded(panel_rect)
 	else:
 		_create_open = false
-		SceneRouter.to_new_game()
+		if import_mode:
+			_cancel_dos_import()
+			_tagline.text = Locale.t("dos_import_invalid")
+		else:
+			SceneRouter.to_new_game()
 
 
 func _close_name_form() -> void:
+	var was_import := _import_editing
 	_create_open = false
+	_import_editing = false
 	if _name_form and _name_form.has_method("close_embedded"):
 		_name_form.close_embedded()
 	elif _name_form:
@@ -763,10 +842,85 @@ func _close_name_form() -> void:
 		_hint.visible = false
 		_layout_menu_in_frame()
 		_refresh_text()
-		_btn_new.grab_focus()
+		(_btn_transport if was_import else _btn_new).grab_focus()
 	else:
 		_refresh_text()
-		_btn_new.grab_focus()
+		(_btn_transport if was_import else _btn_new).grab_focus()
+	if was_import:
+		_cancel_dos_import()
+
+
+func _on_import_name_completed() -> void:
+	if not _import_editing or _import_payload.is_empty():
+		return
+	_create_open = false
+	_import_editing = false
+	if _name_form and _name_form.has_method("close_embedded"):
+		_name_form.close_embedded()
+	_ensure_save_panel()
+	_load_open = true
+	_import_save_open = true
+	_menu_hold_repeat.reset()
+	_text_block.visible = false
+	var panel_rect := _frame_content_rect()
+	var cursor := _SaveGame.default_save_cursor(0, false, true)
+	if panel_rect.size.x > 40.0 and _save_panel.has_method("open_embedded"):
+		_save_panel.open_embedded(_SaveSlotPanel.Mode.SAVE, panel_rect, cursor)
+	else:
+		_save_panel.open_panel(_SaveSlotPanel.Mode.SAVE, cursor)
+
+
+func _save_import_slot(slot_index: int) -> void:
+	if not _import_save_open or slot_index < 0 or slot_index >= _SaveGame.SLOT_COUNT:
+		return
+	var slot_n := slot_index + 1
+	if _SaveGame.slot_exists(slot_n):
+		QuitConfirm.prompt_overwrite_save(func() -> void: _write_import_slot(slot_n))
+	else:
+		_write_import_slot(slot_n)
+
+
+func _write_import_slot(slot_n: int) -> void:
+	if not _import_save_open or _import_payload.is_empty():
+		return
+	var world_v: Variant = _import_payload.get("world", {})
+	if typeof(world_v) != TYPE_DICTIONARY:
+		_finish_import_save(false)
+		return
+	var world := (world_v as Dictionary).duplicate(true)
+	var game := GameState.to_save_dict()
+	var location := _import_location(world)
+	var data := _SaveGame.build_save(
+		game, world, GameState.player_name, GameState.moves, GameState.player_class, location
+	)
+	_finish_import_save(_SaveGame.write_slot(slot_n, data))
+
+
+func _import_location(world: Dictionary) -> Dictionary:
+	if bool(world.get("in_dungeon", false)):
+		return {
+			"kind": "dungeon",
+			"place": str(world.get("dungeon_id", "")),
+			"level": int(world.get("dungeon_z", 0)) + 1,
+		}
+	if int(world.get("transport", 0)) == 2:
+		return {"kind": "sea"}
+	return {"kind": "britannia"}
+
+
+func _finish_import_save(ok: bool) -> void:
+	_close_load()
+	_import_payload.clear()
+	GameState.pending_world_save.clear()
+	_tagline.text = Locale.t("dos_import_saved" if ok else "dos_import_save_failed")
+	_btn_transport.grab_focus()
+
+
+func _cancel_dos_import() -> void:
+	_import_editing = false
+	_import_save_open = false
+	_import_payload.clear()
+	GameState.pending_world_save.clear()
 
 
 func _handle_options_input(event: InputEvent) -> bool:
@@ -864,18 +1018,24 @@ func _handle_load_input(event: InputEvent) -> bool:
 		_close_load()
 		return true
 	if _GameInput.is_select(event):
-		_confirm_load(_save_panel.cursor() if _save_panel else 0)
+		if _import_save_open:
+			_save_import_slot(_save_panel.cursor() if _save_panel else 0)
+		else:
+			_confirm_load(_save_panel.cursor() if _save_panel else 0)
 		return true
 	if event is InputEventKey:
 		var k := event as InputEventKey
-		if _is_delete_save_key(k):
+		if not _import_save_open and _is_delete_save_key(k):
 			_prompt_delete_load_slot()
 			return true
 		var dig := _digit_0_to_3(k)
 		if dig >= 0:
 			if _save_panel:
 				_save_panel.set_cursor(dig)
-			_confirm_load(dig)
+			if _import_save_open:
+				_save_import_slot(dig)
+			else:
+				_confirm_load(dig)
 			return true
 		## Swallow other keys so menu R/J/I/O/A shortcuts don’t fire under the list.
 		return true
@@ -963,7 +1123,9 @@ func _confirm_load(slot_index: int) -> void:
 
 
 func _close_load() -> void:
+	var was_import := _import_save_open
 	_load_open = false
+	_import_save_open = false
 	_menu_hold_repeat.reset()
 	if _save_panel:
 		_save_panel.close_panel()
@@ -973,7 +1135,9 @@ func _close_load() -> void:
 		_hint.visible = false
 		_layout_menu_in_frame()
 		_refresh_text()
-		_btn_journey.grab_focus()
+		(_btn_transport if was_import else _btn_journey).grab_focus()
 	else:
 		_refresh_text()
-		_btn_journey.grab_focus()
+		(_btn_transport if was_import else _btn_journey).grab_focus()
+	if was_import and not _import_payload.is_empty():
+		_cancel_dos_import()

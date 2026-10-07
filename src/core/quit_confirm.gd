@@ -10,6 +10,7 @@ enum Kind {
 	RETURN_MENU = 1,
 	DELETE_SAVE = 2,
 	OVERWRITE_SAVE = 3,
+	CUSTOM = 4,
 }
 
 var _layer: CanvasLayer
@@ -21,6 +22,8 @@ var _open := false
 var _kind: int = Kind.QUIT
 var _prev_focus: Control
 var _on_yes: Callable = Callable()
+var _on_no: Callable = Callable()
+var _custom_text := ""
 
 
 func _ready() -> void:
@@ -43,8 +46,11 @@ func is_open() -> bool:
 func prompt(kind: int = Kind.QUIT) -> void:
 	## Show (or retarget) confirmation. Safe while already open.
 	_kind = kind
-	if kind != Kind.DELETE_SAVE and kind != Kind.OVERWRITE_SAVE:
+	if kind not in [Kind.DELETE_SAVE, Kind.OVERWRITE_SAVE, Kind.CUSTOM]:
 		_on_yes = Callable()
+	if kind != Kind.CUSTOM:
+		_on_no = Callable()
+		_custom_text = ""
 	if _open:
 		GameInput.reset_stick_navigation()
 		_refresh_text()
@@ -75,6 +81,14 @@ func prompt_overwrite_save(on_yes: Callable) -> void:
 	## Occupied slot: Yes writes over the existing record.
 	_on_yes = on_yes
 	prompt(Kind.OVERWRITE_SAVE)
+
+
+func prompt_custom(text: String, on_yes: Callable, on_no: Callable = Callable()) -> void:
+	## Reuse the accessible Y/N dialog for a caller-provided multiline question.
+	_custom_text = text
+	_on_yes = on_yes
+	_on_no = on_no
+	prompt(Kind.CUSTOM)
 
 
 func _build() -> void:
@@ -156,6 +170,8 @@ func _refresh_text() -> void:
 			_title.text = Locale.t("load_delete_confirm")
 		Kind.OVERWRITE_SAVE:
 			_title.text = Locale.t("save_overwrite_confirm")
+		Kind.CUSTOM:
+			_title.text = _custom_text
 		_:
 			_title.text = Locale.t("quit_confirm")
 	_btn_yes.text = _yes_no_label(true)
@@ -261,7 +277,7 @@ func _accept() -> void:
 	match kind:
 		Kind.RETURN_MENU:
 			SceneRouter.to_menu()
-		Kind.DELETE_SAVE, Kind.OVERWRITE_SAVE:
+		Kind.DELETE_SAVE, Kind.OVERWRITE_SAVE, Kind.CUSTOM:
 			if on_yes.is_valid():
 				on_yes.call()
 		_:
@@ -271,7 +287,10 @@ func _accept() -> void:
 func _cancel() -> void:
 	if not _open:
 		return
+	var on_no := _on_no
 	_dismiss_ui(true)
+	if on_no.is_valid():
+		on_no.call()
 
 
 func _dismiss_ui(restore_focus: bool) -> void:
@@ -285,3 +304,5 @@ func _dismiss_ui(restore_focus: bool) -> void:
 	_prev_focus = null
 	_kind = Kind.QUIT
 	_on_yes = Callable()
+	_on_no = Callable()
+	_custom_text = ""
