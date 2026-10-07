@@ -16051,8 +16051,14 @@ func _restore_dungeon_from_save(w: Dictionary) -> void:
 func _exit_dungeon_to_surface() -> void:
 	if not _is_in_dungeon():
 		return
+	## Castle Britannia is only the way in. DOS leaves Hythloth at the world
+	## mouth (239,240) and creates the balloon there (U4_MAP.C C_2747).
+	var leaving_hythloth := _dungeon_id == _DungeonPortals.ID_HYTHLOTH
 	var back := _dungeon_return_pos
 	var city_fname := _dungeon_return_city
+	if leaving_hythloth:
+		city_fname = ""
+		back = _DungeonPortals.world_return_for(_DungeonPortals.ID_HYTHLOTH)
 	_clear_dungeon_state()
 	_push_message(Locale.t("cmd_dungeon_leave"), false)
 	if not city_fname.is_empty():
@@ -16076,7 +16082,20 @@ func _exit_dungeon_to_surface() -> void:
 	_sync_music()
 	_refresh_locate_hud()
 	_reveal_locate_chart()
+	if leaving_hythloth:
+		_spawn_hythloth_balloon()
 	_maybe_complete_hythloth_balloon()
+
+
+func _spawn_hythloth_balloon() -> void:
+	## u4dos: tile 0x18 at (0xe9, 0xf2) = (233, 242), on the hills southwest
+	## of the dungeon mouth. Only the first exit creates one.
+	if _map == null or _transport == Transport.BALLOON:
+		return
+	for item in _map.get_overlays():
+		if MapView.is_balloon_tile(int(item.z)):
+			return
+	_map.add_overlay(Vector2i(233, 242), MapView.TILE_BALLOON)
 
 
 func _dungeon_handle_dir(dir: Vector2i) -> void:
