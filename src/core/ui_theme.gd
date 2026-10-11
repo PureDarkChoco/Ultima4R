@@ -103,6 +103,10 @@ static func set_menu_cursor(active: bool) -> void:
 	_refresh_cursor_textures()
 
 
+static func is_menu_cursor() -> bool:
+	return _menu_cursor_active
+
+
 static func set_play_dir_cursor(dir: Vector2i) -> void:
 	if dir == _play_dir:
 		return

@@ -21,6 +21,7 @@ var _btn_no: Button
 var _open := false
 var _kind: int = Kind.QUIT
 var _prev_focus: Control
+var _prev_menu_cursor := false
 var _on_yes: Callable = Callable()
 var _on_no: Callable = Callable()
 var _custom_text := ""
@@ -60,6 +61,8 @@ func prompt(kind: int = Kind.QUIT) -> void:
 		return
 	_open = true
 	_prev_focus = get_viewport().gui_get_focus_owner() as Control
+	## Title/options already use the sword — restore that on dismiss (not ankh).
+	_prev_menu_cursor = UiTheme.is_menu_cursor()
 	## Stop world polling (Input.is_*_pressed) so arrows only move Yes/No.
 	get_tree().paused = true
 	GameInput.reset_stick_navigation()
@@ -298,7 +301,8 @@ func _dismiss_ui(restore_focus: bool) -> void:
 	get_tree().paused = false
 	_root.visible = false
 	_layer.visible = false
-	UiTheme.set_menu_cursor(false)
+	UiTheme.set_menu_cursor(_prev_menu_cursor)
+	_prev_menu_cursor = false
 	if restore_focus and is_instance_valid(_prev_focus):
 		_prev_focus.grab_focus()
 	_prev_focus = null
