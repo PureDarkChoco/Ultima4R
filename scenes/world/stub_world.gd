@@ -9903,6 +9903,11 @@ func _ensure_locate_map_overlay() -> void:
 
 
 func _do_locate() -> void:
+	## xu4: dungeon/combat → "Not here!". Towns blocked too (menu outdoors-only).
+	if _combat_active or _is_in_city() or _is_in_dungeon():
+		_push_message(Locale.t("cmd_not_here"), false)
+		_finish_party_turn()
+		return
 	## Map always; sextant readings in the message strip and on the chart.
 	var loc := _locate_world_pos()
 	var sextant_text := ""
