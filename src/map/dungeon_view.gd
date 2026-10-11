@@ -192,6 +192,13 @@ func paint(
 	_ensure_dim_lut(w, h)
 	_ensure_piece_cache_size(w, h)
 	_last_signature = _scan_view(dmap, pos, z, dir, lit)
+	## Standing on a combat room: keep the sealed entrance. Doors stay see-through,
+	## but a room must never flash the corridor behind before combat starts.
+	if dmap.token_at(pos.x, pos.y, z) == _DungeonMap.TOK_ROOM:
+		if not _paint_floor_plane_background(buf):
+			buf.fill(Color(0, 0, 0, 1))
+		_paint_room_entrance_cover(buf, w, h)
+		return
 	_mark_visible_cells(w, h)
 	if not _paint_floor_plane_background(buf):
 		buf.fill(Color(0, 0, 0, 1))
@@ -292,7 +299,7 @@ func paint(
 				Vector2i(int(object.get("cell_x", -1)), int(object.get("cell_y", -1))),
 				z
 			)
-	if _is_side_entrance(dmap, pos, z):
+	if dmap.token_at(pos.x, pos.y, z) == _DungeonMap.TOK_DOOR:
 		_paint_doorway_frame(buf, w, h)
 
 
@@ -419,24 +426,55 @@ func _paint_doorway_frame(buf: Image, w: int, h: int) -> void:
 	var frame := _doorway_frame_image()
 	if frame == null:
 		return
-	var open := _doorway_open_rect
-	if open.size.x <= 0 or open.size.y <= 0:
+	var bounds := _entrance_cover_bounds(w, h, frame.get_width(), frame.get_height())
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
 		return
-	var inner := _front_rect(1, w, h)
-	var sx := float(inner.size.x) / float(open.size.x)
-	var sy := float(h - inner.position.y) / float(frame.get_height() - open.position.y)
-	var x0 := int(round(float(inner.position.x) - float(open.position.x) * sx))
-	var y0 := int(round(float(inner.position.y) - float(open.position.y) * sy))
-	var x1 := x0 + int(round(float(frame.get_width()) * sx))
-	var y1 := y0 + int(round(float(frame.get_height()) * sy))
 	_blit_cached_piece(
 		buf,
 		"doorway_frame",
 		Callable(self, "_blit_scaled").bind(
-			frame, x0, y0, x1, y1, 1.0,
+			frame,
+			bounds.position.x, bounds.position.y,
+			bounds.end.x, bounds.end.y, 1.0,
 			false, 0.0, 1.0, false, false, false, _scanlines_on
 		)
 	)
+
+
+func _paint_room_entrance_cover(buf: Image, w: int, h: int) -> void:
+	## Standing on a room cell: keep the entrance's dark interior opaque so
+	## the corridor beyond never flashes through before room combat takes over.
+	if _entrance == null:
+		return
+	## Populate `_doorway_open_rect` so room and door share one alignment.
+	_doorway_frame_image()
+	var bounds := _entrance_cover_bounds(w, h, _entrance.get_width(), _entrance.get_height())
+	if bounds.size.x <= 0 or bounds.size.y <= 0:
+		return
+	_blit_cached_piece(
+		buf,
+		"room_entrance_cover",
+		Callable(self, "_blit_scaled").bind(
+			_entrance,
+			bounds.position.x, bounds.position.y,
+			bounds.end.x, bounds.end.y, 1.0,
+			false, 0.0, 1.0, false, false, false, _scanlines_on
+		)
+	)
+
+
+func _entrance_cover_bounds(w: int, h: int, src_w: int, src_h: int) -> Rect2i:
+	var open := _doorway_open_rect
+	if open.size.x <= 0 or open.size.y <= 0 or src_w <= 0 or src_h <= 0:
+		return Rect2i()
+	var inner := _front_rect(1, w, h)
+	var sx := float(inner.size.x) / float(open.size.x)
+	var sy := float(h - inner.position.y) / float(src_h - open.position.y)
+	var x0 := int(round(float(inner.position.x) - float(open.position.x) * sx))
+	var y0 := int(round(float(inner.position.y) - float(open.position.y) * sy))
+	var x1 := x0 + int(round(float(src_w) * sx))
+	var y1 := y0 + int(round(float(src_h) * sy))
+	return Rect2i(x0, y0, x1 - x0, y1 - y0)
 
 
 func _doorway_frame_image() -> Image:
