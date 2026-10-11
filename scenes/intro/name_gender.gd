@@ -330,6 +330,7 @@ func begin_embedded(frame_rect: Rect2) -> void:
 	## Mount into main-menu map frame (no full-screen chrome / scene change).
 	_import_mode = false
 	_embedded = true
+	set_process_unhandled_input(true)
 	visible = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	if _bg:
@@ -350,6 +351,7 @@ func begin_import_embedded(frame_rect: Rect2) -> void:
 	## DOS import keeps class/stats fixed; only names and sex remain editable.
 	_import_mode = true
 	_embedded = true
+	set_process_unhandled_input(true)
 	visible = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	if _bg:
@@ -389,6 +391,7 @@ func set_embed_rect(frame_rect: Rect2) -> void:
 
 func close_embedded() -> void:
 	visible = false
+	set_process_unhandled_input(false)
 	_embedded = false
 	_import_mode = false
 	if _editing != null:
@@ -402,7 +405,8 @@ func close_embedded() -> void:
 
 
 func _focus_name() -> void:
-	if is_instance_valid(_name_en):
+	## begin_* defers this call; cancellation may close the form first.
+	if visible and _embedded and is_instance_valid(_name_en):
 		_name_en.grab_focus()
 
 
@@ -499,7 +503,9 @@ func _focused_name_field() -> LineEdit:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _embedded and not visible:
+	## A closed embedded form remains in the main-menu scene for reuse.
+	## It must never consume Esc or navigate after it has been hidden.
+	if not visible:
 		return
 	if event is InputEventJoypadMotion:
 		var motion := event as InputEventJoypadMotion
