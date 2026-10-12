@@ -22926,8 +22926,14 @@ func _victory_finish_member_turn(after_flee: bool = false) -> void:
 
 	## xu4 finishTurn applies the tile under the active member on every spent
 	## turn, including Pass / blocked / slowed. Flee has no tile underfoot.
-	if not after_flee and _apply_combat_field_under_focus():
-		after_flee = true
+	## Solo control skips other members' turns, so also tick fields under the
+	## whole party each spent turn (fire / lava / poison / sleep).
+	if not after_flee:
+		if _victory_solo_party_slot >= 0:
+			if await _victory_apply_fields_under_all_party():
+				after_flee = true
+		elif _apply_combat_field_under_focus():
+			after_flee = true
 	if _map == null or _map.combat_party_count() <= 0:
 		_victory_turn_pending = false
 		await _finish_combat_victory_exit()
@@ -23016,6 +23022,16 @@ func _victory_seek_able_focus() -> void:
 				await get_tree().create_timer(IMMOBILIZED_SLEEP_SEC).timeout
 				if not _combat_active or not _combat_victory_aftermath:
 					return
+			## Solo auto-pass still burns / poisons / sleeps anyone left on a field.
+			if _victory_solo_party_slot >= 0:
+				await _victory_apply_fields_under_all_party()
+				if not _combat_active or not _combat_victory_aftermath or _map == null:
+					return
+				if _map.combat_party_count() <= 0:
+					await _finish_combat_victory_exit()
+					return
+				if _map.find_combat_party_index_for_slot(_victory_solo_party_slot) < 0:
+					_victory_solo_party_slot = -1
 			await _victory_apply_round_turn()
 
 
@@ -23825,6 +23841,50 @@ func _apply_combat_field_under_focus() -> bool:
 		_map.get_combat_focus_party_slot(),
 		_map.get_combat_focus()
 	)
+
+
+func _victory_apply_fields_under_all_party() -> bool:
+	## Solo mode: every spent turn, every living unit on a field takes the hit.
+	## Returns true if the controlled solo unit died and was removed.
+	if _map == null or not _map.is_in_combat():
+		return false
+	var solo_died := false
+	var applied := 0
+	var i := 0
+	while i < _map.combat_party_count():
+		var unit := _map.get_combat_party_unit(i)
+		var party_slot := int(unit.get("party_slot", -1))
+		var klass := int(unit.get("klass", -1))
+		var pos := Vector2i(int(unit.get("x", -1)), int(unit.get("y", -1)))
+		var effect := _TileRules.effect_of(_map.combat_tile_at(pos))
+		if effect == _TileRules.Effect.NONE or not _combat_field_may_affect(klass, effect):
+			i += 1
+			continue
+		if applied > 0:
+			await _await_party_hit_gap()
+		var died := _apply_combat_field_to_party(pos, party_slot, i)
+		applied += 1
+		if died:
+			if party_slot == _victory_solo_party_slot:
+				solo_died = true
+			continue
+		i += 1
+	return solo_died
+
+
+func _combat_field_may_affect(klass: int, effect: int) -> bool:
+	## Whether apply_effect(..., always) can still change this living member.
+	if klass < 0 or GameState.is_class_dead(klass):
+		return false
+	match effect:
+		_TileRules.Effect.POISON, _TileRules.Effect.POISONFIELD:
+			return GameState.status_of_class(klass) != PartyRoster.Status.POISONED
+		_TileRules.Effect.SLEEP:
+			return not GameState.is_member_disabled(klass)
+		_TileRules.Effect.FIRE, _TileRules.Effect.LAVA:
+			return true
+		_:
+			return false
 
 
 func _apply_combat_field_to_party(pos: Vector2i, party_slot: int, party_i: int) -> bool:
