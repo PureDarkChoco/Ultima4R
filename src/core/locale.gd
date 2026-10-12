@@ -171,9 +171,19 @@ const _T := {
 		"ko": "DOS 저장 파일이 올바르지 않거나 손상되어 가져올 수 없다.",
 	},
 	"dos_import_summary": {
-		"en_u4": "A record hath been found.\n\nName: %s\nCalling: %s\nLevel: %s   Gold: %s\nMoves: %s\n\nTransfer this DOS save?",
-		"en_us": "A DOS save was found.\n\nName: %s\nClass: %s\nLevel: %s   Gold: %s\nTurns: %s\n\nImport this saved game?",
-		"ko": "DOS 저장 파일을 찾았습니다.\n\n이름: %s\n직업: %s\n레벨: %s   골드: %s\n플레이 턴: %s\n\n이 저장 파일을 가져오겠습니까?",
+		"en_u4": "A record hath been found.\n\nEdition: %s\nName: %s\nCalling: %s\nLevel: %s   Gold: %s\nMoves: %s\n\nTransfer this DOS save?",
+		"en_us": "A DOS save was found.\n\nEdition: %s\nName: %s\nClass: %s\nLevel: %s   Gold: %s\nTurns: %s\n\nImport this saved game?",
+		"ko": "DOS 저장 파일을 찾았습니다.\n\n판본: %s\n이름: %s\n직업: %s\n레벨: %s   골드: %s\n플레이 턴: %s\n\n이 저장 파일을 가져오겠습니까?",
+	},
+	"dos_import_edition_en": {
+		"en_u4": "English DOS",
+		"en_us": "English DOS",
+		"ko": "영문 DOS",
+	},
+	"dos_import_edition_ko": {
+		"en_u4": "Korean DOS",
+		"en_us": "Korean DOS",
+		"ko": "한글 DOS",
 	},
 	"dos_import_complete": {
 		"en_u4": "Complete Transport",

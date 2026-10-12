@@ -21,13 +21,16 @@ func _ready() -> void:
 
 	var result := DosImport.import_from_data_dir(test_dir)
 	assert(bool(result.get("ok", false)))
+	assert(str(result.get("edition", "")) == DosImport.EDITION_EN)
 	var party: Dictionary = result["party"]
+	assert(str(party.get("edition", "")) == DosImport.EDITION_EN)
 	assert(int(party["moves"]) == 12345)
 	assert(int(party["gold"]) == 789)
 	assert(int(party["runes"]) == 0x03)
 	assert(int(party["stones"]) == 0x05)
 	var game: Dictionary = result["game"]
 	assert(str(game["player_name"]) == "Sol")
+	assert(str(game["player_name_ko"]) == "Sol")
 	assert(str(game["player_sex"]) == "female")
 	assert(int(game["player_class"]) == 2)
 	assert((game["party_order"] as Array) == [2])
@@ -35,6 +38,7 @@ func _ready() -> void:
 	assert(not bool(world["in_dungeon"]))
 	assert(int(world["transport"]) == 3)
 	assert((world["creatures"] as Array).is_empty())
+	assert(str((result["summary"] as Dictionary).get("edition", "")) == DosImport.EDITION_EN)
 
 	## A valid optional table restores the current creature/object tiles.
 	file = FileAccess.open(test_dir.path_join("monsters.sav"), FileAccess.WRITE)
@@ -83,6 +87,28 @@ func _ready() -> void:
 		assert(Save.is_loadable(loaded))
 		assert(str((loaded["game"] as Dictionary)["player_name"]) == "Sol")
 		assert(Save.delete_slot(1))
+
+	## Korean DOS (NSM53): Johab avatar name + Abyss cell stored in x/y.
+	file = FileAccess.open(test_dir.path_join("party.sav"), FileAccess.WRITE)
+	assert(file != null)
+	file.store_buffer(_fixture_korean_abyss())
+	file.close()
+	result = DosImport.import_from_data_dir(test_dir)
+	assert(bool(result.get("ok", false)))
+	assert(str(result.get("edition", "")) == DosImport.EDITION_KO)
+	party = result["party"]
+	assert(str((party["players"] as Array)[0]["name"]) == "카마로")
+	game = result["game"]
+	assert(str(game["player_name"]) == "카마로")
+	assert(str(game["player_name_ko"]) == "카마로")
+	assert(int(game["player_class"]) == 6)
+	world = result["world"]
+	assert(bool(world["in_dungeon"]))
+	assert(str(world["dungeon_id"]) == "abyss")
+	assert(int(world["dungeon_x"]) == 7)
+	assert(int(world["dungeon_y"]) == 7)
+	assert(int(world["dungeon_z"]) == 7)
+	assert(str((result["summary"] as Dictionary).get("name", "")) == "카마로")
 
 	assert(not bool(DosImport.parse_party(PackedByteArray([1, 2, 3])).get("ok", false)))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_dir.path_join("party.sav")))
@@ -135,6 +161,49 @@ func _fixture() -> PackedByteArray:
 	_put_u16(out, 0x1E4, 1)
 	_put_u16(out, 0x1F2, 0xFFFF)
 	_put_u16(out, 0x1F4, 0)
+	return out
+
+
+func _fixture_korean_abyss() -> PackedByteArray:
+	## Minimal Korean DOS save: Johab "카마로", Abyss L8 with cell in x/y.
+	var out := PackedByteArray()
+	out.resize(DosImport.PARTY_BYTES)
+	out.fill(0)
+	_put_u32(out, 4, 100)
+	var p := 8
+	_put_u16(out, p, 800)
+	_put_u16(out, p + 2, 800)
+	_put_u16(out, p + 4, 8500)
+	_put_u16(out, p + 6, 40)
+	_put_u16(out, p + 8, 40)
+	_put_u16(out, p + 10, 40)
+	_put_u16(out, p + 12, 40)
+	_put_u16(out, p + 16, 13)
+	_put_u16(out, p + 18, 7)
+	## 카마로 in Johab (same bytes as NSM53 PARTY.SAV).
+	var johab := PackedByteArray([0xC4, 0x61, 0xA0, 0x61, 0x9D, 0xA1])
+	for i in johab.size():
+		out[p + 20 + i] = johab[i]
+	out[p + 36] = 0x0B
+	out[p + 37] = 6
+	out[p + 38] = 0x47
+	_put_u32(out, 0x140, 30000)
+	_put_u16(out, 0x144, 100)
+	_put_u16(out, 0x1D2, 0x1FFD)
+	out[0x1D4] = 7
+	out[0x1D5] = 7
+	out[0x1D6] = 0xFF
+	out[0x1D7] = 0xFF
+	_put_u16(out, 0x1D8, 1)
+	_put_u16(out, 0x1DA, 0x1F)
+	_put_u16(out, 0x1DC, 31)
+	_put_u16(out, 0x1E2, 50)
+	_put_u16(out, 0x1E4, 1)
+	out[0x1EE] = 0xE9
+	out[0x1EF] = 0xE9
+	_put_u16(out, 0x1F0, 2)
+	_put_u16(out, 0x1F2, 7)
+	_put_u16(out, 0x1F4, 0x18)
 	return out
 
 

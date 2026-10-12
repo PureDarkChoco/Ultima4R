@@ -691,8 +691,13 @@ func _on_transport() -> void:
 		return
 	_import_payload = result
 	var s: Dictionary = result.get("summary", {})
+	var edition := str(s.get("edition", _DosSaveImport.EDITION_EN))
+	var edition_label := Locale.t(
+		"dos_import_edition_ko" if edition == _DosSaveImport.EDITION_KO else "dos_import_edition_en"
+	)
 	var klass_name := Virtues.class_name_of(int(s.get("class", 0)), GameState.lang_short())
 	var question := Locale.t("dos_import_summary", [
+		edition_label,
 		str(s.get("name", "Avatar")),
 		klass_name,
 		str(s.get("level", 1)),

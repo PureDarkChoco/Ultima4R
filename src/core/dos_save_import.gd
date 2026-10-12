@@ -3,12 +3,15 @@ extends RefCounted
 
 ## Ultima IV DOS PARTY.SAV (+ optional MONSTERS/OUTMONST/DNGMAP) importer.
 ## The binary layout follows xu4 doc/FileFormats.md and savegame.cpp.
+## English DOS stores ASCII names; NSM53 Korean DOS stores Johab Hangul names.
 
 const PARTY_BYTES := 502
 const MONSTERS_BYTES := 256
 const DNGMAP_BYTES := 8 * 8 * 8
 const PLAYER_BYTES := 39
 const PLAYER_COUNT := 8
+const EDITION_EN := "en"
+const EDITION_KO := "ko"
 
 const _DungeonMap := preload("res://src/map/dungeon_map_data.gd")
 const _DungeonPortals := preload("res://src/map/dungeon_portals.gd")
@@ -19,6 +22,19 @@ const _DUNGEON_IDS: Array[String] = [
 ]
 ## DOS dungeon orientation: W, N, E, S. Remake: N, E, S, W.
 const _DUNGEON_DIR := [3, 0, 1, 2]
+## KS X 1001 Johab bitfield → Unicode Hangul indices (choseong / jungseong / jongseong).
+const _JOHAB_CHO: Array[int] = [
+	-1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+	14, 15, 16, 17, 18, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+]
+const _JOHAB_JUNG: Array[int] = [
+	-1, -1, -1, 0, 1, 2, 3, 4, -1, -1, 5, 6, 7, 8, 9, 10,
+	-1, -1, 11, 12, 13, 14, 15, 16, -1, -1, 17, 18, 19, 20, -1, -1,
+]
+const _JOHAB_JONG: Array[int] = [
+	-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+	15, 16, -1, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, -1, -1,
+]
 
 
 static func import_from_data_dir(dir_path: String) -> Dictionary:
@@ -34,6 +50,7 @@ static func import_from_data_dir(dir_path: String) -> Dictionary:
 	return {
 		"ok": true,
 		"path": party_path,
+		"edition": str(party.get("edition", EDITION_EN)),
 		"party": party,
 		"game": game,
 		"world": world,
@@ -41,9 +58,21 @@ static func import_from_data_dir(dir_path: String) -> Dictionary:
 	}
 
 
+static func detect_edition(bytes: PackedByteArray) -> String:
+	## Korean DOS patch writes Johab syllables in the 16-byte name fields.
+	if bytes.size() != PARTY_BYTES:
+		return EDITION_EN
+	for i in PLAYER_COUNT:
+		var name_bytes := _player_name_bytes(bytes, 8 + i * PLAYER_BYTES)
+		if _name_has_johab_hangul(name_bytes):
+			return EDITION_KO
+	return EDITION_EN
+
+
 static func parse_party(bytes: PackedByteArray) -> Dictionary:
 	if bytes.size() != PARTY_BYTES:
 		return {"ok": false, "error": "size"}
+	var edition := detect_edition(bytes)
 	var offset := 0
 	var unknown1 := _u32(bytes, offset)
 	offset += 4
@@ -51,7 +80,7 @@ static func parse_party(bytes: PackedByteArray) -> Dictionary:
 	offset += 4
 	var players: Array[Dictionary] = []
 	for _i in PLAYER_COUNT:
-		var player := _parse_player(bytes, offset)
+		var player := _parse_player(bytes, offset, edition)
 		if player.is_empty():
 			return {"ok": false, "error": "player"}
 		players.append(player)
@@ -120,8 +149,13 @@ static func parse_party(bytes: PackedByteArray) -> Dictionary:
 		return {"ok": false, "error": "members"}
 	if location != 0 and (location < 0x11 or location > 0x18):
 		return {"ok": false, "error": "location"}
-	if location != 0 and (dnglevel > 7 or orientation > 3 or dngx > 7 or dngy > 7):
+	if location != 0 and (dnglevel > 7 or orientation > 3):
 		return {"ok": false, "error": "dungeon"}
+	## English keeps dngx/dngy in 0..7. Some Korean Abyss room saves leave
+	## garbage there and stash the cell in x/y instead — accept that shape.
+	if location != 0 and not _dungeon_cell_ok(dngx, dngy):
+		if not _dungeon_cell_ok(x, y):
+			return {"ok": false, "error": "dungeon"}
 	var active_classes: Dictionary = {}
 	for i in members:
 		var p: Dictionary = players[i]
@@ -136,6 +170,7 @@ static func parse_party(bytes: PackedByteArray) -> Dictionary:
 
 	return {
 		"ok": true,
+		"edition": edition,
 		"unknown1": unknown1,
 		"moves": moves,
 		"players": players,
@@ -178,6 +213,7 @@ static func summary(party: Dictionary) -> Dictionary:
 	var leader: Dictionary = (party.get("players", []) as Array)[0]
 	return {
 		"name": str(leader.get("name", "Avatar")),
+		"edition": str(party.get("edition", EDITION_EN)),
 		"class": int(leader.get("class", 0)),
 		"level": maxi(1, int(leader.get("hp_max", 100)) / 100),
 		"gold": maxi(0, int(party.get("gold", 0))),
@@ -185,17 +221,13 @@ static func summary(party: Dictionary) -> Dictionary:
 	}
 
 
-static func _parse_player(bytes: PackedByteArray, offset: int) -> Dictionary:
+static func _parse_player(bytes: PackedByteArray, offset: int, edition: String) -> Dictionary:
 	if offset < 0 or offset + PLAYER_BYTES > bytes.size():
 		return {}
 	var fields: Array[int] = []
 	for i in 10:
 		fields.append(_u16(bytes, offset + i * 2))
-	var name_bytes := bytes.slice(offset + 20, offset + 36)
-	var nul := name_bytes.find(0)
-	if nul >= 0:
-		name_bytes = name_bytes.slice(0, nul)
-	var name := name_bytes.get_string_from_ascii().strip_edges()
+	var name := _decode_player_name(_player_name_bytes(bytes, offset), edition)
 	if name.is_empty():
 		name = "Avatar"
 	return {
@@ -256,9 +288,10 @@ static func _build_game(party: Dictionary) -> Dictionary:
 	for count in mixtures:
 		spell_known.append(int(count) > 0)
 	var in_dungeon := int(party["location"]) >= 0x11
+	var leader_name := str(leader["name"])
 	return {
-		"player_name": str(leader["name"]),
-		"player_name_ko": str(leader["name"]),
+		"player_name": leader_name,
+		"player_name_ko": leader_name,
 		"player_sex": "female" if int(leader["sex"]) == 0x0C else "male",
 		"player_class": int(leader["class"]),
 		"party_order": order,
@@ -335,14 +368,21 @@ static func _build_world(party: Dictionary, dir_path: String) -> Dictionary:
 	if in_dungeon:
 		var dungeon_index := location - 0x11
 		var dungeon_id := _DUNGEON_IDS[dungeon_index]
+		var dngx := int(party["dngx"])
+		var dngy := int(party["dngy"])
 		var return_pos := Vector2i(x, y)
-		if return_pos == Vector2i.ZERO:
+		## When dngx/dngy are unusable, x/y held the dungeon cell (Korean Abyss).
+		if not _dungeon_cell_ok(dngx, dngy) and _dungeon_cell_ok(x, y):
+			dngx = x
+			dngy = y
+			return_pos = _DungeonPortals.world_return_for(dungeon_id)
+		elif return_pos == Vector2i.ZERO:
 			return_pos = _DungeonPortals.world_return_for(dungeon_id)
 		world["x"] = return_pos.x
 		world["y"] = return_pos.y
 		world["dungeon_id"] = dungeon_id
-		world["dungeon_x"] = int(party["dngx"])
-		world["dungeon_y"] = int(party["dngy"])
+		world["dungeon_x"] = dngx
+		world["dungeon_y"] = dngy
 		world["dungeon_z"] = clampi(int(party["dnglevel"]), 0, 7)
 		world["dungeon_dir"] = int(_DUNGEON_DIR[clampi(int(party["orientation"]), 0, 3)])
 		world["dungeon_return_x"] = return_pos.x
@@ -429,6 +469,72 @@ static func _read_dungeon_persist(path: String, dungeon_id: String) -> Dictionar
 					monster_id += 1
 					level_counts[z] = int(level_counts[z]) + 1
 	return empty
+
+
+static func _dungeon_cell_ok(x: int, y: int) -> bool:
+	return x >= 0 and x <= 7 and y >= 0 and y <= 7
+
+
+static func _player_name_bytes(bytes: PackedByteArray, player_offset: int) -> PackedByteArray:
+	if player_offset < 0 or player_offset + 36 > bytes.size():
+		return PackedByteArray()
+	var name_bytes := bytes.slice(player_offset + 20, player_offset + 36)
+	var nul := name_bytes.find(0)
+	if nul >= 0:
+		name_bytes = name_bytes.slice(0, nul)
+	return name_bytes
+
+
+static func _decode_player_name(name_bytes: PackedByteArray, edition: String) -> String:
+	if edition == EDITION_KO:
+		var hangul := _decode_johab_name(name_bytes)
+		if not hangul.is_empty():
+			return hangul
+	var ascii := name_bytes.get_string_from_ascii().strip_edges()
+	return ascii
+
+
+static func _name_has_johab_hangul(name_bytes: PackedByteArray) -> bool:
+	var i := 0
+	while i + 1 < name_bytes.size():
+		if not _johab_syllable(int(name_bytes[i]), int(name_bytes[i + 1])).is_empty():
+			return true
+		i += 1
+	return false
+
+
+static func _decode_johab_name(name_bytes: PackedByteArray) -> String:
+	var out := ""
+	var i := 0
+	while i < name_bytes.size():
+		var b := int(name_bytes[i])
+		if b == 0:
+			break
+		if i + 1 < name_bytes.size():
+			var syl := _johab_syllable(b, int(name_bytes[i + 1]))
+			if not syl.is_empty():
+				out += syl
+				i += 2
+				continue
+		## Rare ASCII letters mixed into a Korean name field.
+		if b >= 32 and b < 127:
+			out += String.chr(b)
+			i += 1
+			continue
+		break
+	return out.strip_edges()
+
+
+static func _johab_syllable(lead: int, trail: int) -> String:
+	var code := (lead << 8) | trail
+	if (code & 0x8000) == 0:
+		return ""
+	var cho := _JOHAB_CHO[(code >> 10) & 0x1F]
+	var jung := _JOHAB_JUNG[(code >> 5) & 0x1F]
+	var jong := _JOHAB_JONG[code & 0x1F]
+	if cho < 0 or jung < 0 or jong < 0:
+		return ""
+	return String.chr(0xAC00 + cho * 588 + jung * 28 + jong)
 
 
 static func _transport_info(raw: int) -> Dictionary:
