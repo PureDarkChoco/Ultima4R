@@ -44,8 +44,6 @@ var _licenses_open := false
 var _import_editing := false
 var _import_save_open := false
 var _import_payload: Dictionary = {}
-## Korean menu: show R)/J)/… prefixes only after keyboard use (hide on gamepad).
-var _menu_hotkeys_visible := false
 var _menu_hold_repeat = _MenuHoldRepeat.new()
 
 
@@ -412,7 +410,6 @@ func _input(event: InputEvent) -> void:
 	if _GameInput.should_block_event(event):
 		_mark_input_handled()
 		return
-	_note_menu_input_device(event)
 	if _try_skip_intro(event):
 		_mark_input_handled()
 		return
@@ -495,7 +492,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _GameInput.should_block_event(event):
 		get_viewport().set_input_as_handled()
 		return
-	_note_menu_input_device(event)
 	if _load_open or _options_open or _licenses_open:
 		## Already handled in _input when active.
 		return
@@ -562,27 +558,10 @@ func _try_skip_intro(event: InputEvent) -> bool:
 	return true
 
 
-func _note_menu_input_device(event: InputEvent) -> void:
-	## Korean labels: letter prefixes appear with keyboard, hide with gamepad.
-	var want := _menu_hotkeys_visible
-	if event is InputEventKey and event.is_pressed() and not event.is_echo():
-		want = true
-	elif event is InputEventJoypadButton and event.is_pressed():
-		want = false
-	elif event is InputEventJoypadMotion:
-		var stick := _GameInput.stick_direction_step(event)
-		if stick != Vector2i.ZERO:
-			want = false
-	if want == _menu_hotkeys_visible:
-		return
-	_menu_hotkeys_visible = want
-	if GameState.language == "ko":
-		_refresh_menu_button_labels()
-
-
 func _menu_line(letter: String, key: String) -> String:
 	var label := Locale.t(key)
-	if GameState.language != "ko" or not _menu_hotkeys_visible or letter.is_empty():
+	## Korean always shows letter prefixes (keyboard / mouse / gamepad).
+	if GameState.language != "ko" or letter.is_empty():
 		return label
 	return "%s) %s" % [letter, label]
 
