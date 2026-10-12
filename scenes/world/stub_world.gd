@@ -4028,6 +4028,13 @@ func _update_mouse_walk() -> void:
 		_mouse_walk_dir = Vector2i.ZERO
 		_mouse_lmb_held = lmb
 		return
+	## Enemy phase / auto-combat: keep the ankh (no walk/attack hover art).
+	## Open menus still use the sword via set_menu_cursor.
+	if not sword and not _combat_player_controls_map_cursor():
+		_mouse_force_ankh_cursor()
+		_mouse_walk_dir = Vector2i.ZERO
+		_mouse_lmb_held = lmb
+		return
 	## Cast Dir? (Blink and the other NESW spells) uses the same X-split as Open.
 	if over_map and not sword and not wait_key and _cast_stage != 4:
 		talk_dir = _mouse_talk_dir_from_hover()
@@ -4189,11 +4196,44 @@ func _mouse_ztats_slot_from_hover() -> int:
 	return _mouse_roster_slot_from_hover()
 
 
+func _mouse_force_ankh_cursor() -> void:
+	## Clear every contextual mouse glyph so UiTheme falls back to the ankh.
+	UiTheme.set_play_dir_cursor(Vector2i.ZERO)
+	UiTheme.set_talk_cursor(false)
+	UiTheme.set_jimmy_cursor(false)
+	UiTheme.set_hand_cursor(false)
+	UiTheme.set_attack_cursor(false)
+	UiTheme.set_search_cursor(false)
+	UiTheme.set_page_dir_cursor(Vector2i.ZERO)
+
+
+func _combat_player_controls_map_cursor() -> bool:
+	## False on foe turns and auto-combat members — mouse stays on the ankh.
+	if not _combat_active:
+		return true
+	if _combat_exit_prompt:
+		return false
+	if _combat_victory_aftermath:
+		return not _victory_turn_pending
+	if _combat_aiming:
+		return true
+	if _combat_resolving or _combat_auto_acting or _turn_fx_busy:
+		return false
+	if _map == null or not _map.is_in_combat():
+		return true
+	var fk := _map.get_combat_focus_klass()
+	if fk < 0 or GameState.is_member_disabled(fk):
+		return false
+	return GameState.auto_combat_of_class(fk) == GameState.AutoCombat.MANUAL
+
+
 func _mouse_combat_direct_attack_allowed() -> bool:
 	## Free combat turn — same window as a keyboard Attack, before aim starts.
 	if not _combat_active or _combat_aiming or _combat_resolving or _combat_auto_acting:
 		return false
 	if _combat_victory_aftermath or _turn_fx_busy or _menu_cursor_should_be_sword():
+		return false
+	if not _combat_player_controls_map_cursor():
 		return false
 	if _map == null or not _map.is_in_combat():
 		return false
