@@ -42,6 +42,13 @@
 
 **주문 A–Z:** 던전 전용 **L Light / X X-it / Y Y-up / Z Z-down** 포함해 모두 동작함.
 
+**최근 완료 (2026-10-12) — v1.1.1:**
+- [x] 앱 버전 **1.1.1** (프로젝트 · 타이틀 표시 · macOS/Windows export · 7z 배포)
+- [x] DOS `PARTY.SAV` 가져오기 — 영문 ASCII / 한글(NSM53 Johab) 자동 구분 · 심연 칸 좌표 폴백
+- [x] 승리 후 솔로 모드: 매 턴 필드(불·용암·독·수면) 위 전원 적용
+- [x] 한글 시작 메뉴: 마우스·게임패드 진입 시에도 `R)` 단축키 접두어 표시
+- [x] 전투 마우스 커서: 적 턴·자동 전투 중에는 앙크 고정 (수동 조작 턴만 화살표·검)
+
 **최근 완료 (2026-10-05) — v1.0.0:**
 - [x] 앱 버전 **1.0.0** (프로젝트 · 타이틀 표시 · macOS/Windows export)
 - [x] 대화 줄바꿈: Godot 한글 음절 분리 대신 **띄어쓰기(단어) 기준** (오버레이 + 메시지 칸)
@@ -315,7 +322,7 @@
 - [x] `✅` **던전 오토맵** — 다녀 본 복도/방을 층별로 기록·표시 (저널 미니맵 · 비밀은 벽처럼)
 - [x] `✅` 심연 제단 · 코덱스 엔딩 연출 (질문·endframe·돌원)
 - [ ] `🔄` 미덕 / 룬 / 스톤 / 코덱스 **클리어 루트 E2E 검증**
-- [ ] `⬜` (선택) 원작 `PARTY.SAV` 임포트
+- [x] `✅` 원작 `PARTY.SAV` 임포트 (영문 DOS · 한글 NSM53 Johab · 심연 좌표 폴백)
 
 ### D1. 주문 A–Z
 전투 마법 공격(F/I/K/M)은 원작 `PARAM_DIR` 대신 리메이크 **자유 조준**.
@@ -411,6 +418,8 @@
 - [x] `✅` v0.11.0 내보내기 (macOS / Windows / Linux · 7z 50MB 분할)
 - [x] `✅` v0.11.1 내보내기 (macOS / Windows / Linux · 7z 50MB 분할)
 - [x] `✅` v1.0.0 내보내기 (macOS / Windows / Linux · 7z 50MB 분할)
+- [x] `✅` v1.1.0 내보내기 (macOS / Windows / Linux · 7z 50MB 분할)
+- [x] `✅` v1.1.1 내보내기 (macOS / Windows / Linux · 7z 50MB 분할)
 - [x] `✅` About / README 출처 (xu4 · AppleWin · u4graphics · DOS/Apple II 데이터 미배포)
 - [ ] `⬜` 루트 `LICENSE` + 서드파티 고지 (xu4 GPL-3 · AppleWin GPL-2+ · libhangul LGPL)
 - [ ] `⬜` 빌드/배포 노트 (GOG DOS 데이터 · 선택 Apple II Program `.dsk` 안내)
@@ -471,4 +480,4 @@
 
 ---
 
-*마지막 정리: 2026-10-05 — v1.0.0. 전투 필드 자동 이동·수면 중 불 피해·승리 경험치 요약·리눅스 DOS 파일명 대소문자·Ctrl/⌘+P 포털 이동 차단. 남은 큰 덩어리는 대화 en_us/ko·클리어 E2E·IV 전투 옵션·PP 아트·루트 LICENSE*
+*마지막 정리: 2026-10-12 — v1.1.1. DOS PARTY.SAV(영문/한글) 임포트·승리 솔로 필드 틱·한글 메뉴 단축키·전투 앙크 커서·7z 배포. 남은 큰 덩어리는 대화 en_us/ko·클리어 E2E·IV 전투 옵션·PP 아트·루트 LICENSE*
