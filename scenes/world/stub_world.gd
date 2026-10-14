@@ -12426,6 +12426,8 @@ func _handle_ready_input(event: InputEvent) -> bool:
 	if not event.is_pressed():
 		return false
 	if event.is_echo():
+		if _ready_stage == 2:
+			return _try_ready_list_nav(event)
 		return false
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -12453,6 +12455,8 @@ func _handle_ready_weapon_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_confirm_ready_cursor()
 		return true
+	if _try_ready_list_nav(event):
+		return true
 	## Letter A–P selects that weapon index (xu4 readAlphaAction).
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -12468,6 +12472,28 @@ func _handle_ready_weapon_input(event: InputEvent) -> bool:
 				_return_ready_to_pick()
 			return true
 	return true
+
+
+func _try_ready_list_nav(event: InputEvent) -> bool:
+	## PageUp/Down moves one visible page; Home/End jump to the ends.
+	if _ready_panel == null or not (event is InputEventKey):
+		return false
+	var k := event as InputEventKey
+	var code := k.keycode
+	var phys := k.physical_keycode
+	if code == KEY_PAGEUP or phys == KEY_PAGEUP:
+		_ready_panel.page_cursor(-1)
+		return true
+	if code == KEY_PAGEDOWN or phys == KEY_PAGEDOWN:
+		_ready_panel.page_cursor(1)
+		return true
+	if code == KEY_HOME or phys == KEY_HOME:
+		_ready_panel.cursor_home()
+		return true
+	if code == KEY_END or phys == KEY_END:
+		_ready_panel.cursor_end()
+		return true
+	return false
 
 
 func _ready_letter_from_key(k: InputEventKey) -> int:
@@ -12688,6 +12714,8 @@ func _handle_wear_input(event: InputEvent) -> bool:
 	if not event.is_pressed():
 		return false
 	if event.is_echo():
+		if _wear_stage == 2:
+			return _try_wear_list_nav(event)
 		return false
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -12715,6 +12743,8 @@ func _handle_wear_armor_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_confirm_wear_cursor()
 		return true
+	if _try_wear_list_nav(event):
+		return true
 	## Letter A–H selects that armor index (xu4 readAlphaAction).
 	if event is InputEventKey:
 		var k := event as InputEventKey
@@ -12727,6 +12757,28 @@ func _handle_wear_armor_input(event: InputEvent) -> bool:
 			_return_wear_to_pick()
 			return true
 	return true
+
+
+func _try_wear_list_nav(event: InputEvent) -> bool:
+	## PageUp/Down moves one visible page; Home/End jump to the ends.
+	if _wear_panel == null or not (event is InputEventKey):
+		return false
+	var k := event as InputEventKey
+	var code := k.keycode
+	var phys := k.physical_keycode
+	if code == KEY_PAGEUP or phys == KEY_PAGEUP:
+		_wear_panel.page_cursor(-1)
+		return true
+	if code == KEY_PAGEDOWN or phys == KEY_PAGEDOWN:
+		_wear_panel.page_cursor(1)
+		return true
+	if code == KEY_HOME or phys == KEY_HOME:
+		_wear_panel.cursor_home()
+		return true
+	if code == KEY_END or phys == KEY_END:
+		_wear_panel.cursor_end()
+		return true
+	return false
 
 
 func _wear_letter_from_key(k: InputEventKey) -> int:

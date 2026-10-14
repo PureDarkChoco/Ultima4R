@@ -133,6 +133,37 @@ func _check_picker(host: Control, ztats: ZtatsPanel, kind: String) -> bool:
 	ok = ok and name_x == icon_x
 	ok = ok and stat_right == item_stat_right
 	ok = ok and delta_right == item_delta_right
+	var usable: Array = picker.get("_usable")
+	var owned_indices: Array[int] = []
+	for i in usable.size():
+		usable[i] = i % 2 == 0
+		if usable[i]:
+			owned_indices.append(i)
+	picker.set("_cursor", owned_indices[0])
+	picker.call("page_cursor", 1)
+	var paged := int(picker.get("_cursor"))
+	var expected_page := owned_indices[mini(7, owned_indices.size() - 1)]
+	picker.call("page_cursor", -1)
+	var paged_back := int(picker.get("_cursor"))
+	picker.call("cursor_end")
+	var ended := int(picker.get("_cursor"))
+	picker.call("cursor_home")
+	var homed := int(picker.get("_cursor"))
+	ok = ok and paged == expected_page
+	ok = ok and paged_back == owned_indices[0]
+	ok = ok and ended == owned_indices[-1]
+	ok = ok and homed == owned_indices[0]
+	var middle := owned_indices[int(owned_indices.size() / 2)]
+	picker.set("_cursor", middle)
+	picker.call("_ensure_cursor_visible")
+	var stride := int(picker.call("_row_stride"))
+	var visible_rows := int(picker.get("_visible_rows"))
+	var expected_top := clampi(
+		middle - int(visible_rows / 2),
+		0,
+		maxi(0, usable.size() - visible_rows)
+	)
+	ok = ok and int(scroll.scroll_vertical) == expected_top * stride
 	picker.queue_free()
 	await get_tree().process_frame
 	return ok

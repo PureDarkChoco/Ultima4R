@@ -351,6 +351,58 @@ func nudge_cursor(step: int) -> void:
 			return
 
 
+func page_cursor(direction: int) -> void:
+	## Advance by one page of owned/selectable items, not raw list indices.
+	if _ids.is_empty() or direction == 0:
+		return
+	var i := _cursor
+	var found := _cursor
+	var remaining := maxi(1, _visible_rows)
+	while remaining > 0:
+		i += direction
+		if i < 0 or i >= _usable.size():
+			break
+		if _usable[i]:
+			found = i
+			remaining -= 1
+	if found == _cursor:
+		return
+	_cursor = found
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
+func cursor_home() -> void:
+	if _ids.is_empty():
+		return
+	var found := _first_usable_index()
+	if found == _cursor:
+		_ensure_cursor_visible()
+		return
+	_cursor = found
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
+func cursor_end() -> void:
+	if _ids.is_empty():
+		return
+	var found := _last_usable_index()
+	if found == _cursor:
+		_ensure_cursor_visible()
+		return
+	_cursor = found
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
+func _last_usable_index() -> int:
+	for i in range(_usable.size() - 1, -1, -1):
+		if _usable[i]:
+			return i
+	return 0
+
+
 func index_of_letter(letter_code: int) -> int:
 	## KEY_A.. → weapon id index in list, or -1 if not shown.
 	var wid := letter_code - KEY_A
@@ -620,7 +672,7 @@ func _sync_cursor() -> void:
 
 
 func _ensure_cursor_visible() -> void:
-	## Keep the focused row on the middle visible line, like the gamepad menu.
+	## Keep the cursor centered except near the first/last visible page.
 	if _cursor < 0 or _cursor >= _row_wraps.size() or _scroll == null:
 		return
 	var stride := _row_stride()
