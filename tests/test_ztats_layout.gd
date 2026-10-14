@@ -53,6 +53,10 @@ func _check_height(h: int) -> bool:
 		if page_i > 0 and initial_h != int(m["row_h"]):
 			ok = false
 		page_i += 1
+	if not await _check_picker(host, panel, "ready"):
+		ok = false
+	if not await _check_picker(host, panel, "wear"):
+		ok = false
 	host.queue_free()
 	await get_tree().process_frame
 	return ok
@@ -69,6 +73,70 @@ func _fill_inventory() -> void:
 		GameState.mixtures[i] = 9
 	GameState.stones = 0xFF
 	GameState.runes = 0xFF
+
+
+func _check_picker(host: Control, ztats: ZtatsPanel, kind: String) -> bool:
+	var z_title_y := roundi(ztats._inv_title.global_position.y)
+	var z_top := roundi(ztats._inv_scroll.global_position.y)
+	var z_h := roundi(ztats._inv_scroll.size.y)
+	var picker: Control = ReadyPanel.new() if kind == "ready" else WearPanel.new()
+	host.add_child(picker)
+	picker.call("open_for", 0, false)
+	for i in 4:
+		await get_tree().process_frame
+	var cur: Control = picker.get("_cur_wrap")
+	var scroll: ScrollContainer = picker.get("_scroll")
+	var name: Label = picker.get("_member_name")
+	var header: Control = picker.get("_header")
+	var list: VBoxContainer = picker.get("_list")
+	var block_top := roundi(cur.global_position.y)
+	var block_h := roundi(scroll.global_position.y + scroll.size.y) - block_top
+	var name_lab := _first_label(header)
+	var icon := _row_icon(list.get_child(0))
+	var name_x := roundi(name_lab.global_position.x) if name_lab != null else -1
+	var icon_x := roundi(icon.global_position.x) if icon != null else -2
+	print(
+		"%s h=%d name_dy=%d block_top_dy=%d block_h=%d z_h=%d rows=%d name_x=%d icon_x=%d"
+		% [
+			kind,
+			roundi(host.size.y),
+			roundi(name.global_position.y) - z_title_y,
+			block_top - z_top,
+			block_h,
+			z_h,
+			int(picker.get("_visible_rows")),
+			name_x,
+			icon_x,
+		]
+	)
+	var ok: bool = block_h == z_h
+	ok = ok and absi(block_top - z_top) <= 1
+	ok = ok and absi(roundi(name.global_position.y) - z_title_y) <= 1
+	ok = ok and int(picker.get("_visible_rows")) == 7
+	ok = ok and name_x == icon_x
+	picker.queue_free()
+	await get_tree().process_frame
+	return ok
+
+
+func _first_label(node: Node) -> Label:
+	if node is Label:
+		return node
+	for child in node.get_children():
+		var found := _first_label(child)
+		if found != null:
+			return found
+	return null
+
+
+func _row_icon(node: Node) -> TextureRect:
+	## Ignore selection-edge TextureRects; the item icon is a direct HBox child.
+	for child in node.get_children():
+		if child is HBoxContainer:
+			for cell in child.get_children():
+				if cell is TextureRect:
+					return cell
+	return null
 
 
 func _measure(panel: ZtatsPanel) -> Dictionary:

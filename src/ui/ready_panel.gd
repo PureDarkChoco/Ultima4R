@@ -23,13 +23,24 @@ const INV_DELTA_W := 44
 const INV_STAT_W := 56
 const INV_QTY_W := 28
 const INV_PAD_H := 10
-const INV_PAD_TOP := 6
+## Same vertical chrome as the Ztats inventory page.
+const INV_PAD_V := 6
 const INV_ROOT_SEP := 6
+## Current equipment, the name header, then seven item rows.
+const LIST_VISIBLE_ROWS := 7
+const BLOCK_ROWS := 9
 const CUR_ICON := 20
 
 
 var _root: VBoxContainer
-var _pad_top: Control
+var _name_wrap: MarginContainer
+## Current equipment + name header + item list. One row grid with Ztats.
+var _block: VBoxContainer
+var _cur_wrap: MarginContainer
+var _hdr_wrap: MarginContainer
+var _header: Control
+var _row_h := INV_ROW_H
+var _row_sep := INV_LIST_SEP
 var _name_left: Label
 var _member_name: Label
 var _name_right: Label
@@ -60,29 +71,39 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	visible = false
 
+	var frame := MarginContainer.new()
+	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	frame.add_theme_constant_override("margin_top", INV_PAD_V)
+	frame.add_theme_constant_override("margin_bottom", INV_PAD_V)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(frame)
+
 	_root = VBoxContainer.new()
-	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_theme_constant_override("separation", INV_ROOT_SEP)
+	_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_root)
+	frame.add_child(_root)
 
-	_pad_top = Control.new()
-	_pad_top.custom_minimum_size = Vector2(0, INV_PAD_TOP)
-	_pad_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_pad_top)
-
-	var name_wrap := MarginContainer.new()
-	name_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
-	name_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
-	name_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(name_wrap)
+	_name_wrap = MarginContainer.new()
+	_name_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
+	_name_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
+	_name_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_name_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_name_wrap)
 
 	var name_row := HBoxContainer.new()
 	name_row.add_theme_constant_override("separation", 6)
 	name_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name_wrap.add_child(name_row)
+	_name_wrap.add_child(name_row)
+
+	_block = VBoxContainer.new()
+	_block.add_theme_constant_override("separation", INV_LIST_SEP)
+	_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_block.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_block)
 
 	_name_left = Label.new()
 	_name_left.text = "◀"
@@ -114,18 +135,20 @@ func _ready() -> void:
 	_name_right.visible = false
 	name_row.add_child(_name_right)
 
-	var cur_wrap := MarginContainer.new()
-	cur_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
-	cur_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
-	cur_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cur_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(cur_wrap)
+	_cur_wrap = MarginContainer.new()
+	_cur_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
+	_cur_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
+	_cur_wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	_cur_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cur_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cur_wrap.clip_contents = true
+	_block.add_child(_cur_wrap)
 
 	var cur_row := HBoxContainer.new()
 	cur_row.add_theme_constant_override("separation", 6)
 	cur_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cur_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cur_wrap.add_child(cur_row)
+	_cur_wrap.add_child(cur_row)
 
 	_cur_icon = TextureRect.new()
 	_cur_icon.custom_minimum_size = Vector2(CUR_ICON, CUR_ICON)
@@ -166,22 +189,26 @@ func _ready() -> void:
 	cur_row.add_child(atk_slot)
 	cur_row.add_child(_fixed_col("", INV_QTY_W, FONT_SIZE, COL_TEXT))
 
-	var hdr_wrap := MarginContainer.new()
-	hdr_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
-	hdr_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
-	hdr_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hdr_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(hdr_wrap)
-	hdr_wrap.add_child(_make_header_row())
+	_hdr_wrap = MarginContainer.new()
+	_hdr_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
+	_hdr_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
+	_hdr_wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	_hdr_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hdr_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hdr_wrap.clip_contents = true
+	_block.add_child(_hdr_wrap)
+	_header = _make_header_row()
+	_hdr_wrap.add_child(_header)
 
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 	_scroll.clip_contents = true
-	_root.add_child(_scroll)
+	_scroll.gui_input.connect(_on_scroll_gui_input)
+	_block.add_child(_scroll)
 
 	var list_margin := MarginContainer.new()
 	list_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -225,6 +252,8 @@ func open_for(slot: int, switchable: bool = false) -> void:
 	_scroll_to_top()
 	visible = true
 	var gen := _scroll_gen
+	if size.y > 0.0:
+		_fit_list_viewport()
 	call_deferred("_fit_list_viewport_gen", gen)
 
 
@@ -393,6 +422,8 @@ func _rebuild_list() -> void:
 		if not GameState.is_weapon_known(w) and int(GameState.weapons[w]) <= 0:
 			continue
 		_add_weapon_row(w, false)
+	if size.y > 0.0:
+		_fit_list_viewport()
 
 
 func _add_weapon_row(weapon_id: int, is_hands: bool) -> void:
@@ -497,11 +528,6 @@ func _make_header_row() -> Control:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	wrap.add_child(row)
 
-	var icon_pad := Control.new()
-	icon_pad.custom_minimum_size = Vector2(INV_ICON, 1)
-	icon_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(icon_pad)
-
 	var nm := Label.new()
 	nm.text = Locale.t("ztats_col_name")
 	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -597,7 +623,7 @@ func _ensure_cursor_visible() -> void:
 	## Keep the focused row on the middle visible line, like the gamepad menu.
 	if _cursor < 0 or _cursor >= _row_wraps.size() or _scroll == null:
 		return
-	var stride := INV_ROW_H + INV_LIST_SEP
+	var stride := _row_stride()
 	var total := _row_wraps.size()
 	var vis := maxi(1, _visible_rows)
 	var next := 0
@@ -609,41 +635,57 @@ func _ensure_cursor_visible() -> void:
 		_scroll.scroll_vertical = next
 
 
-func _list_viewport_height(rows: int) -> int:
+func _rows_height(rows: int) -> int:
 	if rows <= 0:
 		return 0
-	return rows * INV_ROW_H + (rows - 1) * INV_LIST_SEP
+	return rows * _row_h + (rows - 1) * _row_sep
 
 
-func _scroll_content_height() -> int:
-	var n := _row_wraps.size()
-	if n <= 0:
-		return 0
-	return n * INV_ROW_H + (n - 1) * INV_LIST_SEP
+func _row_stride() -> int:
+	return _row_h + _row_sep
+
+
+func _row_geometry(view_h: int, count: int) -> Vector2i:
+	## Same grid as Ztats inventory pages.
+	if count <= 1:
+		return Vector2i(maxi(14, mini(24, view_h)), 0)
+	var gaps := count - 1
+	var row_h := mini(24, (view_h - 2 * gaps) / count)
+	if row_h < INV_ICON:
+		row_h = mini(INV_ICON, view_h / count)
+	row_h = maxi(14, row_h)
+	var sep := maxi(0, (view_h - row_h * count) / gaps)
+	return Vector2i(row_h, sep)
 
 
 func _scroll_max() -> int:
 	## content (n rows) − viewport (v rows) = (n − v) · stride
-	var stride := INV_ROW_H + INV_LIST_SEP
 	var n := _row_wraps.size()
 	var v := maxi(1, _visible_rows)
-	return maxi(0, (n - v) * stride)
+	return maxi(0, (n - v) * _row_stride())
+
+
+func _on_scroll_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton) or not event.pressed:
+		return
+	var mb := event as InputEventMouseButton
+	if mb.button_index != MOUSE_BUTTON_WHEEL_UP and mb.button_index != MOUSE_BUTTON_WHEEL_DOWN:
+		return
+	var stride := _row_stride()
+	var cur := (int(_scroll.scroll_vertical) / stride) * stride
+	var step := -stride if mb.button_index == MOUSE_BUTTON_WHEEL_UP else stride
+	_scroll.scroll_vertical = clampi(cur + step, 0, _scroll_max())
+	_scroll.accept_event()
 
 
 func _fit_list_viewport_gen(gen: int) -> void:
 	if gen != _scroll_gen:
 		return
-	## Let expand layout settle, then snap to an exact N-row height.
-	_tail.custom_minimum_size = Vector2.ZERO
-	_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	_scroll.custom_minimum_size = Vector2.ZERO
-	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	if _pad_top:
-		_pad_top.custom_minimum_size.y = INV_PAD_TOP
 	call_deferred("_fit_list_viewport_apply", gen)
 
 
 func _fit_list_viewport_apply(gen: int) -> void:
+	await get_tree().process_frame
 	if gen != _scroll_gen:
 		return
 	_fit_list_viewport()
@@ -651,45 +693,36 @@ func _fit_list_viewport_apply(gen: int) -> void:
 
 
 func _fit_list_viewport() -> void:
-	## Make scroll area height an exact multiple of list rows (no half-row clip).
-	if _scroll == null or _tail == null or _root == null:
+	## Title, then nine rows: equipped item, name header, seven list rows.
+	## Height uses the panel, matching the Ztats inventory formula.
+	if _scroll == null or _tail == null or _name_wrap == null or _block == null:
 		return
-	## Available height is the expanded scroll area (or formula if not yet laid out).
-	var avail := int(_scroll.size.y)
-	if avail < INV_ROW_H:
-		var chrome := 0
-		var before := 0
-		for c in _root.get_children():
-			if c == _scroll:
-				break
-			var ch := int(c.size.y)
-			if ch < 1:
-				ch = int(c.get_combined_minimum_size().y)
-			chrome += ch
-			before += 1
-		chrome += INV_ROOT_SEP * before
-		avail = int(size.y) - chrome - INV_ROOT_SEP
+	if size.y <= 0.0:
+		return
+	var title_h := int(ceil(_name_wrap.get_combined_minimum_size().y))
+	var avail := int(size.y) - INV_PAD_V * 2 - title_h - INV_ROOT_SEP * 2
 	if avail < INV_ROW_H:
 		avail = INV_ROW_H
-	var stride := INV_ROW_H + INV_LIST_SEP
-	## Prefer one more full row by shaving top pad (list grows "up") when it fits.
-	var pad_budget := INV_PAD_TOP
-	var n_vis := maxi(1, (avail + INV_LIST_SEP) / stride)
-	var residual := avail - _list_viewport_height(n_vis)
-	var need_for_extra := stride - residual
-	if residual > 0 and residual < stride and need_for_extra > 0 and need_for_extra <= pad_budget:
-		if _pad_top:
-			_pad_top.custom_minimum_size.y = INV_PAD_TOP - need_for_extra
-		avail += need_for_extra
-		n_vis += 1
-	elif _pad_top:
-		_pad_top.custom_minimum_size.y = INV_PAD_TOP
-	var exact := _list_viewport_height(n_vis)
-	residual = maxi(0, avail - exact)
-	_visible_rows = n_vis
+	var geometry := _row_geometry(avail, BLOCK_ROWS)
+	_row_h = geometry.x
+	_row_sep = geometry.y
+	_block.add_theme_constant_override("separation", _row_sep)
+	_list.add_theme_constant_override("separation", _row_sep)
+	_cur_wrap.custom_minimum_size = Vector2(0, _row_h)
+	_hdr_wrap.custom_minimum_size = Vector2(0, _row_h)
+	if _header != null:
+		_header.custom_minimum_size = Vector2(0, _row_h)
+	for child in _list.get_children():
+		var row := child as Control
+		if row != null:
+			row.custom_minimum_size = Vector2(0, _row_h)
+	var list_h := _rows_height(LIST_VISIBLE_ROWS)
+	_visible_rows = LIST_VISIBLE_ROWS
 	_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	_scroll.custom_minimum_size = Vector2(0, exact)
-	_tail.custom_minimum_size = Vector2(0, residual)
+	_scroll.custom_minimum_size = Vector2(0, list_h)
+	_scroll.get_v_scroll_bar().step = _row_stride()
+	var exact := _rows_height(BLOCK_ROWS)
+	_tail.custom_minimum_size = Vector2(0, maxi(0, avail - exact))
 	_tail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 
