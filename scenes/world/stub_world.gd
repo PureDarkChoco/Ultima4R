@@ -13352,6 +13352,8 @@ func _nudge_cast_cursor(step: int) -> void:
 
 func _handle_cast_input(event: InputEvent) -> bool:
 	if event.is_echo():
+		if _cast_stage == 1:
+			return _try_cast_list_nav(event)
 		return false
 	## Stick release must reach Dir? so the latch can clear (same as Attack Dir?).
 	if _cast_stage == 4 and event is InputEventJoypadMotion:
@@ -13386,6 +13388,8 @@ func _handle_cast_input(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == _GameInput.confirm_button():
 		_accept_cast_cursor()
 		return true
+	if _cast_stage == 1 and _try_cast_list_nav(event):
+		return true
 	if event is InputEventKey:
 		var ke := event as InputEventKey
 		var spell := _spell_id_from_key(ke)
@@ -13395,6 +13399,28 @@ func _handle_cast_input(event: InputEvent) -> bool:
 		if _is_direction_key(ke):
 			return true
 	return true
+
+
+func _try_cast_list_nav(event: InputEvent) -> bool:
+	## PageUp/Down counts mixed spells; Home/End jump to the mixed endpoints.
+	if _cast_panel == null or not (event is InputEventKey):
+		return false
+	var k := event as InputEventKey
+	var code := k.keycode
+	var phys := k.physical_keycode
+	if code == KEY_PAGEUP or phys == KEY_PAGEUP:
+		_cast_panel.page_cursor(-1)
+		return true
+	if code == KEY_PAGEDOWN or phys == KEY_PAGEDOWN:
+		_cast_panel.page_cursor(1)
+		return true
+	if code == KEY_HOME or phys == KEY_HOME:
+		_cast_panel.cursor_home()
+		return true
+	if code == KEY_END or phys == KEY_END:
+		_cast_panel.cursor_end()
+		return true
+	return false
 
 
 func _accept_cast_caster_slot(slot: int) -> void:

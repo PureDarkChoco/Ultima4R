@@ -209,6 +209,21 @@ func _check_cast(host: Control, ztats: ZtatsPanel) -> bool:
 	ok = ok and roundi(header_name.global_position.x) == roundi(first_content.global_position.x)
 	ok = ok and _right_edge(header_mana) == _right_edge(item_mana)
 	ok = ok and _right_edge(header_qty) == _right_edge(item_qty)
+	var usable: Array = panel._usable
+	var mixed_indices: Array[int] = []
+	for i in usable.size():
+		usable[i] = i % 2 == 0
+		if usable[i]:
+			mixed_indices.append(i)
+	panel._cursor = mixed_indices[0]
+	panel.page_cursor(1)
+	ok = ok and panel._cursor == mixed_indices[mini(8, mixed_indices.size() - 1)]
+	panel.page_cursor(-1)
+	ok = ok and panel._cursor == mixed_indices[0]
+	panel.cursor_end()
+	ok = ok and panel._cursor == mixed_indices[-1]
+	panel.cursor_home()
+	ok = ok and panel._cursor == mixed_indices[0]
 	panel.set_cursor(10)
 	var center := int((panel._visible_rows - 1) / 2)
 	ok = ok and int(scroll.scroll_vertical) == (10 - center) * panel._row_stride()

@@ -259,6 +259,58 @@ func nudge_cursor(step: int) -> void:
 			return
 
 
+func page_cursor(direction: int) -> void:
+	## Advance by one page of mixed spells, not raw A–Z list indices.
+	if _spell_ids.is_empty() or direction == 0:
+		return
+	var i := _cursor
+	var found := _cursor
+	var remaining := maxi(1, _visible_rows)
+	while remaining > 0:
+		i += direction
+		if i < 0 or i >= _usable.size():
+			break
+		if _usable[i]:
+			found = i
+			remaining -= 1
+	if found == _cursor:
+		return
+	_cursor = found
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
+func cursor_home() -> void:
+	if _spell_ids.is_empty():
+		return
+	var found := _first_usable_index()
+	if found == _cursor:
+		_ensure_cursor_visible()
+		return
+	_cursor = found
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
+func cursor_end() -> void:
+	if _spell_ids.is_empty():
+		return
+	var found := _last_usable_index()
+	if found == _cursor:
+		_ensure_cursor_visible()
+		return
+	_cursor = found
+	_sync_cursor()
+	_ensure_cursor_visible()
+
+
+func _last_usable_index() -> int:
+	for i in range(_usable.size() - 1, -1, -1):
+		if _usable[i]:
+			return i
+	return 0
+
+
 func _rebuild_list() -> void:
 	_clear_list()
 	_spell_ids.clear()
