@@ -167,9 +167,9 @@ func _ready() -> void:
 	_cur_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cur_row.add_child(_cur_name)
 
-	## Match list columns: Δ | DEF | Qty (kind sits in the Δ slot).
+	## Match list columns: Δ | Defense | Qty (kind sits in the Δ slot).
 	cur_row.add_child(_fixed_col(
-		Locale.t("ztats_def"), INV_DELTA_W, FONT_SIZE, COL_ACCENT
+		Locale.t("ztats_col_defense"), INV_DELTA_W, FONT_SIZE - 1, COL_ACCENT
 	))
 	var def_slot := Control.new()
 	def_slot.custom_minimum_size = Vector2(INV_STAT_W, 0)
@@ -691,9 +691,22 @@ func _fit_list_viewport() -> void:
 	_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_scroll.custom_minimum_size = Vector2(0, list_h)
 	_scroll.get_v_scroll_bar().step = _row_stride()
+	_sync_scroll_column_gutter()
 	var exact := _rows_height(BLOCK_ROWS)
 	_tail.custom_minimum_size = Vector2(0, maxi(0, avail - exact))
 	_tail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+
+func _sync_scroll_column_gutter() -> void:
+	## Current/header rows sit outside ScrollContainer. Reserve the bar width so
+	## their Δ, stat, and qty columns line up with rows inside the viewport.
+	var gutter := 0
+	if _row_wraps.size() > LIST_VISIBLE_ROWS:
+		gutter = int(ceil(
+			_scroll.get_v_scroll_bar().get_combined_minimum_size().x
+		))
+	_cur_wrap.add_theme_constant_override("margin_right", INV_PAD_H + gutter)
+	_hdr_wrap.add_theme_constant_override("margin_right", INV_PAD_H + gutter)
 
 
 func _scroll_to_top() -> void:

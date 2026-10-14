@@ -95,8 +95,23 @@ func _check_picker(host: Control, ztats: ZtatsPanel, kind: String) -> bool:
 	var icon := _row_icon(list.get_child(0))
 	var name_x := roundi(name_lab.global_position.x) if name_lab != null else -1
 	var icon_x := roundi(icon.global_position.x) if icon != null else -2
+	var cur_value: Label = (
+		picker.get("_cur_atk") as Label
+		if kind == "ready"
+		else picker.get("_cur_def") as Label
+	)
+	var cur_stat := cur_value.get_parent() as Control
+	var header_row := _direct_hbox(header)
+	var item_row := _direct_hbox(list.get_child(0))
+	var header_delta := header_row.get_child(1) as Control
+	var item_delta := item_row.get_child(2) as Control
+	var item_stat := item_row.get_child(3) as Control
+	var stat_right := roundi(cur_stat.global_position.x + cur_stat.size.x)
+	var item_stat_right := roundi(item_stat.global_position.x + item_stat.size.x)
+	var delta_right := roundi(header_delta.global_position.x + header_delta.size.x)
+	var item_delta_right := roundi(item_delta.global_position.x + item_delta.size.x)
 	print(
-		"%s h=%d name_dy=%d block_top_dy=%d block_h=%d z_h=%d rows=%d name_x=%d icon_x=%d"
+		"%s h=%d name_dy=%d block_top_dy=%d block_h=%d z_h=%d rows=%d name_x=%d icon_x=%d stat_dx=%d delta_dx=%d"
 		% [
 			kind,
 			roundi(host.size.y),
@@ -107,6 +122,8 @@ func _check_picker(host: Control, ztats: ZtatsPanel, kind: String) -> bool:
 			int(picker.get("_visible_rows")),
 			name_x,
 			icon_x,
+			stat_right - item_stat_right,
+			delta_right - item_delta_right,
 		]
 	)
 	var ok: bool = block_h == z_h
@@ -114,6 +131,8 @@ func _check_picker(host: Control, ztats: ZtatsPanel, kind: String) -> bool:
 	ok = ok and absi(roundi(name.global_position.y) - z_title_y) <= 1
 	ok = ok and int(picker.get("_visible_rows")) == 7
 	ok = ok and name_x == icon_x
+	ok = ok and stat_right == item_stat_right
+	ok = ok and delta_right == item_delta_right
 	picker.queue_free()
 	await get_tree().process_frame
 	return ok
@@ -136,6 +155,13 @@ func _row_icon(node: Node) -> TextureRect:
 			for cell in child.get_children():
 				if cell is TextureRect:
 					return cell
+	return null
+
+
+func _direct_hbox(node: Node) -> HBoxContainer:
+	for child in node.get_children():
+		if child is HBoxContainer:
+			return child
 	return null
 
 
