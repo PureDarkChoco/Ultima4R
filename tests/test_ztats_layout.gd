@@ -57,6 +57,8 @@ func _check_height(h: int) -> bool:
 		ok = false
 	if not await _check_picker(host, panel, "wear"):
 		ok = false
+	if not await _check_cast(host, panel):
+		ok = false
 	host.queue_free()
 	await get_tree().process_frame
 	return ok
@@ -177,6 +179,46 @@ func _first_label(node: Node) -> Label:
 		if found != null:
 			return found
 	return null
+
+
+func _check_cast(host: Control, ztats: ZtatsPanel) -> bool:
+	var z_title_y := roundi(ztats._inv_title.global_position.y)
+	var z_top := roundi(ztats._inv_scroll.global_position.y)
+	var z_h := roundi(ztats._inv_scroll.size.y)
+	var panel := CastPanel.new()
+	host.add_child(panel)
+	panel.open_list(true, -1, -1)
+	for i in 4:
+		await get_tree().process_frame
+	var header_wrap: Control = panel._header_wrap
+	var scroll: ScrollContainer = panel._scroll
+	var header_row := _direct_hbox(header_wrap)
+	var item_row := _direct_hbox(panel._list.get_child(0))
+	var header_name := _first_label(header_row)
+	var first_content := item_row.get_child(0) as Control
+	var header_mana := header_row.get_child(header_row.get_child_count() - 3) as Control
+	var item_mana := item_row.get_child(item_row.get_child_count() - 3) as Control
+	var header_qty := header_row.get_child(header_row.get_child_count() - 2) as Control
+	var item_qty := item_row.get_child(item_row.get_child_count() - 2) as Control
+	var block_top := roundi(header_wrap.global_position.y)
+	var block_h := roundi(scroll.global_position.y + scroll.size.y) - block_top
+	var ok := roundi(panel._title.global_position.y) == z_title_y
+	ok = ok and block_top == z_top
+	ok = ok and block_h == z_h
+	ok = ok and panel._visible_rows == 8
+	ok = ok and roundi(header_name.global_position.x) == roundi(first_content.global_position.x)
+	ok = ok and _right_edge(header_mana) == _right_edge(item_mana)
+	ok = ok and _right_edge(header_qty) == _right_edge(item_qty)
+	panel.set_cursor(10)
+	var center := int((panel._visible_rows - 1) / 2)
+	ok = ok and int(scroll.scroll_vertical) == (10 - center) * panel._row_stride()
+	panel.queue_free()
+	await get_tree().process_frame
+	return ok
+
+
+func _right_edge(control: Control) -> int:
+	return roundi(control.global_position.x + control.size.x)
 
 
 func _row_icon(node: Node) -> TextureRect:

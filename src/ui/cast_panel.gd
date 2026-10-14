@@ -16,20 +16,26 @@ const INV_ROW_H := 25
 const INV_LIST_SEP := 3
 const INV_PAD_H := 10
 const INV_PAD_V := 6
-const PAD_TOP := 14
 const INV_MANA_W := 36
 const INV_QTY_W := 28
 const INV_QTY_TRAIL := 8
-const INV_ICON := 20
+const LIST_VISIBLE_ROWS := 8
+const BLOCK_ROWS := 9
 
 
 var _root: VBoxContainer
 var _title: Label
+var _block: VBoxContainer
+var _header_wrap: MarginContainer
 var _header_name: Label
 var _header_mana: Label
 var _header_qty: Label
 var _scroll: ScrollContainer
 var _list: VBoxContainer
+var _tail: Control
+var _row_h := INV_ROW_H
+var _row_sep := INV_LIST_SEP
+var _visible_rows := LIST_VISIBLE_ROWS
 var _spell_ids: Array[int] = []
 var _usable: Array[bool] = []
 var _row_wraps: Array[Control] = []
@@ -45,16 +51,19 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	visible = false
 
-	_root = VBoxContainer.new()
-	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_root.add_theme_constant_override("separation", 4)
-	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_root)
+	var frame := MarginContainer.new()
+	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	frame.add_theme_constant_override("margin_top", INV_PAD_V)
+	frame.add_theme_constant_override("margin_bottom", INV_PAD_V)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(frame)
 
-	var pad_top := Control.new()
-	pad_top.custom_minimum_size = Vector2(0, PAD_TOP)
-	pad_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(pad_top)
+	_root = VBoxContainer.new()
+	_root.add_theme_constant_override("separation", 6)
+	_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(_root)
 
 	var title_wrap := MarginContainer.new()
 	title_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
@@ -64,6 +73,7 @@ func _ready() -> void:
 	_root.add_child(title_wrap)
 
 	_title = Label.new()
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title.add_theme_font_size_override("font_size", FONT_SIZE + 1)
 	_title.add_theme_color_override("font_color", COL_ACCENT)
@@ -71,23 +81,28 @@ func _ready() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_wrap.add_child(_title)
 
-	var header_wrap := MarginContainer.new()
-	header_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
-	header_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
-	header_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(header_wrap)
+	_block = VBoxContainer.new()
+	_block.add_theme_constant_override("separation", INV_LIST_SEP)
+	_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_block.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_block)
+
+	_header_wrap = MarginContainer.new()
+	_header_wrap.add_theme_constant_override("margin_left", INV_PAD_H)
+	_header_wrap.add_theme_constant_override("margin_right", INV_PAD_H)
+	_header_wrap.custom_minimum_size = Vector2(0, INV_ROW_H)
+	_header_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_header_wrap.clip_contents = true
+	_block.add_child(_header_wrap)
 
 	var header := HBoxContainer.new()
+	header.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	header.add_theme_constant_override("separation", 6)
 	header.alignment = BoxContainer.ALIGNMENT_CENTER
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_wrap.add_child(header)
-
-	var header_icon := Control.new()
-	header_icon.custom_minimum_size = Vector2(INV_ICON, 1)
-	header_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(header_icon)
+	_header_wrap.add_child(header)
 
 	_header_name = _make_header_label(true)
 	header.add_child(_header_name)
@@ -102,16 +117,15 @@ func _ready() -> void:
 
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
-	_root.add_child(_scroll)
+	_block.add_child(_scroll)
 
 	var list_margin := MarginContainer.new()
 	list_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list_margin.add_theme_constant_override("margin_left", INV_PAD_H)
 	list_margin.add_theme_constant_override("margin_right", INV_PAD_H)
-	list_margin.add_theme_constant_override("margin_bottom", INV_PAD_V)
 	list_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_scroll.add_child(list_margin)
 
@@ -120,6 +134,17 @@ func _ready() -> void:
 	_list.add_theme_constant_override("separation", INV_LIST_SEP)
 	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	list_margin.add_child(_list)
+
+	_tail = Control.new()
+	_tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_root.add_child(_tail)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and visible:
+		call_deferred("_fit_list_viewport_gen", _scroll_gen)
 
 
 func open_list(
@@ -138,9 +163,11 @@ func open_list(
 		if idx >= 0:
 			_cursor = idx
 	_sync_cursor()
+	if size.y > 0.0:
+		_fit_list_viewport()
 	_ensure_cursor_visible()
 	var gen := _scroll_gen
-	call_deferred("_ensure_cursor_visible_gen", gen)
+	call_deferred("_fit_list_viewport_gen", gen)
 	visible = true
 
 
@@ -296,11 +323,6 @@ func _add_spell_row(
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	wrap.add_child(row)
 
-	var icon_pad := Control.new()
-	icon_pad.custom_minimum_size = Vector2(INV_ICON, 1)
-	icon_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(icon_pad)
-
 	var body_col := COL_TEXT if mixed else COL_DIM
 	var index_col := COL_MIX_INDEX if mixed else COL_DIM
 	if ko:
@@ -431,23 +453,92 @@ func _sync_cursor() -> void:
 func _ensure_cursor_visible() -> void:
 	if _cursor < 0 or _cursor >= _row_wraps.size() or _scroll == null:
 		return
-	var stride := INV_ROW_H + INV_LIST_SEP
-	var view_h := int(_scroll.size.y)
-	if view_h <= 0:
-		return
-	var vis := maxi(1, (view_h + INV_LIST_SEP) / stride)
+	var stride := _row_stride()
+	var vis := maxi(1, _visible_rows)
 	var total := _row_wraps.size()
 	var next := 0
 	if total > vis:
-		var center := int(vis / 2)
+		## Eight visible rows have two middle slots; keep focus on the upper one
+		## (fourth row), matching the seven-row Ready / Wear lists.
+		var center := int((vis - 1) / 2)
 		next = clampi(_cursor - center, 0, total - vis) * stride
 	_scroll.scroll_vertical = clampi(next, 0, maxi(0, (total - vis) * stride))
 
 
-func _ensure_cursor_visible_gen(gen: int) -> void:
+func _rows_height(rows: int) -> int:
+	if rows <= 0:
+		return 0
+	return rows * _row_h + (rows - 1) * _row_sep
+
+
+func _row_stride() -> int:
+	return _row_h + _row_sep
+
+
+func _row_geometry(view_h: int, count: int) -> Vector2i:
+	## Same nine-row grid as Ztats / Ready / Wear.
+	if count <= 1:
+		return Vector2i(maxi(14, mini(24, view_h)), 0)
+	var gaps := count - 1
+	var row_h := mini(24, (view_h - 2 * gaps) / count)
+	if row_h < 20:
+		row_h = mini(20, view_h / count)
+	row_h = maxi(14, row_h)
+	var sep := maxi(0, (view_h - row_h * count) / gaps)
+	return Vector2i(row_h, sep)
+
+
+func _fit_list_viewport_gen(gen: int) -> void:
 	if gen != _scroll_gen:
 		return
+	call_deferred("_fit_list_viewport_apply", gen)
+
+
+func _fit_list_viewport_apply(gen: int) -> void:
+	await get_tree().process_frame
+	if gen != _scroll_gen:
+		return
+	_fit_list_viewport()
 	_ensure_cursor_visible()
+
+
+func _fit_list_viewport() -> void:
+	## Title, then nine rows: one column header and eight spell rows.
+	if _scroll == null or _tail == null or _block == null:
+		return
+	if size.y <= 0.0:
+		return
+	var title_h := int(ceil(_title.get_combined_minimum_size().y))
+	var avail := int(size.y) - INV_PAD_V * 2 - title_h - 6 * 2
+	if avail < INV_ROW_H:
+		avail = INV_ROW_H
+	var geometry := _row_geometry(avail, BLOCK_ROWS)
+	_row_h = geometry.x
+	_row_sep = geometry.y
+	_block.add_theme_constant_override("separation", _row_sep)
+	_list.add_theme_constant_override("separation", _row_sep)
+	_header_wrap.custom_minimum_size = Vector2(0, _row_h)
+	for child in _list.get_children():
+		var row := child as Control
+		if row != null:
+			row.custom_minimum_size = Vector2(0, _row_h)
+	_visible_rows = LIST_VISIBLE_ROWS
+	_scroll.custom_minimum_size = Vector2(0, _rows_height(_visible_rows))
+	_scroll.get_v_scroll_bar().step = _row_stride()
+	_sync_scroll_column_gutter()
+	var exact := _rows_height(BLOCK_ROWS)
+	_tail.custom_minimum_size = Vector2(0, maxi(0, avail - exact))
+	_tail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+
+func _sync_scroll_column_gutter() -> void:
+	## Header is outside ScrollContainer; reserve its bar width so columns align.
+	var gutter := 0
+	if _row_wraps.size() > _visible_rows:
+		gutter = int(ceil(
+			_scroll.get_v_scroll_bar().get_combined_minimum_size().x
+		))
+	_header_wrap.add_theme_constant_override("margin_right", INV_PAD_H + gutter)
 
 
 func _clear_list() -> void:
