@@ -80,6 +80,8 @@ const STAT_VALUE_SAMPLE := "99"
 const INV_ICON := 20
 const INV_ROW_H := 25
 const INV_LIST_SEP := 3
+## Match the reagent page: one header plus eight entries.
+const INV_VISIBLE_ROWS := 9
 const INV_STAT_W := 52
 const INV_MANA_W := 40
 const INV_DMG_W := 56
@@ -90,8 +92,6 @@ const INV_PAD_V := 6
 const INV_ROOT_SEP := 6
 ## Ready-style gap between the qty column and the vertical scrollbar.
 const INV_SCROLL_GUTTER := 10
-## Spell A–Z index beside Korean names — brighter gold than body text.
-const COL_MIX_INDEX := Color(1.0, 0.82, 0.28, 1)
 ## Shop sell cursor (matches Ready / Wear highlight).
 const COL_CURSOR := Color(0.22, 0.42, 0.82, 0.55)
 const COL_CURSOR_EDGE := Color(0.38, 0.58, 0.82, 0.72)
@@ -118,6 +118,10 @@ var _inv_saved_scroll: Dictionary = {}
 var _inv_keep_scroll := false
 ## Full rows that fit the snapped inventory viewport.
 var _inv_visible_rows := 1
+## Current fitted row geometry. Non-reagent pages fit exactly nine rows
+## through the viewport; every scroll path uses this same stride.
+var _inv_row_h := INV_ROW_H
+var _inv_row_sep := INV_LIST_SEP
 ## Invalidates deferred viewport fits from an older inventory rebuild.
 var _inv_fit_gen := 0
 ## Weapon/armor shop sell: highlight a letter row for ↑↓ / Enter.
@@ -327,7 +331,7 @@ func scroll_inventory(lines: int) -> void:
 		return ## Fits the panel; no scrollbar.
 	if lines == 0:
 		return
-	var stride := INV_ROW_H + INV_LIST_SEP
+	var stride := _inv_row_stride()
 	var max_step := _inv_scroll_max_step()
 	var cur := (_inv_scroll.scroll_vertical / stride) * stride
 	cur = clampi(cur, 0, max_step)
@@ -361,7 +365,7 @@ func _scroll_inventory_to(y: int) -> void:
 		return
 	if _inv_page == InvPage.REAGENTS:
 		return
-	var stride := INV_ROW_H + INV_LIST_SEP
+	var stride := _inv_row_stride()
 	var max_step := _inv_scroll_max_step()
 	var next := clampi((y / stride) * stride, 0, max_step)
 	if next == _inv_scroll.scroll_vertical:
@@ -381,17 +385,35 @@ func _inv_list_content_height() -> int:
 	var n := _inv_list_row_count()
 	if n <= 0:
 		return 0
-	return n * INV_ROW_H + (n - 1) * INV_LIST_SEP
+	return n * _inv_row_h + (n - 1) * _inv_row_sep
 
 
 func _inv_list_viewport_height(rows: int) -> int:
 	var n := maxi(rows, 1)
-	return n * INV_ROW_H + (n - 1) * INV_LIST_SEP
+	return n * _inv_row_h + (n - 1) * _inv_row_sep
+
+
+func _inv_row_stride() -> int:
+	return _inv_row_h + _inv_row_sep
+
+
+func _inv_row_geometry(view_h: int, count: int) -> Vector2i:
+	## Reagent-page geometry: compact rows first, then distribute spare pixels
+	## into the gaps. Keep the result integral so scrolling stays on the grid.
+	if count <= 1:
+		return Vector2i(maxi(14, mini(24, view_h)), 0)
+	var gaps := count - 1
+	var row_h := mini(24, (view_h - 2 * gaps) / count)
+	if row_h < INV_ICON:
+		row_h = mini(INV_ICON, view_h / count)
+	row_h = maxi(14, row_h)
+	var sep := maxi(0, (view_h - row_h * count) / gaps)
+	return Vector2i(row_h, sep)
 
 
 func _inv_scroll_max() -> int:
 	## content (n rows) − viewport (v rows) = (n − v) · stride
-	var stride := INV_ROW_H + INV_LIST_SEP
+	var stride := _inv_row_stride()
 	var n := _inv_list_row_count()
 	var v := maxi(1, _inv_visible_rows)
 	return maxi(0, (n - v) * stride)
@@ -1502,7 +1524,6 @@ func _build_inv() -> void:
 
 
 func _on_inv_scroll_gui_input(event: InputEvent) -> void:
-	## Let ScrollContainer use its About-style step (page / 8 × factor).
 	if not (event is InputEventMouseButton) or not event.pressed:
 		return
 	var mb := event as InputEventMouseButton
@@ -1511,13 +1532,9 @@ func _on_inv_scroll_gui_input(event: InputEvent) -> void:
 	if _inv_page == InvPage.REAGENTS:
 		_inv_scroll.accept_event()
 		return
-	call_deferred("_store_inv_scroll")
-
-
-func _store_inv_scroll() -> void:
-	if _inv_scroll == null or _inv_page == InvPage.NONE:
-		return
-	_inv_saved_scroll[_inv_page] = _inv_scroll.scroll_vertical
+	## Consume wheel input so rows never stop half-clipped between grid lines.
+	scroll_inventory(-1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
+	_inv_scroll.accept_event()
 
 
 func _sync_inv_scroll_gutter() -> void:
@@ -1542,17 +1559,20 @@ func _reset_inv_viewport_flex() -> void:
 		_inv_root.add_theme_constant_override("margin_bottom", INV_PAD_V)
 	if _inv_host != null:
 		_inv_host.add_theme_constant_override("separation", INV_ROOT_SEP)
+	_inv_row_h = INV_ROW_H
+	_inv_row_sep = INV_LIST_SEP
+	if _inv_list != null:
+		_inv_list.add_theme_constant_override("separation", _inv_row_sep)
 
 
 func _fit_inv_list_viewport_gen(gen: int, restore_scroll: bool) -> void:
 	if gen != _inv_fit_gen:
 		return
-	## Let expand layout settle, then snap to an exact N-row height.
-	_reset_inv_viewport_flex()
 	call_deferred("_fit_inv_list_viewport_apply", gen, restore_scroll)
 
 
 func _fit_inv_list_viewport_apply(gen: int, restore_scroll: bool) -> void:
+	await get_tree().process_frame
 	if gen != _inv_fit_gen:
 		return
 	_fit_inv_list_viewport()
@@ -1564,68 +1584,35 @@ func _fit_inv_list_viewport_apply(gen: int, restore_scroll: bool) -> void:
 
 
 func _fit_inv_list_viewport() -> void:
-	## Make scroll area height an exact multiple of list rows (no half-row clip).
-	if _inv_scroll == null or _inv_tail == null or _inv_host == null:
+	## Every page (reagents included) fills the same area with exactly nine
+	## complete rows. Section titles and column headers are regular rows.
+	## Height comes from the fixed panel, not the scroll's current size, which
+	## can still hold the previous page's snapped height for a frame.
+	if _inv_scroll == null or _inv_tail == null or _inv_host == null or _inv_root == null:
 		return
-	if _inv_page == InvPage.REAGENTS:
-		return
-	if _inv_root != null:
-		_inv_root.add_theme_constant_override("margin_top", INV_PAD_V)
-		_inv_root.add_theme_constant_override("margin_bottom", INV_PAD_V)
+	_inv_root.add_theme_constant_override("margin_top", INV_PAD_V)
+	_inv_root.add_theme_constant_override("margin_bottom", INV_PAD_V)
 	_inv_host.add_theme_constant_override("separation", INV_ROOT_SEP)
-	var avail := int(_inv_scroll.size.y)
-	if avail < INV_ROW_H:
-		var chrome := 0
-		var before := 0
-		for c in _inv_host.get_children():
-			if c == _inv_scroll:
-				break
-			var ch := int(c.size.y)
-			if ch < 1:
-				ch = int(c.get_combined_minimum_size().y)
-			chrome += ch
-			before += 1
-		chrome += INV_ROOT_SEP * before
-		var host_h := int(_inv_host.size.y)
-		if host_h < 1 and _inv_root != null:
-			host_h = int(_inv_root.size.y) - INV_PAD_V * 2
-		avail = host_h - chrome - INV_ROOT_SEP
+	var title_h := int(ceil(_inv_title.get_combined_minimum_size().y))
+	## Host children: title, scroll, tail — two separations.
+	var avail := int(_inv_root.size.y) - INV_PAD_V * 2 - title_h - INV_ROOT_SEP * 2
 	if avail < INV_ROW_H:
 		avail = INV_ROW_H
-	var stride := INV_ROW_H + INV_LIST_SEP
-	var n_vis := maxi(1, (avail + INV_LIST_SEP) / stride)
-	var residual := avail - _inv_list_viewport_height(n_vis)
-	var need_for_extra := stride - residual
-	## One more full row if a few pixels of top pad / title gap can be reclaimed.
-	if (
-		residual > 0
-		and residual < stride
-		and need_for_extra > 0
-		and _inv_list_row_count() > n_vis
-	):
-		var shave_top := mini(need_for_extra, INV_PAD_V)
-		var sep_shave := 0
-		if shave_top < need_for_extra:
-			sep_shave = mini(
-				need_for_extra - shave_top,
-				maxi(0, INV_ROOT_SEP - 2)
-			)
-		if shave_top + sep_shave >= need_for_extra:
-			avail += shave_top + sep_shave
-			n_vis += 1
-			if _inv_root != null and shave_top > 0:
-				_inv_root.add_theme_constant_override(
-					"margin_top", INV_PAD_V - shave_top
-				)
-			if sep_shave > 0:
-				_inv_host.add_theme_constant_override(
-					"separation", INV_ROOT_SEP - sep_shave
-				)
+	var n_vis := INV_VISIBLE_ROWS
+	var geometry := _inv_row_geometry(avail, n_vis)
+	_inv_row_h = geometry.x
+	_inv_row_sep = geometry.y
+	_inv_list.add_theme_constant_override("separation", _inv_row_sep)
+	for child in _inv_list.get_children():
+		var row := child as Control
+		if row != null:
+			row.custom_minimum_size = Vector2(0, _inv_row_h)
 	var exact := _inv_list_viewport_height(n_vis)
 	var tail := maxi(0, avail - exact)
 	_inv_visible_rows = n_vis
 	_inv_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_inv_scroll.custom_minimum_size = Vector2(0, exact)
+	_inv_scroll.get_v_scroll_bar().step = _inv_row_stride()
 	_inv_tail.custom_minimum_size = Vector2(0, tail)
 	_inv_tail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -1674,10 +1661,12 @@ func _refresh_inventory() -> void:
 	var restore := _inv_keep_scroll and _inv_saved_scroll.has(_inv_page)
 	_inv_keep_scroll = false
 	if _inv_page == InvPage.REAGENTS:
-		_inv_saved_scroll[_inv_page] = 0
-		call_deferred("_fit_reagents_layout")
-	else:
-		call_deferred("_fit_inv_list_viewport_gen", fit_gen, restore)
+		restore = false
+	## Fit now so freshly built rows never draw one frame at the default height;
+	## the deferred pass covers the first open, before the panel has a size.
+	if _inv_root.size.y > 0.0:
+		_fit_inv_list_viewport()
+	call_deferred("_fit_inv_list_viewport_gen", fit_gen, restore)
 
 
 func _finalize_shop_pick() -> void:
@@ -1750,7 +1739,7 @@ func _ensure_shop_pick_visible() -> void:
 		return
 	if _pick_cursor < 0 or _pick_cursor >= _pick_row_wraps.size():
 		return
-	var stride := INV_ROW_H + INV_LIST_SEP
+	var stride := _inv_row_stride()
 	var vis := maxi(1, _inv_visible_rows)
 	var total := _pick_row_wraps.size()
 	var next := 0
@@ -1935,8 +1924,9 @@ func _add_icon_name_row(tex: Texture2D, name: String) -> void:
 
 
 func _fill_reagents_page() -> void:
-	## No item cursor — compact layout sized to never need a scrollbar.
-	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	## Nine rows fill the viewport exactly. SHOW_NEVER, not DISABLED: DISABLED
+	## forces the full list height as a minimum and pushes the page past the panel.
+	_inv_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	_add_gear_header(Locale.t("ztats_col_qty"), false)
 	for r in GameState.reagents.size():
 		var letter := "%s. %s" % [String.chr(65 + r), Locale.reagent_name(r)]
@@ -1947,50 +1937,10 @@ func _fill_reagents_page() -> void:
 		)
 
 
-func _fit_reagents_layout() -> void:
-	## Compact rows/gaps unique to reagents — always fit inside the viewport (no scrollbar).
-	if _inv_page != InvPage.REAGENTS or _inv_list == null or _inv_scroll == null:
-		return
-	_reset_inv_viewport_flex()
-	await get_tree().process_frame
-	if _inv_page != InvPage.REAGENTS or _inv_list == null or _inv_scroll == null:
-		return
-	var kids := _inv_list.get_children()
-	var count := kids.size()
-	if count < 1:
-		return
-	var view_h := _inv_scroll.size.y
-	if view_h < 1.0:
-		return
-	var gaps := maxi(count - 1, 0)
-	## Tighter than gear/mix — exact fit so SCROLL_MODE_DISABLED never clips.
-	var sep := 2.0
-	var row_h := (view_h - sep * float(gaps)) / float(count)
-	if row_h > 24.0:
-		row_h = 24.0
-		if gaps > 0:
-			sep = maxf(1.0, (view_h - row_h * float(count)) / float(gaps))
-	elif row_h < float(INV_ICON):
-		## Prefer fitting icons; collapse gaps before shrinking below icon size.
-		row_h = mini(float(INV_ICON), view_h / float(count))
-		if gaps > 0:
-			sep = maxf(0.0, (view_h - row_h * float(count)) / float(gaps))
-	_inv_list.add_theme_constant_override("separation", int(round(sep)))
-	for i in count:
-		var c := kids[i] as Control
-		if c == null:
-			continue
-		var h := maxf(row_h - 2.0, 14.0) if i == 0 else row_h
-		c.custom_minimum_size = Vector2(0, h)
-		c.size.y = h
-	_inv_visible_rows = count
-	_inv_tail.custom_minimum_size = Vector2.ZERO
-	_inv_tail.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-
-
 func _fill_mixtures_page() -> void:
 	## Mixed spells only. Columns: Name · Mana · Qty · Damage (range when known).
-	## KO: A.–Z. index in accent color. EN: first letter of the name in accent color.
+	## KO names get the cast letter like other pages ("A. 깨우기"); EN names
+	## already start with their cast letter.
 	_add_mix_header()
 	var ko := GameState.language == "ko"
 	for s in _Spells.COUNT:
@@ -1999,14 +1949,10 @@ func _fill_mixtures_page() -> void:
 			qty = int(GameState.mixtures[s])
 		if qty <= 0:
 			continue
-		_add_mix_item_row(
-			Locale.spell_name(s),
-			_Spells.mp_cost(s),
-			qty,
-			_Spells.damage_text(s),
-			_Spells.letter(s) if ko else "",
-			not ko
-		)
+		var name := Locale.spell_name(s)
+		if ko:
+			name = "%s. %s" % [_Spells.letter(s), name]
+		_add_mix_item_row(name, _Spells.mp_cost(s), qty, _Spells.damage_text(s))
 
 
 func _add_inv_section(title: String) -> void:
@@ -2044,11 +1990,6 @@ func _add_gear_header(stat_label: String, show_stat: bool = true) -> void:
 	row.add_theme_constant_override("separation", 6)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-
-	var icon_pad := Control.new()
-	icon_pad.custom_minimum_size = Vector2(INV_ICON, 1)
-	icon_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(icon_pad)
 
 	var nm := Label.new()
 	nm.text = Locale.t("ztats_col_name")
@@ -2171,81 +2112,13 @@ func _add_mix_header() -> void:
 	_inv_list.add_child(wrap)
 
 
-func _add_mix_item_row(
-	name: String,
-	mana: int,
-	qty: int,
-	dmg: String,
-	index_letter: String = "",
-	color_first_letter: bool = false
-) -> void:
+func _add_mix_item_row(name: String, mana: int, qty: int, dmg: String) -> void:
 	var inner := _make_inv_inner_row()
-	if not index_letter.is_empty():
-		_add_mix_index(inner, index_letter)
-		_add_inv_name(inner, name)
-	elif color_first_letter and not name.is_empty():
-		_add_mix_name_colored_initial(inner, name)
-	else:
-		_add_inv_name(inner, name)
+	_add_inv_name(inner, name)
 	_add_inv_num(inner, str(mana), INV_MANA_W)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)
 	_add_inv_num(inner, dmg, INV_DMG_W)
 	_add_inv_static_row(inner)
-
-
-func _add_mix_index(row: HBoxContainer, letter: String) -> void:
-	var lab := Label.new()
-	lab.text = "%s." % letter
-	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_apply_mix_index_style(lab)
-	row.add_child(lab)
-
-
-func _add_mix_name_colored_initial(row: HBoxContainer, name: String) -> void:
-	## EN: tint the cast letter (first character) without a gap before the rest.
-	var host := HBoxContainer.new()
-	host.add_theme_constant_override("separation", 0)
-	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	host.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var initial := Label.new()
-	initial.text = name.substr(0, 1)
-	initial.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_apply_mix_index_style(initial)
-	host.add_child(initial)
-
-	var rest := name.substr(1)
-	if not rest.is_empty():
-		var body := Label.new()
-		body.text = rest
-		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		body.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		body.clip_text = true
-		var settings := LabelSettings.new()
-		var f: Font = UiTheme.font()
-		if f:
-			settings.font = f
-		settings.font_size = FONT_SIZE
-		settings.font_color = COL_TEXT
-		body.label_settings = settings
-		host.add_child(body)
-
-	row.add_child(host)
-
-
-func _apply_mix_index_style(lab: Label) -> void:
-	## LabelSettings wins over theme defaults so the index stays distinct from the name.
-	var settings := LabelSettings.new()
-	var f: Font = UiTheme.font()
-	if f:
-		settings.font = f
-	settings.font_size = FONT_SIZE
-	settings.font_color = COL_MIX_INDEX
-	lab.label_settings = settings
 
 
 func _make_inv_inner_row() -> HBoxContainer:
@@ -2297,7 +2170,7 @@ func _restore_inv_scroll_now() -> void:
 	if _inv_scroll == null or not _inv_saved_scroll.has(_inv_page):
 		return
 	var y := int(_inv_saved_scroll[_inv_page])
-	var stride := INV_ROW_H + INV_LIST_SEP
+	var stride := _inv_row_stride()
 	var max_step := _inv_scroll_max_step()
 	## Snap to row grid so restore never lands on a micro-offset past the last step.
 	y = clampi(y, 0, max_step)
