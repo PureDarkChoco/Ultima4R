@@ -12,6 +12,7 @@ const _ArmorIcons := preload("res://src/core/armor_icons.gd")
 const _ReagentIcons := preload("res://src/core/reagent_icons.gd")
 const _RuneIcons := preload("res://src/core/rune_icons.gd")
 const _SpecialItemIcons := preload("res://src/core/special_item_icons.gd")
+const _SpellIcons := preload("res://src/core/spell_icons.gd")
 const _Virtues := preload("res://src/core/virtues.gd")
 const _Spells := preload("res://src/core/spells.gd")
 
@@ -1952,7 +1953,13 @@ func _fill_mixtures_page() -> void:
 		var name := Locale.spell_name(s)
 		if ko:
 			name = "%s. %s" % [_Spells.letter(s), name]
-		_add_mix_item_row(name, _Spells.mp_cost(s), qty, _Spells.damage_text(s))
+		_add_mix_item_row(
+			_load_keyed_gear_path(_SpellIcons.path_for_id(s)),
+			name,
+			_Spells.mp_cost(s),
+			qty,
+			_Spells.damage_text(s)
+		)
 
 
 func _add_inv_section(title: String) -> void:
@@ -2112,8 +2119,11 @@ func _add_mix_header() -> void:
 	_inv_list.add_child(wrap)
 
 
-func _add_mix_item_row(name: String, mana: int, qty: int, dmg: String) -> void:
+func _add_mix_item_row(
+	tex: Texture2D, name: String, mana: int, qty: int, dmg: String
+) -> void:
 	var inner := _make_inv_inner_row()
+	_add_inv_icon(inner, tex)
 	_add_inv_name(inner, name)
 	_add_inv_num(inner, str(mana), INV_MANA_W)
 	_add_inv_num(inner, str(mini(qty, 99)), INV_QTY_W)

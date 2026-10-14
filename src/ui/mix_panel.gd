@@ -4,6 +4,7 @@ extends Control
 ## Mix (M) — known-spell remix list + new-mix reagent picker.
 
 const _ReagentIcons := preload("res://src/core/reagent_icons.gd")
+const _SpellIcons := preload("res://src/core/spell_icons.gd")
 
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
@@ -629,10 +630,7 @@ func _add_spell_row(
 	var body_col := COL_TEXT if craftable else COL_DIM
 	var index_col := COL_MIX_INDEX if craftable else COL_DIM
 
-	var icon_pad := Control.new()
-	icon_pad.custom_minimum_size = Vector2(INV_ICON, 1)
-	icon_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(icon_pad)
+	_add_spell_icon_slot(row, spell_id, craftable)
 
 	if ko:
 		_add_spell_index(row, Spells.letter(spell_id), index_col)
@@ -647,6 +645,49 @@ func _add_spell_row(
 	_list.add_child(wrap)
 	_list_ids.append(spell_id)
 	_row_wraps.append(wrap)
+
+
+func _add_spell_icon_slot(row: HBoxContainer, spell_id: int, craftable: bool) -> void:
+	var tex := _keyed_spell_icon(spell_id)
+	if tex == null:
+		var pad := Control.new()
+		pad.custom_minimum_size = Vector2(INV_ICON, 1)
+		pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(pad)
+		return
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(INV_ICON, INV_ICON)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture = tex
+	icon.modulate = Color.WHITE if craftable else COL_DIM
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+
+
+func _keyed_spell_icon(spell_id: int) -> Texture2D:
+	## Near-black bg → transparent (spell art uses dark backdrops).
+	var path := _SpellIcons.path_for_id(spell_id)
+	if path.is_empty():
+		return null
+	var img := Image.new()
+	var fs := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path
+	if img.load(fs) != OK and img.load(path) != OK:
+		var loaded := load(path) as Texture2D
+		if loaded == null:
+			return null
+		img = loaded.get_image()
+		if img == null or img.is_empty():
+			return loaded
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
 
 
 func _add_spell_index(row: HBoxContainer, letter: String, col: Color) -> void:

@@ -3,6 +3,8 @@ extends Control
 
 ## Cast (C) — pick a mixed spell from a list, or A–Z from the keyboard.
 
+const _SpellIcons := preload("res://src/core/spell_icons.gd")
+
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
 const COL_DIM := Color(0.45, 0.45, 0.48, 1)
@@ -19,6 +21,7 @@ const INV_PAD_V := 6
 const INV_MANA_W := 36
 const INV_QTY_W := 28
 const INV_QTY_TRAIL := 8
+const INV_ICON := 20
 const LIST_VISIBLE_ROWS := 8
 const BLOCK_ROWS := 9
 
@@ -375,6 +378,7 @@ func _add_spell_row(
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	wrap.add_child(row)
 
+	_add_spell_icon(row, spell_id, mixed)
 	var body_col := COL_TEXT if mixed else COL_DIM
 	var index_col := COL_MIX_INDEX if mixed else COL_DIM
 	if ko:
@@ -395,6 +399,49 @@ func _add_spell_row(
 	_spell_ids.append(spell_id)
 	_usable.append(mixed)
 	_row_wraps.append(wrap)
+
+
+func _add_spell_icon(row: HBoxContainer, spell_id: int, mixed: bool) -> void:
+	var tex := _keyed_icon(spell_id)
+	if tex == null:
+		var pad := Control.new()
+		pad.custom_minimum_size = Vector2(INV_ICON, 1)
+		pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(pad)
+		return
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(INV_ICON, INV_ICON)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture = tex
+	icon.modulate = Color.WHITE if mixed else COL_DIM
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+
+
+func _keyed_icon(spell_id: int) -> Texture2D:
+	## Near-black bg → transparent (spell art uses dark backdrops).
+	var path := _SpellIcons.path_for_id(spell_id)
+	if path.is_empty():
+		return null
+	var img := Image.new()
+	var fs := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path
+	if img.load(fs) != OK and img.load(path) != OK:
+		var loaded := load(path) as Texture2D
+		if loaded == null:
+			return null
+		img = loaded.get_image()
+		if img == null or img.is_empty():
+			return loaded
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.01 and c.r < 0.04 and c.g < 0.04 and c.b < 0.04:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
 
 
 func _add_index(row: HBoxContainer, letter: String, col: Color) -> void:
