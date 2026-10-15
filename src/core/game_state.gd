@@ -102,10 +102,38 @@ func get_apple2_britannia_dsk_path() -> String:
 	return apple2_britannia_dsk_path
 
 
-func set_apple2_britannia_dsk_path(path: String) -> void:
-	## The native picker is the authority; validation and automatic probing are forbidden here.
-	apple2_britannia_dsk_path = path
+func set_apple2_britannia_dsk_path(path: String) -> bool:
+	## Replace only. An empty or non-Britannia image never clears a saved path.
+	var next := path.strip_edges()
+	if next.is_empty() or not _Apple2ProgramDisk.looks_like_britannia_dsk(next):
+		return false
+	if next == apple2_britannia_dsk_path:
+		return true
+	apple2_britannia_dsk_path = next
 	_persist_gameplay_prefs()
+	return true
+
+
+func dos_path_committed() -> bool:
+	return u4_data_pref_set and not u4_data_path.strip_edges().is_empty()
+
+
+func apple2_program_path_committed() -> bool:
+	return not apple2_dsk_path.strip_edges().is_empty()
+
+
+func apple2_britannia_path_committed() -> bool:
+	return not apple2_britannia_dsk_path.strip_edges().is_empty()
+
+
+func apple2_program_path_missing() -> bool:
+	var path := apple2_dsk_path.strip_edges()
+	return not path.is_empty() and not FileAccess.file_exists(path)
+
+
+func apple2_britannia_path_missing() -> bool:
+	var path := apple2_britannia_dsk_path.strip_edges()
+	return not path.is_empty() and not FileAccess.file_exists(path)
 
 
 func options_snapshot() -> Dictionary:
@@ -3830,8 +3858,9 @@ func _load_intro_from_u4() -> void:
 
 func try_set_apple2_dsk_path(path: String) -> bool:
 	## Validate a Program .dsk (SHP0/SHP1), bake user:// tile cache, persist.
+	## Failure leaves the previous path in place.
 	var resolved := path.strip_edges()
-	if not _Apple2ProgramDisk.looks_like_program_dsk(resolved):
+	if resolved.is_empty() or not _Apple2ProgramDisk.looks_like_program_dsk(resolved):
 		return false
 	if not _Apple2ProgramDisk.ensure_pack_from_dsk(resolved):
 		return false
@@ -3899,8 +3928,9 @@ func _persist_apple2_dsk() -> void:
 
 func try_set_u4_data_path(path: String) -> bool:
 	## Validate a user-supplied Ultima IV DOS folder, persist to settings.cfg.
+	## An empty or invalid choice never clears a path already saved.
 	var resolved := resolve_u4_data_dir(path)
-	if not is_valid_u4_data_dir(resolved):
+	if resolved.is_empty() or not is_valid_u4_data_dir(resolved):
 		return false
 	u4_data_path = resolved
 	u4_data_ok = true
@@ -4045,6 +4075,23 @@ func _probe_u4_data() -> bool:
 	## First run (no key): search known install spots once, then persist or fail.
 	u4_data_needs_macos_permission = false
 
+	var saved := _load_u4_data_path_pref()
+	if not saved.is_empty():
+		u4_data_pref_set = true
+		u4_data_path = saved
+		if is_valid_u4_data_dir(saved):
+			return true
+		var resolved := resolve_u4_data_dir(saved)
+		if not resolved.is_empty() and resolved != saved and is_valid_u4_data_dir(resolved):
+			u4_data_path = resolved
+			_persist_u4_data_path()
+			return true
+		if OS.get_name() == "macOS" and not saved.begins_with("res://") and OS.is_sandboxed():
+			u4_data_needs_macos_permission = true
+		## Saved folder is gone. Ask again; do not adopt a different install.
+		return false
+
+	u4_data_pref_set = false
 	if OS.get_name() == "macOS":
 		for path in _macos_granted_u4_data_dirs():
 			if is_valid_u4_data_dir(path):
@@ -4052,24 +4099,6 @@ func _probe_u4_data() -> bool:
 				_persist_u4_data_path()
 				return true
 
-	var saved := _load_u4_data_path_pref()
-	if not saved.is_empty():
-		u4_data_pref_set = true
-		var resolved := resolve_u4_data_dir(saved)
-		if is_valid_u4_data_dir(saved):
-			u4_data_path = saved
-			return true
-		if not resolved.is_empty() and resolved != saved and is_valid_u4_data_dir(resolved):
-			u4_data_path = resolved
-			_persist_u4_data_path()
-			return true
-		if OS.get_name() == "macOS" and not saved.begins_with("res://") and OS.is_sandboxed():
-			u4_data_needs_macos_permission = true
-			return false
-		## Stale settings (moved GOG install, old app name) — hunt again.
-		u4_data_pref_set = false
-
-	u4_data_pref_set = false
 	var exe_dir := OS.get_executable_path().get_base_dir()
 	var bundled_beside_exe := exe_dir.path_join("game")
 	var bundled_macos := exe_dir.get_base_dir().path_join("Resources/game")

@@ -3,6 +3,7 @@ extends RefCounted
 
 ## Ultima IV Apple II Program disk (Side A) — DOS 3.3 SHP0 / SHP1.
 ## Britannia / Towne / Dungeon sides have no shape banks.
+## Only 143360-byte DOS-order .dsk images are read.
 
 const DSK_SIZE := 143360
 const BANK_SIZE := 4096
@@ -69,6 +70,20 @@ static func catalog_names(path: String) -> PackedStringArray:
 
 static func looks_like_program_dsk(path: String) -> bool:
 	return not find_shp_ts(path).is_empty()
+
+
+static func looks_like_britannia_dsk(path: String) -> bool:
+	## Side C carries the surface map and camp/talk files. Program has SHP0/SHP1
+	## and none of these names.
+	var have := {}
+	for raw in catalog_names(path):
+		have[str(raw).strip_edges().to_upper()] = true
+	if have.is_empty() or have.has("SHP0") or have.has("SHP1"):
+		return false
+	for req in ["TMAP", "CAMP", "TLST", "PRTY"]:
+		if not have.has(req):
+			return false
+	return true
 
 
 static func find_shp_ts(path: String) -> Dictionary:

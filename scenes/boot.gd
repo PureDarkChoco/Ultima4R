@@ -11,14 +11,18 @@ const START_GAP := 20.0
 
 var _dos_lab: Label
 var _apple2_lab: Label
+var _britannia_lab: Label
 var _choose_btn: Button
 var _apple2_choose_btn: Button
+var _britannia_choose_btn: Button
 var _continue_btn: Button
 var _file_dialog: FileDialog
 var _apple2_dialog: FileDialog
+var _britannia_dialog: FileDialog
 var _waiting_quit_key := false
 var _picking_folder := false
 var _picking_apple2 := false
+var _picking_britannia := false
 var _setup_open := false
 
 
@@ -37,7 +41,7 @@ func _ready() -> void:
 	_status.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_brand.text = Locale.t("app_title")
 
-	if GameState.u4_data_ok and GameState.u4_data_pref_set and GameState.apple2_dsk_prompted:
+	if _boot_paths_ready():
 		SceneRouter.to_menu.call_deferred()
 		return
 
@@ -51,6 +55,7 @@ func _show_setup() -> void:
 	_status.text = Locale.t("boot_setup_intro")
 	_ensure_folder_ui()
 	_ensure_apple2_ui()
+	_ensure_britannia_ui()
 	_refresh_setup_copy()
 
 
@@ -70,7 +75,10 @@ func _refresh_setup_copy() -> void:
 			_dos_lab.text = Locale.t("boot_path_prompt")
 
 	if _apple2_lab:
-		if GameState.apple2_dsk_ok:
+		if GameState.apple2_program_path_missing():
+			_apple2_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+			_apple2_lab.text = Locale.t("boot_apple2_reselect")
+		elif GameState.apple2_dsk_ok or GameState.apple2_program_path_committed():
 			_apple2_lab.add_theme_color_override("font_color", UiTheme.ACCENT)
 			_apple2_lab.text = Locale.t("boot_apple2_ready")
 		elif GameState.apple2_dsk_needs_macos_permission:
@@ -79,6 +87,14 @@ func _refresh_setup_copy() -> void:
 		else:
 			_apple2_lab.add_theme_color_override("font_color", UiTheme.MUTED)
 			_apple2_lab.text = Locale.t("boot_apple2_prompt") + "\n" + Locale.t("boot_apple2_hint")
+
+	var britannia_missing := GameState.apple2_britannia_path_missing()
+	if _britannia_lab:
+		_britannia_lab.visible = britannia_missing
+		_britannia_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+		_britannia_lab.text = Locale.t("boot_britannia_reselect")
+	if _britannia_choose_btn:
+		_britannia_choose_btn.visible = britannia_missing
 
 	if _continue_btn:
 		_continue_btn.visible = true
@@ -169,7 +185,7 @@ func _ensure_apple2_ui() -> void:
 		_apple2_dialog.min_size = Vector2i(760, 480)
 		_apple2_dialog.exclusive = true
 		_apple2_dialog.unresizable = false
-		_apple2_dialog.add_filter("*.dsk", "Apple II disk")
+		_apple2_dialog.add_filter("*.dsk", Locale.t("apple2_disk_filter"))
 		_apple2_dialog.file_selected.connect(_on_apple2_file_selected)
 		_apple2_dialog.canceled.connect(_on_apple2_canceled)
 		add_child(_apple2_dialog)
@@ -177,6 +193,43 @@ func _ensure_apple2_ui() -> void:
 	_apple2_lab.visible = true
 	_apple2_choose_btn.visible = true
 	_continue_btn.visible = true
+
+
+func _ensure_britannia_ui() -> void:
+	if _britannia_lab == null:
+		_britannia_lab = Label.new()
+		_style_body(_britannia_lab)
+		_britannia_lab.visible = false
+		var at := _continue_btn.get_index() if _continue_btn != null else _vbox.get_child_count()
+		_vbox.add_child(_britannia_lab)
+		_vbox.move_child(_britannia_lab, at)
+
+	if _britannia_choose_btn == null:
+		_britannia_choose_btn = Button.new()
+		_britannia_choose_btn.text = Locale.t("boot_britannia_choose")
+		UiTheme.style_button(_britannia_choose_btn)
+		_britannia_choose_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		_britannia_choose_btn.visible = false
+		_britannia_choose_btn.pressed.connect(_open_britannia_dialog)
+		var at := _continue_btn.get_index() if _continue_btn != null else _vbox.get_child_count()
+		_vbox.add_child(_britannia_choose_btn)
+		_vbox.move_child(_britannia_choose_btn, at)
+
+	if _britannia_dialog == null:
+		_britannia_dialog = FileDialog.new()
+		_britannia_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		_britannia_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_britannia_dialog.use_native_dialog = _use_native_folder_dialog()
+		_britannia_dialog.title = Locale.t("boot_britannia_choose")
+		_britannia_dialog.ok_button_text = Locale.t("boot_apple2_select")
+		_britannia_dialog.cancel_button_text = Locale.t("boot_path_cancel")
+		_britannia_dialog.min_size = Vector2i(760, 480)
+		_britannia_dialog.exclusive = true
+		_britannia_dialog.unresizable = false
+		_britannia_dialog.add_filter("*.dsk", Locale.t("apple2_disk_filter"))
+		_britannia_dialog.file_selected.connect(_on_britannia_file_selected)
+		_britannia_dialog.canceled.connect(_on_britannia_canceled)
+		add_child(_britannia_dialog)
 
 
 func _use_native_folder_dialog() -> bool:
@@ -214,6 +267,16 @@ func _open_folder_dialog() -> void:
 	if not start.is_empty() and not _file_dialog.use_native_dialog:
 		_file_dialog.current_dir = start
 	_file_dialog.popup_centered_ratio(0.65)
+
+
+func _open_britannia_dialog() -> void:
+	if _britannia_dialog == null:
+		_ensure_britannia_ui()
+	_picking_britannia = true
+	var start := GameState.apple2_picker_start_dir()
+	if not start.is_empty() and not _britannia_dialog.use_native_dialog:
+		_britannia_dialog.current_dir = start
+	_britannia_dialog.popup_centered_ratio(0.65)
 
 
 func _open_apple2_dialog() -> void:
@@ -260,6 +323,22 @@ func _on_apple2_canceled() -> void:
 	_picking_apple2 = false
 
 
+func _on_britannia_file_selected(path: String) -> void:
+	_picking_britannia = false
+	if GameState.set_apple2_britannia_dsk_path(path):
+		_refresh_setup_copy()
+		return
+	if _britannia_lab:
+		_britannia_lab.add_theme_color_override("font_color", UiTheme.DANGER)
+		_britannia_lab.text = Locale.t("boot_britannia_invalid")
+
+
+func _on_britannia_canceled() -> void:
+	if not _picking_britannia:
+		return
+	_picking_britannia = false
+
+
 func _continue_to_menu() -> void:
 	if not GameState.u4_data_ok:
 		return
@@ -277,6 +356,10 @@ func _continue_to_menu() -> void:
 		_choose_btn.visible = false
 	if _apple2_choose_btn:
 		_apple2_choose_btn.visible = false
+	if _britannia_lab:
+		_britannia_lab.visible = false
+	if _britannia_choose_btn:
+		_britannia_choose_btn.visible = false
 	if _continue_btn:
 		_continue_btn.visible = false
 	await get_tree().create_timer(RESULT_SEC).timeout
@@ -299,6 +382,10 @@ func _show_required_and_quit() -> void:
 		_choose_btn.visible = false
 	if _apple2_choose_btn:
 		_apple2_choose_btn.visible = false
+	if _britannia_lab:
+		_britannia_lab.visible = false
+	if _britannia_choose_btn:
+		_britannia_choose_btn.visible = false
 	if _continue_btn:
 		_continue_btn.visible = false
 	_status.text = Locale.t("boot_required")
@@ -306,6 +393,16 @@ func _show_required_and_quit() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.custom_minimum_size = Vector2(520, 0)
 	_waiting_quit_key = true
+
+
+func _boot_paths_ready() -> bool:
+	return (
+		GameState.u4_data_ok
+		and GameState.u4_data_pref_set
+		and GameState.apple2_dsk_prompted
+		and not GameState.apple2_program_path_missing()
+		and not GameState.apple2_britannia_path_missing()
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -320,7 +417,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_tree().quit()
 		return
 
-	if not _setup_open or _picking_folder or _picking_apple2:
+	if not _setup_open or _picking_folder or _picking_apple2 or _picking_britannia:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("cancel"):
 		get_viewport().set_input_as_handled()

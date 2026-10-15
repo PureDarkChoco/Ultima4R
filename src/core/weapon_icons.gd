@@ -75,11 +75,10 @@ const DAMAGE: Array[int] = [
 	8, 16, 24, 32, 40, 48, 64, 40, 56, 64, 96, 96, 128, 80, 160, 255,
 ]
 
-## Combat aim range by id (−1 = unlimited magic ranged).
-## Dagger is not listed independently — always oil range + 1 (see range_of).
-## Sling 8, Oil 6, Bow 7, Crossbow 8; Magic Axe/Bow/Wand unlimited.
+## xu4 config.b weapon range (tiles along the fired direction).
+## Dagger 10, Sling/Bow/Crossbow/Magic Axe/Bow/Wand 10, Oil 9, Halberd 2.
 const RANGE: Array[int] = [
-	1, 1, 0, 8, 1, 1, 1, 7, 8, 6, 2, -1, 1, -1, -1, 1,
+	1, 1, 10, 10, 1, 1, 1, 10, 10, 9, 2, 10, 1, 10, 10, 1,
 ]
 
 ## xu4 WEAP_ABSOLUTERANGE — only hits at exact distance (Halberd).
@@ -94,10 +93,16 @@ const ATTACK_THROUGH: Array[bool] = [
 	true, false, false, false, false, false,
 ]
 
-## Magic ranged — no max distance on the combat map.
+## xu4 has no unlimited player weapons. Magic axe/bow/wand are range 10.
 const UNLIMITED_RANGE: Array[bool] = [
 	false, false, false, false, false, false, false, false, false, false,
-	false, true, false, true, true, false,
+	false, false, false, false, false, false,
+]
+
+## xu4 choosedistance — Flaming Oil asks how far to throw, up to its range.
+const CHOOSE_DISTANCE: Array[bool] = [
+	false, false, false, false, false, false, false, false, false, true,
+	false, false, false, false, false, false,
 ]
 
 ## xu4 WEAP_LOSEWHENRANGED — consumed when used beyond melee (Dagger).
@@ -141,12 +146,9 @@ static func damage_of(weapon_id: int) -> int:
 
 
 static func range_of(weapon_id: int) -> int:
-	## Max aim distance; huge sentinel for unlimited magic ranged.
-	## Dagger: xu4 10 = oil 9 + 1 — derived here so oil changes stay in sync.
+	## xu4 weapon.range. Unlimited ids (none in the current table) stay open.
 	if is_unlimited_range(weapon_id):
 		return 99
-	if weapon_id == Id.DAGGER:
-		return maxi(1, range_of(Id.FLAMING_OIL) + 1)
 	if weapon_id < 0 or weapon_id >= RANGE.size():
 		return 1
 	return maxi(1, RANGE[weapon_id])
@@ -160,11 +162,15 @@ static func is_unlimited_range(weapon_id: int) -> bool:
 
 static func is_melee(weapon_id: int) -> bool:
 	## Range-1 non-absolute weapons: U5-style 8-direction adjacent aim.
-	## Must use range_of (not RANGE[]): Dagger stores 0 in RANGE and
-	## derives oil+1 there — RANGE[dagger] <= 1 wrongly forced melee.
 	if is_absolute_range(weapon_id):
 		return false
 	return range_of(weapon_id) <= 1
+
+
+static func chooses_distance(weapon_id: int) -> bool:
+	if weapon_id < 0 or weapon_id >= CHOOSE_DISTANCE.size():
+		return false
+	return CHOOSE_DISTANCE[weapon_id]
 
 
 static func is_absolute_range(weapon_id: int) -> bool:

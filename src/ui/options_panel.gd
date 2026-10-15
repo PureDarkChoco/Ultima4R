@@ -6,7 +6,7 @@ extends Control
 
 signal back_requested
 
-enum Tab { LANGUAGE, GRAPHICS, SOUND, GAME }
+enum Tab { LANGUAGE, GRAPHICS, SOUND, GAME, COMMON }
 enum Item {
 	LANGUAGE,
 	HANGUL_KEYBOARD,
@@ -25,7 +25,7 @@ enum Item {
 	TAB_BAR,
 }
 
-const TAB_COUNT := 4
+const TAB_COUNT := 5
 const ITEM_COUNT := 13
 const COL_TEXT := Color(0.91, 0.9, 0.82, 1)
 const COL_ACCENT := Color(0.95, 0.85, 0.45, 1)
@@ -61,6 +61,7 @@ var _tab_cursors: Array[int] = [
 	Item.LANGUAGE,
 	Item.GRAPHICS,
 	Item.SFX,
+	Item.COMBAT_STYLE,
 	Item.DOS_PATH,
 ]
 var _embedded := false
@@ -71,6 +72,7 @@ var _dos_dialog: FileDialog
 var _program_dialog: FileDialog
 var _britannia_dialog: FileDialog
 var _picking_file := false
+var _path_note := {}
 
 
 func _ready() -> void:
@@ -123,6 +125,7 @@ func _open(embedded: bool, rect: Rect2, default_cursor: int) -> void:
 	_embedded = embedded
 	_embed_rect = rect
 	GameState.refresh_apple2_dsk()
+	_path_note.clear()
 	_set_tab_for_item(clampi(default_cursor, 0, ITEM_COUNT - 1))
 	_cursor = clampi(default_cursor, 0, ITEM_COUNT - 1)
 	_remember_cursor()
@@ -429,7 +432,7 @@ func _apply_presentation() -> void:
 		var list_sep := 1
 		_col.add_theme_constant_override("separation", col_sep)
 		_list.add_theme_constant_override("separation", list_sep)
-		var item_rows := _tab_items(Tab.GAME).size()
+		var item_rows := _max_tab_rows()
 		var fixed_rows := 3 ## Title + tabs + Back.
 		var spacing := float(col_sep * 3 + list_sep * maxi(item_rows - 1, 0))
 		var breathing_room := 10.0
@@ -460,7 +463,7 @@ func _style_all(font_sz: int, row_h: float) -> void:
 	_title.add_theme_font_size_override("font_size", font_sz + 2)
 	_title.custom_minimum_size = Vector2(0, row_h)
 	_tabs.custom_minimum_size = Vector2(0, row_h)
-	var max_item_rows := _tab_items(Tab.GAME).size()
+	var max_item_rows := _max_tab_rows()
 	var list_sep := _list.get_theme_constant("separation")
 	_list.custom_minimum_size = Vector2(
 		0,
@@ -486,6 +489,7 @@ func _refresh_labels() -> void:
 		"options_tab_graphics",
 		"options_tab_sound",
 		"options_tab_game",
+		"options_tab_common",
 	]
 	for i in TAB_COUNT:
 		_tab_buttons[i].text = Locale.t(tab_keys[i])
@@ -562,6 +566,8 @@ func _item_name_text(index: int) -> String:
 
 
 func _item_value_text(index: int) -> String:
+	if _path_note.has(index):
+		return Locale.t(str(_path_note[index]))
 	match index:
 		Item.LANGUAGE:
 			return Locale.lang_label()
@@ -589,11 +595,19 @@ func _item_value_text(index: int) -> String:
 		Item.BACKGROUND_AUDIO:
 			return _on_off(AudioSfx.is_background_music_enabled())
 		Item.DOS_PATH:
-			return _path_state(GameState.u4_data_ok)
+			return _committed_path_state(GameState.dos_path_committed(), GameState.u4_data_ok)
 		Item.APPLE2_PROGRAM_PATH:
-			return _path_state(not GameState.apple2_dsk_path.is_empty() or GameState.apple2_dsk_ok)
+			return _committed_path_state(
+				GameState.apple2_program_path_committed(),
+				GameState.apple2_program_path_committed()
+				and not GameState.apple2_program_path_missing()
+			)
 		Item.APPLE2_BRITANNIA_PATH:
-			return _path_state(not GameState.get_apple2_britannia_dsk_path().is_empty())
+			return _committed_path_state(
+				GameState.apple2_britannia_path_committed(),
+				GameState.apple2_britannia_path_committed()
+				and not GameState.apple2_britannia_path_missing()
+			)
 		Item.COMBAT_STYLE:
 			return Locale.t("esc_options_combat_" + GameState.get_combat_style())
 		Item.GAMEPAD:
@@ -618,8 +632,12 @@ func _on_off(on: bool) -> String:
 	return Locale.t("esc_options_state_on" if on else "esc_options_state_off")
 
 
-func _path_state(is_set: bool) -> String:
-	return Locale.t("esc_options_path_set" if is_set else "esc_options_path_none")
+func _committed_path_state(committed: bool, ready: bool) -> String:
+	if ready:
+		return Locale.t("esc_options_path_set")
+	if committed:
+		return Locale.t("esc_options_path_missing")
+	return Locale.t("esc_options_path_none")
 
 
 func _apply_row_visibility() -> void:
@@ -693,14 +711,21 @@ func _tab_items(tab: int) -> Array[int]:
 			return [Item.GRAPHICS, Item.RESOLUTION, Item.FULLSCREEN]
 		Tab.SOUND:
 			return [Item.SFX, Item.MUSIC, Item.BACKGROUND_AUDIO]
+		Tab.GAME:
+			return [Item.COMBAT_STYLE, Item.GAMEPAD]
 		_:
 			return [
 				Item.DOS_PATH,
 				Item.APPLE2_PROGRAM_PATH,
 				Item.APPLE2_BRITANNIA_PATH,
-				Item.COMBAT_STYLE,
-				Item.GAMEPAD,
 			]
+
+
+func _max_tab_rows() -> int:
+	var rows := 1
+	for tab in TAB_COUNT:
+		rows = maxi(rows, _tab_items(tab).size())
+	return rows
 
 
 func _set_tab_for_item(item: int) -> void:
@@ -802,13 +827,19 @@ func _on_dos_selected(path: String) -> void:
 
 func _on_program_selected(path: String) -> void:
 	_picking_file = false
-	GameState.try_set_apple2_dsk_path(path)
+	if GameState.try_set_apple2_dsk_path(path):
+		_path_note.erase(Item.APPLE2_PROGRAM_PATH)
+	else:
+		_path_note[Item.APPLE2_PROGRAM_PATH] = "esc_options_disk_invalid"
 	refresh()
 
 
 func _on_britannia_selected(path: String) -> void:
 	_picking_file = false
-	GameState.set_apple2_britannia_dsk_path(path)
+	if GameState.set_apple2_britannia_dsk_path(path):
+		_path_note.erase(Item.APPLE2_BRITANNIA_PATH)
+	else:
+		_path_note[Item.APPLE2_BRITANNIA_PATH] = "esc_options_disk_invalid"
 	refresh()
 
 

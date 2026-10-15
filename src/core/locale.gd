@@ -130,6 +130,31 @@ const _T := {
 		"en_us": "Reading Program disk…",
 		"ko": "Program 디스크를 읽는 중…",
 	},
+	"boot_apple2_reselect": {
+		"en_u4": "The Program disk is no longer there.\nChoose it again, or begin without choosing.",
+		"en_us": "The Program disk file is missing.\nChoose it again, or start without choosing.",
+		"ko": "Program 디스크 파일이 없습니다.\n다시 지정하거나, 지정하지 않고 시작할 수 있습니다.",
+	},
+	"boot_britannia_reselect": {
+		"en_u4": "The Britannia disk is no longer there.\nChoose it again, or begin without choosing.",
+		"en_us": "The Britannia disk file is missing.\nChoose it again, or start without choosing.",
+		"ko": "Britannia 디스크 파일이 없습니다.\n다시 지정하거나, 지정하지 않고 시작할 수 있습니다.",
+	},
+	"boot_britannia_choose": {
+		"en_u4": "Choose Britannia Disk…",
+		"en_us": "Choose Britannia Disk…",
+		"ko": "Britannia 디스크 선택…",
+	},
+	"boot_britannia_invalid": {
+		"en_u4": "That is not the Britannia disk.\nProgram / Towne / Dungeon sides will not work.",
+		"en_us": "That is not the Britannia disk.\nProgram / Towne / Dungeon sides will not work.",
+		"ko": "Britannia 디스크가 아닙니다.\nProgram / Towne / Dungeon 면은 사용할 수 없습니다.",
+	},
+	"esc_options_disk_invalid": {
+		"en_u4": "Wrong disk",
+		"en_us": "Wrong disk",
+		"ko": "다른 디스크",
+	},
 	"menu_tagline": {
 		"en_u4": "In another world, in a time to come.",
 		"en_us": "In another world, in a time to come.",
@@ -527,6 +552,11 @@ const _T := {
 		"en_u4": "Aim: ",
 		"en_us": "Aim: ",
 		"ko": "조준: ",
+	},
+	"cmd_attack_range": {
+		"en_u4": "Range: ",
+		"en_us": "Range: ",
+		"ko": "사거리: ",
 	},
 	"cmd_cannot_attack": {
 		"en_u4": "Cannot!",
@@ -954,6 +984,11 @@ const _T := {
 		"en_us": "Game",
 		"ko": "게임",
 	},
+	"options_tab_common": {
+		"en_u4": "Common",
+		"en_us": "Common",
+		"ko": "공통",
+	},
 	"esc_options_graphics": {
 		"en_u4": "Tile Set",
 		"en_us": "Tile Set",
@@ -1073,6 +1108,11 @@ const _T := {
 		"en_u4": "Not Set",
 		"en_us": "Not Set",
 		"ko": "설정 안 됨",
+	},
+	"esc_options_path_missing": {
+		"en_u4": "Missing",
+		"en_us": "Missing",
+		"ko": "파일 없음",
 	},
 	"apple2_disk_filter": {
 		"en_u4": "Apple II disk",

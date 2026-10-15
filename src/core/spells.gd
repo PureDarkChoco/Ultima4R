@@ -40,7 +40,9 @@ const PARAM_PLAYER := 1
 const PARAM_DIR := 2
 const PARAM_TYPEDIR := 3
 const PARAM_PHASE := 4
-## Remake: combat free-aim instead of xu4 PARAM_DIR (Fireball / Iceball / Kill / Magic Missile).
+## Remake U5: combat free-aim. U4 style fires xu4 PARAM_DIR instead.
+## xu4 spellMagicAttack walks 11 tiles along the chosen direction.
+const MAGIC_ATTACK_RANGE := 11
 const PARAM_AIM := 5
 
 ## xu4 spells[].paramType

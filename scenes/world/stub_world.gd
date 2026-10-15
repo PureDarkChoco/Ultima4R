@@ -231,6 +231,11 @@ var _combat_saved_sides_open := false
 var _combat_foe: Dictionary = {} ## wilderness creature pulled into the fight
 ## U5-style Attack aim: A → move cursor → A/Enter strike; Esc cancels.
 var _combat_aiming := false
+## U4-style Attack: pick NESW, then the weapon fires along that line.
+var _u4_dir_wait := false
+var _u4_oil_wait := false
+var _u4_oil_dir := Vector2i.ZERO
+var _u4_oil_range := 1
 ## Auto-combat think delay — swallows input like resolving.
 var _combat_auto_acting := false
 var _combat_auto_gen := 0
@@ -2285,6 +2290,10 @@ func _prompt_row_text() -> String:
 		):
 			return Locale.t("cmd_with")
 		return Locale.t("cmd_with_done", [with_nm])
+	if _u4_oil_wait:
+		return Locale.t("cmd_attack_range") + str(_u4_oil_range)
+	if _u4_dir_wait:
+		return Locale.t("cast_dir")
 	if _combat_aiming:
 		return Locale.t("cmd_attack_aim")
 	## Talk: xu4 has no CHARSET_PROMPT on dialogue input — only the live cursor.
@@ -3320,6 +3329,8 @@ func _process(delta: float) -> void:
 			_tick_dialogue_choice_nav(delta)
 		elif _cast_stage == 6:
 			_tick_combat_aim_move()
+		elif _u4_dir_wait:
+			_tick_u4_attack_dir()
 		elif _ztats_stage == 2:
 			_tick_ztats_view_navigation(delta)
 		elif _ztats_stage == 1 or _cast_stage == 1 or _esc_menu_is_open() or _options_panel_is_open():
@@ -3339,6 +3350,8 @@ func _process(delta: float) -> void:
 			and not _combat_auto_acting
 			and not _combat_victory_aftermath
 			and not _combat_aiming
+			and not _u4_dir_wait
+			and not _u4_oil_wait
 			and _map != null
 			and _map.is_in_combat()
 		):
@@ -4245,6 +4258,9 @@ func _mouse_combat_direct_attack_allowed() -> bool:
 
 func _mouse_combat_foe_strike_tile() -> Vector2i:
 	## Foe under the pointer this weapon can strike. Map tile or the foe list.
+	## U4 fires along a chosen direction instead of picking that tile.
+	if GameState.get_combat_style() == GameState.COMBAT_STYLE_U4:
+		return Vector2i(-1, -1)
 	if not _mouse_combat_direct_attack_allowed():
 		return Vector2i(-1, -1)
 	var target := Vector2i(-1, -1)
@@ -4474,8 +4490,10 @@ func _mouse_walk_hold_allowed() -> bool:
 	## Blink / Dispel / Winds / Energy: LMB on the map is the Dir? answer.
 	if _cast_stage == 4:
 		return true
-	if _combat_aiming or _cast_stage == 6:
+	if _combat_aiming or _cast_stage == 6 or _u4_oil_wait:
 		return false
+	if _u4_dir_wait:
+		return true
 	if _combat_active:
 		return _combat_victory_aftermath and not _combat_exit_prompt and not _victory_turn_pending
 	return true
@@ -4805,6 +4823,9 @@ func _try_right_click_cancel_pending_dir(event: InputEvent) -> bool:
 		return false
 	if _combat_aiming:
 		_combat_cancel_aim()
+		return true
+	if _u4_dir_wait or _u4_oil_wait:
+		_cancel_u4_attack_dir()
 		return true
 	if _pending_cmd != U4Commands.Id.NONE:
 		_clear_pending_dir(true)
@@ -13519,7 +13540,10 @@ func _try_cast_spell(spell_id: int) -> void:
 		_begin_cast_energy_type()
 		return
 	if Spells.uses_free_aim(spell_id):
-		_begin_cast_aim()
+		if _combat_style_is_u4() and _combat_active:
+			_begin_cast_dir()
+		else:
+			_begin_cast_aim()
 		return
 	if Spells.param_type(spell_id) == Spells.PARAM_DIR:
 		_begin_cast_dir()
@@ -13799,7 +13823,10 @@ func _apply_cast_magic_attack(spell_id: int, from: Vector2i, target: Vector2i, c
 	if not _combat_active or _map == null or not _map.is_in_combat():
 		return
 	var foe_i := _map.combat_foe_index_at(land)
-	var ally_i := _map.combat_party_index_at(land) if foe_i < 0 else -1
+	## xu4 spellMagicAttackAt hits creatures only. Party members do not stop it.
+	var ally_i := -1
+	if not _combat_style_is_u4():
+		ally_i = _map.combat_party_index_at(land) if foe_i < 0 else -1
 	if foe_i < 0 and ally_i < 0:
 		return
 	var dmg := Spells.roll_damage(spell_id)
@@ -13890,6 +13917,24 @@ func _finish_cast_dir_spell(dir: Vector2i) -> void:
 		return
 	await _play_cast_sfx()
 	var ok := false
+	if Spells.uses_free_aim(spell_id) and _combat_active and _map != null:
+		var from := _map.get_combat_focus_pos()
+		var target := _map.combat_u4_impact(
+			from, dir, Spells.MAGIC_ATTACK_RANGE, false, false
+		)
+		_close_cast(false, false)
+		_combat_resolving = true
+		await _apply_cast_magic_attack(spell_id, from, target, caster)
+		if not _combat_active or _map == null or not _map.is_in_combat():
+			_combat_resolving = false
+			return
+		if _map.is_combat_won():
+			await _begin_combat_victory_aftermath()
+			_combat_resolving = false
+			return
+		_combat_resolving = false
+		_combat_finish_member_turn()
+		return
 	match spell_id:
 		Spells.BLINK:
 			ok = _apply_cast_blink(dir)
@@ -22430,6 +22475,8 @@ func _begin_combat(
 func _combat_clear_aim_state() -> void:
 	## End of combat — wipe aim UI and sticky targets.
 	_combat_aiming = false
+	_u4_dir_wait = false
+	_u4_oil_wait = false
 	_combat_aim_weapon = 0
 	_combat_aim_pos = Vector2i.ZERO
 	_combat_aim_from = Vector2i.ZERO
@@ -22486,6 +22533,8 @@ func _begin_combat_victory_aftermath() -> void:
 	_victory_turn_pending = true
 	_combat_resolving = false
 	_combat_aiming = false
+	_u4_dir_wait = false
+	_u4_oil_wait = false
 	## xu4 CampController::endCombat wakes sleepers; ordinary and dungeon
 	## combat preserves sleep into the post-victory turn loop.
 	if _combat_wake_on_victory:
@@ -22714,6 +22763,8 @@ func _tick_combat_victory_move() -> void:
 
 
 func _handle_combat_input(event: InputEvent) -> bool:
+	if _u4_oil_wait or _u4_dir_wait:
+		return _handle_u4_attack_input(event)
 	## Combat: move / Pass / Attack + xu4 letter commands; banned → "Not here!".
 	## No idle auto-pass. Esc only cancels aim (or victory leave after win).
 	## Stick: one step per tilt (must return near-neutral). Motion is handled
@@ -22945,7 +22996,10 @@ func _handle_combat_command(cmd: int) -> void:
 	var letter := U4Commands.letter_for(cmd)
 	match cmd:
 		U4Commands.Id.ATTACK:
-			_combat_begin_aim()
+			if _combat_style_is_u4():
+				_begin_u4_attack_dir()
+			else:
+				_combat_begin_aim()
 		U4Commands.Id.OPEN, U4Commands.Id.GET_CHEST:
 			## Dir? only when two or more adjacent chests/doors; one auto-picks.
 			_begin_pending_dir_command(cmd, name)
@@ -23206,6 +23260,171 @@ func _is_key(k: InputEventKey, code: int) -> bool:
 	return k.keycode == code or k.physical_keycode == code
 
 
+func _combat_style_is_u4() -> bool:
+	return GameState.get_combat_style() == GameState.COMBAT_STYLE_U4
+
+
+func _begin_u4_attack_dir() -> void:
+	## xu4 CombatController::attack — "Dir:" then the weapon travels that way.
+	if _map == null or not _map.is_in_combat() or _combat_resolving:
+		return
+	var from := _map.get_combat_focus_pos()
+	if from.x < 0:
+		return
+	var klass := _map.get_combat_focus_klass()
+	var party_slot := _map.get_combat_focus_party_slot()
+	var wid := GameState.weapon_of_class(klass)
+	var pname := GameState.party_member_display_name(party_slot) if party_slot >= 0 else ""
+	if pname.is_empty():
+		pname = U4Commands.label(U4Commands.Id.ATTACK, GameState.lang_short())
+	_u4_dir_wait = true
+	_u4_oil_wait = false
+	_reset_hold_state()
+	_GameInput.reset_stick_navigation()
+	_push_message(
+		Locale.t("cmd_attack_with", [pname, Locale.weapon_name(wid)]),
+		false
+	)
+	_layout_prompt_row()
+
+
+func _cancel_u4_attack_dir() -> void:
+	_u4_dir_wait = false
+	_u4_oil_wait = false
+	_reset_hold_state()
+	_push_message(Locale.t("cmd_cancelled"), false)
+	_layout_prompt_row()
+
+
+func _handle_u4_attack_input(event: InputEvent) -> bool:
+	if _u4_oil_wait:
+		return _handle_u4_oil_input(event)
+	if event is InputEventJoypadMotion:
+		if _GameInput.is_dpad_held():
+			_GameInput.stick_clear_if_released(event)
+			return true
+		var stick_dir := _GameInput.stick_direction_step(event)
+		if stick_dir != Vector2i.ZERO and (stick_dir.x == 0 or stick_dir.y == 0):
+			_accept_u4_attack_dir(stick_dir)
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return true
+	if _is_cancel_event(event) or _is_right_click(event):
+		_cancel_u4_attack_dir()
+		return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir.x != 0 and dir.y != 0:
+		dir = Vector2i.ZERO
+	if dir != Vector2i.ZERO:
+		_accept_u4_attack_dir(dir)
+	return true
+
+
+func _tick_u4_attack_dir() -> void:
+	var dir := _read_move_dir()
+	if dir.x != 0 and dir.y != 0:
+		dir = Vector2i.ZERO
+	if dir == Vector2i.ZERO:
+		_reset_hold_state()
+		return
+	if dir != _held_dir:
+		_held_dir = dir
+		_move_repeating = false
+		_hold_arm = 0.0
+	if _move_cd > 0.0:
+		return
+	if _move_repeating and _hold_arm > 0.0:
+		return
+	_accept_u4_attack_dir(dir)
+	_block_dir_until_keyup = true
+	_move_cd = 0.0
+	_move_repeating = false
+	_hold_arm = 0.0
+
+
+func _accept_u4_attack_dir(dir: Vector2i) -> void:
+	if not _u4_dir_wait or _map == null:
+		return
+	_u4_dir_wait = false
+	_push_message(_direction_label(dir), false)
+	var klass := _map.get_combat_focus_klass()
+	var wid := GameState.weapon_of_class(klass)
+	if WeaponIcons.chooses_distance(wid):
+		_u4_oil_wait = true
+		_u4_oil_dir = dir
+		_u4_oil_range = WeaponIcons.range_of(wid)
+		_reset_hold_state()
+		_layout_prompt_row()
+		return
+	_fire_u4_attack(dir, WeaponIcons.range_of(wid))
+
+
+func _handle_u4_oil_input(event: InputEvent) -> bool:
+	## xu4 "Range:" — 1 through the oil's maximum. Pad nudges, A confirms.
+	if event is InputEventJoypadMotion:
+		_GameInput.stick_clear_if_released(event)
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return true
+	if _is_cancel_event(event) or _is_right_click(event):
+		_cancel_u4_attack_dir()
+		return true
+	var max_range := 1
+	if _map != null:
+		max_range = WeaponIcons.range_of(GameState.weapon_of_class(_map.get_combat_focus_klass()))
+	if event is InputEventKey:
+		var digit := _u4_range_digit(event as InputEventKey)
+		if digit >= 1 and digit <= max_range:
+			_u4_oil_range = digit
+			_confirm_u4_oil_range()
+			return true
+	var dir := _GameInput.dir_from_event(event)
+	if dir.x != 0 and dir.y == 0:
+		_u4_oil_range = clampi(_u4_oil_range + dir.x, 1, max_range)
+		_layout_prompt_row()
+		return true
+	if _GameInput.is_select(event):
+		_confirm_u4_oil_range()
+	return true
+
+
+func _u4_range_digit(k: InputEventKey) -> int:
+	for code in [k.keycode, k.physical_keycode]:
+		if code >= KEY_1 and code <= KEY_9:
+			return int(code - KEY_0)
+		if code >= KEY_KP_1 and code <= KEY_KP_9:
+			return int(code - KEY_KP_0)
+	return -1
+
+
+func _confirm_u4_oil_range() -> void:
+	if not _u4_oil_wait:
+		return
+	var dir := _u4_oil_dir
+	var steps := _u4_oil_range
+	_u4_oil_wait = false
+	_push_message(str(steps), false)
+	_fire_u4_attack(dir, steps)
+
+
+func _fire_u4_attack(dir: Vector2i, steps: int) -> void:
+	if _map == null or not _map.is_in_combat():
+		return
+	var from := _map.get_combat_focus_pos()
+	var klass := _map.get_combat_focus_klass()
+	var wid := GameState.weapon_of_class(klass)
+	var target := _map.combat_u4_impact(
+		from,
+		dir,
+		steps,
+		WeaponIcons.attacks_through_objects(wid),
+		WeaponIcons.is_absolute_range(wid)
+	)
+	_reset_hold_state()
+	_layout_prompt_row()
+	_combat_resolve_attack(klass, wid, from, target, false)
+
+
 func _combat_begin_aim() -> void:
 	if _map == null or not _map.is_in_combat() or _combat_resolving:
 		return
@@ -23230,11 +23449,7 @@ func _combat_begin_aim() -> void:
 		false
 	)
 	if _map:
-		_map.set_combat_range_shade(
-			from,
-			wid,
-			GameState.get_combat_style() == GameState.COMBAT_STYLE_U4
-		)
+		_map.set_combat_range_shade(from, wid)
 		_map.set_combat_aim_cursor(_combat_aim_pos)
 	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
@@ -23423,7 +23638,13 @@ func _combat_confirm_aim() -> void:
 	_combat_resolve_attack(klass, wid, from, target)
 
 
-func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector2i) -> void:
+func _combat_resolve_attack(
+	klass: int,
+	wid: int,
+	from: Vector2i,
+	target: Vector2i,
+	allow_allies: bool = true
+) -> void:
 	_combat_resolving = true
 	_stamp_command_time()
 	## xu4 path distance: each 8-way step counts as 1 (Chebyshev, not aim_distance).
@@ -23435,7 +23656,7 @@ func _combat_resolve_attack(klass: int, wid: int, from: Vector2i, target: Vector
 	var aim_ally_i := -1
 	if valid_cell:
 		aim_foe_i = _map.combat_foe_index_at(target)
-		if aim_foe_i < 0:
+		if aim_foe_i < 0 and allow_allies:
 			aim_ally_i = _map.combat_party_index_at(target)
 	## Projectiles for non-melee strikes beyond adjacent 8-way, or absolute-range weapons.
 	## Returning weapons (magic axe) always show a throw even at range 1.

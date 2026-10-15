@@ -256,6 +256,8 @@ static func _can_land_weapon_hit(map, wid: int, from: Vector2i, to: Vector2i) ->
 	## Range + a shot that actually lands on the foe — never fire into a wall.
 	if not _combat_style_allows_target(from, to):
 		return false
+	if GameState.get_combat_style() == GameState.COMBAT_STYLE_U4:
+		return _u4_ray_lands_on(map, from, to, _WeaponIcons.range_of(wid), wid)
 	if not map.combat_can_strike(wid, from, to):
 		return false
 	if not map.combat_can_aim_tile(to):
@@ -275,6 +277,8 @@ static func _can_land_magic_hit(map, from: Vector2i, to: Vector2i) -> bool:
 		or not map.combat_can_aim_tile(to)
 	):
 		return false
+	if GameState.get_combat_style() == GameState.COMBAT_STYLE_U4:
+		return _u4_ray_lands_on(map, from, to, _Spells.MAGIC_ATTACK_RANGE, -1)
 	if not map.combat_shot_reaches(from, to):
 		return false
 	var land: Vector2i = map.combat_projectile_end(from, to)
@@ -285,7 +289,21 @@ static func _combat_style_allows_target(from: Vector2i, to: Vector2i) -> bool:
 	if GameState.get_combat_style() != GameState.COMBAT_STYLE_U4:
 		return true
 	var delta := to - from
-	return delta.x == 0 or delta.y == 0
+	return delta != Vector2i.ZERO and (delta.x == 0 or delta.y == 0)
+
+
+static func _u4_ray_lands_on(map, from: Vector2i, to: Vector2i, max_steps: int, wid: int) -> bool:
+	## The foe must be the tile the cardinal shot actually reaches.
+	var delta := to - from
+	var dir := Vector2i(signi(delta.x), signi(delta.y))
+	var through := wid >= 0 and _WeaponIcons.attacks_through_objects(wid)
+	var absolute := wid >= 0 and _WeaponIcons.is_absolute_range(wid)
+	var impact: Vector2i = map.combat_u4_impact(from, dir, max_steps, through, absolute)
+	if impact != to:
+		return false
+	if map.combat_foe_index_at(to) < 0:
+		return false
+	return true
 
 
 static func _best_magic_target(

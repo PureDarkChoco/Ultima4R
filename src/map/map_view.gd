@@ -1422,6 +1422,46 @@ func combat_can_aim_tile(pos: Vector2i) -> bool:
 	)
 
 
+func combat_u4_impact(
+	from: Vector2i,
+	dir: Vector2i,
+	max_steps: int,
+	through_objects: bool,
+	absolute: bool
+) -> Vector2i:
+	## xu4 gameGetDirectionalActionPath + first creature along that ray.
+	## Allies do not stop the shot. Walls stop it unless the weapon attacks through.
+	## Absolute weapons (halberd) only consider the tile at exactly max_steps.
+	if (
+		_combat_map == null
+		or max_steps < 1
+		or dir == Vector2i.ZERO
+		or (dir.x != 0 and dir.y != 0)
+	):
+		return from
+	var path: Array[Vector2i] = []
+	var pos := from
+	for _step in max_steps:
+		pos += dir
+		if not _combat_in_bounds(pos):
+			break
+		if not through_objects:
+			var tid := int(_combat_map.tile_at(pos.x, pos.y))
+			if not _TileRulesCamp.can_attack_over(tid):
+				break
+		path.append(pos)
+	if path.is_empty():
+		return from
+	if absolute:
+		if path.size() < max_steps:
+			return path.back()
+		return path[max_steps - 1]
+	for cell in path:
+		if combat_foe_index_at(cell) >= 0:
+			return cell
+	return path.back()
+
+
 func combat_can_strike(weapon_id: int, from: Vector2i, to: Vector2i) -> bool:
 	## Range check only. Terrain blocking is combat_can_aim_tile / projectile stop.
 	return _WeaponIconsScript.aim_strike_allows(weapon_id, from, to)
