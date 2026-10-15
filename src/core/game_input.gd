@@ -15,6 +15,11 @@ static var _select_x_latches: Dictionary = {}
 static var _select_y_latches: Dictionary = {}
 static var _application_focused := true
 static var _using_gamepad := false
+## Armed on the frame focus returns. The click that woke the window is swallowed
+## until that button is released; a later click in another frame is playable.
+static var _focus_click_armed := false
+static var _focus_click_swallowing := false
+static var _focus_click_buttons := {}
 
 
 static func note_input(event: InputEvent) -> void:
@@ -50,6 +55,106 @@ static func set_application_focused(focused: bool) -> void:
 
 static func application_focused() -> bool:
 	return _application_focused
+
+
+static func arm_focus_click() -> void:
+	_focus_click_armed = true
+	_focus_click_swallowing = false
+	_focus_click_buttons.clear()
+
+
+static func clear_focus_click() -> void:
+	_focus_click_armed = false
+	_focus_click_swallowing = false
+	_focus_click_buttons.clear()
+
+
+static func focus_click_armed() -> bool:
+	return _focus_click_armed
+
+
+static func expire_focus_click_arm() -> void:
+	## Drop the one-frame arm after input and polls have seen this frame.
+	_focus_click_armed = false
+
+
+static func mouse_buttons_suppressed() -> bool:
+	return _focus_click_swallowing
+
+
+static func reconcile_focus_mouse_buttons() -> void:
+	## macOS may activate the window without forwarding the matching mouse-up.
+	## Use physical state to ensure suppression ends after that click is released.
+	if _focus_click_swallowing and not _any_mouse_button_down():
+		_focus_click_swallowing = false
+		_focus_click_buttons.clear()
+
+
+static func is_mouse_button_down(button: MouseButton) -> bool:
+	_latch_focus_click_if_held()
+	if _focus_click_swallowing:
+		return false
+	return Input.is_mouse_button_pressed(button)
+
+
+static func consume_focus_mouse(event: InputEvent) -> bool:
+	## True when this event is the click that brought the window forward.
+	if not event is InputEventMouseButton:
+		return false
+	var mb := event as InputEventMouseButton
+	if _is_mouse_wheel(mb.button_index):
+		return false
+	if _focus_click_swallowing:
+		if mb.pressed:
+			_focus_click_buttons[mb.button_index] = true
+		else:
+			_focus_click_buttons.erase(mb.button_index)
+			if _focus_click_buttons.is_empty():
+				_focus_click_swallowing = false
+		return true
+	if _focus_click_armed and mb.pressed:
+		_focus_click_armed = false
+		_focus_click_swallowing = true
+		_focus_click_buttons[mb.button_index] = true
+		return true
+	return false
+
+
+static func _latch_focus_click_if_held() -> void:
+	if not _focus_click_armed or _focus_click_swallowing:
+		return
+	if not _any_mouse_button_down():
+		return
+	_focus_click_armed = false
+	_focus_click_swallowing = true
+	for button in [
+		MOUSE_BUTTON_LEFT,
+		MOUSE_BUTTON_RIGHT,
+		MOUSE_BUTTON_MIDDLE,
+		MOUSE_BUTTON_XBUTTON1,
+		MOUSE_BUTTON_XBUTTON2,
+	]:
+		if Input.is_mouse_button_pressed(button):
+			_focus_click_buttons[button] = true
+
+
+static func _any_mouse_button_down() -> bool:
+	return (
+		Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+		or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		or Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
+		or Input.is_mouse_button_pressed(MOUSE_BUTTON_XBUTTON1)
+		or Input.is_mouse_button_pressed(MOUSE_BUTTON_XBUTTON2)
+	)
+
+
+static func _is_mouse_wheel(button: MouseButton) -> bool:
+	return (
+		button == MOUSE_BUTTON_WHEEL_UP
+		or button == MOUSE_BUTTON_WHEEL_DOWN
+		or button == MOUSE_BUTTON_WHEEL_LEFT
+		or button == MOUSE_BUTTON_WHEEL_RIGHT
+	)
 
 
 static func should_block_event(event: InputEvent) -> bool:

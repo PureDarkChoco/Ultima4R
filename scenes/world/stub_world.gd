@@ -3348,7 +3348,7 @@ func _process(delta: float) -> void:
 				_combat_finish_member_turn()
 			elif (
 				_mouse_hover_dir != Vector2i.ZERO
-				and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+				and _GameInput.is_mouse_button_down(MOUSE_BUTTON_LEFT)
 				and _mouse_over_play_map()
 				and not _mouse_combat_step_done
 				and fk >= 0
@@ -4000,7 +4000,7 @@ func _update_mouse_walk() -> void:
 	## Arrow cursor follows the X-split even without a click; LMB hold walks.
 	## A reachable townsfolk under the pointer takes the bubble cursor.
 	## Talk is a new press only — the walk hold must be released first.
-	var lmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	var lmb := _GameInput.is_mouse_button_down(MOUSE_BUTTON_LEFT)
 	var lmb_pressed := lmb and not _mouse_lmb_held
 	if not lmb:
 		_mouse_combat_step_done = false

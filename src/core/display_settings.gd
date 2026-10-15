@@ -38,6 +38,8 @@ var _window_scale_pct := DEFAULT_SCALE_PCT
 var _windowed_size := Vector2i(DEFAULT_W, DEFAULT_H)
 var _windowed_position := Vector2i(-1, -1)
 var _persist_display := true
+var _focus_click_filter: Node
+var _focus_click_expire_queued := false
 
 
 func _ready() -> void:
@@ -48,6 +50,7 @@ func _ready() -> void:
 	set_process(true)
 	set_process_input(true)
 	set_process_unhandled_input(true)
+	call_deferred("_ensure_focus_click_filter")
 	call_deferred("_boot")
 
 
@@ -97,6 +100,8 @@ func _apply_app_identity() -> void:
 
 
 func _process(delta: float) -> void:
+	_GameInput.reconcile_focus_mouse_buttons()
+	_queue_focus_click_expire()
 	if _save_pending:
 		_save_timer -= delta
 		if _save_timer <= 0.0:
@@ -729,17 +734,69 @@ func _notification(what: int) -> void:
 		_on_closing()
 	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT \
 			or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		var lost_focus := _GameInput.application_focused()
 		_GameInput.set_application_focused(false)
+		if lost_focus and not _booting:
+			## Some GUI controls receive the activating click before focus-in.
+			## Arm while leaving so that event is already covered.
+			_ensure_focus_click_filter()
+			_GameInput.arm_focus_click()
 		if not _booting and not _is_fullscreen and not _restoring_windowed:
 			_capture_windowed_state()
 			_schedule_save()
 	elif what == NOTIFICATION_APPLICATION_FOCUS_IN \
 			or what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
+		var regained := not _GameInput.application_focused()
 		_GameInput.set_application_focused(true)
+		if regained and not _booting:
+			_ensure_focus_click_filter()
+			## If focus-in arrived first, arm now. If the activating click
+			## arrived first, retain the suppression it already started.
+			if (
+				not _GameInput.focus_click_armed()
+				and not _GameInput.mouse_buttons_suppressed()
+			):
+				_GameInput.arm_focus_click()
 	elif what == NOTIFICATION_WM_SIZE_CHANGED:
 		if not _booting:
 			_apply_content_scale()
 			_lock_resize()
+
+
+func _queue_focus_click_expire() -> void:
+	if _focus_click_expire_queued or not _GameInput.focus_click_armed():
+		return
+	_focus_click_expire_queued = true
+	call_deferred("_expire_focus_click_arm")
+
+
+func _expire_focus_click_arm() -> void:
+	_focus_click_expire_queued = false
+	_GameInput.expire_focus_click_arm()
+
+
+func _ensure_focus_click_filter() -> void:
+	## `_input` is delivered last-in-group first. Re-enter the tree so this
+	## node is called before the scene and can drop the activating click.
+	var root := get_tree().root
+	if _focus_click_filter == null:
+		_focus_click_filter = FocusClickFilter.new()
+		_focus_click_filter.name = "FocusClickFilter"
+		_focus_click_filter.process_mode = Node.PROCESS_MODE_ALWAYS
+	var viewport := get_viewport()
+	if viewport == null:
+		return
+	var group := "_vp_input%s" % viewport.get_instance_id()
+	var nodes := get_tree().get_nodes_in_group(group)
+	if (
+		_focus_click_filter.get_parent() == root
+		and not nodes.is_empty()
+		and nodes[nodes.size() - 1] == _focus_click_filter
+	):
+		return
+	if _focus_click_filter.get_parent() != null:
+		_focus_click_filter.get_parent().remove_child(_focus_click_filter)
+	root.add_child(_focus_click_filter)
 
 
 func _on_closing() -> void:
@@ -768,3 +825,14 @@ func _flush_config() -> void:
 func _load_config() -> void:
 	_config.load(CONFIG_PATH)
 	_load_windowed_metrics()
+
+
+class FocusClickFilter extends Node:
+	const _GameInput := preload("res://src/core/game_input.gd")
+
+	func _input(event: InputEvent) -> void:
+		if not _GameInput.consume_focus_mouse(event):
+			return
+		var viewport := get_viewport()
+		if viewport != null:
+			viewport.set_input_as_handled()
