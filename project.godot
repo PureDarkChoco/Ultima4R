@@ -19,7 +19,6 @@ config/icon="res://icon.png"
 
 [autoload]
 
-SingleInstance="*res://src/core/single_instance.gd"
 GameState="*res://src/core/game_state.gd"
 Locale="*res://src/core/locale.gd"
 SceneRouter="*res://src/core/scene_router.gd"
