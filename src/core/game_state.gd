@@ -72,9 +72,13 @@ func _set_language(value: String, persist_pref: bool) -> void:
 	language_changed.emit(_language)
 
 
-func apply_session_language(lang: String) -> void:
-	## Load / journey — apply language and write it as the app default.
-	_set_language(lang, true)
+func set_language(value: String, persist_pref: bool = true) -> void:
+	_set_language(value, persist_pref)
+
+
+func apply_session_language(lang: String, persist_pref: bool = false) -> void:
+	## Journey / Load — apply slot language for this play session only.
+	_set_language(lang, persist_pref)
 
 
 func restore_menu_language() -> void:
@@ -137,7 +141,7 @@ func apple2_britannia_path_missing() -> bool:
 
 
 func options_snapshot() -> Dictionary:
-	## Live Options values written into the next slot save and app prefs.
+	## Live Options values written into the next slot save.
 	var pos := DisplaySettings.windowed_position()
 	return {
 		"language": language,
@@ -157,40 +161,44 @@ func options_snapshot() -> Dictionary:
 
 
 func apply_session_options(opts: Dictionary) -> void:
-	## Journey / Load — apply slot options and write them as app defaults.
+	## Journey / Load — apply slot options for this play session only.
+	## Menu prefs (settings.cfg) stay untouched so they only seed new games.
 	if opts.is_empty():
 		return
 	if opts.has("language"):
-		apply_session_language(str(opts.get("language")))
+		apply_session_language(str(opts.get("language")), false)
+	## Older slots predate combat style — default to Ultima V and let the next
+	## save write the key.
 	if opts.has("combat_style"):
 		set_combat_style(str(opts.get("combat_style")), false)
+	else:
+		set_combat_style(COMBAT_STYLE_U5, false)
 	if opts.has("hangul_keyboard"):
-		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), true)
+		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), false)
 	if opts.has("gamepad_layout"):
-		GamepadSettings.set_layout_id(str(opts.get("gamepad_layout")), true)
+		GamepadSettings.set_layout_id(str(opts.get("gamepad_layout")), false)
 	if opts.has("tileset"):
-		GraphicsSettings.set_tileset_id(str(opts.get("tileset")), true)
+		GraphicsSettings.set_tileset_id(str(opts.get("tileset")), false)
 	if opts.has("window_scale"):
-		DisplaySettings.set_window_scale_percent(int(opts.get("window_scale")), true)
+		DisplaySettings.set_window_scale_percent(int(opts.get("window_scale")), false)
 	if opts.has("fullscreen"):
-		DisplaySettings.set_fullscreen_active(bool(opts.get("fullscreen")), true)
+		DisplaySettings.set_fullscreen_active(bool(opts.get("fullscreen")), false)
 	var px := int(opts.get("window_pos_x", -1))
 	var py := int(opts.get("window_pos_y", -1))
 	if px >= 0 and py >= 0:
-		DisplaySettings.set_windowed_position(Vector2i(px, py), true)
+		DisplaySettings.set_windowed_position(Vector2i(px, py), false)
 	if opts.has("sfx"):
-		AudioSfx.set_enabled(bool(opts.get("sfx")), true)
+		AudioSfx.set_enabled(bool(opts.get("sfx")), false)
 	if opts.has("music_volume"):
-		AudioSfx.music_set_volume_percent(int(opts.get("music_volume")), true)
+		AudioSfx.music_set_volume_percent(int(opts.get("music_volume")), false)
 	if opts.has("music"):
-		AudioSfx.music_set_enabled(bool(opts.get("music")), true)
+		AudioSfx.music_set_enabled(bool(opts.get("music")), false)
 	if opts.has("background_music"):
-		AudioSfx.set_background_music_enabled(bool(opts.get("background_music")), true)
-	commit_live_options()
+		AudioSfx.set_background_music_enabled(bool(opts.get("background_music")), false)
 
 
 func commit_live_options() -> void:
-	## Keep the in-play Options and write them as the app's last state.
+	## Write the live Options as the app's new-game defaults (menu prefs).
 	_persist_language_pref()
 	_persist_gameplay_prefs()
 	HangulInputSettings.persist_pref()
@@ -200,8 +208,19 @@ func commit_live_options() -> void:
 	AudioSfx.persist_pref()
 
 
+func persist_session_options() -> void:
+	## Flush Options the moment a choice changes.
+	## Playing a slot: patch that save's options (no full game save needed).
+	## Title / unsaved new game: write menu prefs for the next new game.
+	var slot := session_loaded_slot
+	if slot >= 1 and slot <= SaveGame.SLOT_COUNT and SaveGame.slot_exists(slot):
+		SaveGame.patch_slot_options(slot, options_snapshot(), language)
+		return
+	commit_live_options()
+
+
 func restore_menu_options() -> void:
-	## Cold start only: prefs files. Returning to title uses commit_live_options.
+	## Title / cold start: prefs files. Play-session Options never overwrite these.
 	restore_menu_language()
 	_load_gameplay_prefs()
 	HangulInputSettings.restore_pref()
@@ -3777,9 +3796,12 @@ func apply_save_dict(d: Dictionary, file_version: int = 0) -> void:
 	if typeof(opts_v) == TYPE_DICTIONARY and not (opts_v as Dictionary).is_empty():
 		apply_session_options(opts_v as Dictionary)
 	elif d.has("language"):
-		## Older slots only stored language.
-		apply_session_language(str(d.get("language")))
-		commit_live_options()
+		## Older slots only stored language; combat style defaults to Ultima V.
+		apply_session_language(str(d.get("language")), false)
+		set_combat_style(COMBAT_STYLE_U5, false)
+	else:
+		## No options block at all — still seed the new combat key.
+		set_combat_style(COMBAT_STYLE_U5, false)
 	is_new_game = false
 	refresh_party_order()
 	## Ensure pack / equipped gear are marked (also migrates pre-known saves).

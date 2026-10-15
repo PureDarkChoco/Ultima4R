@@ -220,67 +220,83 @@ func refresh() -> void:
 	_sync_cursor()
 
 
+func _persist_option_prefs() -> bool:
+	## Main-menu Options seed new games. In-play Options stay on the slot only.
+	return _embedded
+
+
 func cycle_language(delta: int = 1) -> void:
 	var langs := GameState.LANG_IDS
 	var i := langs.find(GameState.language)
 	if i < 0:
 		i = 0
-	GameState.language = langs[posmod(i + delta, langs.size())]
-	_refresh_labels()
-	_sync_cursor()
+	GameState.set_language(langs[posmod(i + delta, langs.size())], _persist_option_prefs())
+	_after_option_changed()
 
 
 func cycle_current(delta: int = 1) -> void:
 	if _cursor == Item.TAB_BAR:
 		cycle_tab(delta)
 		return
+	var persist := _persist_option_prefs()
 	match _cursor:
 		Item.LANGUAGE:
 			cycle_language(delta)
+			return
 		Item.HANGUL_KEYBOARD:
-			HangulInputSettings.cycle_layout(delta)
+			HangulInputSettings.cycle_layout(delta, persist)
 		Item.GRAPHICS:
-			GraphicsSettings.cycle_tileset(delta)
+			GraphicsSettings.cycle_tileset(delta, persist)
 		Item.RESOLUTION:
-			DisplaySettings.cycle_window_scale(delta)
+			DisplaySettings.cycle_window_scale(delta, persist)
 		Item.FULLSCREEN:
-			DisplaySettings.toggle_fullscreen()
+			DisplaySettings.toggle_fullscreen(persist)
 		Item.SFX:
-			AudioSfx.set_enabled(not AudioSfx.is_enabled())
+			AudioSfx.set_enabled(not AudioSfx.is_enabled(), persist)
 		Item.MUSIC:
-			_cycle_music(delta)
+			_cycle_music(delta, persist)
 		Item.BACKGROUND_AUDIO:
 			AudioSfx.set_background_music_enabled(
-				not AudioSfx.is_background_music_enabled()
+				not AudioSfx.is_background_music_enabled(),
+				persist
 			)
 		Item.DOS_PATH:
 			_open_dos_dialog()
+			return
 		Item.APPLE2_PROGRAM_PATH:
 			_open_program_dialog()
+			return
 		Item.APPLE2_BRITANNIA_PATH:
 			_open_britannia_dialog()
+			return
 		Item.COMBAT_STYLE:
-			GameState.cycle_combat_style()
+			GameState.cycle_combat_style(persist)
 		Item.GAMEPAD:
-			GamepadSettings.cycle_layout(delta)
+			GamepadSettings.cycle_layout(delta, persist)
+	_after_option_changed()
+
+
+func _after_option_changed() -> void:
 	_refresh_labels()
 	_sync_cursor()
+	## Menu → prefs. In-play with a slot → patch that save's options now.
+	GameState.persist_session_options()
 
 
-func _cycle_music(delta: int) -> void:
+func _cycle_music(delta: int, persist: bool = true) -> void:
 	var on := AudioSfx.music_enabled()
 	var pct := AudioSfx.music_volume_percent()
 	if not on:
-		AudioSfx.music_set_volume_percent(10 if delta > 0 else 100)
-		AudioSfx.music_set_enabled(true)
+		AudioSfx.music_set_volume_percent(10 if delta > 0 else 100, persist)
+		AudioSfx.music_set_enabled(true, persist)
 	else:
 		var next := pct + delta * 10
 		if next < 10:
-			AudioSfx.music_set_enabled(false)
+			AudioSfx.music_set_enabled(false, persist)
 		elif next > 100:
-			AudioSfx.music_set_enabled(false)
+			AudioSfx.music_set_enabled(false, persist)
 		else:
-			AudioSfx.music_set_volume_percent(next)
+			AudioSfx.music_set_volume_percent(next, persist)
 
 
 func _build() -> void:

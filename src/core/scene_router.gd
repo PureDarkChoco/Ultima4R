@@ -45,10 +45,11 @@ func go(path: String, fade: bool = false) -> void:
 
 
 func to_menu(focus: String = "") -> void:
-	## Keep the play session's Options; they become the app's last state.
+	## Restore menu prefs so title Options seed new games only.
+	## Journey / Load keep their own Options on the slot.
 	## Optional `focus`: "new" / "journey" / "return" / "language" / "options" / "quit".
 	_pending_menu_focus = focus
-	GameState.commit_live_options()
+	GameState.restore_menu_options()
 	go(MAIN_MENU)
 
 

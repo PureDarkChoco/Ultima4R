@@ -250,7 +250,7 @@ static func _unused_backup_path(abs_path: String) -> String:
 	return candidate
 
 
-static func write_slot(slot: int, data: Dictionary) -> bool:
+static func write_slot(slot: int, data: Dictionary, update_last_saved: bool = true) -> bool:
 	ensure_dir()
 	var path := slot_path(slot)
 	var abs_path := ProjectSettings.globalize_path(path)
@@ -264,7 +264,8 @@ static func write_slot(slot: int, data: Dictionary) -> bool:
 			return false
 		f.store_string(JSON.stringify(data, "\t"))
 		f.close()
-		set_last_saved_slot(slot)
+		if update_last_saved:
+			set_last_saved_slot(slot)
 		return true
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
@@ -299,8 +300,24 @@ static func write_slot(slot: int, data: Dictionary) -> bool:
 			push_warning(
 				"SaveGame: cannot remove backup %s (err %d)" % [backup_path, cleanup_err]
 			)
-	set_last_saved_slot(slot)
+	if update_last_saved:
+		set_last_saved_slot(slot)
 	return true
+
+
+static func patch_slot_options(slot: int, options: Dictionary, language: String = "") -> bool:
+	## Update Options only — no meta timestamp / last-saved pointer change.
+	if slot < 1 or slot > SLOT_COUNT or not slot_exists(slot):
+		return false
+	var data := read_slot(slot)
+	if not is_loadable(data):
+		return false
+	var game: Dictionary = (data["game"] as Dictionary).duplicate(true)
+	game["options"] = options.duplicate(true)
+	if not language.strip_edges().is_empty():
+		game["language"] = language
+	data["game"] = game
+	return write_slot(slot, data, false)
 
 
 static func delete_slot(slot: int) -> bool:

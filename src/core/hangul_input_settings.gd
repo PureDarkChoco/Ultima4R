@@ -61,11 +61,11 @@ func restore_pref() -> void:
 	layout_changed.emit(_layout_id)
 
 
-func cycle_layout(delta: int = 1) -> void:
+func cycle_layout(delta: int = 1, persist: bool = true) -> void:
 	var index := LAYOUT_IDS.find(_layout_id)
 	if index < 0:
 		index = 0
-	set_layout_id(LAYOUT_IDS[posmod(index + delta, LAYOUT_IDS.size())])
+	set_layout_id(LAYOUT_IDS[posmod(index + delta, LAYOUT_IDS.size())], persist)
 
 
 func is_korean_mode() -> bool:

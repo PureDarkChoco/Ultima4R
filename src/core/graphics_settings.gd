@@ -74,12 +74,12 @@ func set_tileset_id(value: String, persist: bool = true) -> void:
 	tileset_changed.emit(_tileset_id)
 
 
-func cycle_tileset(delta: int = 1) -> void:
+func cycle_tileset(delta: int = 1, persist: bool = true) -> void:
 	var ids := available_tileset_ids()
 	var index := ids.find(_tileset_id)
 	if index < 0:
 		index = 0
-	set_tileset_id(ids[posmod(index + delta, ids.size())])
+	set_tileset_id(ids[posmod(index + delta, ids.size())], persist)
 
 
 func ensure_available_tileset() -> void:

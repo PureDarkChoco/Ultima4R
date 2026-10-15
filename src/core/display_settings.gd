@@ -205,7 +205,7 @@ func is_toggle_fullscreen_event(event: InputEvent) -> bool:
 	return k.keycode == KEY_F or k.physical_keycode == KEY_F or k.key_label == KEY_F
 
 
-func toggle_fullscreen() -> void:
+func toggle_fullscreen(persist: bool = true) -> void:
 	var frame := Engine.get_process_frames()
 	if frame == _fs_chord_frame:
 		return
@@ -216,6 +216,7 @@ func toggle_fullscreen() -> void:
 		return
 	_fs_chord_frame = frame
 	_last_fs_toggle_msec = now
+	_persist_display = persist
 	if _is_fullscreen:
 		_leave_fullscreen()
 	else:
@@ -289,12 +290,12 @@ func size_for_scale_percent(pct: int = -1) -> Vector2i:
 	return _clamp_to_usable(_size_from_width(w), usable)
 
 
-func cycle_window_scale(delta: int) -> void:
+func cycle_window_scale(delta: int, persist: bool = true) -> void:
 	var avail := available_scale_pcts()
 	var idx := avail.find(effective_scale_percent())
 	if idx < 0:
 		idx = 0
-	set_window_scale_percent(avail[posmod(idx + delta, avail.size())])
+	set_window_scale_percent(avail[posmod(idx + delta, avail.size())], persist)
 
 
 func set_window_scale_percent(pct: int, persist: bool = true) -> void:
