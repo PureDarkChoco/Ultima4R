@@ -178,6 +178,23 @@ static func is_foe_roster_prev(event: InputEvent) -> bool:
 	return false
 
 
+static func options_tab_step(event: InputEvent) -> int:
+	## Options tabs: keyboard Tab / Shift+Tab and controller RB / LB.
+	if should_block_event(event) or not event.is_pressed() or event.is_echo():
+		return 0
+	if event is InputEventJoypadButton:
+		var button := (event as InputEventJoypadButton).button_index
+		if button == JOY_BUTTON_RIGHT_SHOULDER:
+			return 1
+		if button == JOY_BUTTON_LEFT_SHOULDER:
+			return -1
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.keycode == KEY_TAB or key.physical_keycode == KEY_TAB:
+			return -1 if key.shift_pressed else 1
+	return 0
+
+
 static func dir_from_event(event: InputEvent) -> Vector2i:
 	## Single-step dir from a pressed key / d-pad / stick threshold.
 	## Stick: one step per tilt (must return near-neutral first). Without this,

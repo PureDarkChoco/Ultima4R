@@ -934,10 +934,30 @@ const _T := {
 		"en_us": "Options",
 		"ko": "옵션",
 	},
-	"esc_options_graphics": {
+	"options_tab_language": {
+		"en_u4": "Language",
+		"en_us": "Language",
+		"ko": "언어",
+	},
+	"options_tab_graphics": {
 		"en_u4": "Graphics",
 		"en_us": "Graphics",
 		"ko": "그래픽",
+	},
+	"options_tab_sound": {
+		"en_u4": "Sound",
+		"en_us": "Sound",
+		"ko": "사운드",
+	},
+	"options_tab_game": {
+		"en_u4": "Game",
+		"en_us": "Game",
+		"ko": "게임",
+	},
+	"esc_options_graphics": {
+		"en_u4": "Tile Set",
+		"en_us": "Tile Set",
+		"ko": "타일셋",
 	},
 	"esc_options_graphics_new_color": {
 		"en_u4": "Joshua Steele",
@@ -975,9 +995,9 @@ const _T := {
 		"ko": "Program 디스크",
 	},
 	"esc_options_resolution": {
-		"en_u4": "Resolution",
-		"en_us": "Resolution",
-		"ko": "해상도",
+		"en_u4": "Screen Size",
+		"en_us": "Screen Size",
+		"ko": "화면 크기",
 	},
 	"esc_options_resolution_windowed": {
 		"en_u4": "%d%% · %d×%d",
@@ -1023,6 +1043,56 @@ const _T := {
 		"en_u4": "Background Music",
 		"en_us": "Background Music",
 		"ko": "배경음악",
+	},
+	"esc_options_background_audio": {
+		"en_u4": "Music Whilst in Background",
+		"en_us": "Play Music in Background",
+		"ko": "백그라운드에서 음악 재생",
+	},
+	"esc_options_dos_path": {
+		"en_u4": "DOS Game Path",
+		"en_us": "DOS Game Path",
+		"ko": "DOS 게임 경로",
+	},
+	"esc_options_apple2_program_path": {
+		"en_u4": "Apple II Program",
+		"en_us": "Apple II Program",
+		"ko": "Apple II Program",
+	},
+	"esc_options_apple2_britannia_path": {
+		"en_u4": "Apple II Britannia",
+		"en_us": "Apple II Britannia",
+		"ko": "Apple II Britannia",
+	},
+	"esc_options_path_set": {
+		"en_u4": "Set",
+		"en_us": "Set",
+		"ko": "설정됨",
+	},
+	"esc_options_path_none": {
+		"en_u4": "Not Set",
+		"en_us": "Not Set",
+		"ko": "설정 안 됨",
+	},
+	"apple2_disk_filter": {
+		"en_u4": "Apple II disk",
+		"en_us": "Apple II disk",
+		"ko": "Apple II 디스크",
+	},
+	"esc_options_combat_style": {
+		"en_u4": "Combat Style",
+		"en_us": "Combat Style",
+		"ko": "전투 방식",
+	},
+	"esc_options_combat_u5": {
+		"en_u4": "Ultima V",
+		"en_us": "Ultima V",
+		"ko": "울티마 V",
+	},
+	"esc_options_combat_u4": {
+		"en_u4": "Ultima IV",
+		"en_us": "Ultima IV",
+		"ko": "울티마 IV",
 	},
 	"esc_options_music_volume": {
 		"en_u4": "%d%%",

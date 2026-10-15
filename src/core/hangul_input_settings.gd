@@ -10,7 +10,7 @@ signal input_mode_changed(korean: bool)
 const CONFIG_PATH := "user://input.cfg"
 const SECTION := "hangul"
 const KEY_LAYOUT := "keyboard"
-const LAYOUT_IDS: Array[String] = ["2", "39", "3f"]
+const LAYOUT_IDS: Array[String] = ["2", "3f", "39"]
 const DEFAULT_LAYOUT := "2"
 
 var _layout_id := DEFAULT_LAYOUT

@@ -254,6 +254,8 @@ static func _best_weapon_hit(
 
 static func _can_land_weapon_hit(map, wid: int, from: Vector2i, to: Vector2i) -> bool:
 	## Range + a shot that actually lands on the foe — never fire into a wall.
+	if not _combat_style_allows_target(from, to):
+		return false
 	if not map.combat_can_strike(wid, from, to):
 		return false
 	if not map.combat_can_aim_tile(to):
@@ -267,12 +269,23 @@ static func _can_land_weapon_hit(map, wid: int, from: Vector2i, to: Vector2i) ->
 
 
 static func _can_land_magic_hit(map, from: Vector2i, to: Vector2i) -> bool:
-	if to == from or not map.combat_can_aim_tile(to):
+	if (
+		to == from
+		or not _combat_style_allows_target(from, to)
+		or not map.combat_can_aim_tile(to)
+	):
 		return false
 	if not map.combat_shot_reaches(from, to):
 		return false
 	var land: Vector2i = map.combat_projectile_end(from, to)
 	return land == to
+
+
+static func _combat_style_allows_target(from: Vector2i, to: Vector2i) -> bool:
+	if GameState.get_combat_style() != GameState.COMBAT_STYLE_U4:
+		return true
+	var delta := to - from
+	return delta.x == 0 or delta.y == 0
 
 
 static func _best_magic_target(

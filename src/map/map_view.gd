@@ -437,6 +437,7 @@ const COMBAT_RANGE_SHADE := Color(0, 0, 0, 0.5)
 var _combat_range_shade := false
 var _combat_range_from := Vector2i.ZERO
 var _combat_range_weapon := 0
+var _combat_range_cardinal_only := false
 var _combat_range_shade_img: Image
 ## City-outside ring: 50% black so the exit tiles read as leaving town.
 const CITY_EXIT_SHADE := Color(0, 0, 0, 0.50)
@@ -1379,7 +1380,11 @@ func get_combat_aim_cursor() -> Vector2i:
 	return _combat_aim_pos
 
 
-func set_combat_range_shade(from: Vector2i, weapon_id: int) -> void:
+func set_combat_range_shade(
+	from: Vector2i,
+	weapon_id: int,
+	cardinal_only: bool = false
+) -> void:
 	## Dim tiles the current weapon cannot reach. weapon_id < 0 clears (spell aim).
 	if weapon_id < 0:
 		clear_combat_range_shade()
@@ -1387,6 +1392,7 @@ func set_combat_range_shade(from: Vector2i, weapon_id: int) -> void:
 	_combat_range_shade = true
 	_combat_range_from = from
 	_combat_range_weapon = weapon_id
+	_combat_range_cardinal_only = cardinal_only
 	if _combat_map != null:
 		_rebuild()
 
@@ -1395,6 +1401,7 @@ func clear_combat_range_shade() -> void:
 	if not _combat_range_shade:
 		return
 	_combat_range_shade = false
+	_combat_range_cardinal_only = false
 	if _combat_map != null:
 		_rebuild()
 
@@ -5659,9 +5666,10 @@ func _paint_combat_range_shade(origin_x: int, origin_y: int) -> void:
 	for cy in CAMP_H:
 		for cx in CAMP_W:
 			var cell := Vector2i(cx, cy)
+			var delta := cell - _combat_range_from
 			if _WeaponIconsScript.aim_cursor_allows(
 				_combat_range_weapon, _combat_range_from, cell
-			):
+			) and (not _combat_range_cardinal_only or delta.x == 0 or delta.y == 0):
 				continue
 			var sx := origin_x + cx
 			var sy := origin_y + cy

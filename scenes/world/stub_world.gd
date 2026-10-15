@@ -4261,7 +4261,11 @@ func _mouse_combat_foe_strike_tile() -> Vector2i:
 		return Vector2i(-1, -1)
 	var from := _map.get_combat_focus_pos()
 	var wid := GameState.weapon_of_class(_map.get_combat_focus_klass())
-	if from.x < 0 or not _map.combat_can_strike(wid, from, target):
+	if (
+		from.x < 0
+		or not _combat_style_allows_aim(from, target)
+		or not _map.combat_can_strike(wid, from, target)
+	):
 		return Vector2i(-1, -1)
 	return target
 
@@ -4273,7 +4277,11 @@ func _mouse_combat_strike(target: Vector2i) -> void:
 	var from := _map.get_combat_focus_pos()
 	var klass := _map.get_combat_focus_klass()
 	var wid := GameState.weapon_of_class(klass)
-	if from.x < 0 or not _map.combat_can_strike(wid, from, target):
+	if (
+		from.x < 0
+		or not _combat_style_allows_aim(from, target)
+		or not _map.combat_can_strike(wid, from, target)
+	):
 		return
 	_mouse_combat_step_done = true
 	_mouse_block_walk_until_release = true
@@ -10873,6 +10881,7 @@ func _ensure_options_panel() -> void:
 		return
 	_options_panel = _OptionsPanel.new()
 	_options_panel.name = "OptionsPanel"
+	_options_panel.back_requested.connect(func() -> void: _close_options_panel(true))
 	add_child(_options_panel)
 
 
@@ -11083,6 +11092,11 @@ func _handle_options_input(event: InputEvent) -> bool:
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
+	var tab_step := _GameInput.options_tab_step(event)
+	if tab_step != 0:
+		if _options_panel:
+			_options_panel.cycle_tab(tab_step)
+		return true
 	if _options_horizontal_nudge(event):
 		return true
 	if event is InputEventKey:
@@ -11152,7 +11166,8 @@ func _cycle_options_language(delta: int) -> void:
 
 
 func _confirm_options_item(_index: int) -> void:
-	_cycle_options_cursor_value(1)
+	if _options_panel != null and _options_panel.activate_current():
+		_close_options_panel(true)
 
 
 func _esc_menu_letter_index(k: InputEventKey) -> int:
@@ -13727,7 +13742,11 @@ func _finish_cast_aim_spell() -> void:
 		return
 	var target := _combat_aim_pos
 	var from := _combat_aim_from
-	if target == from or not _map.combat_can_aim_tile(target):
+	if (
+		target == from
+		or not _combat_style_allows_aim(from, target)
+		or not _map.combat_can_aim_tile(target)
+	):
 		_push_message(Locale.t("cmd_cannot_attack"), false)
 		_layout_prompt_row()
 		return
@@ -23211,7 +23230,11 @@ func _combat_begin_aim() -> void:
 		false
 	)
 	if _map:
-		_map.set_combat_range_shade(from, wid)
+		_map.set_combat_range_shade(
+			from,
+			wid,
+			GameState.get_combat_style() == GameState.COMBAT_STYLE_U4
+		)
 		_map.set_combat_aim_cursor(_combat_aim_pos)
 	_sync_combat_aim_foe_roster()
 	_layout_prompt_row()
@@ -23230,6 +23253,9 @@ func _combat_sticky_aim_pos(from: Vector2i, wid: int, party_slot: int) -> Vector
 		return from
 	var foe := _map.get_combat_foe_at(foe_i)
 	var pos := Vector2i(int(foe.get("x", from.x)), int(foe.get("y", from.y)))
+	if not _combat_style_allows_aim(from, pos):
+		_combat_last_aim_foe.erase(party_slot)
+		return from
 	if _cast_stage != 6 and (_map == null or not _map.combat_can_strike(wid, from, pos)):
 		_combat_last_aim_foe.erase(party_slot)
 		return from
@@ -23300,6 +23326,14 @@ func _try_combat_aim_foe_cycle(event: InputEvent) -> bool:
 	return false
 
 
+func _combat_style_allows_aim(from: Vector2i, target: Vector2i) -> bool:
+	## Ultima IV attacks and aimed combat spells travel only in cardinal lines.
+	if GameState.get_combat_style() != GameState.COMBAT_STYLE_U4:
+		return true
+	var delta := target - from
+	return delta.x == 0 or delta.y == 0
+
+
 func _combat_cycle_aim_foe(delta: int) -> void:
 	## Jump the aim cursor along the left-panel foe list (wraps).
 	## No current foe: > / RB starts at the top, < / LB at the bottom.
@@ -23340,6 +23374,8 @@ func _combat_cycle_aim_foe(delta: int) -> void:
 
 func _combat_aim_foe_reachable(pos: Vector2i) -> bool:
 	## Spell aim is unlimited; weapons stay inside cursor range.
+	if not _combat_style_allows_aim(_combat_aim_from, pos):
+		return false
 	if _cast_stage == 6:
 		return true
 	return WeaponIcons.aim_cursor_allows(_combat_aim_weapon, _combat_aim_from, pos)
@@ -23353,6 +23389,8 @@ func _combat_move_aim(dir: Vector2i) -> void:
 		return
 	if _cast_stage != 6 and not WeaponIcons.aim_cursor_allows(_combat_aim_weapon, _combat_aim_from, next):
 		return
+	if not _combat_style_allows_aim(_combat_aim_from, next):
+		return
 	_combat_aim_pos = next
 	_map.set_combat_aim_cursor(_combat_aim_pos)
 	_sync_combat_aim_foe_roster()
@@ -23365,7 +23403,11 @@ func _combat_confirm_aim() -> void:
 		return
 	var target := _combat_aim_pos
 	var from := _combat_aim_from
-	if target == from or not _map.combat_can_aim_tile(target):
+	if (
+		target == from
+		or not _combat_style_allows_aim(from, target)
+		or not _map.combat_can_aim_tile(target)
+	):
 		_push_message(Locale.t("cmd_cannot_attack"), false)
 		_layout_prompt_row()
 		return
@@ -23759,6 +23801,9 @@ func _combat_auto_pass() -> void:
 func _combat_auto_attack(wid: int, from: Vector2i, target: Vector2i) -> void:
 	if _map == null or not _map.is_in_combat():
 		return
+	if not _combat_style_allows_aim(from, target):
+		await _combat_auto_pass()
+		return
 	var klass := _map.get_combat_focus_klass()
 	var slot := _map.get_combat_focus_party_slot()
 	var pname := GameState.party_member_display_name(slot) if slot >= 0 else ""
@@ -23773,6 +23818,9 @@ func _combat_auto_attack(wid: int, from: Vector2i, target: Vector2i) -> void:
 
 func _combat_auto_cast_aim(spell_id: int, from: Vector2i, target: Vector2i) -> void:
 	if _map == null or not _map.is_in_combat() or spell_id < 0:
+		await _combat_auto_pass()
+		return
+	if not _combat_style_allows_aim(from, target):
 		await _combat_auto_pass()
 		return
 	var slot := _map.get_combat_focus_party_slot()

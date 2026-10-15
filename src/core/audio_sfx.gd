@@ -101,6 +101,9 @@ var _pool: Array[AudioStreamPlayer] = []
 var _pool_i := 0
 var _title_player: AudioStreamPlayer
 var _enabled := true
+var _background_music_enabled := true
+var _application_focused := true
+var _master_muted_by_background := false
 ## Music volume minus 5% so SFX sits slightly under BGM (still audible at 10%).
 var _volume_linear := 0.55
 var music: Node
@@ -121,9 +124,23 @@ func _ready() -> void:
 	music = _AudioMusic.new()
 	music.name = "Music"
 	add_child(music)
+	_application_focused = DisplayServer.window_is_focused()
 	_load_settings()
 	_sync_volume_from_music()
 	_apply_volume()
+
+
+func _exit_tree() -> void:
+	_release_background_audio_mute()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_application_focused = false
+		_apply_background_music_policy()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_application_focused = true
+		_apply_background_music_policy()
 
 
 func music_play(id: String) -> void:
@@ -191,6 +208,18 @@ func restore_pref() -> void:
 
 func is_enabled() -> bool:
 	return _enabled
+
+
+func is_background_music_enabled() -> bool:
+	return _background_music_enabled
+
+
+func set_background_music_enabled(on: bool, persist: bool = true) -> void:
+	_background_music_enabled = on
+	_application_focused = DisplayServer.window_is_focused()
+	_apply_background_music_policy()
+	if persist:
+		_save_settings()
 
 
 func set_volume_linear(v: float) -> void:
@@ -509,15 +538,47 @@ func _apply_volume() -> void:
 		_title_player.volume_db = linear_to_db(maxf(0.0001, _title_fade_linear()))
 
 
+func _apply_background_music_policy() -> void:
+	if _background_music_enabled or _application_focused:
+		_release_background_audio_mute()
+		return
+	var master_bus := AudioServer.get_bus_index("Master")
+	if master_bus < 0 or AudioServer.is_bus_mute(master_bus):
+		return
+	AudioServer.set_bus_mute(master_bus, true)
+	_master_muted_by_background = true
+
+
+func _release_background_audio_mute() -> void:
+	if not _master_muted_by_background:
+		return
+	var master_bus := AudioServer.get_bus_index("Master")
+	if master_bus >= 0:
+		AudioServer.set_bus_mute(master_bus, false)
+	_master_muted_by_background = false
+
+
 func _load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) != OK:
+		_background_music_enabled = true
+		_apply_background_music_policy()
 		return
 	_enabled = bool(cfg.get_value(SETTINGS_SECTION, "sfx", true))
+	_background_music_enabled = bool(
+		cfg.get_value(
+			SETTINGS_SECTION,
+			"background_music",
+			cfg.get_value(SETTINGS_SECTION, "background_audio", true)
+		)
+	)
+	_apply_background_music_policy()
 
 
 func _save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH)
 	cfg.set_value(SETTINGS_SECTION, "sfx", _enabled)
+	cfg.set_value(SETTINGS_SECTION, "background_music", _background_music_enabled)
+	cfg.erase_section_key(SETTINGS_SECTION, "background_audio")
 	cfg.save(SETTINGS_PATH)

@@ -18,6 +18,8 @@ const LANG_IDS := ["en_us", "en_u4", "ko"]
 ## App-wide prefs (menu language etc.) — separate from per-slot save JSON.
 const SETTINGS_PATH := "user://settings.cfg"
 const SETTINGS_SECTION := "prefs"
+const COMBAT_STYLE_U5 := "u5"
+const COMBAT_STYLE_U4 := "u4"
 
 ## External Ultima IV DOS data (never committed).
 const U4_DATA_RES := "res://data/u4"
@@ -50,6 +52,14 @@ var language: String:
 	set(value):
 		## Menu / explicit UI changes — also writes settings.cfg.
 		_set_language(value, true)
+var _combat_style: String = COMBAT_STYLE_U5
+var combat_style: String:
+	get:
+		return _combat_style
+	set(value):
+		set_combat_style(value)
+## Picker-owned Apple II Britannia disk path. Never auto-probed or slot-saved.
+var apple2_britannia_dsk_path: String = ""
 
 
 func _set_language(value: String, persist_pref: bool) -> void:
@@ -72,11 +82,38 @@ func restore_menu_language() -> void:
 	_load_language_pref()
 
 
+func get_combat_style() -> String:
+	return _combat_style
+
+
+func set_combat_style(value: String, persist_pref: bool = true) -> void:
+	_combat_style = _normalize_combat_style(value)
+	if persist_pref:
+		_persist_gameplay_prefs()
+
+
+func cycle_combat_style(persist_pref: bool = true) -> String:
+	var next := COMBAT_STYLE_U4 if _combat_style == COMBAT_STYLE_U5 else COMBAT_STYLE_U5
+	set_combat_style(next, persist_pref)
+	return _combat_style
+
+
+func get_apple2_britannia_dsk_path() -> String:
+	return apple2_britannia_dsk_path
+
+
+func set_apple2_britannia_dsk_path(path: String) -> void:
+	## The native picker is the authority; validation and automatic probing are forbidden here.
+	apple2_britannia_dsk_path = path
+	_persist_gameplay_prefs()
+
+
 func options_snapshot() -> Dictionary:
 	## Live Options values written into the next slot save and app prefs.
 	var pos := DisplaySettings.windowed_position()
 	return {
 		"language": language,
+		"combat_style": _combat_style,
 		"hangul_keyboard": HangulInputSettings.layout_id(),
 		"gamepad_layout": GamepadSettings.layout_id(),
 		"tileset": GraphicsSettings.tileset_id(),
@@ -87,6 +124,7 @@ func options_snapshot() -> Dictionary:
 		"sfx": AudioSfx.is_enabled(),
 		"music": AudioSfx.music_enabled(),
 		"music_volume": AudioSfx.music_volume_percent(),
+		"background_music": AudioSfx.is_background_music_enabled(),
 	}
 
 
@@ -96,6 +134,8 @@ func apply_session_options(opts: Dictionary) -> void:
 		return
 	if opts.has("language"):
 		apply_session_language(str(opts.get("language")))
+	if opts.has("combat_style"):
+		set_combat_style(str(opts.get("combat_style")), false)
 	if opts.has("hangul_keyboard"):
 		HangulInputSettings.set_layout_id(str(opts.get("hangul_keyboard")), true)
 	if opts.has("gamepad_layout"):
@@ -116,12 +156,15 @@ func apply_session_options(opts: Dictionary) -> void:
 		AudioSfx.music_set_volume_percent(int(opts.get("music_volume")), true)
 	if opts.has("music"):
 		AudioSfx.music_set_enabled(bool(opts.get("music")), true)
+	if opts.has("background_music"):
+		AudioSfx.set_background_music_enabled(bool(opts.get("background_music")), true)
 	commit_live_options()
 
 
 func commit_live_options() -> void:
 	## Keep the in-play Options and write them as the app's last state.
 	_persist_language_pref()
+	_persist_gameplay_prefs()
 	HangulInputSettings.persist_pref()
 	GamepadSettings.persist_pref()
 	GraphicsSettings.persist_pref()
@@ -132,6 +175,7 @@ func commit_live_options() -> void:
 func restore_menu_options() -> void:
 	## Cold start only: prefs files. Returning to title uses commit_live_options.
 	restore_menu_language()
+	_load_gameplay_prefs()
 	HangulInputSettings.restore_pref()
 	GamepadSettings.restore_pref()
 	GraphicsSettings.restore_pref()
@@ -427,6 +471,7 @@ enum EquipError {
 
 func _ready() -> void:
 	_load_language_pref()
+	_load_gameplay_prefs()
 	reset_party()
 	u4_data_ok = _probe_u4_data()
 	apple2_dsk_ok = _probe_apple2_dsk()
@@ -472,6 +517,34 @@ func _persist_language_pref() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SETTINGS_PATH) ## keep other keys if any
 	cfg.set_value(SETTINGS_SECTION, "language", normalize_language(_language))
+	cfg.save(SETTINGS_PATH)
+
+
+func _normalize_combat_style(value: String) -> String:
+	return COMBAT_STYLE_U4 if value.strip_edges().to_lower() == COMBAT_STYLE_U4 else COMBAT_STYLE_U5
+
+
+func _load_gameplay_prefs() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) != OK:
+		_combat_style = COMBAT_STYLE_U5
+		apple2_britannia_dsk_path = ""
+		return
+	_combat_style = _normalize_combat_style(
+		str(cfg.get_value(SETTINGS_SECTION, "combat_style", COMBAT_STYLE_U5))
+	)
+	apple2_britannia_dsk_path = str(
+		cfg.get_value(SETTINGS_SECTION, "apple2_britannia_dsk_path", "")
+	)
+
+
+func _persist_gameplay_prefs() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH) ## keep unrelated preferences.
+	cfg.set_value(SETTINGS_SECTION, "combat_style", _combat_style)
+	cfg.set_value(
+		SETTINGS_SECTION, "apple2_britannia_dsk_path", apple2_britannia_dsk_path
+	)
 	cfg.save(SETTINGS_PATH)
 
 

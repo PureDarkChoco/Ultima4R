@@ -749,6 +749,7 @@ func _ensure_options_panel() -> void:
 		return
 	_options_panel = _OptionsPanel.new()
 	_options_panel.name = "OptionsPanel"
+	_options_panel.back_requested.connect(_close_options)
 	add_child(_options_panel)
 
 
@@ -913,6 +914,11 @@ func _handle_options_input(event: InputEvent) -> bool:
 		return true
 	if not event.is_pressed() or event.is_echo():
 		return false
+	var tab_step := _GameInput.options_tab_step(event)
+	if tab_step != 0:
+		if _options_panel:
+			_options_panel.cycle_tab(tab_step)
+		return true
 	if _options_horizontal_nudge(event):
 		return true
 	if _GameInput.is_cancel(event) or _is_right_click(event):
@@ -922,7 +928,8 @@ func _handle_options_input(event: InputEvent) -> bool:
 		return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
 		if _options_panel:
-			_options_panel.cycle_current(1)
+			if _options_panel.activate_current():
+				_close_options()
 		return true
 	if event is InputEventKey or event is InputEventJoypadButton:
 		## Swallow other keys so menu R/J/I/O/A don't fire under options.
