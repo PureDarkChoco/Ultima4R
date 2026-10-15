@@ -50,10 +50,17 @@ var _row_rights: Array[Label] = []
 var _row_bgs: Array[ColorRect] = []
 var _row_edges: Array[TextureRect] = []
 var _row_wraps: Array[Control] = []
+var _title_tab_gap: Control
+var _tabs_list_gap: Control
+var _list_back_gap: Control
 var _back_wrap: Control
 var _back_bg: ColorRect
 var _back_edge: TextureRect
 var _back_label: Label
+var _list_fill: Control
+var _spread_rows := false
+var _spread_row_h := 0.0
+var _spread_sep := 0
 
 var _tab := Tab.LANGUAGE
 var _cursor := Item.LANGUAGE
@@ -306,6 +313,11 @@ func _build() -> void:
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_col.add_child(_title)
 
+	_title_tab_gap = Control.new()
+	_title_tab_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_tab_gap.visible = false
+	_col.add_child(_title_tab_gap)
+
 	_tabs = HBoxContainer.new()
 	_tabs.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tabs.add_theme_constant_override("separation", 4)
@@ -320,12 +332,25 @@ func _build() -> void:
 		_tabs.add_child(btn)
 		_tab_buttons.append(btn)
 
+	_tabs_list_gap = Control.new()
+	_tabs_list_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tabs_list_gap.visible = false
+	_col.add_child(_tabs_list_gap)
+
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 3)
 	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_col.add_child(_list)
 	for i in ITEM_COUNT:
 		_build_item_row(i)
+	_list_fill = Control.new()
+	_list_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_list_fill.visible = false
+	_list.add_child(_list_fill)
+	_list_back_gap = Control.new()
+	_list_back_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_list_back_gap.visible = false
+	_col.add_child(_list_back_gap)
 	_build_back_row()
 	_refresh_labels()
 
@@ -428,22 +453,34 @@ func _apply_presentation() -> void:
 		_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		_panel.custom_minimum_size = _embed_rect.size
-		var col_sep := 4
-		var list_sep := 1
-		_col.add_theme_constant_override("separation", col_sep)
-		_list.add_theme_constant_override("separation", list_sep)
+		## Keep Back pinned to the bottom. The three option rows and Back share
+		## the remaining vertical space evenly; the tabs get a double top gap.
 		var item_rows := _max_tab_rows()
-		var fixed_rows := 3 ## Title + tabs + Back.
-		var spacing := float(col_sep * 3 + list_sep * maxi(item_rows - 1, 0))
-		var breathing_room := 10.0
-		var row_h := clampf(
-			(_embed_rect.size.y - spacing - breathing_room)
-			/ float(item_rows + fixed_rows),
-			16.0,
-			34.0
-		)
-		var font_sz := clampi(int(row_h * 0.5), 11, 18)
-		_style_all(font_sz, row_h)
+		var embed_h := int(floor(_embed_rect.size.y))
+		var chrome := clampi(int(round(embed_h / 12.0)), 32, 40)
+		var title_gap := 6
+		var tabs_gap := 12
+		var used := chrome * (3 + item_rows) + title_gap + tabs_gap
+		var list_sep := maxi(int(floor(float(embed_h - used) / 3.0)), 2)
+		if used + list_sep * 3 > embed_h:
+			var budget := embed_h - title_gap - tabs_gap - 6
+			chrome = clampi(int(floor(float(budget) / float(3 + item_rows))), 16, chrome)
+			used = chrome * (3 + item_rows) + title_gap + tabs_gap
+			list_sep = maxi(int(floor(float(embed_h - used) / 3.0)), 2)
+		_spread_rows = true
+		_spread_row_h = float(chrome)
+		_spread_sep = list_sep
+		_col.add_theme_constant_override("separation", 0)
+		_title_tab_gap.visible = true
+		_title_tab_gap.custom_minimum_size = Vector2(0, title_gap)
+		_tabs_list_gap.visible = true
+		_tabs_list_gap.custom_minimum_size = Vector2(0, tabs_gap)
+		_list_back_gap.visible = true
+		_list_back_gap.custom_minimum_size = Vector2(0, list_sep)
+		_list.add_theme_constant_override("separation", list_sep)
+		_list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		var font_sz := clampi(int(round(float(chrome) * 0.5)), 14, 18)
+		_style_all(font_sz, float(chrome))
 	else:
 		_backdrop.visible = true
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -452,8 +489,15 @@ func _apply_presentation() -> void:
 		_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_panel.custom_minimum_size = Vector2(PANEL_W, 0)
 		_panel.add_theme_stylebox_override("panel", UiTheme.make_panel())
+		_spread_rows = false
+		_spread_row_h = 0.0
+		_spread_sep = 0
+		_title_tab_gap.visible = false
+		_tabs_list_gap.visible = false
+		_list_back_gap.visible = false
 		_col.add_theme_constant_override("separation", 8)
 		_list.add_theme_constant_override("separation", 3)
+		_list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		_style_all(FONT_SIZE, ROW_H)
 	_apply_row_visibility()
 
@@ -642,8 +686,23 @@ func _committed_path_state(committed: bool, ready: bool) -> String:
 
 func _apply_row_visibility() -> void:
 	var active := _tab_items(_tab)
+	var shown := 0
 	for i in ITEM_COUNT:
-		_row_wraps[i].visible = i in active
+		var on := i in active
+		_row_wraps[i].visible = on
+		if on:
+			shown += 1
+	if _list_fill == null:
+		return
+	var missing := maxi(_max_tab_rows() - shown, 0) if _spread_rows else 0
+	_list_fill.visible = missing > 0
+	if missing > 0:
+		## Hold the unused slots, including the gaps that would sit between them,
+		## so Back stays at the bottom on tabs with fewer than three rows.
+		var fill_h := float(missing) * _spread_row_h + float(missing - 1) * float(_spread_sep)
+		_list_fill.custom_minimum_size = Vector2(0, fill_h)
+	else:
+		_list_fill.custom_minimum_size = Vector2.ZERO
 
 
 func _sync_cursor() -> void:
