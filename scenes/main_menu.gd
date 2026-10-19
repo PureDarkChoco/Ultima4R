@@ -11,6 +11,7 @@ const _LicensesPanel := preload("res://src/ui/licenses_panel.gd")
 const _GameInput := preload("res://src/core/game_input.gd")
 const _MenuHoldRepeat := preload("res://src/core/menu_hold_repeat.gd")
 const _DosSaveImport := preload("res://src/core/dos_save_import.gd")
+const _Apple2SaveImport := preload("res://src/core/apple2_save_import.gd")
 const _Journal := preload("res://src/core/journal.gd")
 const _NAME_GENDER_SCN := preload("res://scenes/intro/name_gender.tscn")
 
@@ -46,6 +47,10 @@ var _transport_root: Control
 var _transport_body: Label
 var _transport_yes: Button
 var _transport_no: Button
+var _transport_tabs: Array[Button] = []
+var _transport_sources: Array[Dictionary] = [{}, {}]
+var _transport_tab := 0
+var _transport_row := 0
 var _import_editing := false
 var _import_save_open := false
 var _import_payload: Dictionary = {}
@@ -411,7 +416,7 @@ func _process(delta: float) -> void:
 		return
 	var held := Vector2i(
 		_GameInput.read_select_step_x() if (_options_open or _transport_open) else 0,
-		_GameInput.read_select_step() if not _transport_open else 0
+		_GameInput.read_select_step()
 	)
 	var nav := _menu_hold_repeat.poll(delta, held)
 	if nav == Vector2i.ZERO:
@@ -428,7 +433,10 @@ func _process(delta: float) -> void:
 	elif _licenses_open and _licenses_panel:
 		_licenses_panel.scroll_by(float(nav.y) * 54.0)
 	elif _transport_open:
-		_nudge_transport_choice(nav.x)
+		if nav.y != 0:
+			_nudge_transport_row(nav.y)
+		elif nav.x != 0:
+			_nudge_transport_side(nav.x)
 
 
 func _mark_input_handled() -> void:
@@ -701,24 +709,24 @@ func _on_new() -> void:
 func _on_transport() -> void:
 	if _load_open or _create_open or _options_open or _licenses_open or _transport_open or QuitConfirm.is_open():
 		return
-	var result := _DosSaveImport.import_from_data_dir(GameState.u4_data_path)
-	if not bool(result.get("ok", false)):
-		var error := str(result.get("error", "invalid"))
-		_tagline.text = Locale.t(
-			"dos_import_none" if error == "missing" else "dos_import_invalid"
-		)
-		_btn_transport.grab_focus()
-		return
-	_import_payload = result
+	_transport_sources[0] = _DosSaveImport.import_from_data_dir(GameState.u4_data_path)
+	_transport_sources[1] = _Apple2SaveImport.import_configured()
+	_transport_tab = 0
+	if (
+		not bool(_transport_sources[0].get("ok", false))
+		and bool(_transport_sources[1].get("ok", false))
+	):
+		_transport_tab = 1
+	_transport_row = 0
 	_open_transport_confirm()
 
 
 func _transport_question() -> String:
-	var s: Dictionary = _import_payload.get("summary", {})
-	var edition := str(s.get("edition", _DosSaveImport.EDITION_EN))
-	var edition_label := Locale.t(
-		"dos_import_edition_ko" if edition == _DosSaveImport.EDITION_KO else "dos_import_edition_en"
-	)
+	var source: Dictionary = _active_transport_source()
+	if not bool(source.get("ok", false)):
+		return _transport_error_text(source)
+	var s: Dictionary = source.get("summary", {})
+	var edition_label := _transport_edition_label(s)
 	var klass_name := Virtues.class_name_of(int(s.get("class", 0)), GameState.lang_short())
 	return Locale.t("dos_import_summary", [
 		edition_label,
@@ -728,6 +736,32 @@ func _transport_question() -> String:
 		str(s.get("gold", 0)),
 		str(s.get("moves", 0)),
 	])
+
+
+func _active_transport_source() -> Dictionary:
+	if _transport_tab < 0 or _transport_tab >= _transport_sources.size():
+		return {}
+	return _transport_sources[_transport_tab]
+
+
+func _transport_edition_label(summary: Dictionary) -> String:
+	if _transport_tab == 1:
+		return Locale.t("dos_import_edition_apple2")
+	var edition := str(summary.get("edition", _DosSaveImport.EDITION_EN))
+	return Locale.t(
+		"dos_import_edition_ko" if edition == _DosSaveImport.EDITION_KO else "dos_import_edition_en"
+	)
+
+
+func _transport_error_text(source: Dictionary) -> String:
+	var error := str(source.get("error", "invalid"))
+	if _transport_tab == 1:
+		if error == "unset":
+			return Locale.t("apple2_import_unset")
+		if error == "missing":
+			return Locale.t("apple2_import_missing")
+		return Locale.t("apple2_import_invalid")
+	return Locale.t("dos_import_none" if error == "missing" else "dos_import_invalid")
 
 
 func _ensure_transport_panel() -> void:
@@ -741,15 +775,41 @@ func _ensure_transport_panel() -> void:
 
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 16)
+	col.offset_left = 10
+	col.offset_top = 8
+	col.offset_right = -10
+	col.offset_bottom = -8
+	col.alignment = BoxContainer.ALIGNMENT_BEGIN
+	col.add_theme_constant_override("separation", 8)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_transport_root.add_child(col)
+
+	var tabs := HBoxContainer.new()
+	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	tabs.add_theme_constant_override("separation", 4)
+	tabs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(tabs)
+	for i in 2:
+		var btn := Button.new()
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tab_i := i
+		btn.pressed.connect(func() -> void:
+			_transport_tab = tab_i
+			_transport_row = 0
+			_release_transport_choice_focus()
+			_show_transport_source()
+		)
+		tabs.add_child(btn)
+		_transport_tabs.append(btn)
 
 	_transport_body = Label.new()
 	_transport_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_transport_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_transport_body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_transport_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_transport_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	UiTheme.style_label(_transport_body, 16, UiTheme.TEXT)
 	col.add_child(_transport_body)
 
@@ -776,8 +836,8 @@ func _ensure_transport_panel() -> void:
 	_transport_no.focus_neighbor_bottom = _transport_no.get_path_to(_transport_no)
 	_transport_yes.pressed.connect(_accept_transport)
 	_transport_no.pressed.connect(_dismiss_transport)
-	_transport_yes.focus_entered.connect(_sync_transport_choice)
-	_transport_no.focus_entered.connect(_sync_transport_choice)
+	_transport_yes.focus_entered.connect(_on_transport_choice_focused)
+	_transport_no.focus_entered.connect(_on_transport_choice_focused)
 
 
 func _open_transport_confirm() -> void:
@@ -789,13 +849,10 @@ func _open_transport_confirm() -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo:
 		fo.release_focus()
-	_transport_body.text = _transport_question()
-	_refresh_transport_choices()
 	_transport_root.visible = true
 	_transport_root.move_to_front()
 	_layout_transport_confirm()
-	_transport_no.grab_focus()
-	_sync_transport_choice()
+	_show_transport_source()
 
 
 func _layout_transport_confirm() -> void:
@@ -809,8 +866,13 @@ func _layout_transport_confirm() -> void:
 	_transport_root.size = r.size
 	_transport_root.custom_minimum_size = r.size
 	var font_sz := int(_menu_line_metrics().x)
-	_transport_body.custom_minimum_size = Vector2(r.size.x, 0)
+	var line_h := _menu_line_metrics().y
+	_transport_body.custom_minimum_size = Vector2(0, 0)
 	_transport_body.add_theme_font_size_override("font_size", font_sz)
+	for btn in _transport_tabs:
+		btn.add_theme_font_override("font", UiTheme.font_bold())
+		btn.add_theme_font_size_override("font_size", font_sz)
+		btn.custom_minimum_size = Vector2(0, line_h)
 	_lock_transport_buttons()
 
 
@@ -838,22 +900,105 @@ func _lock_transport_buttons() -> void:
 		btn.custom_minimum_size = UiTheme.MENU_CHOICE_BTN_MIN
 
 
+func _show_transport_source() -> void:
+	if _transport_body == null:
+		return
+	_refresh_transport_choices()
+	_transport_body.text = _transport_question()
+	var ready := bool(_active_transport_source().get("ok", false))
+	_transport_yes.disabled = not ready
+	_transport_yes.modulate = Color(1, 1, 1, 0.4) if not ready else Color.WHITE
+	if _transport_row == 1 and get_viewport().gui_get_focus_owner() != _transport_yes:
+		_transport_no.grab_focus()
+	_sync_transport_choice()
+
+
+func _on_transport_choice_focused() -> void:
+	_transport_row = 1
+	_sync_transport_choice()
+
+
 func _sync_transport_choice() -> void:
 	if _transport_yes == null:
 		return
-	var yes_on := get_viewport().gui_get_focus_owner() == _transport_yes
+	var on_choice := _transport_row == 1
+	var yes_on := on_choice and get_viewport().gui_get_focus_owner() == _transport_yes
 	UiTheme.style_menu_choice_button(_transport_yes, yes_on)
-	UiTheme.style_menu_choice_button(_transport_no, not yes_on)
+	UiTheme.style_menu_choice_button(_transport_no, on_choice and not yes_on)
+	_style_transport_tabs()
 	_transport_body.add_theme_font_size_override("font_size", int(_menu_line_metrics().x))
 	_lock_transport_buttons()
 
 
-func _nudge_transport_choice(step: int) -> void:
-	if step < 0:
+func _style_transport_tabs() -> void:
+	var on_tabs := _transport_row == 0
+	for i in _transport_tabs.size():
+		var selected := i == _transport_tab
+		var cursor := on_tabs and selected
+		var bg := Color(0.28, 0.55, 0.9) if cursor else (
+			Color(0.18, 0.39, 0.66, 0.95) if selected else Color(0.025, 0.075, 0.095, 0.9)
+		)
+		var edge := UiTheme.ACCENT if selected or cursor else UiTheme.BORDER
+		var box := _transport_tab_box(bg, edge)
+		var btn := _transport_tabs[i]
+		btn.text = Locale.t("import_tab_dos" if i == 0 else "import_tab_apple2")
+		btn.add_theme_stylebox_override("normal", box)
+		btn.add_theme_stylebox_override("hover", _transport_tab_box(Color(0.22, 0.42, 0.62), UiTheme.ACCENT))
+		btn.add_theme_stylebox_override("pressed", _transport_tab_box(Color(0.28, 0.55, 0.9), UiTheme.ACCENT))
+		btn.add_theme_stylebox_override("disabled", box)
+		btn.add_theme_stylebox_override("focus", box)
+		var ink := Color(1.0, 0.94, 0.62) if selected else UiTheme.TEXT
+		btn.add_theme_color_override("font_color", ink)
+		btn.add_theme_color_override("font_hover_color", Color.WHITE)
+		btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+
+
+func _transport_tab_box(bg: Color, edge: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = bg
+	box.border_color = edge
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(2)
+	box.content_margin_left = 8
+	box.content_margin_right = 8
+	box.content_margin_top = 2
+	box.content_margin_bottom = 2
+	return box
+
+
+func _nudge_transport_row(step: int) -> void:
+	var next := clampi(_transport_row + step, 0, 1)
+	if next == _transport_row:
+		return
+	_transport_row = next
+	if next == 1:
+		_transport_no.grab_focus()
+	else:
+		_release_transport_choice_focus()
+	_sync_transport_choice()
+
+
+func _nudge_transport_side(step: int) -> void:
+	if step == 0:
+		return
+	if _transport_row == 0:
+		var next := clampi(_transport_tab + step, 0, 1)
+		if next == _transport_tab:
+			return
+		_transport_tab = next
+		_show_transport_source()
+		return
+	if step < 0 and not _transport_yes.disabled:
 		_transport_yes.grab_focus()
 	elif step > 0:
 		_transport_no.grab_focus()
 	_sync_transport_choice()
+
+
+func _release_transport_choice_focus() -> void:
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo == _transport_yes or fo == _transport_no:
+		fo.release_focus()
 
 
 func _handle_transport_input(event: InputEvent) -> bool:
@@ -875,7 +1020,11 @@ func _handle_transport_input(event: InputEvent) -> bool:
 			_dismiss_transport()
 			return true
 	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
-		if get_viewport().gui_get_focus_owner() == _transport_yes:
+		if _transport_row == 0:
+			_transport_row = 1
+			_transport_no.grab_focus()
+			_sync_transport_choice()
+		elif get_viewport().gui_get_focus_owner() == _transport_yes:
 			_accept_transport()
 		else:
 			_dismiss_transport()
@@ -886,6 +1035,10 @@ func _handle_transport_input(event: InputEvent) -> bool:
 
 
 func _accept_transport() -> void:
+	var source := _active_transport_source()
+	if not bool(source.get("ok", false)):
+		return
+	_import_payload = source
 	_hide_transport_panel()
 	_begin_dos_import()
 	if _create_open:

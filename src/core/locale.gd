@@ -181,9 +181,9 @@ const _T := {
 		"ko": "새 게임 시작",
 	},
 	"menu_transport": {
-		"en_u4": "Transfer DOS Save",
-		"en_us": "Transfer DOS Save",
-		"ko": "DOS Save 가져오기",
+		"en_u4": "Transfer Save",
+		"en_us": "Import Save",
+		"ko": "저장 가져오기",
 	},
 	"dos_import_none": {
 		"en_u4": "No PARTY.SAV was found in the Ultima IV data path.",
@@ -196,9 +196,39 @@ const _T := {
 		"ko": "DOS 저장 파일이 올바르지 않거나 손상되어 가져올 수 없다.",
 	},
 	"dos_import_summary": {
-		"en_u4": "A record hath been found.\n\nEdition: %s\nName: %s\nCalling: %s\nLevel: %s   Gold: %s\nMoves: %s\n\nTransfer this DOS save?",
-		"en_us": "A DOS save was found.\n\nEdition: %s\nName: %s\nClass: %s\nLevel: %s   Gold: %s\nTurns: %s\n\nImport this saved game?",
-		"ko": "DOS 저장 파일을 찾았습니다.\n\n판본: %s\n이름: %s\n직업: %s\n레벨: %s   골드: %s\n플레이 턴: %s\n\n이 저장 파일을 가져오겠습니까?",
+		"en_u4": "A record hath been found.\n\nEdition: %s\nName: %s\nCalling: %s\nLevel: %s   Gold: %s\nMoves: %s\n\nTransfer this save?",
+		"en_us": "A saved game was found.\n\nEdition: %s\nName: %s\nClass: %s\nLevel: %s   Gold: %s\nTurns: %s\n\nImport this saved game?",
+		"ko": "저장 파일을 찾았습니다.\n\n판본: %s\n이름: %s\n직업: %s\n레벨: %s   골드: %s\n플레이 턴: %s\n\n이 저장 파일을 가져오겠습니까?",
+	},
+	"import_tab_dos": {
+		"en_u4": "DOS",
+		"en_us": "DOS",
+		"ko": "DOS",
+	},
+	"import_tab_apple2": {
+		"en_u4": "Apple II",
+		"en_us": "Apple II",
+		"ko": "Apple II",
+	},
+	"dos_import_edition_apple2": {
+		"en_u4": "Apple II",
+		"en_us": "Apple II",
+		"ko": "Apple II",
+	},
+	"apple2_import_unset": {
+		"en_u4": "No Apple II Britannia disk hath been set.\nChoose it under Options.",
+		"en_us": "No Apple II Britannia disk is set.\nChoose it in Options.",
+		"ko": "Apple II Britannia 디스크가 지정되지 않았다.\n옵션에서 디스크를 지정하라.",
+	},
+	"apple2_import_missing": {
+		"en_u4": "The Apple II Britannia disk could not be found.",
+		"en_us": "The Apple II Britannia disk could not be found.",
+		"ko": "Apple II Britannia 디스크 파일을 찾을 수 없다.",
+	},
+	"apple2_import_invalid": {
+		"en_u4": "No Apple II save could be read from that disk.",
+		"en_us": "No Apple II save could be read from that disk.",
+		"ko": "그 디스크에서 Apple II 세이브를 읽지 못하였다.",
 	},
 	"dos_import_edition_en": {
 		"en_u4": "English DOS",

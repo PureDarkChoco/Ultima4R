@@ -394,11 +394,28 @@ static func _build_world(party: Dictionary, dir_path: String) -> Dictionary:
 	return world
 
 
+static func game_from_party(party: Dictionary) -> Dictionary:
+	return _build_game(party)
+
+
+static func world_from_party(party: Dictionary, monsters: PackedByteArray = PackedByteArray()) -> Dictionary:
+	var world := _build_world(party, "")
+	if monsters.size() == MONSTERS_BYTES:
+		var table := _monster_table_from_bytes(monsters)
+		world["overlays"] = table["overlays"]
+		world["creatures"] = table["creatures"]
+	return world
+
+
 static func _read_monster_table(path: String) -> Dictionary:
-	var out := {"overlays": [], "creatures": []}
 	if path.is_empty():
-		return out
+		return {"overlays": [], "creatures": []}
 	var bytes := FileAccess.get_file_as_bytes(path)
+	return _monster_table_from_bytes(bytes)
+
+
+static func _monster_table_from_bytes(bytes: PackedByteArray) -> Dictionary:
+	var out := {"overlays": [], "creatures": []}
 	if bytes.size() != MONSTERS_BYTES:
 		return out
 	var overlays: Array = out["overlays"]

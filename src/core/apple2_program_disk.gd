@@ -68,6 +68,21 @@ static func catalog_names(path: String) -> PackedStringArray:
 	return names
 
 
+static func read_catalog_file(path: String, wanted: String) -> PackedByteArray:
+	## Raw DOS 3.3 file bytes (sector data, including a binary load header).
+	var dsk := _read_dsk(path)
+	if dsk.is_empty():
+		return PackedByteArray()
+	var key := wanted.strip_edges().to_upper()
+	if key.is_empty():
+		return PackedByteArray()
+	for row in _catalog_files(dsk):
+		if str(row["name"]).strip_edges().to_upper() != key:
+			continue
+		return _read_dos33_file(dsk, int(row["t"]), int(row["s"]))
+	return PackedByteArray()
+
+
 static func looks_like_program_dsk(path: String) -> bool:
 	return not find_shp_ts(path).is_empty()
 
