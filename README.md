@@ -51,6 +51,13 @@ That data remains subject to the license and terms under which you acquired it.
 
 Ultima, Ultima IV, Britannia, Origin Systems 및 관련 명칭과 자산의 권리는 각 권리자에게 있습니다. 이 팬 프로젝트는 Electronic Arts 또는 원 권리자와 제휴하거나 승인받은 제품이 아닙니다.
 
+### 이 프로젝트의 코드
+
+이 저장소에서 만든 Ultima IV++ 코드는 GNU General Public License version 3 이상 (GPL-3.0-or-later)으로 배포됩니다.  
+https://www.gnu.org/licenses/gpl-3.0.html
+
+이 라이선스는 여기서 만든 코드와 그 안에 포함된 GPL·LGPL 부분에 적용됩니다. Ultima IV 게임 데이터와 상표, C64 배경음악, Raven Fantasy Icons, Freesound 음원은 포함되지 않으며 각 권리자의 조건을 따릅니다.
+
 ### xu4
 
 게임 규칙, 파일 형식 및 구현을 이해하기 위해 [xu4](https://github.com/xu4-engine/u4) 소스 코드와 문서를 참고했습니다.  
@@ -115,6 +122,13 @@ UI 글꼴은 SIL Open Font License (OFL)의 [D2Coding](https://github.com/naver/
 This project requires original Ultima IV for DOS game data lawfully obtained by the user. No original game data is distributed with this project. That data remains subject to the license and terms under which the user acquired it.
 
 Ultima, Ultima IV, Britannia, Origin Systems, and related names and assets belong to their respective owners. This fan project is not affiliated with or endorsed by Electronic Arts or the original rights holders.
+
+### Code in this project
+
+The Ultima IV++ code in this repository is distributed under the GNU General Public License version 3 or later (GPL-3.0-or-later).  
+https://www.gnu.org/licenses/gpl-3.0.html
+
+This covers the code written here and the GPL and LGPL parts included with it. Ultima IV game data and trademarks, the C64 soundtrack, Raven Fantasy Icons, and Freesound clips are not included and remain under their owners' terms.
 
 ### xu4
 

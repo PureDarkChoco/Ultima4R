@@ -1,0 +1,64 @@
+Ultima IV++
+Copyright (c) 2026 PureDarkChoco
+
+이 저장소에서 만든 Ultima IV++ 코드는 GNU General Public License version 3 이상(GPL-3.0-or-later)으로 배포됩니다. Free Software Foundation이 발표한 GPL 3판, 또는 그 이후 판의 조건에 따라 재배포하고 수정할 수 있습니다.
+
+https://www.gnu.org/licenses/gpl-3.0.html
+
+이 라이선스는 여기서 만든 코드와, 그 안에 포함된 GPL·LGPL 부분에 적용됩니다. 아래 항목은 포함되지 않으며 각 권리자의 조건을 따릅니다.
+
+- Ultima IV 게임 데이터와 Ultima, Britannia, Origin Systems 등 관련 명칭·자산
+- Commodore 64판 Ultima IV 배경음악 (Ken Arnold)
+- Raven Fantasy Icons
+- Freesound 음원
+
+팬 프로젝트이며 Electronic Arts 또는 원 권리자의 제휴·승인 제품이 아닙니다. Ultima IV DOS 데이터와 Apple II 디스크 이미지는 포함하지 않습니다.
+
+The Ultima IV++ code in this repository is distributed under the GNU General Public License version 3 or later (GPL-3.0-or-later). You may redistribute and modify it under the terms of the GPL as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This license covers the code written here and the GPL and LGPL parts included with it. The following stay under their own owners' terms:
+
+- Ultima IV game data and related names and assets, including Ultima, Britannia, and Origin Systems
+- the Commodore 64 Ultima IV soundtrack by Ken Arnold
+- Raven Fantasy Icons
+- Freesound clips
+
+This is a fan project and is not affiliated with or endorsed by Electronic Arts or the original rights holders. Ultima IV for DOS game data and Apple II disk images are not included.
+
+## 서드파티 / Third-party notices
+
+### xu4 — GPL-3.0
+
+게임 규칙, 파일 형식, 구현을 이해하기 위해 xu4 소스와 문서를 참고했습니다. 효과음 파일은 xu4에서 가져왔습니다.
+
+https://github.com/xu4-engine/u4
+
+xu4는 GNU General Public License version 3 (GPL-3.0)으로 배포됩니다.
+
+xu4 source and documentation were consulted for game rules, file formats, and implementation details. Sound-effect files are taken from xu4. xu4 is distributed under GPL-3.0.
+
+### AppleWin — GPL-2.0-or-later
+
+Apple II Color의 NTSC 합성 색상은 AppleWin Color Monitor 경로(NTSC.cpp, William S. Simms / Michael Pohoreski)를 참고했고, Mariani/AppleWin Composite Monitor hue LUT를 사용합니다.
+
+https://github.com/AppleWin/AppleWin
+
+AppleWin은 GNU General Public License version 2 (GPL-2.0) 이상으로 배포됩니다. GPL-3.0과 함께 배포할 수 있습니다.
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+Apple II Color NTSC composite decoding consults AppleWin's Color Monitor path and uses a Mariani/AppleWin Composite Monitor hue LUT. AppleWin is distributed under GPL-2.0-or-later, which can be distributed together with GPL-3.0.
+
+### libhangul — LGPL-2.1-or-later
+
+두벌식, 세벌식 390, 세벌식 최종 한글 조합에 libhangul 0.2.0을 사용합니다. `native/libhangul_gdext`가 이 라이브러리를 정적 링크합니다. 소스는 그 디렉터리의 CMake가 위 태그를 받아 빌드하며, 저장소에는 커밋하지 않습니다.
+
+https://github.com/libhangul/libhangul
+
+libhangul은 GNU Lesser General Public License version 2.1 이상 (LGPL-2.1-or-later)으로 배포됩니다. GPL-3.0과 함께 쓸 수 있습니다.
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+libhangul 0.2.0 provides Dubeolsik, Sebeolsik 390, and Sebeolsik Final composition. `native/libhangul_gdext` links it statically. CMake in that directory fetches the tagged source at build time; it is not committed here. libhangul is distributed under LGPL-2.1-or-later, which can be combined with GPL-3.0.
+
+다른 출처(Godot, u4graphics, D2Coding, Raven Fantasy Icons, Freesound, C64 배경음악)는 README About과 게임 안 About에 있습니다.
+
+Other attributions (Godot, u4graphics, D2Coding, Raven Fantasy Icons, Freesound, and the C64 soundtrack) are in the README About section and the in-game About screen.

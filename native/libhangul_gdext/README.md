@@ -29,7 +29,7 @@ binary referenced by `ultima4r_hangul_input.gdextension`.
 
 - libhangul: LGPL-2.1-or-later
 - godot-cpp: MIT
-- This wrapper follows the project's license.
+- This wrapper is part of Ultima IV++ and is distributed under GPL-3.0-or-later.
 
 Relinking information and the pinned source revisions are available in
 `CMakeLists.txt`.
