@@ -41,6 +41,11 @@ var _load_open := false
 var _create_open := false
 var _options_open := false
 var _licenses_open := false
+var _transport_open := false
+var _transport_root: Control
+var _transport_body: Label
+var _transport_yes: Button
+var _transport_no: Button
 var _import_editing := false
 var _import_save_open := false
 var _import_payload: Dictionary = {}
@@ -109,14 +114,17 @@ func _on_intro_mode(mode: int) -> void:
 	## Load / create / options forms fill the frame — keep Journey lines hidden.
 	_text_block.visible = (
 		menu_on and not _load_open and not _create_open
-		and not _options_open and not _licenses_open
+		and not _options_open and not _licenses_open and not _transport_open
 	)
 	## Options head + bottom input hint stay off; actions only inside the map frame.
 	_options_head.visible = false
 	_hint.visible = false
 	if menu_on:
 		call_deferred("_layout_u4")
-		if not _load_open and not _create_open and not _options_open and not _licenses_open:
+		if (
+			not _load_open and not _create_open and not _options_open
+			and not _licenses_open and not _transport_open
+		):
 			call_deferred("_apply_pending_focus")
 	else:
 		var fo := get_viewport().gui_get_focus_owner()
@@ -196,6 +204,9 @@ func _layout_u4() -> void:
 		return
 	if _licenses_open and _licenses_panel != null and is_instance_valid(_licenses_panel):
 		_layout_licenses_embed()
+		return
+	if _transport_open and _transport_root != null:
+		_layout_transport_confirm()
 		return
 	if (
 		_intro != null
@@ -306,12 +317,11 @@ func _layout_menu_in_frame() -> void:
 	_options_head.visible = false
 	_hint.visible = false
 
-	var n_menu := menu_nodes.size()
-	## Leave space under the last action so two-line copyright can sit lower.
-	var menu_block_h := usable_h * 0.76
-	var line_h := menu_block_h / float(n_menu)
-	var font_main := clampi(int(line_h * 0.62), 12, 28)
+	var metrics := _menu_line_metrics()
+	var line_h := metrics.y
+	var font_main := int(metrics.x)
 	var font_muted := clampi(int(line_h * 0.50), 10, 20)
+	var n_menu := menu_nodes.size()
 	for i in n_menu:
 		var node := menu_nodes[i]
 		node.add_theme_font_size_override("font_size", font_main)
@@ -337,6 +347,23 @@ func _layout_menu_in_frame() -> void:
 	_copyright.custom_minimum_size = Vector2(usable_w, copy_h)
 	_copyright.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_copyright.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+
+## Journey-list font and line height, so embedded prompts match the start menu.
+func _menu_line_metrics() -> Vector2:
+	if _intro == null or not _intro.has_method("map_frame_inner_rect"):
+		return Vector2(16, 26)
+	var panel := _logic_rect_to_local(_intro.map_frame_inner_rect() as Rect2i)
+	if panel.size.x < 40.0 or panel.size.y < 40.0:
+		return Vector2(16, 26)
+	var inset := maxf(panel.size.x, panel.size.y) * 0.015
+	inset = clampf(inset, 4.0, 12.0)
+	var usable_h := panel.size.y - inset * 2.0
+	usable_h = maxf(usable_h - usable_h * 0.06, 24.0)
+	## Tagline plus the seven menu actions.
+	var line_h := usable_h * 0.76 / 8.0
+	var font_main := clampi(int(line_h * 0.62), 12, 28)
+	return Vector2(font_main, line_h)
 
 
 ## Convert intro logic (640×400) pixel rect → MainMenu local coords.
@@ -373,15 +400,18 @@ func _process(delta: float) -> void:
 	if _create_open:
 		return
 	var base_menu_open: bool = (
-		not _load_open and not _options_open and not _licenses_open
+		not _load_open and not _options_open and not _licenses_open and not _transport_open
 		and _intro != null and _intro.mode == _IntroController.Mode.MENU
 	)
-	if not base_menu_open and not _load_open and not _options_open and not _licenses_open:
+	if (
+		not base_menu_open and not _load_open and not _options_open
+		and not _licenses_open and not _transport_open
+	):
 		_menu_hold_repeat.reset()
 		return
 	var held := Vector2i(
-		_GameInput.read_select_step_x() if _options_open else 0,
-		_GameInput.read_select_step()
+		_GameInput.read_select_step_x() if (_options_open or _transport_open) else 0,
+		_GameInput.read_select_step() if not _transport_open else 0
 	)
 	var nav := _menu_hold_repeat.poll(delta, held)
 	if nav == Vector2i.ZERO:
@@ -397,6 +427,8 @@ func _process(delta: float) -> void:
 			_options_panel.nudge_cursor(nav.y)
 	elif _licenses_open and _licenses_panel:
 		_licenses_panel.scroll_by(float(nav.y) * 54.0)
+	elif _transport_open:
+		_nudge_transport_choice(nav.x)
 
 
 func _mark_input_handled() -> void:
@@ -424,6 +456,10 @@ func _input(event: InputEvent) -> void:
 		return
 	if _licenses_open:
 		if _handle_licenses_input(event):
+			_mark_input_handled()
+		return
+	if _transport_open:
+		if _handle_transport_input(event):
 			_mark_input_handled()
 		return
 	if _create_open:
@@ -492,7 +528,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _GameInput.should_block_event(event):
 		get_viewport().set_input_as_handled()
 		return
-	if _load_open or _options_open or _licenses_open:
+	if _load_open or _options_open or _licenses_open or _transport_open:
 		## Already handled in _input when active.
 		return
 	if _create_open:
@@ -594,6 +630,9 @@ func _refresh_text() -> void:
 		_licenses_panel.refresh()
 	if _name_form and _create_open and _name_form.has_method("refresh_labels"):
 		_name_form.refresh_labels()
+	if _transport_open and _transport_body != null:
+		_transport_body.text = _transport_question()
+		_refresh_transport_choices()
 
 
 func _on_tileset_changed(_tileset_id: String) -> void:
@@ -607,7 +646,7 @@ func _on_tileset_changed(_tileset_id: String) -> void:
 
 
 func _on_return_view() -> void:
-	if _load_open or _create_open or _options_open or _licenses_open:
+	if _load_open or _create_open or _options_open or _licenses_open or _transport_open:
 		return
 	if _intro:
 		_intro.return_to_map()
@@ -616,7 +655,7 @@ func _on_return_view() -> void:
 
 
 func _on_journey() -> void:
-	if _create_open or _options_open or _licenses_open:
+	if _create_open or _options_open or _licenses_open or _transport_open:
 		return
 	if not _SaveGame.any_slot_exists():
 		## Frame-area banner when no slots (hint label is normally hidden).
@@ -647,6 +686,8 @@ func _on_journey() -> void:
 
 
 func _on_new() -> void:
+	if _transport_open:
+		return
 	if _licenses_open:
 		_close_licenses()
 	if _options_open:
@@ -658,7 +699,7 @@ func _on_new() -> void:
 
 
 func _on_transport() -> void:
-	if _load_open or _create_open or _options_open or _licenses_open or QuitConfirm.is_open():
+	if _load_open or _create_open or _options_open or _licenses_open or _transport_open or QuitConfirm.is_open():
 		return
 	var result := _DosSaveImport.import_from_data_dir(GameState.u4_data_path)
 	if not bool(result.get("ok", false)):
@@ -669,13 +710,17 @@ func _on_transport() -> void:
 		_btn_transport.grab_focus()
 		return
 	_import_payload = result
-	var s: Dictionary = result.get("summary", {})
+	_open_transport_confirm()
+
+
+func _transport_question() -> String:
+	var s: Dictionary = _import_payload.get("summary", {})
 	var edition := str(s.get("edition", _DosSaveImport.EDITION_EN))
 	var edition_label := Locale.t(
 		"dos_import_edition_ko" if edition == _DosSaveImport.EDITION_KO else "dos_import_edition_en"
 	)
 	var klass_name := Virtues.class_name_of(int(s.get("class", 0)), GameState.lang_short())
-	var question := Locale.t("dos_import_summary", [
+	return Locale.t("dos_import_summary", [
 		edition_label,
 		str(s.get("name", "Avatar")),
 		klass_name,
@@ -683,7 +728,196 @@ func _on_transport() -> void:
 		str(s.get("gold", 0)),
 		str(s.get("moves", 0)),
 	])
-	QuitConfirm.prompt_custom(question, _begin_dos_import, _cancel_dos_import)
+
+
+func _ensure_transport_panel() -> void:
+	if _transport_root != null:
+		return
+	_transport_root = Control.new()
+	_transport_root.name = "TransportConfirm"
+	_transport_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_transport_root.visible = false
+	add_child(_transport_root)
+
+	var col := VBoxContainer.new()
+	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 16)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_transport_root.add_child(col)
+
+	_transport_body = Label.new()
+	_transport_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_transport_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_transport_body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	UiTheme.style_label(_transport_body, 16, UiTheme.TEXT)
+	col.add_child(_transport_body)
+
+	var choices := HBoxContainer.new()
+	choices.alignment = BoxContainer.ALIGNMENT_CENTER
+	choices.add_theme_constant_override("separation", 16)
+	choices.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(choices)
+
+	_transport_yes = Button.new()
+	_transport_no = Button.new()
+	for btn in [_transport_yes, _transport_no]:
+		UiTheme.style_menu_choice_button(btn, false)
+		btn.focus_mode = Control.FOCUS_ALL
+		btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		choices.add_child(btn)
+	_transport_yes.focus_neighbor_left = _transport_yes.get_path_to(_transport_yes)
+	_transport_yes.focus_neighbor_right = _transport_yes.get_path_to(_transport_no)
+	_transport_yes.focus_neighbor_top = _transport_yes.get_path_to(_transport_yes)
+	_transport_yes.focus_neighbor_bottom = _transport_yes.get_path_to(_transport_yes)
+	_transport_no.focus_neighbor_left = _transport_no.get_path_to(_transport_yes)
+	_transport_no.focus_neighbor_right = _transport_no.get_path_to(_transport_no)
+	_transport_no.focus_neighbor_top = _transport_no.get_path_to(_transport_no)
+	_transport_no.focus_neighbor_bottom = _transport_no.get_path_to(_transport_no)
+	_transport_yes.pressed.connect(_accept_transport)
+	_transport_no.pressed.connect(_dismiss_transport)
+	_transport_yes.focus_entered.connect(_sync_transport_choice)
+	_transport_no.focus_entered.connect(_sync_transport_choice)
+
+
+func _open_transport_confirm() -> void:
+	_ensure_transport_panel()
+	_transport_open = true
+	_menu_hold_repeat.reset()
+	_text_block.visible = false
+	_hint.visible = false
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo:
+		fo.release_focus()
+	_transport_body.text = _transport_question()
+	_refresh_transport_choices()
+	_transport_root.visible = true
+	_transport_root.move_to_front()
+	_layout_transport_confirm()
+	_transport_no.grab_focus()
+	_sync_transport_choice()
+
+
+func _layout_transport_confirm() -> void:
+	if _transport_root == null:
+		return
+	var r := _frame_content_rect()
+	if r.size.x < 40.0 or r.size.y < 40.0:
+		return
+	_transport_root.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_transport_root.position = r.position
+	_transport_root.size = r.size
+	_transport_root.custom_minimum_size = r.size
+	var font_sz := int(_menu_line_metrics().x)
+	_transport_body.custom_minimum_size = Vector2(r.size.x, 0)
+	_transport_body.add_theme_font_size_override("font_size", font_sz)
+	_lock_transport_buttons()
+
+
+func _refresh_transport_choices() -> void:
+	if _transport_yes == null:
+		return
+	_transport_yes.text = _yes_no_menu_label(true)
+	_transport_no.text = _yes_no_menu_label(false)
+
+
+func _yes_no_menu_label(yes: bool) -> String:
+	var base := Locale.t("cmd_yes" if yes else "cmd_no")
+	if GameState.language != "ko":
+		return base
+	var letter := "Y" if yes else "N"
+	return "%s) %s" % [letter, base]
+
+
+func _lock_transport_buttons() -> void:
+	if _transport_yes == null or _transport_no == null:
+		return
+	for btn in [_transport_yes, _transport_no]:
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		btn.custom_minimum_size = UiTheme.MENU_CHOICE_BTN_MIN
+
+
+func _sync_transport_choice() -> void:
+	if _transport_yes == null:
+		return
+	var yes_on := get_viewport().gui_get_focus_owner() == _transport_yes
+	UiTheme.style_menu_choice_button(_transport_yes, yes_on)
+	UiTheme.style_menu_choice_button(_transport_no, not yes_on)
+	_transport_body.add_theme_font_size_override("font_size", int(_menu_line_metrics().x))
+	_lock_transport_buttons()
+
+
+func _nudge_transport_choice(step: int) -> void:
+	if step < 0:
+		_transport_yes.grab_focus()
+	elif step > 0:
+		_transport_no.grab_focus()
+	_sync_transport_choice()
+
+
+func _handle_transport_input(event: InputEvent) -> bool:
+	if event is InputEventJoypadMotion:
+		return true
+	if not event.is_pressed() or event.is_echo():
+		return false
+	if _GameInput.is_cancel(event) or _is_right_click(event):
+		_dismiss_transport()
+		return true
+	if event is InputEventKey:
+		var code: Key = (event as InputEventKey).physical_keycode
+		if code == KEY_NONE:
+			code = (event as InputEventKey).keycode
+		if code == KEY_Y:
+			_accept_transport()
+			return true
+		if code == KEY_N:
+			_dismiss_transport()
+			return true
+	if _GameInput.is_select(event) or event.is_action_pressed("confirm") or event.is_action_pressed("ui_accept"):
+		if get_viewport().gui_get_focus_owner() == _transport_yes:
+			_accept_transport()
+		else:
+			_dismiss_transport()
+		return true
+	if event is InputEventKey or event is InputEventJoypadButton:
+		return true
+	return false
+
+
+func _accept_transport() -> void:
+	_hide_transport_panel()
+	_begin_dos_import()
+	if _create_open:
+		return
+	var note := _tagline.text
+	_restore_menu_after_transport()
+	_tagline.text = note
+
+
+func _dismiss_transport() -> void:
+	_hide_transport_panel()
+	_cancel_dos_import()
+	_restore_menu_after_transport()
+
+
+func _hide_transport_panel() -> void:
+	_transport_open = false
+	_menu_hold_repeat.reset()
+	if _transport_root:
+		_transport_root.visible = false
+
+
+func _restore_menu_after_transport() -> void:
+	if _intro != null and _intro.mode == _IntroController.Mode.MENU:
+		_text_block.visible = true
+		_hint.visible = false
+		_layout_menu_in_frame()
+		_refresh_text()
+		_btn_transport.grab_focus()
+	else:
+		_refresh_text()
+		_btn_transport.grab_focus()
 
 
 func _begin_dos_import() -> void:
@@ -707,7 +941,7 @@ func _begin_dos_import() -> void:
 
 
 func _on_options() -> void:
-	if _load_open or _create_open or _licenses_open:
+	if _load_open or _create_open or _licenses_open or _transport_open:
 		return
 	if _options_open:
 		return
@@ -727,7 +961,7 @@ func _on_options() -> void:
 
 
 func _on_licenses() -> void:
-	if _load_open or _create_open or _options_open or _licenses_open:
+	if _load_open or _create_open or _options_open or _licenses_open or _transport_open:
 		return
 	_ensure_licenses_panel()
 	_licenses_open = true

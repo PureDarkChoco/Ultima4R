@@ -94,8 +94,6 @@ func _ready() -> void:
 		_name_en.grab_focus()
 
 
-const _BTN_W := 148.0
-const _BTN_H := 40.0
 ## Top pad, between major blocks, and bottom pad share this rhythm.
 const _SECTION_GAP := 20
 
@@ -111,9 +109,8 @@ func _apply_compact_chrome() -> void:
 	UiTheme.style_label(_hint, 13, UiTheme.MUTED)
 	if _hint:
 		_hint.visible = false
-	UiTheme.style_button(_continue)
-	UiTheme.style_button(_back)
-	_match_action_button_sizes()
+	UiTheme.style_menu_choice_button(_continue, false)
+	UiTheme.style_menu_choice_button(_back, false)
 	_apply_even_section_gaps()
 
 
@@ -133,22 +130,14 @@ func _apply_even_section_gaps() -> void:
 		name_block.add_theme_constant_override("separation", maxi(int(g * 0.5), 10))
 
 
-func _match_action_button_sizes() -> void:
-	## Sex choices and Back/Continue share the same width × height.
-	var sz := Vector2(_BTN_W, _BTN_H)
-	for btn in [_male, _female, _back, _continue]:
-		if btn == null:
-			continue
-		btn.custom_minimum_size = sz
-
-
 func _apply_mode_font_sizes() -> void:
 	var field_size := 18 if _embedded else 19
 	for field in [_name_en, _name_ko]:
 		field.add_theme_font_size_override("font_size", field_size)
-	var button_size := 18
 	for btn in [_male, _female, _back, _continue]:
-		btn.add_theme_font_size_override("font_size", button_size)
+		if btn == null:
+			continue
+		btn.add_theme_font_size_override("font_size", UiTheme.MENU_CHOICE_FONT)
 
 
 func _wire_name_field(field: LineEdit, placeholder: String) -> void:
@@ -827,6 +816,8 @@ func _refresh() -> void:
 		_hint.visible = false
 	_apply_sex_visuals()
 	_apply_mode_font_sizes()
+	for btn in [_back, _continue]:
+		UiTheme.style_menu_choice_button(btn, false)
 	_sync_sex_focus_neighbors()
 
 
@@ -834,31 +825,8 @@ func _apply_sex_visuals() -> void:
 	var male_on := GameState.player_sex == "male"
 	_male.text = "♂  %s" % Locale.t("sex_male")
 	_female.text = "♀  %s" % Locale.t("sex_female")
-	UiTheme.style_choice_button(_male, male_on)
-	UiTheme.style_choice_button(_female, not male_on)
-	_apply_mode_font_sizes()
-	_lock_sex_button_metrics(_male)
-	_lock_sex_button_metrics(_female)
-
-
-func _lock_sex_button_metrics(btn: Button) -> void:
-	## Selection and focus use a thicker border than the idle style.
-	## Keep every state on the same box so clicking does not resize the button.
-	if btn == null:
-		return
-	var margin_x := 16
-	var margin_y := 10
-	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		var raw := btn.get_theme_stylebox(state)
-		if not (raw is StyleBoxFlat):
-			continue
-		var flat := (raw as StyleBoxFlat).duplicate() as StyleBoxFlat
-		flat.set_border_width_all(2)
-		flat.content_margin_left = margin_x
-		flat.content_margin_right = margin_x
-		flat.content_margin_top = margin_y
-		flat.content_margin_bottom = margin_y
-		btn.add_theme_stylebox_override(state, flat)
+	UiTheme.style_menu_choice_button(_male, male_on)
+	UiTheme.style_menu_choice_button(_female, not male_on)
 
 
 func _on_back() -> void:

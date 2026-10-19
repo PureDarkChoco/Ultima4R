@@ -16,6 +16,12 @@ const FOCUS_BORDER := Color("f2d43d")
 const SELECT := Color("4aa3d4")
 const DANGER := Color("c45c4a")
 
+## Quit-confirm Yes/No (⌘Q). Full-screen popup.
+const CHOICE_BTN_MIN := Vector2(120, 0)
+## One step smaller, for buttons inside the main-menu frame (new game, DOS import).
+const MENU_CHOICE_BTN_MIN := Vector2(104, 0)
+const MENU_CHOICE_FONT := 16
+
 const FONT_PATH := "res://assets/fonts/d2coding/D2Coding.ttf"
 const FONT_BOLD_PATH := "res://assets/fonts/d2coding/D2CodingBold.ttf"
 ## Custom mouse cursors: ankh (non-menu pages / background loading)
@@ -292,6 +298,42 @@ static func style_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_focus_color", ACCENT)
 	btn.add_theme_color_override("font_pressed_color", ACCENT)
 	btn.add_theme_font_size_override("font_size", 18)
+	apply_font(btn)
+
+
+static func _menu_choice_box(bg: Color, border_color: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border_color
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 7
+	sb.content_margin_bottom = 7
+	return sb
+
+
+static func style_menu_choice_button(btn: Button, selected: bool = false) -> void:
+	## Same look as the quit-confirm button, one step smaller. Border width
+	## stays 1 in every state so focus does not resize it.
+	var idle_bg := Color("1a3548") if selected else Color("1a3842")
+	var idle_edge := SELECT if selected else BORDER
+	var hot_bg := Color("1a3548") if selected else Color("244852")
+	btn.focus_mode = Control.FOCUS_ALL
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.add_theme_stylebox_override("normal", _menu_choice_box(idle_bg, idle_edge))
+	btn.add_theme_stylebox_override("disabled", _menu_choice_box(idle_bg, idle_edge))
+	btn.add_theme_stylebox_override("hover", _menu_choice_box(hot_bg, ACCENT))
+	btn.add_theme_stylebox_override("pressed", _menu_choice_box(hot_bg, ACCENT))
+	btn.add_theme_stylebox_override("focus", _menu_choice_box(hot_bg, ACCENT))
+	var ink := SELECT if selected else TEXT
+	btn.add_theme_color_override("font_color", ink)
+	btn.add_theme_color_override("font_hover_color", SELECT if selected else ACCENT)
+	btn.add_theme_color_override("font_pressed_color", SELECT if selected else ACCENT)
+	btn.add_theme_color_override("font_focus_color", ACCENT)
+	btn.add_theme_font_size_override("font_size", MENU_CHOICE_FONT)
+	btn.custom_minimum_size = MENU_CHOICE_BTN_MIN
 	apply_font(btn)
 
 

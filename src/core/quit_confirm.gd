@@ -146,7 +146,7 @@ func _build() -> void:
 	_btn_yes = Button.new()
 	_btn_no = Button.new()
 	for btn in [_btn_yes, _btn_no]:
-		btn.custom_minimum_size = Vector2(120, 0)
+		btn.custom_minimum_size = UiTheme.CHOICE_BTN_MIN
 		UiTheme.style_button(btn)
 		btn.focus_mode = Control.FOCUS_ALL
 		row.add_child(btn)
