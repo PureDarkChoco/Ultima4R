@@ -196,6 +196,8 @@ func nudge_cursor(delta: int) -> void:
 
 
 func set_cursor(index: int) -> void:
+	if not _item_enabled(index) and index != Item.BACK and index != Item.TAB_BAR:
+		return
 	if index == Item.BACK or index == Item.TAB_BAR:
 		_cursor = index
 	elif index in _tab_items(_tab):
@@ -267,6 +269,8 @@ func cycle_current(delta: int = 1) -> void:
 			_open_program_dialog()
 			return
 		Item.APPLE2_BRITANNIA_PATH:
+			if _britannia_locked():
+				return
 			_open_britannia_dialog()
 			return
 		Item.COMBAT_STYLE:
@@ -663,6 +667,8 @@ func _item_value_text(index: int) -> String:
 				and not GameState.apple2_program_path_missing()
 			)
 		Item.APPLE2_BRITANNIA_PATH:
+			if _britannia_locked():
+				return Locale.t("esc_options_britannia_on_hdd")
 			return _committed_path_state(
 				GameState.apple2_britannia_path_committed(),
 				GameState.apple2_britannia_path_committed()
@@ -721,7 +727,25 @@ func _apply_row_visibility() -> void:
 		_list_fill.custom_minimum_size = Vector2.ZERO
 
 
+func _britannia_locked() -> bool:
+	return GameState.apple2_program_includes_britannia()
+
+
+func _item_enabled(index: int) -> bool:
+	return index != Item.APPLE2_BRITANNIA_PATH or not _britannia_locked()
+
+
+func _leave_locked_cursor() -> void:
+	if _cursor == Item.BACK or _cursor == Item.TAB_BAR or _item_enabled(_cursor):
+		return
+	var choices := _active_items()
+	_cursor = Item.APPLE2_PROGRAM_PATH if Item.APPLE2_PROGRAM_PATH in choices else choices[0]
+	_remember_cursor()
+
+
 func _sync_cursor() -> void:
+	_leave_locked_cursor()
+	var muted := Color(COL_TEXT.r, COL_TEXT.g, COL_TEXT.b, 0.38)
 	for i in TAB_COUNT:
 		_apply_tab_style(
 			_tab_buttons[i],
@@ -729,9 +753,17 @@ func _sync_cursor() -> void:
 			i == _tab and _cursor == Item.TAB_BAR
 		)
 	for i in ITEM_COUNT:
-		var on := i == _cursor and i in _tab_items(_tab)
+		var enabled := _item_enabled(i)
+		var on := enabled and i == _cursor and i in _tab_items(_tab)
 		_row_bgs[i].color = COL_CURSOR if on else Color.TRANSPARENT
 		UiTheme.set_selection_edge_active(_row_edges[i], on, COL_CURSOR_EDGE)
+		var ink := COL_TEXT if enabled else muted
+		var arrow := COL_ACCENT if enabled else muted
+		_row_names[i].add_theme_color_override("font_color", ink)
+		_row_labs[i].add_theme_color_override("font_color", ink)
+		_row_lefts[i].add_theme_color_override("font_color", arrow)
+		_row_rights[i].add_theme_color_override("font_color", arrow)
+		_row_wraps[i].mouse_filter = Control.MOUSE_FILTER_STOP if enabled else Control.MOUSE_FILTER_IGNORE
 	var back_on := _cursor == Item.BACK
 	_back_bg.color = COL_CURSOR if back_on else Color.TRANSPARENT
 	UiTheme.set_selection_edge_active(_back_edge, back_on, COL_CURSOR_EDGE)
@@ -773,7 +805,9 @@ func _item_name_key(index: int) -> String:
 
 func _active_items() -> Array[int]:
 	var out: Array[int] = [Item.TAB_BAR]
-	out.append_array(_tab_items(_tab))
+	for item in _tab_items(_tab):
+		if _item_enabled(item):
+			out.append(item)
 	out.append(Item.BACK)
 	return out
 
@@ -817,12 +851,16 @@ func _remember_cursor() -> void:
 
 
 func _on_row_gui(index: int, event: InputEvent) -> void:
+	if not _item_enabled(index):
+		return
 	if _is_left_click(event):
 		set_cursor(index)
 		accept_event()
 
 
 func _on_arrow_gui(index: int, delta: int, event: InputEvent) -> void:
+	if not _item_enabled(index):
+		return
 	if _is_left_click(event):
 		set_cursor(index)
 		cycle_current(delta)
@@ -863,7 +901,7 @@ func _open_program_dialog() -> void:
 		_program_dialog = FileDialog.new()
 		_program_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 		_setup_dialog(_program_dialog, "esc_options_apple2_program_path")
-		_program_dialog.add_filter("*.dsk", Locale.t("apple2_disk_filter"))
+		_program_dialog.add_filter("*.dsk, *.po, *.hdv", Locale.t("apple2_program_filter"))
 		_program_dialog.file_selected.connect(_on_program_selected)
 		_program_dialog.canceled.connect(_on_file_canceled)
 	_picking_file = true

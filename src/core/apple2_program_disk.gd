@@ -1,11 +1,14 @@
 class_name Apple2ProgramDisk
 extends RefCounted
 
-## Ultima IV Apple II Program disk (Side A) — DOS 3.3 SHP0 / SHP1.
-## Britannia / Towne / Dungeon sides have no shape banks.
-## Only 143360-byte DOS-order .dsk images are read.
+## Ultima IV Apple II Program graphics — DOS 3.3 SHP0 / SHP1 on a .dsk,
+## or the same banks inside a ProDOS hard-disk image (.po / .hdv).
+## ProDOS ports name those banks S.HP0 / S.HP1. Town SHP0/SHP1 are smaller
+## and are not the program tile banks.
 
 const DSK_SIZE := 143360
+const PRODOS_BLOCK := 512
+const PRODOS_MAX_BYTES := 64 * 1024 * 1024
 const BANK_SIZE := 4096
 const TILE_COUNT := 256
 const SRC_W := 14
@@ -83,8 +86,75 @@ static func read_catalog_file(path: String, wanted: String) -> PackedByteArray:
 	return PackedByteArray()
 
 
+static func is_prodos_image(path: String) -> bool:
+	## Header check only. .po and .hdv are raw ProDOS blocks; 2IMG wraps the same.
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return false
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return false
+	var n := int(f.get_length())
+	if n < PRODOS_BLOCK * 3 or n > PRODOS_MAX_BYTES:
+		f.close()
+		return false
+	var magic := f.get_buffer(4)
+	if magic.get_string_from_ascii() == "2IMG":
+		if n < 64:
+			f.close()
+			return false
+		f.seek(8)
+		var header := int(f.get_8()) | (int(f.get_8()) << 8)
+		f.seek(24)
+		var data_off := int(f.get_32())
+		var data_len := int(f.get_32())
+		f.close()
+		if data_off < header or data_len < PRODOS_BLOCK * 3 or data_off + data_len > n:
+			return false
+		return _prodos_header_at(path, data_off, data_len)
+	f.close()
+	if n % PRODOS_BLOCK != 0:
+		return false
+	return _prodos_header_at(path, 0, n)
+
+
+static func read_prodos_named(path: String, wanted: String) -> PackedByteArray:
+	## File bytes from a ProDOS image. Britannia copies win over same-named files elsewhere.
+	var image := _read_prodos_image(path)
+	if image.is_empty():
+		return PackedByteArray()
+	var want := wanted.strip_edges().to_upper()
+	if want.is_empty():
+		return PackedByteArray()
+	var best := {"rank": -1}
+	_prodos_find_named(image, 2, "", want, best, {})
+	var bytes: Variant = best.get("bytes", PackedByteArray())
+	if typeof(bytes) != TYPE_PACKED_BYTE_ARRAY:
+		return PackedByteArray()
+	return bytes
+
+
+static func _prodos_header_at(path: String, data_off: int, data_len: int) -> bool:
+	if data_len < PRODOS_BLOCK * 3 or data_len % PRODOS_BLOCK != 0:
+		return false
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return false
+	f.seek(data_off + PRODOS_BLOCK * 2)
+	var b := f.get_buffer(PRODOS_BLOCK)
+	f.close()
+	if b.size() < PRODOS_BLOCK:
+		return false
+	var storage := (int(b[4]) >> 4) & 0x0F
+	var nlen := int(b[4]) & 0x0F
+	if storage != 0x0F or nlen < 1 or nlen > 15:
+		return false
+	return int(b[0x23]) == 0x27 and int(b[0x24]) > 0
+
+
 static func looks_like_program_dsk(path: String) -> bool:
-	return not find_shp_ts(path).is_empty()
+	if not find_shp_ts(path).is_empty():
+		return true
+	return _prodos_shape_banks(path).size() == 2
 
 
 static func looks_like_britannia_dsk(path: String) -> bool:
@@ -119,6 +189,16 @@ static func find_shp_ts(path: String) -> Dictionary:
 
 static func extract_banks(path: String) -> Array:
 	## [shp0, shp1] PackedByteArray, or empty Array on failure.
+	var dos := _extract_dos_banks(path)
+	if dos.size() == 2:
+		return dos
+	var banks := _prodos_shape_banks(path)
+	if banks.size() != 2:
+		return []
+	return expand_derived_field_tiles(banks[0], banks[1])
+
+
+static func _extract_dos_banks(path: String) -> Array:
 	var dsk := _read_dsk(path)
 	if dsk.is_empty():
 		return []
@@ -341,6 +421,265 @@ static func _read_dos33_file(dsk: PackedByteArray, start_t: int, start_s: int) -
 		t = next_t
 		s = next_s
 	return data
+
+
+static func _prodos_shape_banks(path: String) -> Array:
+	var image := _read_prodos_image(path)
+	if image.is_empty():
+		return []
+	var found := {}
+	_prodos_scan_dir(image, 2, found, {})
+	if not found.has("SHP0") or not found.has("SHP1"):
+		return []
+	var shp0: PackedByteArray = found["SHP0"]
+	var shp1: PackedByteArray = found["SHP1"]
+	if shp0.size() != BANK_SIZE or shp1.size() != BANK_SIZE:
+		return []
+	return [shp0, shp1]
+
+
+static func _read_prodos_image(path: String) -> PackedByteArray:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return PackedByteArray()
+	var n := _file_len(path)
+	if n < PRODOS_BLOCK * 3 or n > PRODOS_MAX_BYTES:
+		return PackedByteArray()
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return PackedByteArray()
+	var raw := f.get_buffer(n)
+	f.close()
+	if raw.size() >= 4 and raw.slice(0, 4).get_string_from_ascii() == "2IMG":
+		return _unwrap_2img(raw)
+	if _is_prodos_volume(raw):
+		return raw
+	return PackedByteArray()
+
+
+static func _unwrap_2img(raw: PackedByteArray) -> PackedByteArray:
+	if raw.size() < 64 or raw.slice(0, 4).get_string_from_ascii() != "2IMG":
+		return PackedByteArray()
+	var header := int(raw[8]) | (int(raw[9]) << 8)
+	var data_off := _u32(raw, 24)
+	var data_len := _u32(raw, 28)
+	if data_off < header or data_len <= 0 or data_off + data_len > raw.size():
+		return PackedByteArray()
+	var body := raw.slice(data_off, data_off + data_len)
+	if _is_prodos_volume(body):
+		return body
+	return PackedByteArray()
+
+
+static func _is_prodos_volume(image: PackedByteArray) -> bool:
+	if image.size() < PRODOS_BLOCK * 3 or image.size() % PRODOS_BLOCK != 0:
+		return false
+	var storage := (int(image[1024 + 4]) >> 4) & 0x0F
+	var nlen := int(image[1024 + 4]) & 0x0F
+	if storage != 0x0F or nlen < 1 or nlen > 15:
+		return false
+	return int(image[1024 + 0x23]) == 0x27 and int(image[1024 + 0x24]) > 0
+
+
+static func _prodos_scan_dir(image: PackedByteArray, start: int, found: Dictionary, seen: Dictionary) -> void:
+	var first := _block_at(image, start)
+	if first.is_empty() or seen.has(start):
+		return
+	var elen := int(first[0x23])
+	var eper := int(first[0x24])
+	if elen < 0x27 or eper < 1 or 4 + elen * eper > PRODOS_BLOCK:
+		return
+	var bnum := start
+	var header := true
+	while bnum > 0 and not seen.has(bnum):
+		seen[bnum] = true
+		var block := _block_at(image, bnum)
+		if block.is_empty():
+			return
+		var nxt := int(block[2]) | (int(block[3]) << 8)
+		for i in eper:
+			if header and i == 0:
+				continue
+			var off := 4 + i * elen
+			if off + elen > block.size():
+				break
+			var stn := int(block[off])
+			if stn == 0:
+				continue
+			var storage := (stn >> 4) & 0x0F
+			var nlen := stn & 0x0F
+			if nlen < 1 or nlen > 15 or storage == 0 or storage >= 0x0E:
+				continue
+			var chars := PackedByteArray()
+			for c in nlen:
+				chars.append(int(block[off + 1 + c]) & 0x7F)
+			var name := chars.get_string_from_ascii()
+			var ftype := int(block[off + 0x10])
+			var key := int(block[off + 0x11]) | (int(block[off + 0x12]) << 8)
+			var eof := int(block[off + 0x15]) | (int(block[off + 0x16]) << 8) | (int(block[off + 0x17]) << 16)
+			if ftype == 0x0F and storage == 0x0D:
+				_prodos_scan_dir(image, key, found, seen)
+				continue
+			var bank := _shape_bank_key(name)
+			if bank.is_empty() or found.has(bank):
+				continue
+			if eof < BANK_SIZE or eof > BANK_SIZE + 16:
+				continue
+			var payload := _binary_payload(_read_prodos_file(image, key, storage, eof))
+			if payload.size() == BANK_SIZE:
+				found[bank] = payload
+		header = false
+		bnum = nxt
+
+
+static func _prodos_find_named(
+	image: PackedByteArray,
+	start: int,
+	dir_name: String,
+	want: String,
+	best: Dictionary,
+	seen: Dictionary
+) -> void:
+	var first := _block_at(image, start)
+	if first.is_empty() or seen.has(start):
+		return
+	var elen := int(first[0x23])
+	var eper := int(first[0x24])
+	if elen < 0x27 or eper < 1 or 4 + elen * eper > PRODOS_BLOCK:
+		return
+	var bnum := start
+	var header := true
+	while bnum > 0 and not seen.has(bnum):
+		seen[bnum] = true
+		var block := _block_at(image, bnum)
+		if block.is_empty():
+			return
+		var nxt := int(block[2]) | (int(block[3]) << 8)
+		for i in eper:
+			if header and i == 0:
+				continue
+			var off := 4 + i * elen
+			if off + elen > block.size():
+				break
+			var stn := int(block[off])
+			if stn == 0:
+				continue
+			var storage := (stn >> 4) & 0x0F
+			var nlen := stn & 0x0F
+			if nlen < 1 or nlen > 15 or storage == 0 or storage >= 0x0E:
+				continue
+			var chars := PackedByteArray()
+			for c in nlen:
+				chars.append(int(block[off + 1 + c]) & 0x7F)
+			var name := chars.get_string_from_ascii()
+			var ftype := int(block[off + 0x10])
+			var key := int(block[off + 0x11]) | (int(block[off + 0x12]) << 8)
+			var eof := int(block[off + 0x15]) | (int(block[off + 0x16]) << 8) | (int(block[off + 0x17]) << 16)
+			if ftype == 0x0F and storage == 0x0D:
+				_prodos_find_named(image, key, name.to_upper(), want, best, seen)
+				continue
+			if name.to_upper() != want or eof <= 0:
+				continue
+			var rank := 2 if dir_name == "BRITANNIA" else 1
+			if rank <= int(best.get("rank", -1)):
+				continue
+			var raw := _read_prodos_file(image, key, storage, eof)
+			if raw.is_empty():
+				continue
+			best["rank"] = rank
+			best["bytes"] = raw
+		header = false
+		bnum = nxt
+
+
+static func _shape_bank_key(name: String) -> String:
+	## ProDOS renames SHP0 to S.HP0. Town disks keep a smaller file named SHP0.
+	var n := name.strip_edges().to_upper().replace(".", "")
+	if n == "SHP0":
+		return "SHP0"
+	if n == "SHP1":
+		return "SHP1"
+	return ""
+
+
+static func _read_prodos_file(image: PackedByteArray, key: int, storage: int, eof: int) -> PackedByteArray:
+	if eof <= 0 or key <= 0:
+		return PackedByteArray()
+	if storage == 1:
+		var seedling := _block_at(image, key)
+		if seedling.size() < eof:
+			return PackedByteArray()
+		return seedling.slice(0, eof)
+	if storage == 2:
+		return _read_prodos_index(image, key, eof)
+	if storage == 3:
+		return _read_prodos_tree(image, key, eof)
+	return PackedByteArray()
+
+
+static func _read_prodos_tree(image: PackedByteArray, master: int, eof: int) -> PackedByteArray:
+	var idx := _block_at(image, master)
+	if idx.size() != PRODOS_BLOCK:
+		return PackedByteArray()
+	var out := PackedByteArray()
+	var remaining := eof
+	var i := 0
+	while remaining > 0 and i < 256:
+		var bn := int(idx[i]) | (int(idx[256 + i]) << 8)
+		var chunk := mini(remaining, 256 * PRODOS_BLOCK)
+		if bn == 0:
+			var zeros := PackedByteArray()
+			zeros.resize(chunk)
+			out.append_array(zeros)
+		else:
+			var part := _read_prodos_index(image, bn, chunk)
+			if part.size() != chunk:
+				return PackedByteArray()
+			out.append_array(part)
+		remaining -= chunk
+		i += 1
+	return out
+
+
+static func _read_prodos_index(image: PackedByteArray, index_block: int, byte_count: int) -> PackedByteArray:
+	var idx := _block_at(image, index_block)
+	if idx.size() != PRODOS_BLOCK:
+		return PackedByteArray()
+	var out := PackedByteArray()
+	var remaining := byte_count
+	var i := 0
+	while remaining > 0 and i < 256:
+		var bn := int(idx[i]) | (int(idx[256 + i]) << 8)
+		var chunk := mini(remaining, PRODOS_BLOCK)
+		if bn == 0:
+			var zeros := PackedByteArray()
+			zeros.resize(chunk)
+			out.append_array(zeros)
+		else:
+			var data := _block_at(image, bn)
+			if data.size() != PRODOS_BLOCK:
+				return PackedByteArray()
+			if chunk == PRODOS_BLOCK:
+				out.append_array(data)
+			else:
+				out.append_array(data.slice(0, chunk))
+		remaining -= chunk
+		i += 1
+	if out.size() != byte_count:
+		return PackedByteArray()
+	return out
+
+
+static func _block_at(image: PackedByteArray, index: int) -> PackedByteArray:
+	var off := index * PRODOS_BLOCK
+	if index < 0 or off + PRODOS_BLOCK > image.size():
+		return PackedByteArray()
+	return image.slice(off, off + PRODOS_BLOCK)
+
+
+static func _u32(raw: PackedByteArray, offset: int) -> int:
+	if offset < 0 or offset + 4 > raw.size():
+		return 0
+	return int(raw[offset]) | (int(raw[offset + 1]) << 8) | (int(raw[offset + 2]) << 16) | (int(raw[offset + 3]) << 24)
 
 
 static func _binary_payload(raw: PackedByteArray) -> PackedByteArray:

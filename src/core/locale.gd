@@ -86,9 +86,9 @@ const _T := {
 		"ko": "울티마 IV DOS 버전이 필요합니다.\n아무 키나 누르면 종료합니다.",
 	},
 	"boot_apple2_prompt": {
-		"en_u4": "To see Apple II Color / Mono graphics, choose the Program disk (.dsk).",
-		"en_us": "To see Apple II Color / Mono graphics, choose the Program disk (.dsk).",
-		"ko": "Apple II 컬러/모노 그래픽을 보려면 Program 디스크(.dsk)를 지정하세요.",
+		"en_u4": "To see Apple II Color / Mono graphics, choose the Program disk (.dsk) or a ProDOS hard disk (.po, .hdv).",
+		"en_us": "To see Apple II Color / Mono graphics, choose the Program disk (.dsk) or a ProDOS hard disk (.po, .hdv).",
+		"ko": "Apple II 컬러/모노 그래픽을 보려면 Program 디스크(.dsk)나 ProDOS 하드디스크(.po, .hdv)를 지정하세요.",
 	},
 	"boot_apple2_hint": {
 		"en_u4": "This is not required. Skip now, or set it later in Options.",
@@ -96,9 +96,9 @@ const _T := {
 		"ko": "필수는 아닙니다. 지금은 건너뛰어도 되고,\n나중에 옵션에서 설정할 수 있습니다.",
 	},
 	"boot_apple2_choose": {
-		"en_u4": "Choose Program Disk…",
-		"en_us": "Choose Program Disk…",
-		"ko": "Program 디스크 선택…",
+		"en_u4": "Choose Program Disk or HDD…",
+		"en_us": "Choose Program Disk or HDD…",
+		"ko": "Program 디스크 또는 HDD 선택…",
 	},
 	"boot_apple2_skip": {
 		"en_u4": "Continue",
@@ -106,9 +106,9 @@ const _T := {
 		"ko": "계속",
 	},
 	"boot_apple2_ready": {
-		"en_u4": "Apple II Program disk is set.",
-		"en_us": "Apple II Program disk is set.",
-		"ko": "Apple II Program 디스크가 지정되었습니다.",
+		"en_u4": "Apple II Program graphics are set.",
+		"en_us": "Apple II Program graphics are set.",
+		"ko": "Apple II Program 그래픽이 지정되었습니다.",
 	},
 	"boot_apple2_select": {
 		"en_u4": "Select",
@@ -116,19 +116,19 @@ const _T := {
 		"ko": "선택",
 	},
 	"boot_apple2_invalid": {
-		"en_u4": "That is not the Program disk (no SHP0/SHP1).\nBritannia / Towne / Dungeon sides will not work.",
-		"en_us": "That is not the Program disk (no SHP0/SHP1).\nBritannia / Towne / Dungeon sides will not work.",
-		"ko": "Program 디스크가 아닙니다 (SHP0/SHP1 없음).\nBritannia / Towne / Dungeon 면은 사용할 수 없습니다.",
+		"en_u4": "That file hath no SHP0/SHP1.\nChoose a Program disk or a ProDOS hard disk.",
+		"en_us": "That file has no SHP0/SHP1.\nChoose a Program disk or a ProDOS hard disk.",
+		"ko": "SHP0/SHP1이 없는 파일입니다.\nProgram 디스크나 ProDOS 하드디스크를 지정하세요.",
 	},
 	"boot_apple2_ok": {
-		"en_u4": "Apple II Program disk accepted.",
-		"en_us": "Apple II Program disk accepted.",
-		"ko": "Apple II Program 디스크를 확인했습니다.",
+		"en_u4": "Apple II Program graphics accepted.",
+		"en_us": "Apple II Program graphics accepted.",
+		"ko": "Apple II Program 그래픽을 확인했습니다.",
 	},
 	"boot_apple2_building": {
-		"en_u4": "Reading Program disk…",
-		"en_us": "Reading Program disk…",
-		"ko": "Program 디스크를 읽는 중…",
+		"en_u4": "Reading Apple II graphics…",
+		"en_us": "Reading Apple II graphics…",
+		"ko": "Apple II 그래픽을 읽는 중…",
 	},
 	"boot_apple2_reselect": {
 		"en_u4": "The Program disk is no longer there.\nChoose it again, or begin without choosing.",
@@ -1129,6 +1129,11 @@ const _T := {
 		"en_us": "Apple II Britannia",
 		"ko": "Apple II Britannia",
 	},
+	"esc_options_britannia_on_hdd": {
+		"en_u4": "On hard disk",
+		"en_us": "On hard disk",
+		"ko": "하드디스크에 포함",
+	},
 	"esc_options_path_set": {
 		"en_u4": "Set",
 		"en_us": "Set",
@@ -1148,6 +1153,11 @@ const _T := {
 		"en_u4": "Apple II disk",
 		"en_us": "Apple II disk",
 		"ko": "Apple II 디스크",
+	},
+	"apple2_program_filter": {
+		"en_u4": "Apple II Program or HDD",
+		"en_us": "Apple II Program or HDD",
+		"ko": "Apple II Program 또는 HDD",
 	},
 	"esc_options_combat_style": {
 		"en_u4": "Combat Style",

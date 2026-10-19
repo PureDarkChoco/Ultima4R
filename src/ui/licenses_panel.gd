@@ -194,7 +194,7 @@ u4graphics는 The Unlicense에 따라 퍼블릭 도메인으로 공개되었습�
 
 Apple II
 
-선택 가능한 Apple II Color / Mono White / Mono Green 모드는 사용자가 합법적으로 구한 Apple II판 Ultima IV Program 디스크(.dsk)에서 타일을 읽습니다. 원본 디스크는 배포하지 않습니다. 해당 타일 데이터의 권리는 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
+선택 가능한 Apple II Color / Mono White / Mono Green 모드는 사용자가 합법적으로 구한 Apple II판 Ultima IV Program 디스크(.dsk) 또는 ProDOS 하드디스크 이미지(.po, .hdv)에서 타일을 읽습니다. 원본 이미지는 배포하지 않습니다. 해당 타일 데이터의 권리는 Origin Systems / Electronic Arts 등 각 권리자에게 있습니다.
 
 Apple II Color의 NTSC 합성 색상 디코딩은 AppleWin의 Color Monitor 경로(NTSC.cpp, William S. Simms / Michael Pohoreski)를 참고했으며, Mariani/AppleWin Composite Monitor hue LUT를 사용합니다.
 https://github.com/AppleWin/AppleWin
@@ -278,7 +278,7 @@ u4graphics is dedicated to the public domain under The Unlicense.
 
 Apple II
 
-The optional Apple II Color / Mono White / Mono Green modes read tiles from a lawfully obtained Apple II Ultima IV Program disk (.dsk). The original disk image is not distributed. Rights in that tile data belong to Origin Systems / Electronic Arts and other respective owners.
+The optional Apple II Color / Mono White / Mono Green modes read tiles from a lawfully obtained Apple II Ultima IV Program disk (.dsk) or ProDOS hard-disk image (.po, .hdv). The original image is not distributed. Rights in that tile data belong to Origin Systems / Electronic Arts and other respective owners.
 
 Apple II Color NTSC composite decoding consults AppleWin's Color Monitor path (NTSC.cpp, William S. Simms / Michael Pohoreski) and uses a Mariani/AppleWin Composite Monitor hue LUT.
 https://github.com/AppleWin/AppleWin

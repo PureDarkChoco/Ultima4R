@@ -4,7 +4,7 @@ Optional **Apple II Mono White** and **Apple II Mono Green** modes use the same
 Program-disk `SHP0` / `SHP1` banks as Color. This repository does **not** ship
 pre-rendered PNG tiles or `shapes.u4pack`.
 
-When a Program `.dsk` is set, tiles are built at load time as native-display
+When a Program `.dsk` or ProDOS `.po` / `.hdv` is set, tiles are built at load time as native-display
 **28×32** frames: each 14×16 HGR bit is doubled horizontally and each source
 row receives a 25%-brightness Mariani-style scanline. Green remaps luminance to
 RGB `(128, 253, 165)` at load. Both modes use the **8.75:10** aspect.

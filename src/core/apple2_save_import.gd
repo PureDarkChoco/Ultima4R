@@ -16,11 +16,43 @@ const _APPLE_TO_DOS_DIR: Array[int] = [1, 2, 3, 0]
 
 
 static func import_configured() -> Dictionary:
+	if GameState.apple2_program_includes_britannia():
+		return import_from_prodos(GameState.apple2_dsk_path)
 	if not GameState.apple2_britannia_path_committed():
 		return {"ok": false, "error": "unset"}
 	if GameState.apple2_britannia_path_missing():
 		return {"ok": false, "error": "missing"}
 	return import_from_path(GameState.apple2_britannia_dsk_path)
+
+
+static func import_from_prodos(path: String) -> Dictionary:
+	## ProDOS hard-disk images store the Britannia save as raw PRTY/ROST files.
+	var disk := path.strip_edges()
+	if disk.is_empty() or not FileAccess.file_exists(disk):
+		return {"ok": false, "error": "missing"}
+	if not Apple2ProgramDisk.is_prodos_image(disk):
+		return {"ok": false, "error": "invalid"}
+	var prty := Apple2ProgramDisk.read_prodos_named(disk, "PRTY")
+	var rost := Apple2ProgramDisk.read_prodos_named(disk, "ROST")
+	if prty.size() < PRTY_BYTES or rost.size() < ROST_MIN:
+		return {"ok": false, "error": "invalid"}
+	var party := _party_from_disk(prty, rost)
+	if not bool(party.get("ok", false)):
+		return {"ok": false, "error": str(party.get("error", "invalid"))}
+	var in_dungeon := int(party["location"]) >= 0x11
+	var monster_name := "TLST" if in_dungeon else "LIST"
+	var monsters := Apple2ProgramDisk.read_prodos_named(disk, monster_name)
+	if monsters.size() != _DosSaveImport.MONSTERS_BYTES:
+		monsters = PackedByteArray()
+	return {
+		"ok": true,
+		"path": disk,
+		"edition": _DosSaveImport.EDITION_EN,
+		"party": party,
+		"game": _DosSaveImport.game_from_party(party),
+		"world": _DosSaveImport.world_from_party(party, monsters),
+		"summary": _DosSaveImport.summary(party),
+	}
 
 
 static func import_from_path(path: String) -> Dictionary:

@@ -185,7 +185,7 @@ func _ensure_apple2_ui() -> void:
 		_apple2_dialog.min_size = Vector2i(760, 480)
 		_apple2_dialog.exclusive = true
 		_apple2_dialog.unresizable = false
-		_apple2_dialog.add_filter("*.dsk", Locale.t("apple2_disk_filter"))
+		_apple2_dialog.add_filter("*.dsk, *.po, *.hdv", Locale.t("apple2_program_filter"))
 		_apple2_dialog.file_selected.connect(_on_apple2_file_selected)
 		_apple2_dialog.canceled.connect(_on_apple2_canceled)
 		add_child(_apple2_dialog)

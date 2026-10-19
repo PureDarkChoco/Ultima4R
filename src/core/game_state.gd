@@ -136,8 +136,21 @@ func apple2_program_path_missing() -> bool:
 
 
 func apple2_britannia_path_missing() -> bool:
+	if apple2_program_includes_britannia():
+		return false
 	var path := apple2_britannia_dsk_path.strip_edges()
 	return not path.is_empty() and not FileAccess.file_exists(path)
+
+
+func apple2_program_includes_britannia() -> bool:
+	## A ProDOS hard-disk image already carries the Britannia side.
+	var path := apple2_dsk_path.strip_edges()
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return false
+	var ext := path.get_extension().to_lower()
+	if ext != "po" and ext != "hdv":
+		return false
+	return _Apple2ProgramDisk.is_prodos_image(path)
 
 
 func options_snapshot() -> Dictionary:
@@ -3879,7 +3892,7 @@ func _load_intro_from_u4() -> void:
 
 
 func try_set_apple2_dsk_path(path: String) -> bool:
-	## Validate a Program .dsk (SHP0/SHP1), bake user:// tile cache, persist.
+	## Validate a Program .dsk or ProDOS .po/.hdv (SHP0/SHP1), bake user:// tile cache, persist.
 	## Failure leaves the previous path in place.
 	var resolved := path.strip_edges()
 	if resolved.is_empty() or not _Apple2ProgramDisk.looks_like_program_dsk(resolved):

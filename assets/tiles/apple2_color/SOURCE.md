@@ -1,7 +1,7 @@
 # Apple II Color (runtime HGR → Mariani NTSC)
 
 Optional **Apple II Color** mode is unlocked only when the player supplies a
-lawfully obtained Ultima IV **Program** disk (`.dsk`, Side A). This repository
+lawfully obtained Ultima IV **Program** disk (`.dsk`, Side A) or ProDOS hard-disk image (`.po`, `.hdv`). This repository
 does **not** ship extracted tile banks.
 
 At runtime the game reads `SHP0` / `SHP1` from that disk and writes a cache
