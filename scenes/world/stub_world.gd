@@ -452,6 +452,8 @@ var _msg_pitch := 0.0
 var _command_menu_open := false
 var _command_menu_cursor := 0
 var _command_menu_last_cmd := U4Commands.Id.NONE
+## Not a letter command — top row of the post-victory palette only.
+const _MENU_LEAVE_BATTLE := -2
 ## Last Klimb/Descend used in this dungeon visit (dual-ladder default).
 var _dungeon_last_ladder_cmd := U4Commands.Id.NONE
 var _command_menu_items: Array[int] = []
@@ -1750,6 +1752,13 @@ func _rebuild_command_menu_rows() -> void:
 			row_texts.append(str(item.get("label", "")))
 	else:
 		for cmd in _command_menu_items:
+			if cmd == _MENU_LEAVE_BATTLE:
+				## Same shape as Space - Pass. Esc is the real shortcut.
+				row_texts.append("[color=#%s]ESC[/color] - %s" % [
+					UiTheme.ACCENT.to_html(false),
+					Locale.t("cmd_menu_leave_battle"),
+				])
+				continue
 			var letter := U4Commands.letter_for(cmd)
 			var command_name := U4Commands.label(cmd, lang)
 			if cmd == U4Commands.Id.PASS:
@@ -5329,6 +5338,9 @@ func _command_menu_can_show(cmd: int) -> bool:
 
 func _build_command_menu_items() -> Array[int]:
 	var items: Array[int] = []
+	## After Victory!, dungeon rooms still need a chosen exit side.
+	if _combat_victory_aftermath and _combat_victory_allows_esc_exit():
+		items.append(_MENU_LEAVE_BATTLE)
 	for cmd in range(U4Commands.Id.ATTACK, U4Commands.Id.ZTATS + 1):
 		if _command_menu_can_show(cmd):
 			items.append(cmd)
@@ -5386,8 +5398,14 @@ func _command_menu_default_cmd(items: Array[int]) -> int:
 				and _command_menu_has_adjacent_combat_chest(true)
 			):
 				return U4Commands.Id.GET_CHEST
-			if items.has(_command_menu_last_cmd):
+			if (
+				items.has(_command_menu_last_cmd)
+				and _command_menu_last_cmd != _MENU_LEAVE_BATTLE
+			):
 				return _command_menu_last_cmd
+			for cmd in items:
+				if cmd != _MENU_LEAVE_BATTLE:
+					return cmd
 			return items[0]
 		## Attack is the common combat action; ranged attacks must remain available
 		## even without an adjacent foe.
@@ -5568,7 +5586,9 @@ func _close_command_menu() -> void:
 		and _command_menu_cursor >= 0
 		and _command_menu_cursor < _command_menu_items.size()
 	):
-		_command_menu_last_cmd = _command_menu_items[_command_menu_cursor]
+		var chosen := _command_menu_items[_command_menu_cursor]
+		if chosen != _MENU_LEAVE_BATTLE:
+			_command_menu_last_cmd = chosen
 	_command_menu_open = false
 	_hide_command_menu_layer(true)
 	_command_menu_items.clear()
@@ -5596,6 +5616,10 @@ func _choose_command_menu_item(from_gamepad: bool = false) -> void:
 	):
 		return
 	var cmd := _command_menu_items[_command_menu_cursor]
+	if cmd == _MENU_LEAVE_BATTLE:
+		_close_command_menu()
+		_open_combat_exit_prompt()
+		return
 	_talk_gamepad_requested = cmd == U4Commands.Id.TALK and from_gamepad
 	_mix_gamepad_requested = cmd == U4Commands.Id.MIX and from_gamepad
 	_use_gamepad_requested = cmd == U4Commands.Id.USE and from_gamepad

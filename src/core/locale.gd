@@ -537,6 +537,12 @@ const _T := {
 		"en_us": "Leave the battlefield?",
 		"ko": "전장에서 나가겠습니까?",
 	},
+	## Post-victory command palette (right-click / gamepad menu). Not a letter command.
+	"cmd_menu_leave_battle": {
+		"en_u4": "Leave",
+		"en_us": "Leave",
+		"ko": "전장 나가기",
+	},
 	## xu4 combat attack miss / kill
 	"cmd_missed": {
 		"en_u4": "Missed!",
